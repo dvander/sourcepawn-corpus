@@ -1,0 +1,1013 @@
+/* REQUEST
+* 	URL = http://forums.alliedmods.net/showthread.php?t=174230
+* 	By Skalp (http://forums.alliedmods.net/member.php?u=164686)
+*
+* This plugin will restrict the AK47 and M4A1 for players when they reach/exceed a set KDR
+* 
+* CREDITS - ClearTimer from Antithasys - http://forums.alliedmods.net/showthread.php?t=167160
+* 
+* Version 0.0.1.0 - Initial posting
+* 
+* Version 0.0.1.1:
+* As an enhancement request, this plugin has been expaneded to further restrict weapons when players reach 9 kills with a KDR of 3+ and 
+* even further when they reach 20 kills with a KDR of 3+.
+* 
+* Version 0.0.1.2
+* Adjusted login according to https://forums.alliedmods.net/showpost.php?p=1660819&postcount=25
+* 
+* Version 0.0.1.3
+* 	*	Fixed the bug where Ts cannot use C4
+* 
+* Version 0.0.1.4
+* 	*	Changed plugin around to be more customizable.
+* 
+* Version 0.0.1.5
+* 	*	Further customization of plugin variables including custom sound file allowed.
+* 	+	Added some DEBUG messaging capability
+* 
+* Version 0.0.1.6
+* 	+	Added enabled CVar
+* 	+	Added optional minimum kill limit a player must reach before checking KDR
+* 	+	Added the option to ignore bot kills to count towards KDR
+* 	+	Added replacement weapons, one for if a player reaches stage 1 and another for when player reaches stage 2
+* 		*	Player MUST have restricted weapon to receive replacement
+* 
+*/
+#pragma semicolon 1
+// ==================== Includes ======================================================================================================
+#include <sourcemod>
+#include <sdktools>
+#include <cstrike>
+#include <sdkhooks>
+#include <colors>
+// ==================== Defines =======================================================================================================
+#define 	PLUGIN_VERSION		"0.0.1.6"
+#define 	MAX_WEAPON_NAME 	80
+#define		MAX_FILE_LEN		256
+
+#define _DEBUG 			0 		// Set to 1 for log debug spew
+#define _DEBUG_ALL		0		// Set to 1 for in-game chat debug spew
+
+#define RESTRICT1		1
+#define RESTRICT2		2
+// ==================== Global Variables and Handles ===================================================================================
+new Handle:h_Trie;
+
+new DropMode;
+new MinRequiredKills;
+new BotKills[MAXPLAYERS+1] = 0;
+new DefuseBombPoints[MAXPLAYERS+1] = 0;
+new BombExplodePoints[MAXPLAYERS+1] = 0;
+
+new Float:RatioLimit1;
+new Float:RatioLimit2;
+new Float:KDR[MAXPLAYERS+1];
+
+new String:RestrictedWeapons1[MAX_FILE_LEN];
+new String:RestrictedWeapons2[MAX_FILE_LEN];
+new String:Replacement1[MAX_WEAPON_NAME];
+new String:Replacement1a[MAX_WEAPON_NAME];
+new String:Replacement2[MAX_WEAPON_NAME];
+new String:Replacement2a[MAX_WEAPON_NAME];
+
+new String:SOUND_FILE[MAX_FILE_LEN];
+
+#if _DEBUG
+new String:dmsg[MAX_MESSAGE_LENGTH];
+#endif
+
+new bool:Enabled;
+new bool:UseSound;
+new bool:UseExempt;
+new bool:IgnoreBotKills;
+new bool:MaintainRestrictions;
+new bool:Announce;
+new bool:Primary[MAXPLAYERS+1];
+new bool:Secondary[MAXPLAYERS+1];
+new bool:RestrictPlayer1[MAXPLAYERS+1] = {false, ...};
+new bool:RestrictPlayer2[MAXPLAYERS+1] = {false, ...};
+new bool:RestrictionExpempted[MAXPLAYERS+1] = {false, ...};
+new bool:DropOnSpawn[MAXPLAYERS+1] = {false, ...};
+new bool:Restricted[MAXPLAYERS+1] = {false, ...};
+
+// Enum for maintaining KDR restriction
+enum RestrictedAttributes
+{
+RESTRICTION,
+DEFUSE,
+EXPLODE,
+FRAGS,
+DEATHS,
+BOT_KILLS
+};
+// ==================== Plugin Info ====================================================================================================
+public Plugin:myinfo = 
+{
+	name = "KDR Weapon Limit",
+	author = "TnTSCS aka ClarkKent",
+	description = "This plugin will limit a player from a list of weapons once they reach certain KDR",
+	version = PLUGIN_VERSION,
+	url = "http://www.sourcemod.net"
+};
+
+/**
+ * Called when the plugin is fully initialized and all known external references 
+ * are resolved. This is only called once in the lifetime of the plugin, and is 
+ * paired with OnPluginEnd().
+ *
+ * If any run-time error is thrown during this callback, the plugin will be marked 
+ * as failed.
+ *
+ * It is not necessary to close any handles or remove hooks in this function.  
+ * SourceMod guarantees that plugin shutdown automatically and correctly releases 
+ * all resources.
+ *
+ * @noreturn
+ */
+public OnPluginStart()
+{
+	new Handle:hRandom; // KyleS HATES handles
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_version", PLUGIN_VERSION, 
+	"Version of 'KDR Weapon Limit'", FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_NOTIFY | FCVAR_DONTRECORD)), OnVersionChanged);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_enabled", "1",
+	"Is plugin enabled?\n0 = No\n1 = Yes", _, true, 0.0, true, 1.0)), OnEnabledChanged);
+	Enabled = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_usesound", "1",
+	"Play sound to player when they reach KDR and are forced to drop their weapon?\n0 = No\n1 = Yes", _, true, 0.0, true, 1.0)), OnUseSoundChanged);
+	UseSound = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_sound", "buttons/weapon_cant_buy.wav",
+	"Path and file name of sound file to use for restriction sound relative to sound folder.")), OnSoundChanged);
+	SOUND_FILE[0] = '\0';
+	GetConVarString(hRandom, SOUND_FILE, sizeof(SOUND_FILE));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_ratio1", "3.0", 
+	"KDR Ratio a player must meet before stage 1 weapon limit is enforced against them.")), OnKDR1Changed);
+	RatioLimit1 = GetConVarFloat(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_rw1", "awp sg550 g3sg1", 
+	"List the weapons a player cannot use once they've reached the ratio1 limit")), RestrictedWeaponsOneChanged);
+	RestrictedWeapons1[0] = '\0';
+	GetConVarString(hRandom, RestrictedWeapons1, sizeof(RestrictedWeapons1));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_ratio2", "5.0", 
+	"KDR Ratio a player must meet before stage 2 weapon limit is enforced against them.")), OnKDR2Changed);
+	RatioLimit2 = GetConVarFloat(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_rw2", "awp sg550 g3sg1 m4a1 ak47 deagle", 
+	"List the weapons a player cannot use once they've reached the ratio2 limit")), RestrictedWeaponsTwoChanged);
+	RestrictedWeapons2[0] = '\0';
+	GetConVarString(hRandom, RestrictedWeapons2, sizeof(RestrictedWeapons2));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_maintain", "1", 
+	"Maintain restrictions until map changes?\nIf set to no (0) then players can just reconnect to be able to purchase restricted weapons again.", _, true, 0.0, true, 1.0)), MaintainRestrictionsChanged);
+	MaintainRestrictions = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_drop", "2",
+	"When should player be forced to drop restricted weapon?\n1 = Immediately\n2 = Beginning of next round.")), OnDropModeChanged);
+	DropMode = GetConVarInt(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_useexempt", "0",
+	"Use the exemption system?.")), OnUseExemptChanged);
+	UseExempt = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_botkills", "0",
+	"Ignore bot kills towards players KDR?\n0 = No, count with KDR\n1 = Yes, do not count with KDR.")), OnIgnoreBotKillsChanged);
+	IgnoreBotKills = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_minkills", "0",
+	"Minimum number of kills required to start counting KDR.\n0 = disabled, count KDR right away\nN = Number of kills required before counting KDR")), OnMinimumKillsChanged);
+	MinRequiredKills = GetConVarInt(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_pw1", "weapon_scout", 
+	"List the primary weapon to give the player if the reach ratio1 and are forced to drop their weapon")), PrimaryReplacementOneChanged);
+	Replacement1[0] = '\0';
+	GetConVarString(hRandom, Replacement1, sizeof(Replacement1));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_sw1", "weapon_p228", 
+	"List the secondary weapon to give the player if the reach ratio1 and are forced to drop their pistol")), SecondaryReplacementOneChanged);
+	Replacement1a[0] = '\0';
+	GetConVarString(hRandom, Replacement1a, sizeof(Replacement1a));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_pw2", "weapon_scout", 
+	"List the primary weapon to give the player if the reach ratio2 and are forced to drop their weapon")), PrimaryReplacementTwoChanged);
+	Replacement2[0] = '\0';
+	GetConVarString(hRandom, Replacement2, sizeof(Replacement2));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_sw2", "weapon_p228", 
+	"List the secondary weapon to give the player if the reach ratio2 and are forced to drop their pistol")), SecondaryReplacementTwoChanged);
+	Replacement2a[0] = '\0';
+	GetConVarString(hRandom, Replacement2a, sizeof(Replacement2a));
+	
+	HookConVarChange((hRandom = CreateConVar("sm_kdrwl_announce", "0",
+	"Announce to all players when a player gets restricted\n1 = Yes\n0 = No.")), OnAnnounceChanged);
+	Announce = GetConVarBool(hRandom);
+	
+	CloseHandle(hRandom); // KyleS HATES Handles
+	
+	// Hook game events needed for this plugin
+	HookEvent("player_death", 	Event_PlayerDeath, EventHookMode_Post);
+	HookEvent("bomb_defused", 	Event_BombDefused);
+	HookEvent("bomb_exploded", 	Event_BombExploded);
+	HookEvent("player_spawn",	Event_PlayerSpawn);
+	HookEvent("round_start",	Event_RoundStart);
+	
+	// Create the trie to hold data for maintaining restrictions
+	h_Trie = CreateTrie();
+	
+	// Load the translation file
+	LoadTranslations("kdr_weapon_limit.phrases");
+	
+	// Execute the config file
+	AutoExecConfig(true);
+}
+
+/**
+ * Called when the map has loaded, servercfgfile (server.cfg) has been 
+ * executed, and all plugin configs are done executing.  This is the best
+ * place to initialize plugin functions which are based on cvar data.  
+ *
+ * @note This will always be called once and only once per map.  It will be 
+ * called after OnMapStart().
+ *
+ * @noreturn
+ */
+public OnConfigsExecuted()
+{
+	SoundPrecache();
+	
+	// Clear all entries of the Trie
+	ClearTrie(h_Trie);
+}
+
+/**
+ * Called when the map is loaded.
+ *
+ * @note This used to be OnServerLoad(), which is now deprecated.
+ * Plugins still using the old forward will work.
+ */
+public OnMapStart()
+{
+	SoundPrecache();
+	
+	ResetEverything();
+}
+
+/**
+ * Called right before a map ends.
+ */
+public OnMapEnd()
+{
+	ResetEverything();
+}
+
+SoundPrecache()
+{
+	decl String:buffer[MAX_FILE_LEN];
+	buffer[0] = '\0';
+	
+	Format(buffer, sizeof(buffer), "sound/%s", SOUND_FILE);
+	
+	if (!PrecacheSound(SOUND_FILE, true))
+	{
+		LogError("Unable to precache sound file %s", SOUND_FILE);
+	}
+}
+
+/**
+ * Called once a client is authorized and fully in-game, and 
+ * after all post-connection authorizations have been performed.  
+ *
+ * This callback is gauranteed to occur on all clients, and always 
+ * after each OnClientPutInServer() call.
+ *
+ * @param client		Client index.
+ * @noreturn
+ */
+public OnClientPostAdminCheck(client)
+{
+	if (!Enabled || IsFakeClient(client))
+	{
+		return;
+	}
+	
+	if (UseExempt && CheckCommandAccess(client, "no_kdr_restrict", ADMFLAG_CUSTOM6))
+	{
+		RestrictionExpempted[client] = true;
+	}
+	else
+	{
+		RestrictionExpempted[client] = false;
+	}
+	
+	if (MaintainRestrictions)
+	{
+		// Get and store the client's SteamID
+		decl String:authString[20];
+		authString[0] = '\0';
+		
+		GetClientAuthString(client, authString, sizeof(authString));
+		
+		new GetRestrictedInfo[RestrictedAttributes];
+		
+		if (GetTrieArray(h_Trie, authString, GetRestrictedInfo[0], 6)) // We found the steam ID in the Trie
+		{
+			new pRestriction = GetRestrictedInfo[RESTRICTION];
+			
+			if (pRestriction == 1) // Maintain restrictions is enforced
+			{
+				Restricted[client] = true;
+				
+				BombExplodePoints[client] = GetRestrictedInfo[EXPLODE];
+				DefuseBombPoints[client] = GetRestrictedInfo[DEFUSE];
+				
+				SetEntProp(client, Prop_Data, "m_iFrags", GetRestrictedInfo[FRAGS]);
+				SetEntProp(client, Prop_Data, "m_iDeaths", GetRestrictedInfo[DEATHS]);
+				
+				BotKills[client] = GetRestrictedInfo[BOT_KILLS];
+				
+				CheckKDR(client);
+			}
+		}
+	}
+}
+
+/**
+ * Called when a client is disconnecting from the server.
+ *
+ * @param client		Client index.
+ * @noreturn
+ * @note	Must use IsClientInGame(client) if you want to do client specific things
+ */
+public OnClientDisconnect(client)
+{
+	if (Enabled && IsClientInGame(client))
+	{
+		// Unhook player since they're leaving the server
+		SDKUnhook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
+		
+		// Maintain restrictions is on, let's store this players data in the Trie
+		if (MaintainRestrictions && Restricted[client])
+		{
+			// Get and store the client's SteamID
+			decl String:authString[20];
+			authString[0] = '\0';
+			
+			GetClientAuthString(client, authString, 20);
+			
+			new RestrictedInfo[RestrictedAttributes];
+			
+			RestrictedInfo[RESTRICTION] = Restricted[client];
+			RestrictedInfo[DEFUSE] = DefuseBombPoints[client];
+			RestrictedInfo[EXPLODE] = BombExplodePoints[client];
+			
+			RestrictedInfo[FRAGS] = GetClientFrags(client);
+			RestrictedInfo[DEATHS] = GetClientDeaths(client);
+			RestrictedInfo[BOT_KILLS] = BotKills[client];
+			
+			SetTrieArray(h_Trie, authString, RestrictedInfo[0], 6, true);
+		}
+		
+		// Reset cliend_id variables and timer
+		Restricted[client] = false;
+		BombExplodePoints[client] = 0;
+		DefuseBombPoints[client] = 0;
+		DropOnSpawn[client] = false;
+		RestrictionExpempted[client] = false;
+		BotKills[client] = 0;
+		Primary[client] = false;
+		Secondary[client] = false;
+	}
+}
+
+/**
+ * Called when a player attempts to purchase an item.
+ * Return Plugin_Continue to allow the purchase or return a
+ * higher action to deny.
+ *
+ * @param client		Client index
+ * @param weapon	User input for weapon name
+ */
+public Action:CS_OnBuyCommand(client, const String:weapon[])
+{
+	if (!Enabled || !IsClientInGame(client) || RestrictionExpempted[client] || !Restricted[client] || GetClientTeam(client) <= CS_TEAM_SPECTATOR)
+	{
+		return Plugin_Continue;
+	}
+
+	// Check for restricted weapons
+	if ((RestrictPlayer2[client] && StrContains(RestrictedWeapons2, weapon, false) != -1) ||
+		(RestrictPlayer1[client] && StrContains(RestrictedWeapons1, weapon, false) != -1))
+	{
+		CPrintToChat(client, "{green}[{lightgreen}SM{green}] %t", "Weapon", KDR[client], weapon);
+		
+		if (UseSound)
+		{
+			EmitSoundToClient(client, SOUND_FILE);
+		}
+		
+		return Plugin_Handled; // Don't allow purchase, play sound, and advise via chat
+	}
+	
+	return Plugin_Continue;
+}
+
+/**
+ *	"bomb_defused"
+ *	{
+ *		"userid"	"short"		// player who defused the bomb
+ *		"site"		"short"		// bombsite index
+ *	}
+ */
+public Event_BombDefused(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if (Enabled)
+	{
+		new client = GetClientOfUserId(GetEventInt(event, "userid"));
+		
+		DefuseBombPoints[client] += 3;
+	}
+}
+
+/**
+ *	"bomb_exploded"
+ *	{
+ *		"userid"	"short"		// player who planted the bomb
+ *		"site"		"short"		// bombsite index
+ *	}
+ */
+public Event_BombExploded(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if (Enabled)
+	{
+		new client = GetClientOfUserId(GetEventInt(event, "userid"));
+		
+		BombExplodePoints[client] += 3;
+	}
+}
+
+/**
+ * 	"player_death"
+ *	{
+ *		// this extents the original player_death by a new fields
+ *		"userid"	"short"   	// user ID who died				
+ *		"attacker"	"short"	// user ID who killed
+ *		"weapon"	"string" 	// weapon name killer used 
+ *		"headshot"	"bool"		// singals a headshot
+ *		"dominated"	"short"	// did killer dominate victim with this kill
+ *		"revenge"	"short"	// did killer get revenge on victim with this kill
+ * 	}
+ */
+public Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if (!Enabled)
+		return;
+	
+	new killer = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	
+	if (victim > 0 && victim <= MaxClients && !RestrictionExpempted[victim])
+	{
+		if (IgnoreBotKills && IsFakeClient(victim))
+		{
+			BotKills[killer]++;
+		}
+		
+		CreateTimer(0.1, Timer_ProcessKDR, GetClientSerial(victim));
+	}
+	
+	if (killer > 0 && killer <= MaxClients && !RestrictionExpempted[killer])
+	{
+		CreateTimer(0.1, Timer_ProcessKDR, GetClientSerial(killer));
+	}
+}
+
+/**
+ *	"player_spawn"				// player spawned in game
+ *	{
+ *		"userid"	"short"		// user ID on server
+ *	}
+ */
+public Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if (!Enabled)
+		return;
+	
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	
+	if (!RestrictionExpempted[client] && DropOnSpawn[client])
+	{
+		DropOnSpawn[client] = false;
+		
+		if (RestrictPlayer2[client])
+		{
+			RestrictWeapons(client, RESTRICT2);
+		}
+		
+		if (RestrictPlayer1[client] && !RestrictPlayer2[client])
+		{
+			RestrictWeapons(client, RESTRICT1);
+		}
+	}
+}
+
+/**
+ * 	"round_start"
+ *	{
+ *		"timelimit"	"long"		// round time limit in seconds
+ *		"fraglimit"	"long"		// frag limit in seconds
+ *		"objective"	"string"	// round objective
+ *	}
+ */
+public Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if (!Enabled)
+		return;
+	
+	for (new i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			DropOnSpawn[i] = false;
+		}
+	}
+}
+
+public Action:Timer_ProcessKDR(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	
+	if (client == 0 || !IsClientInGame(client) || RestrictionExpempted[client])
+	{
+		return;
+	}
+	
+	CheckKDR(client);
+}
+
+CheckKDR(client)
+{
+	#if _DEBUG
+		dmsg[0] = '\0';
+		Format(dmsg, sizeof(dmsg), "Checking KDR for %L", client);
+		DebugMessage(client, dmsg);
+	#endif
+	
+	KDR[client] = 0.0;
+	
+	new frags = GetClientFrags(client);
+	new deaths = GetClientDeaths(client);
+	
+	// Let's remove bomb/defuse points and any botkills, if there are any
+	new bonus_points = (DefuseBombPoints[client] + BombExplodePoints[client] + BotKills[client]);
+	frags -= bonus_points;
+	
+	if (MinRequiredKills >= 1 && frags < MinRequiredKills)
+	{
+		return; // Do not process since player hasn't reached minimum required kills
+	}
+	
+	if (frags <= 0 && deaths <= 0)
+	{
+		#if _DEBUG
+			dmsg[0] = '\0';
+			Format(dmsg, sizeof(dmsg), "%L has a 0 KDR", client);
+			DebugMessage(client, dmsg);
+		#endif
+		return; // KDR is nothing
+	}	
+	else if (frags > 0 && deaths <= 0)
+	{
+		KDR[client] = float(frags) - float(deaths);
+	}
+	else if (frags > 0 && deaths > 0)
+	{
+		KDR[client] = float(frags) / float(deaths);
+	}
+	
+	#if _DEBUG
+		dmsg[0] = '\0';
+		Format(dmsg, sizeof(dmsg), "%L has a %f KDR", client, KDR[client]);
+		DebugMessage(client, dmsg);
+	#endif
+	
+	// KDR is above or equal to limit2
+	if (KDR[client] >= RatioLimit2)
+	{
+		if (!RestrictPlayer2[client])
+		{
+			#if _DEBUG
+				dmsg[0] = '\0';
+				Format(dmsg, sizeof(dmsg), "Restricting %L for being above RatioLimit2", client);
+				DebugMessage(client, dmsg);
+			#endif
+			
+			RestrictPlayer1[client] = true;
+			RestrictPlayer2[client] = true;
+			
+			switch (DropMode)
+			{
+				case 1:
+				{
+					Restricted[client] = true;
+					RestrictWeapons(client, RESTRICT2);
+				}
+				case 2:
+				{
+					DropOnSpawn[client] = true;
+				}
+			}
+		}
+	}
+	else if (KDR[client] >= RatioLimit1 && KDR[client] < RatioLimit2)
+	{
+		RestrictPlayer2[client] = false;
+		
+		if (!RestrictPlayer1[client])
+		{
+			#if _DEBUG
+				dmsg[0] = '\0';
+				Format(dmsg, sizeof(dmsg), "Restricting %L for being above RatioLimit1", client);
+				DebugMessage(client, dmsg);
+			#endif
+			
+			RestrictPlayer1[client] = true;
+				
+			switch (DropMode)
+			{
+				case 1:
+				{
+					Restricted[client] = true;
+					RestrictWeapons(client, RESTRICT1);
+				}
+				case 2:
+				{
+					DropOnSpawn[client] = true;
+				}
+			}
+		}
+	}
+	else
+	{
+		// Since the KDR is below the limit and the player is marked as restricted, unrestrict the player
+		if (Restricted[client])
+		{
+			#if _DEBUG
+				dmsg[0] = '\0';
+				Format(dmsg, sizeof(dmsg), "UnRestricting %L since they are no longer at the KDR limit.", client);
+				DebugMessage(client, dmsg);
+			#endif
+			
+			Restricted[client] = false;
+			RestrictPlayer1[client] = false;
+			RestrictPlayer2[client] = false;
+			DropOnSpawn[client] = false;
+			SDKUnhook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
+			CPrintToChat(client, "{green}[{lightgreen}SM{green}] %t", "Off");
+		}
+	}
+}
+
+RestrictWeapons(client, msg)
+{
+	if (!IsClientInGame(client) || RestrictionExpempted[client] || GetClientTeam(client) <= CS_TEAM_SPECTATOR)
+	{
+		return;
+	}
+	
+	Restricted[client] = true;
+	
+	new weapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
+	if (weapon != -1)
+	{
+		DropRestrictedWeapons(client, weapon);
+		Secondary[client] = true;
+	}
+	
+	weapon = GetPlayerWeaponSlot(client, CS_SLOT_PRIMARY);
+	if (weapon != -1)
+	{
+		DropRestrictedWeapons(client, weapon);
+		Primary[client] = true;
+	}
+	
+	switch (msg)
+	{
+		case 1: 
+		{
+			CPrintToChat(client, "{green}[{lightgreen}SM{green}] %t", "Restrict", KDR[client], RatioLimit1, RestrictedWeapons1);
+			if (Announce)
+			{
+				for (new i = 1; i <= MaxClients; i++)
+				{
+					if (IsClientInGame(i) && i != client)
+					{
+						CPrintToChat(i, "{green}[{lightgreen}SM{green}] %t", "RestrictAnnounce", client, KDR[client], RatioLimit1, RestrictedWeapons1);
+					}
+				}
+			}
+		}
+		case 2: 
+		{
+			CPrintToChat(client, "{green}[{lightgreen}SM{green}] %t", "Restrict", KDR[client], RatioLimit2, RestrictedWeapons2);
+			if (Announce)
+			{
+				for (new i = 1; i <= MaxClients; i++)
+				{
+					if (IsClientInGame(i) && i != client)
+					{
+						CPrintToChat(i, "{green}[{lightgreen}SM{green}] %t", "RestrictAnnounce", client, KDR[client], RatioLimit2, RestrictedWeapons2);
+					}
+				}
+			}
+		}
+	}
+	
+	CreateTimer(0.3, t_HookPlayer, GetClientSerial(client)); //Give the weapon time to drop
+}
+
+DropRestrictedWeapons(client, weapon)
+{
+	decl String:WeaponName[MAX_WEAPON_NAME];
+	WeaponName[0] = '\0';
+	
+	GetEntityClassname(weapon, WeaponName, sizeof(WeaponName));	
+	ReplaceString(WeaponName, sizeof(WeaponName), "weapon_", "", false);
+	
+	if ((RestrictPlayer2[client] && StrContains(RestrictedWeapons2, WeaponName, false) != -1) ||
+		(RestrictPlayer1[client] && StrContains(RestrictedWeapons1, WeaponName, false) != -1))
+	{
+		#if _DEBUG
+			dmsg[0] = '\0';
+			Format(dmsg, sizeof(dmsg), "Restricting weapon_%s for %L and dropping it", WeaponName, client);
+			DebugMessage(client, dmsg);
+		#endif
+		
+		CS_DropWeapon(client, weapon, true);
+		
+		CreateTimer(0.1, t_GiveReplacementWeapon, GetClientSerial(client));
+		
+		if (UseSound)
+		{
+			EmitSoundToClient(client, SOUND_FILE);
+		}
+	}
+}
+
+public Action:t_GiveReplacementWeapon(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	
+	if (client == 0)
+		return Plugin_Continue;
+	
+	if (RestrictPlayer2[client])
+	{
+		if (Primary[client])
+		{
+			GiveReplacementWeapon(client, Replacement2);
+			Primary[client] = false;
+		}
+		
+		if (Secondary[client])
+		{
+			GiveReplacementWeapon(client, Replacement2a);
+			Secondary[client] = false;
+		}
+		
+		return Plugin_Continue;
+	}
+	
+	if (RestrictPlayer1[client])
+	{
+		if (Primary[client])
+		{
+			GiveReplacementWeapon(client, Replacement1);
+			Primary[client] = false;
+		}
+		
+		if (Secondary[client])
+		{
+			GiveReplacementWeapon(client, Replacement1a);
+			Secondary[client] = false;
+		}
+		
+		return Plugin_Continue;
+	}
+	
+	return Plugin_Continue;
+}
+
+GiveReplacementWeapon(client, const String:weapon_name[])
+{
+	if (StrEqual(weapon_name, "none", false))
+	{
+		SwitchToNextWeaponSlot(client);
+	}
+	else
+	{
+		GivePlayerItem(client, weapon_name);
+	}
+}
+
+SwitchToNextWeaponSlot(client)
+{
+	new weapon;
+	weapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
+	
+	if (weapon == -1)
+	{
+		weapon = GetPlayerWeaponSlot(client, 2); // knife
+	}
+	
+	if (weapon != -1)
+	{
+		EquipPlayerWeapon(client, weapon);
+	}
+}
+
+public Action:t_HookPlayer(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	
+	if (client != 0 || IsClientInGame(client))
+	{
+		SDKHook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
+	}
+}
+
+/**
+* SDKHooks Function SDKHook_WeaponCanUse
+*
+* @param client		Client index
+* @param weapon	weapon entity index
+* @return		Plugin_Continue to allow, else Handled to disallow
+*/
+public Action:OnWeaponCanUse(client, weapon)
+{
+	if (!Enabled || RestrictionExpempted[client] || !Restricted[client])
+	{
+		return Plugin_Continue;
+	}
+	
+	decl String:sWeapon[MAX_WEAPON_NAME];
+	sWeapon[0] = '\0';
+	GetEntityClassname(weapon, sWeapon, sizeof(sWeapon));	
+	ReplaceString(sWeapon, sizeof(sWeapon), "weapon_", "", false);
+	
+	if ((RestrictPlayer2[client] && StrContains(RestrictedWeapons2, sWeapon, false) != -1) ||
+		(RestrictPlayer1[client] && StrContains(RestrictedWeapons1, sWeapon, false) != -1))
+	{
+		return Plugin_Handled;
+	}
+	
+	return Plugin_Continue;
+}
+
+ResetEverything()
+{
+	for (new i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			Restricted[i] = false;
+			RestrictPlayer1[i] = false;
+			RestrictPlayer2[i] = false;
+			SDKUnhook(i, SDKHook_WeaponCanUse, OnWeaponCanUse);
+			BombExplodePoints[i] = 0;
+			DefuseBombPoints[i] = 0;
+			KDR[i] = 0.0;
+			DropOnSpawn[i] = false;
+			BotKills[i] = 0;
+			Primary[i] = false;
+			Secondary[i] = false;
+		}
+	}
+}
+
+#if _DEBUG
+DebugMessage(client, const String:msg[], any:...)
+{
+	if (client > 0 && client <= MaxClients && IsFakeClient(client))
+		return;
+	
+	LogMessage("%s", msg);
+	
+	#if _DEBUG_ALL
+		PrintToChatAll("[KDRWL DEBUG] %s", msg);
+	#endif
+}
+#endif
+
+// ===================================================================================================================================
+// CVar Change Functions
+// ===================================================================================================================================
+
+public OnVersionChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	// Make sure the version number is what is set in the compiled plugin, not a config file or changed CVar
+	if (!StrEqual(newVal, PLUGIN_VERSION))
+	{
+		SetConVarString(cvar, PLUGIN_VERSION);
+	}
+}
+
+public OnEnabledChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Enabled = GetConVarBool(cvar);
+	
+	if (!Enabled)
+	{
+		ResetEverything();
+	}
+}
+
+public OnKDR1Changed(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	RatioLimit1 = GetConVarFloat(cvar);
+}
+
+public OnKDR2Changed(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	RatioLimit2 = GetConVarFloat(cvar);
+}
+
+public MaintainRestrictionsChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	MaintainRestrictions = GetConVarBool(cvar);
+}
+
+public RestrictedWeaponsOneChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	RestrictedWeapons1[0] = '\0';
+	GetConVarString(cvar, RestrictedWeapons1, sizeof(RestrictedWeapons1));
+}
+
+public RestrictedWeaponsTwoChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	RestrictedWeapons2[0] = '\0';
+	GetConVarString(cvar, RestrictedWeapons2, sizeof(RestrictedWeapons2));
+}
+
+public OnDropModeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	DropMode = GetConVarInt(cvar);
+}
+
+public OnUseSoundChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	UseSound = GetConVarBool(cvar);
+}
+
+public OnSoundChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	SOUND_FILE[0] = '\0';
+	GetConVarString(cvar, SOUND_FILE, sizeof(SOUND_FILE));
+}
+
+public OnUseExemptChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	UseExempt = GetConVarBool(cvar);
+}
+
+public OnIgnoreBotKillsChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	IgnoreBotKills = GetConVarBool(cvar);
+}
+
+public OnMinimumKillsChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	MinRequiredKills = GetConVarInt(cvar);
+}
+
+public PrimaryReplacementOneChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Replacement1[0] = '\0';
+	GetConVarString(cvar, Replacement1, sizeof(Replacement1));
+}
+
+public SecondaryReplacementOneChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Replacement1a[0] = '\0';
+	GetConVarString(cvar, Replacement1a, sizeof(Replacement1a));
+}
+
+public PrimaryReplacementTwoChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Replacement2[0] = '\0';
+	GetConVarString(cvar, Replacement2, sizeof(Replacement2));
+}
+
+public SecondaryReplacementTwoChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Replacement2a[0] = '\0';
+	GetConVarString(cvar, Replacement2a, sizeof(Replacement2a));
+}
+
+public OnAnnounceChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Announce = GetConVarBool(cvar);
+}

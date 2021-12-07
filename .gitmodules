@@ -1,0 +1,66 @@
+[submodule "sp/github.com/dysphie/nmrih-team-healing"]
+	path = github.com/dysphie/nmrih-team-healing
+	url = https://github.com/dysphie/nmrih-team-healing
+[submodule "sp/github.com/dysphie/sm-map-translator"]
+	path = github.com/dysphie/sm-map-translator
+	url = https://github.com/dysphie/sm-map-translator
+[submodule "sp/github.com/dysphie/nmrih-voicecmd-block"]
+	path = github.com/dysphie/nmrih-voicecmd-block
+	url = https://github.com/dysphie/nmrih-voicecmd-block
+[submodule "sp/github.com/dysphie/sourcemod-indev"]
+	path = github.com/dysphie/sourcemod-indev
+	url = https://github.com/dysphie/sourcemod-indev
+[submodule "sp/github.com/dysphie/nmrih-qol-ex"]
+	path = github.com/dysphie/nmrih-qol-ex
+	url = https://github.com/dysphie/nmrih-qol-ex
+[submodule "sp/github.com/Bara/fuckZones"]
+	path = github.com/Bara/fuckZones
+	url = https://github.com/Bara/fuckZones
+[submodule "sp/github.com/alliedmodders/sourcemod"]
+	path = github.com/alliedmodders/sourcemod
+	url = https://github.com/alliedmodders/sourcemod
+[submodule "sp/github.com/bcserv/smlib"]
+	path = github.com/bcserv/smlib
+	url = https://github.com/bcserv/smlib
+[submodule "sp/github.com/peace-maker/DHooks2"]
+	path = github.com/peace-maker/DHooks2
+	url = https://github.com/peace-maker/DHooks2
+[submodule "sp/github.com/DoctorMcKay/sourcemod-plugins"]
+	path = github.com/DoctorMcKay/sourcemod-plugins
+	url = https://github.com/DoctorMcKay/sourcemod-plugins
+[submodule "sp/github.com/FlaminSarge/tf2attributes"]
+	path = github.com/FlaminSarge/tf2attributes
+	url = https://github.com/FlaminSarge/tf2attributes
+[submodule "sp/github.com/Steell/Freak-Fortress-2"]
+	path = github.com/Steell/Freak-Fortress-2
+	url = https://github.com/Steell/Freak-Fortress-2
+[submodule "sp/github.com/Bara/Multi-Colors"]
+	path = github.com/Bara/Multi-Colors
+	url = https://github.com/Bara/Multi-Colors
+[submodule "sp/github.com/asherkin/TF2Items"]
+	path = github.com/asherkin/TF2Items
+	url = https://github.com/asherkin/TF2Items
+[submodule "sp/github.com/Impact123/AutoExecConfig"]
+	path = github.com/Impact123/AutoExecConfig
+	url = https://github.com/Impact123/AutoExecConfig
+[submodule "sp/github.com/asherkin/SteamTools"]
+	path = github.com/asherkin/SteamTools
+	url = https://github.com/asherkin/SteamTools
+[submodule "sp/github.com/JoinedSenses/sm-ext-socket"]
+	path = github.com/JoinedSenses/sm-ext-socket
+	url = https://github.com/JoinedSenses/sm-ext-socket
+[submodule "sp/github.com/KyleSanderson/SteamWorks"]
+	path = github.com/KyleSanderson/SteamWorks
+	url = https://github.com/KyleSanderson/SteamWorks
+[submodule "sp/github.com/dvarnai/store-plugin"]
+	path = github.com/dvarnai/store-plugin
+	url = https://github.com/dvarnai/store-plugin
+[submodule "sp/github.com/ErikMinekus/sm-ripext"]
+	path = github.com/ErikMinekus/sm-ripext
+	url = https://github.com/ErikMinekus/sm-ripext
+[submodule "sp/github.com/sbpp/sourcebans-pp"]
+	path = github.com/sbpp/sourcebans-pp
+	url = https://github.com/sbpp/sourcebans-pp
+[submodule "sp/github.com/Deathknife/sourcemod-discord"]
+	path = github.com/Deathknife/sourcemod-discord
+	url = https://github.com/Deathknife/sourcemod-discord
