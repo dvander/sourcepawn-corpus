@@ -7,9 +7,6 @@
 [submodule "sp/github.com/dysphie/nmrih-voicecmd-block"]
 	path = github.com/dysphie/nmrih-voicecmd-block
 	url = https://github.com/dysphie/nmrih-voicecmd-block
-[submodule "sp/github.com/dysphie/sourcemod-indev"]
-	path = github.com/dysphie/sourcemod-indev
-	url = https://github.com/dysphie/sourcemod-indev
 [submodule "sp/github.com/dysphie/nmrih-qol-ex"]
 	path = github.com/dysphie/nmrih-qol-ex
 	url = https://github.com/dysphie/nmrih-qol-ex
