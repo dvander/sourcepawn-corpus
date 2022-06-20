@@ -3,3 +3,5 @@ dysphie/sm-map-translator/scripting/map-translator.sp
 dysphie/nmrih-voicecmd-block/nmrih-voicecmd-block.sp
 dysphie/nmrih-qol-ex/scripting/qol.sp
 Bara/fuckZones/addons/sourcemod/scripting/fuckZones.sp
+JoinedSenses/SM-ShowTriggers-Redux/scripting/showtriggers.sp
+JoinedSenses/SM-ConnectionData/scripting/connectiondata.sp

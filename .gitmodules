@@ -61,3 +61,9 @@
 [submodule "sp/github.com/Deathknife/sourcemod-discord"]
 	path = github.com/Deathknife/sourcemod-discord
 	url = https://github.com/Deathknife/sourcemod-discord
+[submodule "github.com/JoinedSenses/SM-ShowTriggers-Redux"]
+	path = github.com/JoinedSenses/SM-ShowTriggers-Redux
+	url = https://github.com/JoinedSenses/SM-ShowTriggers-Redux
+[submodule "github.com/JoinedSenses/SM-ConnectionData"]
+	path = github.com/JoinedSenses/SM-ConnectionData
+	url = https://github.com/JoinedSenses/SM-ConnectionData
