@@ -3,7 +3,7 @@
 #define PLUGIN_NAME "[L4D2] Survivor Animation Fix Pack"
 #define PLUGIN_AUTHOR "DeathChaos25, Shadowysn"
 #define PLUGIN_DESC "A few quality of life animation fixes for the survivors"
-#define PLUGIN_VERSION "1.8"
+#define PLUGIN_VERSION "1.9b"
 #define PLUGIN_URL ""
 // Stopped check for pounce anim from getting spammed all the time.
 #define GAMEDATA "l4d2_sequence"
@@ -29,8 +29,9 @@
 
 #define DEBUG 0
 
-static int pounced_Seq[MAXPLAYERS + 1] = 0;
-static int charged_Seq[MAXPLAYERS + 1] = 0;
+static int pounced_Seq[MAXPLAYERS + 1] = {0};
+static int pouncedCheck_Seq[MAXPLAYERS + 1] = {0};
+static int charged_Seq[MAXPLAYERS + 1] = {0};
 
 ConVar AlternateIncap;
 ConVar PistolEnabled;
@@ -82,7 +83,6 @@ public void OnPluginStart()
 	#endif
 	
 	AutoExecConfig(true, "l4d2_animations_fix");
-	LoadOffset();
 }
 
 /*public void OnPluginEnd()
@@ -127,16 +127,18 @@ Action Command_TestGetSeq(int client, any args)
 	return Plugin_Handled;
 }*/
 
-Action Event_Reload(Handle event, const char[] name, bool dontBroadcast)
+void Event_Reload(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!GetConVarBool(PistolEnabled))
-	return;
+		return;
 	
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid", 0));
 	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 	if (!RealValidEntity(weapon)) return;
-	char wepstring[64];
+	
+	static char wepstring[64];
 	GetEntityClassname(weapon, wepstring, sizeof(wepstring));
+	
 	int clip = GetEntProp(weapon, Prop_Send, "m_iClip1");
 	if (IsSurvivor(client) && !IsPlayerHeld(client) && (clip <= 0 || IsDualWielding(client) && clip <= 1) &&
 	(StrEqual(wepstring, "weapon_pistol") || StrEqual(wepstring, "weapon_pistol_magnum")) )
@@ -145,42 +147,54 @@ Action Event_Reload(Handle event, const char[] name, bool dontBroadcast)
 	}
 }
 
-Action Event_CarryEnd(Handle event, const char[] name, bool dontBroadcast)
+void Event_CarryEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!GetConVarBool(IncapChargeEnabled))
-	return;
+		return;
 	
-	int victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int userid = event.GetInt("victim", 0);
+	int victim = GetClientOfUserId(userid);
 	if (IsSurvivor(victim))
 	{
 		charged_Seq[victim] = GetAnimation(victim, "ACT_TERROR_CHARGER_PUMMELED");
-		CreateTimer(1.5, SETFALSE_CHARGE, victim, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.5, SETFALSE_CHARGE, userid, TIMER_FLAG_NO_MAPCHANGE);
 	}
 	else charged_Seq[victim] = 0;
 }
 Action SETFALSE_CHARGE(Handle timer, int client)
 {
+	client = GetClientOfUserId(client);
 	charged_Seq[client] = 0;
 	//SDKCall(sdkDoAnim, client, 92, 0);
+	return Plugin_Continue;
 }
 
-Action Event_Pounced(Handle event, const char[] name, bool dontBroadcast)
+void Event_Pounced(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!GetConVarBool(PounceEnabled))
-	return;
+		return;
 	
-	int victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int userid = event.GetInt("victim", 0);
+	int victim = GetClientOfUserId(userid);
 	if (IsSurvivor(victim))
 	{
 		pounced_Seq[victim] = GetAnimation(victim, "ACT_TERROR_INCAP_FROM_POUNCE");
-		CreateTimer(0.9, SETFALSE_POUNCE, victim, TIMER_FLAG_NO_MAPCHANGE);
+		pouncedCheck_Seq[victim] = GetAnimation(victim, "ACT_IDLE_POUNCED");
+		CreateTimer(0.9, SETFALSE_POUNCE, userid, TIMER_FLAG_NO_MAPCHANGE);
 	}
-	else pounced_Seq[victim] = 0;
+	else
+	{
+		pounced_Seq[victim] = 0;
+		pouncedCheck_Seq[victim] = 0;
+	}
 }
 Action SETFALSE_POUNCE(Handle timer, int client)
 {
+	client = GetClientOfUserId(client);
 	pounced_Seq[client] = 0;
+	pouncedCheck_Seq[client] = 0;
 	//SDKCall(sdkDoAnim, client, 92, 0);
+	return Plugin_Continue;
 }
 
 public MRESReturn OnSequenceSet_Pre(int client, Handle hReturn, Handle hParams)
@@ -197,8 +211,8 @@ public MRESReturn OnSequenceSet_Pre(int client, Handle hReturn, Handle hParams)
 			{ DHookSetParam(hParams, 1, PARAM_ACT_INCAP_IDLE); }
 			return MRES_ChangedHandled;
 		}
-	}
-	return MRES_Ignored;*/
+	}*/
+	return MRES_Ignored;
 } // We need this pre hook even though it's empty, or else the post hook will crash the game.
 
 public MRESReturn OnSequenceSet(int client, Handle hReturn, Handle hParams)
@@ -216,7 +230,7 @@ public MRESReturn OnSequenceSet(int client, Handle hReturn, Handle hParams)
 		if (pounced_Seq[client] > 0 && RealValidEntity(pouncer) && IsInfected(pouncer) && IsPlayerAlive(pouncer))
 		{
 			int pouncer_victim = GetEntPropEnt(pouncer, Prop_Send, "m_pounceVictim");
-			if (pouncer_victim == client)
+			if (pouncer_victim == client && sequence == pouncedCheck_Seq[client])
 			{
 				//float angles[3];
 				//GetClientAbsAngles(pouncer, angles);
@@ -280,7 +294,7 @@ int GetAnimation(int entity, const char[] sequence)
 	//if (!RealValidEntity(entity) || sdkGetSeqFromString == null) return -1;
 	if (!RealValidEntity(entity)) return -1;
 	
-	char model[64];
+	static char model[64];
 	GetClientModel(entity, model, sizeof(model));
 	
 	int temp_ent = CreateEntityByName("prop_dynamic");
@@ -348,20 +362,14 @@ void PrepSDKCall()
 	sdkDoAnim = EndPrepSDKCall();
 	if (sdkDoAnim == null)
 	{ SetFailState("Cant initialize %s SDKCall, Signature broken", NAME_DoAnimationEvent); }
-}
-
-void LoadOffset()
-{
-	if (hConf == null)
-	{
-		SetFailState("Error: Gamedata not found");
-	}
 	
 	hSequenceSet = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Int, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hSequenceSet, hConf, SDKConf_Signature, NAME_SelectWeightedSequence);
 	DHookAddParam(hSequenceSet, HookParamType_Int);
 	DHookEnableDetour(hSequenceSet, false, OnSequenceSet_Pre);
 	DHookEnableDetour(hSequenceSet, true, OnSequenceSet);
+	
+	delete hConf;
 }
 
 bool RealValidEntity(int entity)
@@ -372,7 +380,7 @@ bool RealValidEntity(int entity)
 
 void GetGamedata()
 {
-	char filePath[PLATFORM_MAX_PATH];
+	static char filePath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, filePath, sizeof(filePath), "gamedata/%s.txt", GAMEDATA);
 	if( FileExists(filePath) )
 	{

@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.9 (19-February-2023)
+    - Fixed a bug where commons didn't die from oxygen tank explosion. (thanks "Shao" for reporting)
+
 1.0.8 (03-March-2021)
     - Fixed incompatibility with the [L4D & L4D2] Dissolve Infected plugin. (thanks "jeremyvillanueva" for reporting, and "Silvers" for the code to fix)
 
@@ -53,7 +56,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Nerf Damage To Commons"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Nerfs some insta-kill damages dealt to commons"
-#define PLUGIN_VERSION                "1.0.8"
+#define PLUGIN_VERSION                "1.0.9"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=330085"
 
 // ====================================================================================================
@@ -96,11 +99,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_INFECTED            "infected"
-
-#define CLASSNAME_PROP_MINIGUN        "prop_minigun"
-#define CLASSNAME_PROP_MINIGUN_L4D1   "prop_minigun_l4d1"
-
 #define TEAM_SURVIVOR                 2
 #define TEAM_HOLDOUT                  4
 
@@ -158,162 +156,161 @@ public Plugin myinfo =
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_z_health;
-static ConVar g_hCvar_chainsaw_damage;
-static ConVar g_hCvar_z_non_head_damage_factor_easy;
-static ConVar g_hCvar_z_non_head_damage_factor_normal;
-static ConVar g_hCvar_z_non_head_damage_factor_hard;
-static ConVar g_hCvar_z_non_head_damage_factor_expert;
-static ConVar g_hCvar_z_non_head_damage_factor_multiplier;
-static ConVar g_hCvar_z_difficulty;
+ConVar g_hCvar_chainsaw_damage;
+ConVar g_hCvar_z_non_head_damage_factor_easy;
+ConVar g_hCvar_z_non_head_damage_factor_normal;
+ConVar g_hCvar_z_non_head_damage_factor_hard;
+ConVar g_hCvar_z_non_head_damage_factor_expert;
+ConVar g_hCvar_z_non_head_damage_factor_multiplier;
+ConVar g_hCvar_z_difficulty;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_IgnoreHeadshot;
-static ConVar g_hCvar_InstaKillChance;
-static ConVar g_hCvar_WoundDead;
-static ConVar g_hCvar_DamageFactor;
-static ConVar g_hCvar_DamageDropoff;
-static ConVar g_hCvar_Common;
-static ConVar g_hCvar_CommonDamage;
-static ConVar g_hCvar_ShotgunStumble;
-static ConVar g_hCvar_Pistol_Magnum;
-static ConVar g_hCvar_Hunting_Rifle;
-static ConVar g_hCvar_Sniper_Military;
-static ConVar g_hCvar_Sniper_Scout;
-static ConVar g_hCvar_Sniper_AWP;
-static ConVar g_hCvar_Rifle_M60;
-static ConVar g_hCvar_Chainsaw;
-static ConVar g_hCvar_Minigun;
-static ConVar g_hCvar_MinigunDamage;
-static ConVar g_hCvar_MinigunRangeModifier;
-static ConVar g_hCvar_50Cal;
-static ConVar g_hCvar_50CalDamage;
-static ConVar g_hCvar_50CalRangeModifier;
-static ConVar g_hCvar_ExplosiveAmmo;
-static ConVar g_hCvar_ExplosiveAmmoFactor;
-static ConVar g_hCvar_ExplosiveAmmoStumble;
-static ConVar g_hCvar_IncendiaryAmmo;
-static ConVar g_hCvar_IncendiaryAmmoFactor;
-static ConVar g_hCvar_NonMeleeStumbleChance;
-static ConVar g_hCvar_MeleeStumbleChance;
-static ConVar g_hCvar_MeleeDamage;
-static ConVar g_hCvar_MeleeSpamProtection;
-static ConVar g_hCvar_Melee_Baseball_Bat;
-static ConVar g_hCvar_Melee_Cricket_Bat;
-static ConVar g_hCvar_Melee_Crowbar;
-static ConVar g_hCvar_Melee_Electric_Guitar;
-static ConVar g_hCvar_Melee_Fireaxe;
-static ConVar g_hCvar_Melee_Frying_Pan;
-static ConVar g_hCvar_Melee_Golfclub;
-static ConVar g_hCvar_Melee_Katana;
-static ConVar g_hCvar_Melee_Knife;
-static ConVar g_hCvar_Melee_Machete;
-static ConVar g_hCvar_Melee_Tonfa;
-static ConVar g_hCvar_Melee_Pitchfork;
-static ConVar g_hCvar_Melee_Shovel;
-static ConVar g_hCvar_Melee_RiotShield;
-static ConVar g_hCvar_Melee_Custom;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_IgnoreHeadshot;
+ConVar g_hCvar_InstaKillChance;
+ConVar g_hCvar_WoundDead;
+ConVar g_hCvar_DamageFactor;
+ConVar g_hCvar_DamageDropoff;
+ConVar g_hCvar_Common;
+ConVar g_hCvar_CommonDamage;
+ConVar g_hCvar_ShotgunStumble;
+ConVar g_hCvar_Pistol_Magnum;
+ConVar g_hCvar_Hunting_Rifle;
+ConVar g_hCvar_Sniper_Military;
+ConVar g_hCvar_Sniper_Scout;
+ConVar g_hCvar_Sniper_AWP;
+ConVar g_hCvar_Rifle_M60;
+ConVar g_hCvar_Chainsaw;
+ConVar g_hCvar_Minigun;
+ConVar g_hCvar_MinigunDamage;
+ConVar g_hCvar_MinigunRangeModifier;
+ConVar g_hCvar_50Cal;
+ConVar g_hCvar_50CalDamage;
+ConVar g_hCvar_50CalRangeModifier;
+ConVar g_hCvar_ExplosiveAmmo;
+ConVar g_hCvar_ExplosiveAmmoFactor;
+ConVar g_hCvar_ExplosiveAmmoStumble;
+ConVar g_hCvar_IncendiaryAmmo;
+ConVar g_hCvar_IncendiaryAmmoFactor;
+ConVar g_hCvar_NonMeleeStumbleChance;
+ConVar g_hCvar_MeleeStumbleChance;
+ConVar g_hCvar_MeleeDamage;
+ConVar g_hCvar_MeleeSpamProtection;
+ConVar g_hCvar_Melee_Baseball_Bat;
+ConVar g_hCvar_Melee_Cricket_Bat;
+ConVar g_hCvar_Melee_Crowbar;
+ConVar g_hCvar_Melee_Electric_Guitar;
+ConVar g_hCvar_Melee_Fireaxe;
+ConVar g_hCvar_Melee_Frying_Pan;
+ConVar g_hCvar_Melee_Golfclub;
+ConVar g_hCvar_Melee_Katana;
+ConVar g_hCvar_Melee_Knife;
+ConVar g_hCvar_Melee_Machete;
+ConVar g_hCvar_Melee_Tonfa;
+ConVar g_hCvar_Melee_Pitchfork;
+ConVar g_hCvar_Melee_Shovel;
+ConVar g_hCvar_Melee_RiotShield;
+ConVar g_hCvar_Melee_Custom;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bLeft4DHooks;
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_IgnoreHeadshot;
-static bool   g_bCvar_InstaKillChance;
-static bool   g_bCvar_WoundDead;
-static bool   g_bCvar_DamageFactor;
-static bool   g_bCvar_DamageDropoff;
-static bool   g_bCvar_Common;
-static bool   g_bCvar_ShotgunStumble;
-static bool   g_bCvar_Pistol_Magnum;
-static bool   g_bCvar_Hunting_Rifle;
-static bool   g_bCvar_Sniper_Military;
-static bool   g_bCvar_Sniper_Scout;
-static bool   g_bCvar_Sniper_AWP;
-static bool   g_bCvar_Rifle_M60;
-static bool   g_bCvar_Chainsaw;
-static bool   g_bCvar_50Cal;
-static bool   g_bCvar_Minigun;
-static bool   g_bCvar_ExplosiveAmmo;
-static bool   g_bCvar_ExplosiveAmmoFactor;
-static bool   g_bCvar_ExplosiveAmmoStumble;
-static bool   g_bCvar_IncendiaryAmmo;
-static bool   g_bCvar_IncendiaryAmmoFactor;
-static bool   g_bCvar_NonMeleeStumbleChance;
-static bool   g_bCvar_MeleeStumbleChance;
-static bool   g_bCvar_MeleeSpamProtection;
-static bool   g_bCvar_Melee_Baseball_Bat;
-static bool   g_bCvar_Melee_Cricket_Bat;
-static bool   g_bCvar_Melee_Crowbar;
-static bool   g_bCvar_Melee_Electric_Guitar;
-static bool   g_bCvar_Melee_Fireaxe;
-static bool   g_bCvar_Melee_Frying_Pan;
-static bool   g_bCvar_Melee_Golfclub;
-static bool   g_bCvar_Melee_Katana;
-static bool   g_bCvar_Melee_Knife;
-static bool   g_bCvar_Melee_Machete;
-static bool   g_bCvar_Melee_Tonfa;
-static bool   g_bCvar_Melee_Pitchfork;
-static bool   g_bCvar_Melee_Shovel;
-static bool   g_bCvar_Melee_RiotShield;
-static bool   g_bCvar_Melee_Custom;
+bool g_bLeft4DHooks;
+bool g_bCvar_Enabled;
+bool g_bCvar_IgnoreHeadshot;
+bool g_bCvar_InstaKillChance;
+bool g_bCvar_WoundDead;
+bool g_bCvar_DamageFactor;
+bool g_bCvar_DamageDropoff;
+bool g_bCvar_Common;
+bool g_bCvar_ShotgunStumble;
+bool g_bCvar_Pistol_Magnum;
+bool g_bCvar_Hunting_Rifle;
+bool g_bCvar_Sniper_Military;
+bool g_bCvar_Sniper_Scout;
+bool g_bCvar_Sniper_AWP;
+bool g_bCvar_Rifle_M60;
+bool g_bCvar_Chainsaw;
+bool g_bCvar_50Cal;
+bool g_bCvar_Minigun;
+bool g_bCvar_ExplosiveAmmo;
+bool g_bCvar_ExplosiveAmmoFactor;
+bool g_bCvar_ExplosiveAmmoStumble;
+bool g_bCvar_IncendiaryAmmo;
+bool g_bCvar_IncendiaryAmmoFactor;
+bool g_bCvar_NonMeleeStumbleChance;
+bool g_bCvar_MeleeStumbleChance;
+bool g_bCvar_MeleeSpamProtection;
+bool g_bCvar_Melee_Baseball_Bat;
+bool g_bCvar_Melee_Cricket_Bat;
+bool g_bCvar_Melee_Crowbar;
+bool g_bCvar_Melee_Electric_Guitar;
+bool g_bCvar_Melee_Fireaxe;
+bool g_bCvar_Melee_Frying_Pan;
+bool g_bCvar_Melee_Golfclub;
+bool g_bCvar_Melee_Katana;
+bool g_bCvar_Melee_Knife;
+bool g_bCvar_Melee_Machete;
+bool g_bCvar_Melee_Tonfa;
+bool g_bCvar_Melee_Pitchfork;
+bool g_bCvar_Melee_Shovel;
+bool g_bCvar_Melee_RiotShield;
+bool g_bCvar_Melee_Custom;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_z_health;
-static int    g_iCvar_chainsaw_damage;
-static int    g_iCvar_z_difficulty;
-static int    g_iCvar_CommonDamage;
-static int    g_iCvar_50CalDamage;
-static int    g_iCvar_MinigunDamage;
-static int    g_iCvar_MeleeDamage;
+int g_iCvar_chainsaw_damage;
+int g_iCvar_z_difficulty;
+int g_iCvar_CommonDamage;
+int g_iCvar_50CalDamage;
+int g_iCvar_MinigunDamage;
+int g_iCvar_MeleeDamage;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_z_non_head_damage_factor_easy;
-static float  g_fCvar_z_non_head_damage_factor_normal;
-static float  g_fCvar_z_non_head_damage_factor_hard;
-static float  g_fCvar_z_non_head_damage_factor_expert;
-static float  g_fCvar_z_non_head_damage_factor_multiplier;
-static float  g_fDifficultyFactor;
-static float  g_fDamageFactor;
-static float  g_fCvar_MinigunRangeModifier;
-static float  g_fCvar_50CalRangeModifier;
-static float  g_fCvar_ExplosiveAmmoFactor;
-static float  g_fCvar_IncendiaryAmmoFactor;
-static float  g_fCvar_NonMeleeStumbleChance;
-static float  g_fCvar_MeleeStumbleChance;
-static float  g_fCvar_MeleeSpamProtection;
-static float  g_fCvar_InstaKillChance;
+float g_fCvar_z_non_head_damage_factor_easy;
+float g_fCvar_z_non_head_damage_factor_normal;
+float g_fCvar_z_non_head_damage_factor_hard;
+float g_fCvar_z_non_head_damage_factor_expert;
+float g_fCvar_z_non_head_damage_factor_multiplier;
+float g_fDifficultyFactor;
+float g_fDamageFactor;
+float g_fCvar_CommonDamage;
+float g_fCvar_MinigunRangeModifier;
+float g_fCvar_50CalRangeModifier;
+float g_fCvar_ExplosiveAmmoFactor;
+float g_fCvar_IncendiaryAmmoFactor;
+float g_fCvar_NonMeleeStumbleChance;
+float g_fCvar_MeleeStumbleChance;
+float g_fCvar_MeleeSpamProtection;
+float g_fCvar_InstaKillChance;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_z_difficulty[11];
+char g_sCvar_z_difficulty[11];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static bool   ge_bIsCommon[MAXENTITIES+1];
-static float  ge_fLastMeleeAttack[MAXENTITIES+1][MAXPLAYERS+1];
+bool ge_bIsCommon[MAXENTITIES+1];
+bool ge_bIsDmgBurn[MAXENTITIES+1];
+float ge_fLastMeleeAttack[MAXENTITIES+1][MAXPLAYERS+1];
 
 // ====================================================================================================
 // ArrayList - Plugin Variables
 // ====================================================================================================
-static ArrayList g_alWeaponInfo;
+ArrayList g_alWeaponInfo;
 
 // ====================================================================================================
 // StringMap - Plugin Variables
 // ====================================================================================================
-static StringMap g_smWeaponIDs;
-static StringMap g_smMeleeIDs;
+StringMap g_smWeaponIDs;
+StringMap g_smMeleeIDs;
 
 // ====================================================================================================
 // left4dhooks - Plugin Dependencies
@@ -351,10 +348,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
     MarkNativeAsOptional("L4D2_GetFloatWeaponAttribute");
     #endif
 
-    g_alWeaponInfo = new ArrayList(ByteCountToCells(24));
-    g_smWeaponIDs = new StringMap();
-    g_smMeleeIDs = new StringMap();
-
     return APLRes_Success;
 }
 
@@ -369,9 +362,12 @@ public void OnAllPluginsLoaded()
 
 public void OnPluginStart()
 {
-    BuildMaps();
+    g_alWeaponInfo = new ArrayList(ByteCountToCells(24));
+    g_smWeaponIDs = new StringMap();
+    g_smMeleeIDs = new StringMap();
 
-    g_hCvar_z_health = FindConVar("z_health");
+    BuildStringMaps();
+
     g_hCvar_chainsaw_damage = FindConVar("chainsaw_damage");
     g_hCvar_z_non_head_damage_factor_easy = FindConVar("z_non_head_damage_factor_easy");
     g_hCvar_z_non_head_damage_factor_normal = FindConVar("z_non_head_damage_factor_normal");
@@ -383,7 +379,7 @@ public void OnPluginStart()
     CreateConVar("l4d2_nerf_damage_common_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled               = CreateConVar("l4d2_nerf_damage_common_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_IgnoreHeadshot        = CreateConVar("l4d2_nerf_damage_common_ignore_headshot", "1", "Ignore headshot damage\nNote: By default, a common zombie instantly dies on a headshot.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_InstaKillChance       = CreateConVar("l4d2_nerf_damage_common_insta_kill_chance", "5.0", "Chance to insta-kill (any weapon).\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_InstaKillChance       = CreateConVar("l4d2_nerf_damage_common_insta_kill_chance", "2.0", "Chance to insta-kill (any weapon).\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_WoundDead             = CreateConVar("l4d2_nerf_damage_common_wound_dead", "1", "Set wounds only when the zombie is going to die.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_DamageFactor          = CreateConVar("l4d2_nerf_damage_common_damage_factor", "1", "Apply difficulty and damage multiplier on non-headshot hits.\nFormula: damage * z_non_head_damage_factor_<difficulty> * z_non_head_damage_factor_multiplier.\nCheck \"z_non_head_damage_factor_*\" cvars for more info.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_DamageDropoff         = CreateConVar("l4d2_nerf_damage_common_damage_dropoff", "1", "Apply damage dropoff.\nDecreases damage based on distance if RangeModifier < 1.0.\nFormula: Damage * (RangeModifier ^ (Distance/500))\nSource: https://counterstrike.fandom.com/wiki/Damage_dropoff.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -429,7 +425,6 @@ public void OnPluginStart()
     g_hCvar_Melee_Custom          = CreateConVar("l4d2_nerf_damage_common_melee_custom", "1", "Nerf damage for Custom Melees.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
 
     // Hook plugin ConVars change
-    g_hCvar_z_health.AddChangeHook(Event_ConVarChanged);
     g_hCvar_chainsaw_damage.AddChangeHook(Event_ConVarChanged);
     g_hCvar_z_non_head_damage_factor_easy.AddChangeHook(Event_ConVarChanged);
     g_hCvar_z_non_head_damage_factor_normal.AddChangeHook(Event_ConVarChanged);
@@ -494,7 +489,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void BuildMaps()
+void BuildStringMaps()
 {
     // Weapons Info
     g_alWeaponInfo.Clear();
@@ -569,23 +564,20 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
-    g_iCvar_z_health = g_hCvar_z_health.IntValue;
     g_iCvar_chainsaw_damage = g_hCvar_chainsaw_damage.IntValue;
     g_fCvar_z_non_head_damage_factor_easy = g_hCvar_z_non_head_damage_factor_easy.FloatValue;
     g_fCvar_z_non_head_damage_factor_normal = g_hCvar_z_non_head_damage_factor_normal.FloatValue;
@@ -594,15 +586,14 @@ public void GetCvars()
     g_fCvar_z_non_head_damage_factor_multiplier = g_hCvar_z_non_head_damage_factor_multiplier.FloatValue;
 
     g_hCvar_z_difficulty.GetString(g_sCvar_z_difficulty, sizeof(g_sCvar_z_difficulty));
-    StringToLowerCase(g_sCvar_z_difficulty);
 
-    if (StrEqual(g_sCvar_z_difficulty, "easy"))
+    if (StrEqual(g_sCvar_z_difficulty, "easy", false))
         g_iCvar_z_difficulty = Z_DIFFICULTY_EASY;
-    else if (StrEqual(g_sCvar_z_difficulty, "normal"))
+    else if (StrEqual(g_sCvar_z_difficulty, "normal", false))
         g_iCvar_z_difficulty = Z_DIFFICULTY_NORMAL;
-    else if (StrEqual(g_sCvar_z_difficulty, "hard"))
+    else if (StrEqual(g_sCvar_z_difficulty, "hard", false))
         g_iCvar_z_difficulty = Z_DIFFICULTY_HARD;
-    else if (StrEqual(g_sCvar_z_difficulty, "impossible"))
+    else if (StrEqual(g_sCvar_z_difficulty, "impossible", false))
         g_iCvar_z_difficulty = Z_DIFFICULTY_EXPERT;
     else
         g_iCvar_z_difficulty = Z_DIFFICULTY_NORMAL;
@@ -616,6 +607,7 @@ public void GetCvars()
     g_bCvar_DamageDropoff = g_hCvar_DamageDropoff.BoolValue;
     g_bCvar_Common = g_hCvar_Common.BoolValue;
     g_iCvar_CommonDamage = g_hCvar_CommonDamage.IntValue;
+    g_fCvar_CommonDamage = float(g_iCvar_CommonDamage);
     g_bCvar_ShotgunStumble = g_hCvar_ShotgunStumble.BoolValue;
     g_bCvar_Pistol_Magnum = g_hCvar_Pistol_Magnum.BoolValue;
     g_bCvar_Rifle_M60 = g_hCvar_Rifle_M60.BoolValue;
@@ -680,16 +672,14 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_INFECTED)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "infected")) != INVALID_ENT_REFERENCE)
     {
-        ge_bIsCommon[entity] = true;
-        SDKHook(entity, SDKHook_TraceAttack, OnTraceAttack);
-        SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+        HookEntity(entity);
     }
 }
 
@@ -697,25 +687,7 @@ public void LateLoad()
 
 public void OnClientDisconnect(int client)
 {
-    for (int entity = MaxClients+1; entity <= GetMaxEntities(); entity++)
-    {
-        ge_fLastMeleeAttack[entity][client] = 0.0;
-    }
-}
-
-/****************************************************************************************************/
-
-public void OnEntityDestroyed(int entity)
-{
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    ge_bIsCommon[entity] = false;
-
-    for (int client = 1; client <= MaxClients; client++)
+    for (int entity = 1; entity <= GetMaxEntities(); entity++)
     {
         ge_fLastMeleeAttack[entity][client] = 0.0;
     }
@@ -725,39 +697,59 @@ public void OnEntityDestroyed(int entity)
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
+    if (StrEqual(classname, "infected"))
+        HookEntity(entity);
+}
+
+/****************************************************************************************************/
+
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
         return;
 
-    if (classname[0] != 'i')
-       return;
+    ge_bIsCommon[entity] = false;
+    ge_bIsDmgBurn[entity] = false;
 
-    if (StrEqual(classname, CLASSNAME_INFECTED))
+    for (int client = 1; client <= MaxClients; client++)
     {
-        ge_bIsCommon[entity] = true;
-        SDKHook(entity, SDKHook_TraceAttack, OnTraceAttack);
-        SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+        ge_fLastMeleeAttack[entity][client] = 0.0;
     }
 }
 
 /****************************************************************************************************/
 
-public Action OnTraceAttack(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &ammotype, int hitbox, int hitgroup)
+void HookEntity(int entity)
 {
-    if (!g_bLeft4DHooks)
-        return Plugin_Continue;
+    if (ge_bIsCommon[entity])
+        return;
 
-    if (!g_bCvar_Enabled)
-        return Plugin_Continue;
+    ge_bIsCommon[entity] = true;
+    SDKHook(entity, SDKHook_TraceAttack, OnTraceAttack);
+    SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+}
+
+/****************************************************************************************************/
+
+Action OnTraceAttack(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &ammotype, int hitbox, int hitgroup)
+{
+    ge_bIsDmgBurn[victim] = false;
 
     // Block dissolver damage to common, otherwise server will crash. (Code fix by "Silvers" on "Dissolve Infected" plugin)
     if (damage == 10000.0 && damagetype == 5982249)
     {
         damage = 0.0;
-        return Plugin_Continue;
+        return Plugin_Handled;
     }
+
+    if (!g_bLeft4DHooks)
+        return Plugin_Continue;
+
+    if (!g_bCvar_Enabled)
+        return Plugin_Continue;
 
     if (hitgroup == HITGROUP_HEAD)
     {
@@ -767,33 +759,38 @@ public Action OnTraceAttack(int victim, int &attacker, int &inflictor, float &da
         return Plugin_Continue;
     }
 
-    bool damagetype_changed;
+    char inflictorClassname[36];
+    if (IsValidEntity(inflictor))
+    {
+        GetEntityClassname(inflictor, inflictorClassname, sizeof(inflictorClassname));
+
+        if (StrEqual(inflictorClassname, "pipe_bomb_projectile") || StrEqual(inflictorClassname, "grenade_launcher_projectile")) // Probably an explosion damage (propane/oxygen/pipe bomb/grenade laumcher)
+            return Plugin_Continue;
+    }
+
+    int damagetypeOld = damagetype;
 
     if (damage == 0.0)
-    {
-        damagetype_changed = true;
         damagetype = DMG_GENERIC;
-    }
 
-    if (g_bCvar_IncendiaryAmmo && (damagetype & DMG_BURN))
-    {
-        damagetype_changed = true;
+    bool isIncendiary = (g_bCvar_IncendiaryAmmo && (damagetype & DMG_BULLET && damagetype & DMG_BURN));
+    if (isIncendiary)
         damagetype &= ~DMG_BURN;
-        damagetype |= DMG_REMOVENORAGDOLL; // Add a fake damage type to retrieve that was DMG_BURN on OnTakeDamage
-    }
 
-    return damagetype_changed ? Plugin_Changed : Plugin_Continue;
+    ge_bIsDmgBurn[victim] = isIncendiary;
+
+    return (damagetype != damagetypeOld) ? Plugin_Changed : Plugin_Continue;
 }
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
     // Block dissolver damage to common, otherwise server will crash. (Code fix by "Silvers" on "Dissolve Infected" plugin)
     if (damage == 10000.0 && damagetype == 5982249)
     {
         damage = 0.0;
-        return Plugin_Stop;
+        return Plugin_Handled;
     }
 
     if (!g_bLeft4DHooks)
@@ -802,35 +799,40 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
 
-    if (g_bCvar_Common && IsValidEntityIndex(attacker) && ge_bIsCommon[attacker])
+    char inflictorClassname[36];
+    if (IsValidEntity(inflictor))
     {
-        damage = float(g_iCvar_CommonDamage);
+        GetEntityClassname(inflictor, inflictorClassname, sizeof(inflictorClassname));
+
+        if (StrEqual(inflictorClassname, "pipe_bomb_projectile") || StrEqual(inflictorClassname, "grenade_launcher_projectile")) // Probably an explosion damage (propane/oxygen/pipe bomb/grenade laumcher)
+            return Plugin_Continue;
+    }
+
+    if (g_bCvar_Common && (damagetype & DMG_CLUB) && IsValidEntity(attacker) && ge_bIsCommon[attacker]) // Commons does DMG_CLUB
+    {
+        damage = g_fCvar_CommonDamage;
         return Plugin_Changed;
     }
 
-    bool damagetype_changed;
+    int damagetypeOld = damagetype;
 
-    if (!g_bCvar_ShotgunStumble && damagetype & DMG_BUCKSHOT)
+    if (ge_bIsDmgBurn[victim])
     {
-        damagetype_changed = true;
-        damagetype &= ~DMG_BUCKSHOT;
-    }
-
-    if (g_bCvar_ExplosiveAmmo && g_bCvar_ExplosiveAmmoStumble && (damagetype & DMG_BLAST))
-    {
-        damagetype_changed = true;
-        damagetype |= DMG_BUCKSHOT; // Stumble common infecteds
-    }
-
-    if (g_bCvar_IncendiaryAmmo && (damagetype & DMG_REMOVENORAGDOLL))
-    {
-        damagetype_changed = true;
-        damagetype &= ~DMG_REMOVENORAGDOLL;
+        ge_bIsDmgBurn[victim] = false;
         damagetype |= DMG_BURN;
     }
 
+    bool isExplosive = (g_bCvar_ExplosiveAmmo && (damagetype & DMG_BULLET && damagetype & DMG_BLAST));
+    bool isIncendiary = (g_bCvar_IncendiaryAmmo && (damagetype & DMG_BULLET && damagetype & DMG_BURN));
+
+    if (!g_bCvar_ShotgunStumble && damagetype & DMG_BUCKSHOT)
+        damagetype &= ~DMG_BUCKSHOT;
+
+    if (isExplosive && g_bCvar_ExplosiveAmmoStumble)
+        damagetype |= DMG_BUCKSHOT; // Stumble common infecteds
+
     if (damage == 0.0)
-        return damagetype_changed ? Plugin_Changed : Plugin_Continue;
+        return (damagetype != damagetypeOld) ? Plugin_Changed : Plugin_Continue;
 
     float health = float(GetEntProp(victim, Prop_Data, "m_iHealth"));
 
@@ -853,13 +855,11 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
     if (!IsValidEntity(weaponEntity))
         return Plugin_Continue;
 
-    char weaponName[24];
+    char weaponName[36];
     GetEntityClassname(weaponEntity, weaponName, sizeof(weaponName));
 
-    bool isMelee = HasEntProp(weaponEntity, Prop_Data, "m_strMapSetScriptName"); // CTerrorMeleeWeapon
+    bool isMelee = HasEntProp(weaponEntity, Prop_Send, "m_bInMeleeSwing"); // CTerrorMeleeWeapon
     bool isMachineGun = HasEntProp(weaponEntity, Prop_Send, "m_heat"); // CPropMinigun / CPropMountedGun
-    bool isExplosive = (g_bCvar_ExplosiveAmmo && (damagetype & DMG_BLAST));
-    bool isIncendiary = (g_bCvar_IncendiaryAmmo && (damagetype & DMG_BURN));
     bool isStumble;
 
     int weaponid;
@@ -913,7 +913,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
         }
         case L4D2_WEPID_MACHINE_GUN:
         {
-            if (StrEqual(weaponName, CLASSNAME_PROP_MINIGUN))
+            if (StrEqual(weaponName, "prop_minigun"))
             {
                 if (!g_bCvar_50Cal)
                     return Plugin_Continue;
@@ -921,7 +921,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 weaponDamage = g_iCvar_50CalDamage;
                 weaponRangeModifier = g_fCvar_50CalRangeModifier;
             }
-            else if (StrEqual(weaponName, CLASSNAME_PROP_MINIGUN_L4D1))
+            else if (StrEqual(weaponName, "prop_minigun_l4d1"))
             {
                 if (!g_bCvar_Minigun)
                     return Plugin_Continue;
@@ -1128,7 +1128,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1138,7 +1138,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d2_nerf_damage_common_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_nerf_damage_common_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_ignore_headshot : %b (%s)", g_bCvar_IgnoreHeadshot, g_bCvar_IgnoreHeadshot ? "true" : "false");
-    PrintToConsole(client, "l4d2_nerf_damage_common_insta_kill_chance : %.2f%% (%s)", g_fCvar_InstaKillChance, g_bCvar_InstaKillChance ? "true" : "false");
+    PrintToConsole(client, "l4d2_nerf_damage_common_insta_kill_chance : %.1f%% (%s)", g_fCvar_InstaKillChance, g_bCvar_InstaKillChance ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_wound_dead : %b (%s)", g_bCvar_WoundDead, g_bCvar_WoundDead ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_damage_factor : %b (%s)", g_bCvar_DamageFactor, g_bCvar_DamageFactor ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_damage_dropoff : %b (%s)", g_bCvar_DamageDropoff, g_bCvar_DamageDropoff ? "true" : "false");
@@ -1163,8 +1163,8 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d2_nerf_damage_common_explosive_ammo_stumble : %b (%s)", g_bCvar_ExplosiveAmmoStumble, g_bCvar_ExplosiveAmmoStumble ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_incendiary_ammo : %b (%s)", g_bCvar_IncendiaryAmmo, g_bCvar_IncendiaryAmmo ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_incendiary_ammo_factor : %.2f (%s)", g_fCvar_IncendiaryAmmoFactor, g_bCvar_IncendiaryAmmoFactor ? "true" : "false");
-    PrintToConsole(client, "l4d2_nerf_damage_common_non_melee_stumble_chance : %.2f%% (%s)", g_fCvar_NonMeleeStumbleChance, g_bCvar_NonMeleeStumbleChance ? "true" : "false");
-    PrintToConsole(client, "l4d2_nerf_damage_common_melee_stumble_chance : %.2f%% (%s)", g_fCvar_MeleeStumbleChance, g_bCvar_MeleeStumbleChance ? "true" : "false");
+    PrintToConsole(client, "l4d2_nerf_damage_common_non_melee_stumble_chance : %.1f%% (%s)", g_fCvar_NonMeleeStumbleChance, g_bCvar_NonMeleeStumbleChance ? "true" : "false");
+    PrintToConsole(client, "l4d2_nerf_damage_common_melee_stumble_chance : %.1f%% (%s)", g_fCvar_MeleeStumbleChance, g_bCvar_MeleeStumbleChance ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_melee_damage : %i", g_iCvar_MeleeDamage);
     PrintToConsole(client, "l4d2_nerf_damage_common_melee_spam_protection : %.2f (%s)", g_fCvar_MeleeSpamProtection, g_bCvar_MeleeSpamProtection ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_melee_baseball_bat : %b (%s)", g_bCvar_Melee_Baseball_Bat, g_bCvar_Melee_Baseball_Bat ? "true" : "false");
@@ -1183,13 +1183,9 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d2_nerf_damage_common_melee_riotshield : %b (%s)", g_bCvar_Melee_RiotShield, g_bCvar_Melee_RiotShield ? "true" : "false");
     PrintToConsole(client, "l4d2_nerf_damage_common_melee_custom : %b (%s)", g_bCvar_Melee_Custom, g_bCvar_Melee_Custom ? "true" : "false");
     PrintToConsole(client, "");
-    PrintToConsole(client, "----------------------------------------------------------------------");
-    PrintToConsole(client, "");
-    PrintToConsole(client, "left4dhooks : %s", g_bLeft4DHooks ? "true" : "false");
-    PrintToConsole(client, "");
     PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
     PrintToConsole(client, "");
-    PrintToConsole(client, "z_health : %i", g_iCvar_z_health);
+    PrintToConsole(client, "z_health : %i", FindConVar("z_health").IntValue);
     PrintToConsole(client, "chainsaw_damage : %i", g_iCvar_chainsaw_damage);
     PrintToConsole(client, "z_non_head_damage_factor_easy : %.2f", g_fCvar_z_non_head_damage_factor_easy);
     PrintToConsole(client, "z_non_head_damage_factor_normal : %.2f", g_fCvar_z_non_head_damage_factor_normal);
@@ -1197,13 +1193,31 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "z_non_head_damage_factor_expert : %.2f", g_fCvar_z_non_head_damage_factor_expert);
     PrintToConsole(client, "z_non_head_damage_factor_multiplier : %.2f", g_fCvar_z_non_head_damage_factor_multiplier);
     PrintToConsole(client, "z_difficulty : \"%s\" %s", g_sCvar_z_difficulty, g_iCvar_z_difficulty == Z_DIFFICULTY_EXPERT ? "(expert)" : "");
-    PrintToConsole(client, "Current Damage Factor : %.3f => (Difficulty: %.2f * Multiplier: %.2f)", g_fDamageFactor, g_fDifficultyFactor, g_fCvar_z_non_head_damage_factor_multiplier);
     PrintToConsole(client, "");
+    PrintToConsole(client, "---------------------------- Other Infos  ----------------------------");
+    PrintToConsole(client, "");
+    PrintToConsole(client, "left4dhooks : %s", g_bLeft4DHooks ? "true" : "false");
+    PrintToConsole(client, "Current Damage Factor : %.2f => (Difficulty: %.2f * Multiplier: %.2f)", g_fDamageFactor, g_fDifficultyFactor, g_fCvar_z_non_head_damage_factor_multiplier);
+    PrintToConsole(client, "");
+    CreateTimer(0.1, TimerPrintCvars, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+
+    return Plugin_Handled;
+}
+
+/****************************************************************************************************/
+
+Action TimerPrintCvars(Handle timer, int userid)
+{
+    int client = GetClientOfUserId(userid);
+
+    if (client == 0)
+        return Plugin_Stop;
+
     PrintToConsole(client, "------------------ Weapons Damage and RangeModifier ------------------");
     PrintToConsole(client, "");
     if (g_bLeft4DHooks)
     {
-        char weaponName[24];
+        char weaponName[36];
         int weaponDamage;
         float weaponRangeModifier;
         for (int i = 0; i < g_alWeaponInfo.Length; i++)
@@ -1222,7 +1236,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
-    return Plugin_Handled;
+    return Plugin_Stop;
 }
 
 // ====================================================================================================
@@ -1250,32 +1264,4 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
-/**
- * Converts the string to lower case.
- *
- * @param input         Input string.
- */
-void StringToLowerCase(char[] input)
-{
-    for (int i = 0; i < strlen(input); i++)
-    {
-        input[i] = CharToLower(input[i]);
-    }
 }

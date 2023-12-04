@@ -4,7 +4,7 @@
 #define PLUGIN_NAME "[L4D1/2] Survivor Identity Fix for 5+ Survivors"
 #define PLUGIN_AUTHOR "Merudo, Shadowysn"
 #define PLUGIN_DESC "Fix bug where a survivor will change identity when a player connects/disconnects if there are 5+ survivors"
-#define PLUGIN_VERSION "1.7"
+#define PLUGIN_VERSION "1.7b"
 #define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?p=2403731#post2403731"
 #define PLUGIN_NAME_SHORT "5+ Survivor Identity Fix"
 #define PLUGIN_NAME_TECH "survivor_identity_fix"
@@ -53,23 +53,26 @@ public void OnPluginStart()
 //  Needed because when Event_PlayerToBot fires, it's hunter model instead
 // ------------------------------------------------------------------------
 public MRESReturn SetModel_Pre(int client, Handle hParams)
-{ } // We need this pre hook even though it's empty, or else the post hook will crash the game.
+{return MRES_Ignored;} // We need this pre hook even though it's empty, or else the post hook will crash the game.
+// 7/27/2023: Probably shouldn't need this anymore, the DHooks packaged with
+// SM 1.11 has already fixed this issue a long time
 
 public MRESReturn SetModel(int client, Handle hParams)
 {
-	if (!IsValidClient(client)) return;
+	if (!IsValidClient(client, false)) return MRES_Ignored;
 	if (!IsSurvivor(client)) 
 	{
 		g_Models[client][0] = '\0';
-		return;
+		return MRES_Ignored;
 	}
 	
 	char model[128];
 	DHookGetParamString(hParams, 1, model, sizeof(model));
 	if (StrContains(model, "survivors", false) >= 0)
 	{
-		strcopy(g_Models[client], 128, model);
+		strcopy(g_Models[client], sizeof(model), model);
 	}
+	return MRES_Ignored;
 }
 
 // ------------------------------------------------------------------------
@@ -91,12 +94,13 @@ char survivor_models[8][] =
 // --------------------------------------
 // Bot replaced by player
 // --------------------------------------
-public Action Event_BotToPlayer(Handle event, const char[] name, bool dontBroadcast)
+void Event_BotToPlayer(Handle event, const char[] name, bool dontBroadcast)
 {
 	int player = GetClientOfUserId(GetEventInt(event, "player"));
 	int bot    = GetClientOfUserId(GetEventInt(event, "bot"));
 
-	if (!IsValidClient(player) || !IsSurvivor(player) || IsFakeClient(player)) return;  // ignore fake players (side product of creating bots)
+	if (player == 0 || !IsSurvivor(player) || IsFakeClient(player))
+		return; // ignore fake players (side product of creating bots)
 
 	char model[128];
 	GetClientModel(bot, model, sizeof(model));
@@ -107,12 +111,13 @@ public Action Event_BotToPlayer(Handle event, const char[] name, bool dontBroadc
 // --------------------------------------
 // Player -> Bot
 // --------------------------------------
-public Action Event_PlayerToBot(Handle event, char[] name, bool dontBroadcast)
+void Event_PlayerToBot(Handle event, char[] name, bool dontBroadcast)
 {
 	int player = GetClientOfUserId(GetEventInt(event, "player"));
 	int bot    = GetClientOfUserId(GetEventInt(event, "bot")); 
 
-	if (!IsValidClient(player) || !IsSurvivor(player) || IsFakeClient(player)) return; // ignore fake players (side product of creating bots)
+	if (player == 0 || !IsSurvivor(player) || IsFakeClient(player))
+		return; // ignore fake players (side product of creating bots)
 	
 	if (g_Models[player][0] != '\0')
 	{
@@ -120,7 +125,11 @@ public Action Event_PlayerToBot(Handle event, char[] name, bool dontBroadcast)
 		SetEntityModel(bot, g_Models[player]); // Restore saved model. Player model is hunter at this point
 		for (int i = 0; i < 8; i++)
 		{
-			if (StrEqual(g_Models[player], survivor_models[i])) SetClientInfo(bot, "name", survivor_names[i]);
+			if (strcmp(g_Models[player], survivor_models[i], false) == 0)
+			{
+				SetClientInfo(bot, "name", survivor_names[i]);
+				break;
+			}
 		}
 	}
 }
@@ -193,21 +202,24 @@ void PrepDHooks()
 	DHookAddParam(hDHookSetModel, HookParamType_CharPtr);
 	DHookEnableDetour(hDHookSetModel, false, SetModel_Pre);
 	DHookEnableDetour(hDHookSetModel, true, SetModel);
+	
+	delete hConf;
 }
 
-bool IsValidClient(int client, bool replaycheck = true)
+stock bool IsValidClient(int client, bool replaycheck = true, bool isLoop = false)
 {
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	if (replaycheck)
+	if ((isLoop || client > 0 && client <= MaxClients) && IsClientInGame(client))
 	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		if (HasEntProp(client, Prop_Send, "m_bIsCoaching")) // TF2, CSGO?
+			if (view_as<bool>(GetEntProp(client, Prop_Send, "m_bIsCoaching"))) return false;
+		if (replaycheck)
+		{
+			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		}
+		return true;
 	}
-	return true;
+	return false;
 }
 
-bool IsSurvivor(int client)
-{
-	if (GetClientTeam(client) != TEAM_SURVIVOR && GetClientTeam(client) != TEAM_PASSING) return false;
-	return true;
-}
+stock bool IsSurvivor(int client)
+{ int team = GetClientTeam(client); return (team == TEAM_SURVIVOR || team == TEAM_PASSING); }

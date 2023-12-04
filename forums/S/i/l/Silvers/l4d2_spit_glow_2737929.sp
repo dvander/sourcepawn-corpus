@@ -1,6 +1,6 @@
 /*
 *	Spitter Acid Glow
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1"
+#define PLUGIN_VERSION 		"1.2"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.2 (10-Apr-2022)
+	- Changed the method for fading lights in and out hopefully preventing random server crash.
 
 1.1 (26-Feb-2021)
 	- Fixed and renamed cvar "l4d2_spit_glow_spit" to "l4d2_spit_glow_color". Thanks to "swiftswing1" for reporting.
@@ -53,10 +56,10 @@
 
 
 ConVar g_hCvarAllow, g_hCvarColor, g_hCvarDist, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
-int g_iEntities[MAX_LIGHTS][2];
-bool g_bCvarAllow, g_bMapStarted;
+int g_iEntities[MAX_LIGHTS][2], g_iTick[MAX_LIGHTS];
+bool g_bCvarAllow, g_bMapStarted, g_bFrameProcessing;
 char g_sCvarCols[12];
-float g_fCvarDist;
+float g_fFaderTick[MAX_LIGHTS], g_fFaderStart[MAX_LIGHTS], g_fFaderEnd[MAX_LIGHTS], g_fCvarDist;
 
 
 
@@ -244,7 +247,7 @@ public void OnEntityDestroyed(int entity)
 			{
 				if( IsValidEntRef(g_iEntities[i][0]) )
 				{
-					AcceptEntityInput(g_iEntities[i][0], "Kill");
+					RemoveEntity(g_iEntities[i][0]);
 				}
 
 				g_iEntities[i][0] = 0;
@@ -280,14 +283,14 @@ public Action TimerCreate(Handle timer, any target)
 		}
 
 		if( index == -1 )
-			return;
+			return Plugin_Continue;
 
-		char sTemp[64];
+		static char sTemp[64];
 		int entity = CreateEntityByName("light_dynamic");
 		if( entity == -1)
 		{
 			LogError("Failed to create 'light_dynamic'");
-			return;
+			return Plugin_Continue;
 		}
 
 		g_iEntities[index][0] = EntIndexToEntRef(entity);
@@ -309,9 +312,22 @@ public Action TimerCreate(Handle timer, any target)
 		TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
 		AcceptEntityInput(entity, "TurnOn");
 
-		int iTickRate = RoundFloat(1 / GetTickInterval());
 		float flTickInterval = GetTickInterval();
+		int iTickRate = RoundFloat(1 / flTickInterval);
 
+		// Fade
+		if( !g_bFrameProcessing )
+		{
+			g_bFrameProcessing = true;
+			RequestFrame(OnFrameFade);
+		}
+
+		g_iTick[index] = 7;
+		g_fFaderEnd[index] = GetGameTime() + ACID_TIME - (flTickInterval * iTickRate);
+		g_fFaderStart[index] = GetGameTime() + flTickInterval * iTickRate + 2.0;
+		g_fFaderTick[index] = GetGameTime() - 1.0;
+
+		/* Old method (causes rare crash with too many inputs - at least in the Fire Glow plugin)
 		// Fade in
 		for(int i = 1; i <= iTickRate; i++)
 		{
@@ -329,11 +345,73 @@ public Action TimerCreate(Handle timer, any target)
 			AcceptEntityInput(entity, "AddOutput");
 		}
 		AcceptEntityInput(entity, "FireUser2");
+		// */
 
 		Format(sTemp, sizeof(sTemp), "OnUser3 !self:Kill::%f:-1", ACID_TIME);
 		SetVariantString(sTemp);
 		AcceptEntityInput(entity, "AddOutput");
 		AcceptEntityInput(entity, "FireUser3");
+	}
+
+	return Plugin_Continue;
+}
+
+void OnFrameFade()
+{
+	g_bFrameProcessing = false;
+
+	float fDist;
+	float fTime = GetGameTime();
+	float flTickInterval = GetTickInterval();
+	int iTickRate = RoundFloat(1 / flTickInterval);
+
+	// Loop through valid ents
+	for( int i = 0; i < MAX_LIGHTS; i++ )
+	{
+		if( IsValidEntRef(g_iEntities[i][0]) )
+		{
+			g_bFrameProcessing = true;
+
+			// Ready for fade on this tick
+			if( fTime > g_fFaderTick[i] )
+			{
+				// Fade in
+				if( fTime < g_fFaderStart[i] )
+				{
+					fDist = (g_fCvarDist / iTickRate) * g_iTick[i];
+					if( fDist < g_fCvarDist )
+					{
+						SetVariantFloat(fDist);
+						AcceptEntityInput(g_iEntities[i][0], "Distance");
+					}
+
+					g_iTick[i]++;
+					g_fFaderTick[i] = fTime + flTickInterval;
+				}
+				// Fade out
+				else if( fTime > g_fFaderEnd[i] )
+				{
+					fDist = (g_fCvarDist / iTickRate) * (iTickRate - g_iTick[i]);
+					if( fDist < g_fCvarDist )
+					{
+						SetVariantFloat(fDist);
+						AcceptEntityInput(g_iEntities[i][0], "Distance");
+					}
+
+					g_iTick[i]++;
+					g_fFaderTick[i] = fTime + flTickInterval;
+				}
+				else
+				{
+					g_iTick[i] = 0;
+				}
+			}
+		}
+	}
+
+	if( g_bFrameProcessing )
+	{
+		RequestFrame(OnFrameFade);
 	}
 }
 

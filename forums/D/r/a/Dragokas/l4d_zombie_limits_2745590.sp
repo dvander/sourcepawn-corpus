@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION "1.2"
+#define PLUGIN_VERSION "1.7"
 
 #pragma newdecls required
 #pragma semicolon 1
@@ -16,6 +16,7 @@
 #define ZOMBIECLASS_JOCKEY	5
 #define ZOMBIECLASS_CHARGER	6
 int ZOMBIECLASS_TANK = 0;
+#define LIMIT_DISABLED_VALUE 999
 
 public Plugin myinfo = 
 {
@@ -29,10 +30,10 @@ public Plugin myinfo =
 char CLASS_INFECTED[] = "infected";
 char CLASS_WITCH[] = "witch";
 
-bool g_bEnabled, g_bLeft4Dead2, g_bMapStarted, g_bLateload;
-int g_iCommon, g_iBoomer, g_iHunter, g_iSmoker, g_iJockey, g_iSpitter, g_iCharger, g_iTank, g_iSI, g_iWitch;
+bool g_bEnabled, g_bLeft4Dead2, g_bMapStarted, g_bLateload, g_bDedicated, g_bPrintDebug, g_bTrackSpecials;
+int g_iCommon, g_iBoomer, g_iHunter, g_iSmoker, g_iJockey, g_iSpitter, g_iCharger, g_iTank, g_iSI, g_iWitch, g_iZombieType[MAXPLAYERS+1];
 int g_iCommonLimit, g_iBoomerLimit, g_iHunterLimit, g_iSmokerLimit, g_iJockeyLimit, g_iSpitterLimit, g_iChargerLimit, g_iTankLimit, g_iSILimit, g_iWitchLimit;
-ConVar g_hCvarEnable, g_hCvarBoomer, g_hCvarHunter, g_hCvarSmoker, g_hCvarJockey, g_hCvarSpitter, g_hCvarCharger, g_hCvarTank, g_hCvarSI, g_hCvarCommon, g_hCvarWitch;
+ConVar g_hCvarEnable, g_hCvarBoomer, g_hCvarHunter, g_hCvarSmoker, g_hCvarJockey, g_hCvarSpitter, g_hCvarCharger, g_hCvarTank, g_hCvarSI, g_hCvarCommon, g_hCvarWitch, g_hCvarDebug;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -48,6 +49,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+	g_bDedicated = IsDedicatedServer();
 	g_bLateload = late;
 	return APLRes_Success;
 }
@@ -57,19 +59,20 @@ public void OnPluginStart()
 	CreateConVar("l4d_zombie_limits_version", PLUGIN_VERSION, "Plugin version", FCVAR_DONTRECORD | CVAR_FLAGS);
 
 	g_hCvarEnable = CreateConVar(	"l4d_zombie_limits_enabled", 	"1", "Enable plugin (1 - On / 0 - Off)", CVAR_FLAGS);
-	g_hCvarBoomer = CreateConVar(	"l4d_zombie_limits_boomer", 	"7", "Maximum number of boomers allowed on the map simultaneously", CVAR_FLAGS);
-	g_hCvarHunter = CreateConVar(	"l4d_zombie_limits_hunter", 	"7", "Maximum number of hunters allowed on the map simultaneously", CVAR_FLAGS);
-	g_hCvarSmoker = CreateConVar(	"l4d_zombie_limits_smoker", 	"7", "Maximum number of smokers allowed on the map simultaneously", CVAR_FLAGS);
+	g_hCvarBoomer = CreateConVar(	"l4d_zombie_limits_boomer", 	"7", "Maximum number of boomers allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+	g_hCvarHunter = CreateConVar(	"l4d_zombie_limits_hunter", 	"7", "Maximum number of hunters allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+	g_hCvarSmoker = CreateConVar(	"l4d_zombie_limits_smoker", 	"7", "Maximum number of smokers allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
 	if( g_bLeft4Dead2 )
 	{
-		g_hCvarJockey = CreateConVar(	"l4d_zombie_limits_jockey", 	"7", "Maximum number of jockey allowed on the map simultaneously", CVAR_FLAGS);
-		g_hCvarSpitter = CreateConVar(	"l4d_zombie_limits_spitter", 	"7", "Maximum number of spitters allowed on the map simultaneously", CVAR_FLAGS);
-		g_hCvarCharger = CreateConVar(	"l4d_zombie_limits_charger", 	"7", "Maximum number of chargers allowed on the map simultaneously", CVAR_FLAGS);
+		g_hCvarJockey = CreateConVar(	"l4d_zombie_limits_jockey", 	"7", "Maximum number of jockey allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+		g_hCvarSpitter = CreateConVar(	"l4d_zombie_limits_spitter", 	"7", "Maximum number of spitters allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+		g_hCvarCharger = CreateConVar(	"l4d_zombie_limits_charger", 	"7", "Maximum number of chargers allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
 	}
-	g_hCvarTank = CreateConVar(		"l4d_zombie_limits_tank", 		"10", "Maximum number of tanks allowed on the map simultaneously", CVAR_FLAGS);
-	g_hCvarSI = CreateConVar(		"l4d_zombie_limits_si", 		"12", "Maximum number of all special infected allowed on the map simultaneously (tank is not counting)", CVAR_FLAGS);
-	g_hCvarCommon = CreateConVar(	"l4d_zombie_limits_common", 	"40", "Maximum number of common zombies allowed on the map simultaneously", CVAR_FLAGS);
-	g_hCvarWitch = CreateConVar(	"l4d_zombie_limits_witch", 		"10", "Maximum number of witches allowed on the map simultaneously", CVAR_FLAGS);
+	g_hCvarTank = CreateConVar(		"l4d_zombie_limits_tank", 		"10", "Maximum number of tanks allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+	g_hCvarSI = CreateConVar(		"l4d_zombie_limits_si", 		"12", "Maximum number of all special infected allowed on the map simultaneously (tank is not counting), 999 - to disable", CVAR_FLAGS);
+	g_hCvarCommon = CreateConVar(	"l4d_zombie_limits_common", 	"40", "Maximum number of common zombies allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+	g_hCvarWitch = CreateConVar(	"l4d_zombie_limits_witch", 		"10", "Maximum number of witches allowed on the map simultaneously, 999 - to disable", CVAR_FLAGS);
+	g_hCvarDebug = CreateConVar(	"l4d_zombie_limits_print_debug","0",  "Print debug messages? 1 - Yes, 0 - No", CVAR_FLAGS);
 	
 	AutoExecConfig(true, "l4d_zombie_limits");
 	
@@ -89,6 +92,7 @@ public void OnPluginStart()
 	g_hCvarSI.AddChangeHook(OnCvarChanged);
 	g_hCvarCommon.AddChangeHook(OnCvarChanged);
 	g_hCvarWitch.AddChangeHook(OnCvarChanged);
+	g_hCvarDebug.AddChangeHook(OnCvarChanged);
 	
 	RegAdminCmd("sm_zcount", CmdCount, ADMFLAG_ROOT, "Show the current number of each zombie type");
 }
@@ -105,7 +109,6 @@ public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] new
 void GetCvars()
 {
 	g_bEnabled = g_hCvarEnable.BoolValue;
-	g_iCommonLimit = g_hCvarCommon.IntValue;
 	g_iSILimit = g_hCvarSI.IntValue;
 	g_iBoomerLimit = g_hCvarBoomer.IntValue;
 	g_iHunterLimit = g_hCvarHunter.IntValue;
@@ -117,32 +120,72 @@ void GetCvars()
 		g_iChargerLimit = g_hCvarCharger.IntValue;
 	}
 	g_iTankLimit = g_hCvarTank.IntValue;
-	g_iWitchLimit = g_hCvarWitch.IntValue;
+	g_bPrintDebug = g_hCvarDebug.BoolValue;
+	
+	bool bTrackSpecialsNew = (
+		LIMIT_DISABLED_VALUE != g_iSILimit ||
+		LIMIT_DISABLED_VALUE != g_iBoomerLimit ||
+		LIMIT_DISABLED_VALUE != g_iHunterLimit ||
+		LIMIT_DISABLED_VALUE != g_iSmokerLimit ||
+		LIMIT_DISABLED_VALUE != g_iSpitterLimit ||
+		LIMIT_DISABLED_VALUE != g_iJockeyLimit ||
+		LIMIT_DISABLED_VALUE != g_iChargerLimit ||
+		LIMIT_DISABLED_VALUE != g_iTankLimit
+	);
+	
+	int iCommonLimitNew = g_hCvarCommon.IntValue;
+	int iWitchLimitNew = g_hCvarWitch.IntValue;
+	
+	if( (!g_bTrackSpecials && bTrackSpecialsNew) ||
+		(g_iCommonLimit == LIMIT_DISABLED_VALUE && iCommonLimitNew != LIMIT_DISABLED_VALUE) ||
+		(g_iWitchLimit == LIMIT_DISABLED_VALUE && iWitchLimitNew != LIMIT_DISABLED_VALUE) )
+	{
+		UpdateCount();
+	}
+	
+	g_bTrackSpecials = bTrackSpecialsNew;
+	g_iCommonLimit = iCommonLimitNew;
+	g_iWitchLimit = iWitchLimitNew;
 	
 	InitHook();
 }
 
 void InitHook()
 {
-	static bool bHooked;
+	static bool bHookedSI, bHookedWitch;
 	
-	if( g_bEnabled ) {
-		if( !bHooked ) {
+	if( g_bEnabled && g_bTrackSpecials )
+	{
+		if( !bHookedSI ) {
 			HookEvent("player_spawn",			Event_PlayerSpawn);
+			bHookedSI = true;
+		}
+	}
+	else {
+		if( bHookedSI ) {
+			UnhookEvent("player_spawn",			Event_PlayerSpawn);
+			bHookedSI = false;
+		}
+	}
+	
+	if( g_bEnabled && g_iWitchLimit != LIMIT_DISABLED_VALUE )
+	{
+		if( !bHookedWitch ) {
 			HookEvent("witch_spawn",			Event_WitchSpawn);
-			bHooked = true;
+			bHookedWitch = true;
 		}
 	} else {
-		if( bHooked ) {
-			UnhookEvent("player_spawn",			Event_PlayerSpawn);
+		if( bHookedWitch ) {
 			UnhookEvent("witch_spawn",			Event_WitchSpawn);
-			bHooked = false;
+			bHookedWitch = false;
 		}
 	}
 }
 
 public Action CmdCount(int client, int argc)
 {
+	client = iGetListenServerHost(client, g_bDedicated);
+
 	UpdateCount();
 	
 	if( g_bLeft4Dead2 )
@@ -207,6 +250,7 @@ void ResetCount()
 	g_iJockey = 0;
 	g_iCharger = 0;
 	g_iTank = 0;
+	g_iWitch = 0;
 }
 
 public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
@@ -215,10 +259,20 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	if( client && IsClientInGame(client) && IsFakeClient(client) )
 	{
 		int class = GetEntProp(client, Prop_Send, "m_zombieClass");
+		g_iZombieType[client] = class;
 		if( class == ZOMBIECLASS_SMOKER ) 		{ ++ g_iSI; ++ g_iSmoker; 		CheckMax(client, g_iSmoker, g_iSmokerLimit); }
 		else if( class == ZOMBIECLASS_BOOMER ) 	{ ++ g_iSI; ++ g_iBoomer; 		CheckMax(client, g_iBoomer, g_iBoomerLimit); }
 		else if( class == ZOMBIECLASS_HUNTER ) 	{ ++ g_iSI; ++ g_iHunter;		CheckMax(client, g_iHunter, g_iHunterLimit); }
-		else if( class == ZOMBIECLASS_TANK )	{ 			++ g_iTank;			if( g_iTank > g_iTankLimit ) KillClient(client); }
+		else if( class == ZOMBIECLASS_TANK )	{
+			++ g_iTank;
+			if( g_iTank > g_iTankLimit ) { 
+				KillClient(client);
+				if( g_bPrintDebug )
+				{
+					PrintToChatAll("Tank killed. Over limit! %i > %i", g_iTank, g_iTankLimit);
+				}
+			} 
+		}
 		else if( g_bLeft4Dead2 )
 		{
 			if( class == ZOMBIECLASS_SPITTER )		{ ++ g_iSI; ++ g_iSpitter;	CheckMax(client, g_iSpitter, g_iSpitterLimit); }
@@ -242,8 +296,13 @@ public Action Timer_KillWitch(Handle timer, int ref)
 	int witch = EntRefToEntIndex(ref);
 	if( witch && witch != INVALID_ENT_REFERENCE )
 	{
+		if( g_bPrintDebug )
+		{
+			PrintToChatAll("Witch killed. Over limit! %i > %i", g_iWitch, g_iWitchLimit);
+		}
 		RemoveEntity(witch);
 	}
+	return Plugin_Continue;
 }
 
 void CheckMax(int client, int iCount, int iCountLimit)
@@ -261,23 +320,24 @@ void CheckMax(int client, int iCount, int iCountLimit)
 
 void KillClient(int client)
 {
-	CreateTimer(0.1, Timer_KillClient, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE); // prevents smoker particles infinite cycle
+	CreateTimer(0.1, Timer_KickClient, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE); // prevents smoker particles infinite cycle
 }
 
-public Action Timer_KillClient(Handle timer, int UserId)
+public Action Timer_KickClient(Handle timer, int UserId)
 {
 	int client = GetClientOfUserId(UserId);
 	if( client && IsClientInGame(client) )
 	{
 		RemoveEntity(client);
 	}
+	return Plugin_Continue;
 }
 
 public void OnClientDisconnect(int client)
 {
-	if( client && IsFakeClient(client) )
+	if( client && g_bTrackSpecials )
 	{
-		int class = GetEntProp(client, Prop_Send, "m_zombieClass");
+		int class = g_iZombieType[client];
 		if( class == ZOMBIECLASS_SMOKER ) 		{ -- g_iSI; -- g_iSmoker; }
 		else if( class == ZOMBIECLASS_BOOMER ) 	{ -- g_iSI; -- g_iBoomer; }
 		else if( class == ZOMBIECLASS_HUNTER ) 	{ -- g_iSI; -- g_iHunter; }
@@ -310,7 +370,7 @@ public void OnMapEnd()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if( g_bMapStarted && g_bEnabled )
+	if( g_bMapStarted && g_bEnabled && g_iCommonLimit != LIMIT_DISABLED_VALUE )
 	{
 		if( strcmp(classname, CLASS_INFECTED) == 0 )
 		{
@@ -330,24 +390,50 @@ public Action OnSpawnPost(int ref)
 	{
 		RemoveEntity(entity);
 	}
+	return Plugin_Continue;
 }
 
 public void OnEntityDestroyed(int entity)
 {
 	static char class[32];
-	if( entity != INVALID_ENT_REFERENCE )
+	if( g_bMapStarted && g_bEnabled && ((g_iCommonLimit != LIMIT_DISABLED_VALUE) || (g_iWitchLimit != LIMIT_DISABLED_VALUE)) )
 	{
-		GetEntityClassname(entity, class, sizeof(class));
-		if( class[0] == 'i' || class[0] == 'w' )
+		if( entity != INVALID_ENT_REFERENCE )
 		{
-			if( strcmp(class, CLASS_INFECTED) == 0 )
+			GetEntityClassname(entity, class, sizeof(class));
+			if( class[0] == 'i' && strcmp(class, CLASS_INFECTED) == 0 )
 			{
 				-- g_iCommon;
 			}
-			else if( strcmp(class, CLASS_WITCH) == 0 )
+			else if( class[0] == 'w' && strcmp(class, CLASS_WITCH) == 0 )
 			{
 				-- g_iWitch;
 			}
 		}
 	}
+}
+
+int iGetListenServerHost(int client, bool dedicated) // Thanks to @Marttt
+{
+	if( client == 0 && !dedicated )
+	{
+		int iManager = FindEntityByClassname(-1, "terror_player_manager");
+		if( iManager != -1 && IsValidEntity(iManager) )
+		{
+			int iHostOffset = FindSendPropInfo("CTerrorPlayerResource", "m_listenServerHost");
+			if( iHostOffset != -1 )
+			{
+				bool bHost[MAXPLAYERS + 1];
+				GetEntDataArray(iManager, iHostOffset, bHost, (MAXPLAYERS + 1), 1);
+				for( int iPlayer = 1; iPlayer < sizeof(bHost); iPlayer++ )
+				{
+					if( bHost[iPlayer] )
+					{
+						return iPlayer;
+					}
+				}
+			}
+		}
+	}
+	return client;
 }

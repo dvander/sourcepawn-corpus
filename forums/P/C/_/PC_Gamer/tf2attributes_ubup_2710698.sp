@@ -2,9 +2,10 @@
 #include <tf2items>
 #include <tf2itemsinfo>
 #include <tf2attributes>
+#include <sdktools>
 
-#define UU_VERSION "0.9.4e"
-#define PLUGIN_VERSION "0.9.4e"
+#define UU_VERSION "0.9.4g"
+#define PLUGIN_VERSION "0.9.4g"
 
 #define RED 0
 #define BLUE 1
@@ -314,7 +315,7 @@ public TF2Items_OnGiveNamedItem_Post(client, String:classname[], itemDefinitionI
 			DefineAttributesTab(client, itemDefinitionIndex, slot)
 			GetEntityClassname(entityIndex, currentitem_classname[client][slot], 64);
 			currentitem_catidx[client][slot] = GetUpgrade_CatList(classname)
-			currentitem_catidx[client][slot] = GetUpgrade_CatList("tf_weapon_shotgun_soldier")	
+			currentitem_catidx[client][slot] = GetUpgrade_CatList("tf_weapon_shotgun")	
 			GiveNewUpgradedWeapon_(client, slot)
 		}
 
@@ -330,7 +331,7 @@ public TF2Items_OnGiveNamedItem_Post(client, String:classname[], itemDefinitionI
 			DefineAttributesTab(client, itemDefinitionIndex, slot)
 			GetEntityClassname(entityIndex, currentitem_classname[client][slot], 64);
 			currentitem_catidx[client][slot] = GetUpgrade_CatList(classname)
-			currentitem_catidx[client][slot] = GetUpgrade_CatList("tf_weapon_shotgun_soldier")	
+			currentitem_catidx[client][slot] = GetUpgrade_CatList("tf_weapon_shotgun")	
 			GiveNewUpgradedWeapon_(client, slot)
 		}
 		if (itemDefinitionIndex == 1153 && (current_class[client] == _:TFClass_Engineer)) //Panic Attack
@@ -373,6 +374,15 @@ public TF2Items_OnGiveNamedItem_Post(client, String:classname[], itemDefinitionI
 				{
 					currentitem_classname[client][slot] = "tf_weapon_knife"					
 					currentitem_catidx[client][slot] = GetUpgrade_CatList("tf_weapon_knife")
+				}
+				if (itemDefinitionIndex == 735 || itemDefinitionIndex == 736 || StrEqual(classname, "tf_weapon_sapper"))
+				{
+					slot = 1;
+				}
+				
+				if (StrEqual(classname, "tf_weapon_revolver"))
+				{
+					slot = 0;
 				}
 			}
 			if (slot < 3 && slot > -1)
@@ -503,7 +513,14 @@ public TF2Items_OnGiveNamedItem_Post(client, String:classname[], itemDefinitionI
 						currentitem_catidx[client][slot] = GetUpgrade_CatList(classname)
 					}
 					
-				}				
+				}
+				else if (TF2_GetPlayerClass(client) == TFClass_DemoMan)
+				{
+					if (!strcmp(classname, "tf_weapon_parachute"))
+					{
+						slot = 0;
+					}
+				}
 				else
 				{
 					currentitem_catidx[client][slot] = GetUpgrade_CatList(classname)
@@ -516,9 +533,10 @@ public TF2Items_OnGiveNamedItem_Post(client, String:classname[], itemDefinitionI
 	}
 }
 
-public Event_PlayerChangeClass(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_PlayerChangeClass(Handle event, const char[] name, bool dontBroadcast)
 {
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	TF2Attrib_RemoveAll(client);
 	if (IsValidClient(client))
 	{
 		ResetClientUpgrades(client);
@@ -792,41 +810,43 @@ public OnClientPutInServer(client)
 	}
 }
 
-public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon)
+public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon) 
 {
 	if ((buttons & IN_SCORE) && (buttons & IN_RELOAD))
 	{
 		Menu_BuyUpgrade(client, 0);
 	}
+	return Plugin_Continue;		
 }
 
-new Float:playerpos[3]
-
-public Action:Resspawnn(Handle:timer, any:client)
+public Action Resspawnn(Handle timer, any client)
 {
-	new Float:nulVec[3];
+	float playerpos[3];
+	float nulVec[3];
 	nulVec[0] = 0.0;
 	nulVec[1] = 0.0;
 	nulVec[2] = 0.0;
 
-	TF2_AddCondition(client, TFCond_OnFire, 50.0, 0)
 	TeleportEntity(client, playerpos, nulVec, nulVec);
+
+	CloseHandle(timer);
 	
-	CloseHandle(timer)
+	return Plugin_Handled;	
 }
 
-public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 {
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	new attack = GetClientOfUserId(GetEventInt(event, "attacker"));
-	new assist = GetClientOfUserId(GetEventInt(event, "assister"));
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int attack = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int assist = GetClientOfUserId(GetEventInt(event, "assister"));
+	
 	if (gamemode != MVM_GAMEMODE)
 	{
 		FakeClientCommand(client, "menuselect 0");
-		new iCash_forteam;
+		int iCash_forteam;
 		if (IsValidClient(attack, false) && IsValidClient(client, false) && attack != client)
 		{
-			new iCash_a = GetEntProp(attack, Prop_Send, "m_nCurrency", iCash_a);
+			int iCash_a = GetEntProp(attack, Prop_Send, "m_nCurrency");
 			iCash_forteam = client_iCash[client] + client_spent_money[client][0]
 			+client_spent_money[client][1]
 			+client_spent_money[client][2]
@@ -837,7 +857,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 			SetEntProp(attack, Prop_Send, "m_nCurrency", iCash_a)
 			if (IsValidClient(assist))
 			{
-				new iCash_ass = GetEntProp(assist, Prop_Send, "m_nCurrency", iCash_ass);
+				int iCash_ass = GetEntProp(assist, Prop_Send, "m_nCurrency");
 				//							iCash_ass += ((MoneyBonusKill + iCash_forteam) / 2)
 				iCash_ass += (MoneyBonusKill)
 				client_iCash[assist] = iCash_ass
@@ -849,19 +869,19 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	return Plugin_Continue
 }
 
-public Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_RoundStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	MoneyForTeamRatio[RED] = 1.0
 	MoneyForTeamRatio[BLUE] = 1.0
 }
 
-public Event_teamplay_round_win(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_teamplay_round_win(Handle event, const char[] name, bool dontBroadcast)
 {
-	new slot, i
-	new team = GetEventInt(event, "team");
+	int slot, i
+	int team = GetEventInt(event, "team");
 	if (gamemode == MVM_GAMEMODE && team == 3)
 	{
-		for (new client_id = 1; client_id < MAXPLAYERS + 1; client_id++)
+		for (int client_id = 1; client_id < MAXPLAYERS + 1; client_id++)
 		{
 			if (IsValidClient(client_id))
 			{
@@ -887,14 +907,14 @@ public Event_teamplay_round_win(Handle:event, const String:name[], bool:dontBroa
 	}
 }
 
-public Event_mvm_begin_wave(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_mvm_begin_wave(Handle event, const char[] name, bool dontBroadcast)
 {
 	gamemode = MVM_GAMEMODE
 }
 
-public Event_mvm_wave_complete(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_mvm_wave_complete(Handle event, const char[] name, bool dontBroadcast)
 {
-	new client_id, slot
+	int client_id, slot
 	
 	for (client_id = 1; client_id < MAXPLAYERS + 1; client_id++)
 	{
@@ -912,13 +932,13 @@ public Event_mvm_wave_complete(Handle:event, const String:name[], bool:dontBroad
 	}
 }
 
-public Action:mvm_CheckPointAdjustCash(Handle:timer, any:userid)
+public Action mvm_CheckPointAdjustCash(Handle timer, any userid)
 {
-	new client = GetClientOfUserId(userid);
+	int client = GetClientOfUserId(userid);
 	
 	if (IsValidClient(client) && client_respawn_checkpoint[client])
 	{
-		new iCash = GetEntProp(client, Prop_Send, "m_nCurrency", iCash);
+		int iCash = GetEntProp(client, Prop_Send, "m_nCurrency");
 		SetEntProp(client, Prop_Send, "m_nCurrency", iCash -
 		(client_spent_money_mvm_chkp[client][0] 
 		+ client_spent_money_mvm_chkp[client][1] 
@@ -927,12 +947,13 @@ public Action:mvm_CheckPointAdjustCash(Handle:timer, any:userid)
 		client_respawn_checkpoint[client] = 0
 		CreateTimer(0.1, WeaponReGiveUpgrades, GetClientUserId(client));
 	}
+	return Plugin_Handled;
 }
 
 
-public Event_PlayerChangeTeam(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_PlayerChangeTeam(Handle event, const char[] name, bool dontBroadcast)
 {
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (IsValidClient(client))
 	{
 		ResetClientUpgrades(client)
@@ -943,9 +964,9 @@ public Event_PlayerChangeTeam(Handle:event, const String:name[], bool:dontBroadc
 	}
 }
 
-public Action:jointeam_callback(client, const String:command[], argc) //protection from spectators
+public Action jointeam_callback(int client, const char[] command, int argc) //protection from spectators
 {
-	decl String:arg[3];
+	char arg[3];
 	arg[0] = '\0';
 	PrintToServer("jointeam callback #%d", client);
 	GetCmdArg(1, arg, sizeof(arg));
@@ -958,9 +979,9 @@ public Action:jointeam_callback(client, const String:command[], argc) //protecti
 		}
 		if (gamemode != MVM_GAMEMODE)
 		{
-			new iCashtmp;
-			new maxCashtmp = 0;
-			for (new client_id = 1; client_id < MAXPLAYERS + 1; client_id++)
+			int iCashtmp;
+			int maxCashtmp = 0;
+			for (int client_id = 1; client_id < MAXPLAYERS + 1; client_id++)
 			{
 				if ((client_id != client) && IsValidClient(client_id) && IsPlayerAlive(client_id))
 				{
@@ -975,7 +996,7 @@ public Action:jointeam_callback(client, const String:command[], argc) //protecti
 					}
 				}
 			}
-			iCashtmp = GetEntProp(client, Prop_Send, "m_nCurrency", iCashtmp);
+			iCashtmp = GetEntProp(client, Prop_Send, "m_nCurrency");
 			SetEntProp(client, Prop_Send, "m_nCurrency", (maxCashtmp * 3)/4);
 			
 			PrintToServer("give to client #%d startmoney", (maxCashtmp * 3)/4);
@@ -987,9 +1008,10 @@ public Action:jointeam_callback(client, const String:command[], argc) //protecti
 			}			
 		}
 	}
+	return Plugin_Handled;	
 } 
 
-public Action:Disp_Help(client, args)
+public Action Disp_Help(int client, int args)
 {
 	PrintToChat(client, "!uuhelp : display help");
 	PrintToChat(client, "!nohelp : stop displaying the repetitive help message");
@@ -997,12 +1019,14 @@ public Action:Disp_Help(client, args)
 	PrintToChat(client, "<showscore> + <reload>: display buy menu (by default ");
 	PrintToChat(client, "To get your money back, change loadout or class.");
 	PrintToChat(client, "In game, use MOUSESCROLL to switch to your original weapons and use NUMERICS for your additional one(s).");
+
+	return Plugin_Handled;	
 }
 
-public Action:Toggl_DispTeamUpgrades(client, args)
+public Action Toggl_DispTeamUpgrades(int client, int args)
 {
-	new String:arg1[32];
-	new arg;
+	char arg1[32];
+	int arg;
 	
 	client_no_d_team_upgrade[client] = 0
 	if (GetCmdArg(1, arg1, sizeof(arg1)))
@@ -1013,12 +1037,13 @@ public Action:Toggl_DispTeamUpgrades(client, args)
 			client_no_d_team_upgrade[client] = 1
 		}
 	}
+	return Plugin_Handled;	
 }
 
-public Action:Toggl_DispMenuRespawn(client, args)
+public Action Toggl_DispMenuRespawn(int client, int args)
 {
-	new String:arg1[32];
-	new arg;
+	char arg1[32];
+	int arg;
 	
 	client_no_d_menubuy_respawn[client] = 0
 	if (GetCmdArg(1, arg1, sizeof(arg1)))
@@ -1029,53 +1054,57 @@ public Action:Toggl_DispMenuRespawn(client, args)
 			client_no_d_menubuy_respawn[client] = 1
 		}
 	}
+	return Plugin_Handled;	
 }
 
-public Action:StopDisp_chatHelp(client, args)
+public Action StopDisp_chatHelp(int client, int args)
 {
-
 	client_no_showhelp[client] = 1
+		
+	return Plugin_Handled;	
 }
 
-public Action:ShowSpentMoney(admid, args)
+public Action ShowSpentMoney(int admid, int args)
 {
-	for(new i = 0; i < MAXPLAYERS + 1; i++)
+	for(int i = 0; i < MAXPLAYERS + 1; i++)
 	{
 		if (IsValidClient(i))
 		{
-			decl String:cstr[255]
+			char cstr[255]
 			GetClientName(i, cstr, 255)
 			PrintToChat(admid, "**%s**\n**", cstr)
-			for (new s = 0; s < 5; s++)
+			for (int s = 0; s < 5; s++)
 			{
 				PrintToChat(admid, "%s : %d$ of upgrades", current_slot_name[s], client_spent_money[i][s])
 			}
 		}
 	}
+	return Plugin_Handled;		
 }
 
-public Action:ShowTeamMoneyRatio(admid, args)
+public Action ShowTeamMoneyRatio(int admid, int args)
 {
-	for(new i = 0; i < MAXPLAYERS + 1; i++)
+	for(int i = 0; i < MAXPLAYERS + 1; i++)
 	{
 		if (IsValidClient(i))
 		{
-			decl String:cstr[255]
+			char cstr[255]
 			GetClientName(i, cstr, 255)
 			PrintToChat(admid, "**%s**\n**", cstr)
-			for (new s = 0; s < 5; s++)
+			for (int s = 0; s < 5; s++)
 			{
 				PrintToChat(admid, "%s : %d$ of upgrades", current_slot_name[s], client_spent_money[i][s])
 			}
 		}
 	}
+	return Plugin_Handled;		
 }
 
-public Action:ReloadCfgFiles(client, args)
+public Action ReloadCfgFiles(int client, int args)
 {
 	_load_cfg_files()
 	
-	for (new cl = 0; cl < MAXPLAYERS + 1; cl++)
+	for (int cl = 0; cl < MAXPLAYERS + 1; cl++)
 	{
 		if (IsValidClient(cl))
 		{
@@ -1088,14 +1117,15 @@ public Action:ReloadCfgFiles(client, args)
 			}
 		}	
 	}
+	return Plugin_Handled;		
 }
 
 
 //admin cmd: enable/disable menu "buy an additional weapon"
-public Action:EnableBuyNewWeapon(client, args)
+public Action EnableBuyNewWeapon(int client, int args)
 {
-	new String:arg1[32];
-	new arg;
+	char arg1[32];
+	int arg;
 	
 	BuyNWmenu_enabled = 0
 	if (GetCmdArg(1, arg1, sizeof(arg1)))
@@ -1106,36 +1136,38 @@ public Action:EnableBuyNewWeapon(client, args)
 			BuyNWmenu_enabled = 1
 		}
 	}
+	return Plugin_Handled;		
 }
 
-public Action:Menu_QuickBuyUpgrade2(mclient, args)
+public Action Menu_QuickBuyUpgrade2(int mclient, int args)
 {
 	if (IsPlayerAlive(mclient))
 	{
 		PrintToChat(mclient, "QBuy is disabled due to player exploits");
 	}
+	return Plugin_Handled;		
 }
 
-public Action:Menu_QuickBuyUpgrade(mclient, args)
+public Action Menu_QuickBuyUpgrade(int mclient, int args)
 {
 	if (IsPlayerAlive(mclient))
 	{
-		new String:arg1[32];
-		new arg1_;
-		new String:arg2[32];
-		new arg2_;
-		new String:arg3[32];
-		new arg3_ = 0;
-		new String:arg4[32];
-		new arg4_ = 0;
-		new	bool:flag = false
+		char arg1[32];
+		int arg1_;
+		char arg2[32];
+		int arg2_;
+		char arg3[32];
+		int arg3_ = 0;
+		char arg4[32];
+		int arg4_ = 0;
+		bool flag = false
 		
 		if (GetCmdArg(1, arg1, sizeof(arg1)))
 		{
 			arg1_ = StringToInt(arg1);//SLOT USED
 			if (arg1_ > -1 && arg1_ < 5 && GetCmdArg(2, arg2, sizeof(arg2)))
 			{
-				new w_id = currentitem_catidx[mclient][arg1_]
+				int w_id = currentitem_catidx[mclient][arg1_]
 				arg2_ = StringToInt(arg2);
 				if (GetCmdArg(3, arg3, sizeof(arg3)))
 				{
@@ -1156,9 +1188,9 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 					if (arg2_ > -1 && arg2_ < given_upgrd_list_nb[w_id]
 							&& given_upgrd_list[w_id][arg2_][arg3_])
 					{
-						new iCash = GetEntProp(mclient, Prop_Send, "m_nCurrency", iCash);
-						new upgrade_choice = given_upgrd_list[w_id][arg2_][arg3_]
-						new inum = upgrades_ref_to_idx[mclient][arg1_][upgrade_choice]
+						int iCash = GetEntProp(mclient, Prop_Send, "m_nCurrency");
+						int upgrade_choice = given_upgrd_list[w_id][arg2_][arg3_]
+						int inum = upgrades_ref_to_idx[mclient][arg1_][upgrade_choice]
 						if (inum == 9999)
 						{
 							inum = currentupgrades_number[mclient][arg1_]
@@ -1167,10 +1199,10 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 							currentupgrades_idx[mclient][arg1_][inum] = upgrade_choice 
 							currentupgrades_val[mclient][arg1_][inum] = upgrades_i_val[upgrade_choice];
 						}
-						new idx_currentupgrades_val = RoundToFloor((currentupgrades_val[mclient][arg1_][inum] - upgrades_i_val[upgrade_choice])
+						int idx_currentupgrades_val = RoundToFloor((currentupgrades_val[mclient][arg1_][inum] - upgrades_i_val[upgrade_choice])
 						/ upgrades_ratio[upgrade_choice])
-						new Float:upgrades_val = currentupgrades_val[mclient][arg1_][inum]
-						new up_cost = upgrades_costs[upgrade_choice]
+						float upgrades_val = currentupgrades_val[mclient][arg1_][inum]
+						int up_cost = upgrades_costs[upgrade_choice]
 						up_cost /= 2
 						if (arg1_ == 1)
 						{
@@ -1178,8 +1210,8 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 						}
 						if (inum != 9999 && upgrades_ratio[upgrade_choice])
 						{
-							new t_up_cost = 0
-							for (new idx = 0; idx < arg4_; idx++)
+							int t_up_cost = 0
+							for (int idx = 0; idx < arg4_; idx++)
 							{
 								t_up_cost += up_cost + RoundToFloor(up_cost * (
 								idx_currentupgrades_val
@@ -1198,7 +1230,7 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 							}
 							if (iCash < t_up_cost)
 							{
-								new String:buffer[64]
+								char buffer[64]
 								Format(buffer, sizeof(buffer), "%T", "Not enough money!!", mclient);
 								PrintToChat(mclient, buffer);
 							}
@@ -1216,13 +1248,13 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 									SetEntProp(mclient, Prop_Send, "m_nCurrency", client_iCash[mclient]);
 									currentupgrades_val[mclient][arg1_][inum] = upgrades_val
 									client_spent_money[mclient][arg1_] += t_up_cost
-									new totalmoney = 0
+									int totalmoney = 0
 									
-									for (new s = 0; s < 5; s++)
+									for (int s = 0; s < 5; s++)
 									{
 										totalmoney += client_spent_money[mclient][s]
 									}
-									new ctr_m = clientLevels[mclient]
+									int ctr_m = clientLevels[mclient]
 									
 									while (ctr_m < MAXLEVEL_D && totalmoney > moneyLevels[ctr_m])
 									{
@@ -1231,8 +1263,8 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 									if (ctr_m != clientLevels[mclient])
 									{
 										clientLevels[mclient] = ctr_m
-										decl String:clname[255]
-										new String:strsn[12]
+										char clname[255]
+										char strsn[12]
 										if (ctr_m == MAXLEVEL_D)
 										{
 											strsn = "[_over9000]"
@@ -1264,6 +1296,7 @@ public Action:Menu_QuickBuyUpgrade(mclient, args)
 	{
 		PrintToChat(mclient, "You must be alive to qbuy!");
 	}
+	return Plugin_Handled;		
 }
 
 GetWeaponsCatKVSize(Handle:kv)
@@ -1993,8 +2026,9 @@ public GiveNewUpgradedWeapon_(client, slot)
 	if (IsValidEntity(iEnt))
 	{
 		//PrintToChatAll("trytoremov slot %d", slot);
-		TF2Attrib_RemoveAll(iEnt)
-		if( iNumAttributes > 0 )
+		Address pEntAttributeList = GetTheEntityAttributeList(iEnt);
+		
+		if (pEntAttributeList && iNumAttributes > 0 )
 		{
 			for( a = 0; a < 42 && a < iNumAttributes ; a++ )
 			{
@@ -2013,9 +2047,9 @@ public GiveNewUpgradedWeapon_(client, slot)
 
 public	is_client_got_req(mclient, upgrade_choice, slot, inum)
 {
-	new iCash = GetEntProp(mclient, Prop_Send, "m_nCurrency", iCash);
-	new up_cost = upgrades_costs[upgrade_choice]
-	new max_ups = currentupgrades_number[mclient][slot]
+	int iCash = GetEntProp(mclient, Prop_Send, "m_nCurrency");
+	int up_cost = upgrades_costs[upgrade_choice]
+	int max_ups = currentupgrades_number[mclient][slot]
 	up_cost /= 2
 	client_iCash[mclient] = iCash;
 	if (slot == 1)
@@ -2039,7 +2073,7 @@ public	is_client_got_req(mclient, upgrade_choice, slot, inum)
 	}
 	if (iCash < up_cost)
 	{
-		new String:buffer[64]
+		char buffer[64]
 		Format(buffer, sizeof(buffer), "%T", "Not enough money!!", mclient);
 		PrintToChat(mclient, buffer);
 		return 0
@@ -2066,12 +2100,12 @@ public	is_client_got_req(mclient, upgrade_choice, slot, inum)
 		client_iCash[mclient] = iCash - up_cost
 		SetEntProp(mclient, Prop_Send, "m_nCurrency", client_iCash[mclient]);
 		client_spent_money[mclient][slot] += up_cost
-		new totalmoney = 0
-		for (new s = 0; s < 5; s++)
+		int totalmoney = 0
+		for (int s = 0; s < 5; s++)
 		{
 			totalmoney += client_spent_money[mclient][s]
 		}
-		new ctr_m = clientLevels[mclient]
+		int ctr_m = clientLevels[mclient]
 		
 		while (ctr_m < MAXLEVEL_D && totalmoney > moneyLevels[ctr_m])
 		{
@@ -2080,8 +2114,8 @@ public	is_client_got_req(mclient, upgrade_choice, slot, inum)
 		if (ctr_m != clientLevels[mclient])
 		{
 			clientLevels[mclient] = ctr_m
-			decl String:clname[255]
-			new String:strsn[12]
+			char clname[255]
+			char strsn[12]
 			if (ctr_m == MAXLEVEL_D)
 			{
 				strsn = "[_over9000]"
@@ -2134,12 +2168,12 @@ public UpgradeItem(mclient, upgrade_choice, inum, Float:ratio)
 
 public ResetClientUpgrade_slot(client, slot)
 {
-	new i
-	new iNumAttributes = currentupgrades_number[client][slot]
+	int i
+	int iNumAttributes = currentupgrades_number[client][slot]
 	
 	if (client_spent_money[client][slot])
 	{
-		new iCash = GetEntProp(client, Prop_Send, "m_nCurrency", iCash);
+		int iCash = GetEntProp(client, Prop_Send, "m_nCurrency");
 		SetEntProp(client, Prop_Send, "m_nCurrency", iCash + client_spent_money[client][slot]);
 	}
 	currentitem_level[client][slot] = 0
@@ -2169,12 +2203,12 @@ public ResetClientUpgrade_slot(client, slot)
 	{
 		GiveNewUpgradedWeapon_(client, slot)
 	}
-	new totalmoney = 0
-	for (new s = 0; s < 5; s++)
+	int totalmoney = 0
+	for (int s = 0; s < 5; s++)
 	{
 		totalmoney += client_spent_money[client][s]
 	}
-	new ctr_m = clientLevels[client]
+	int ctr_m = clientLevels[client]
 	
 	while (ctr_m && totalmoney < moneyLevels[ctr_m])
 	{
@@ -2183,8 +2217,8 @@ public ResetClientUpgrade_slot(client, slot)
 	if (ctr_m != clientLevels[client])
 	{
 		clientLevels[client] = ctr_m
-		new String:strsn[12]
-		new String:clname[255]
+		char strsn[12]
+		char clname[255]
 		if (ctr_m == MAXLEVEL_D)
 		{
 			strsn = "[_over9000]"
@@ -2200,13 +2234,18 @@ public ResetClientUpgrade_slot(client, slot)
 
 public ResetClientUpgrades(client)
 {
-	new slot
+	int slot
 	
 	client_respawn_handled[client] = 0
 	for (slot = 0; slot < NB_SLOTS_UED; slot++)
 	{
 		ResetClientUpgrade_slot(client, slot)
 		//PrintToChatAll("reset all upgrade slot %d", slot)
+	}
+	Address pEntAttributeList = GetTheEntityAttributeList(client);
+	if (pEntAttributeList)
+	{
+		TF2Attrib_RemoveAll(client);
 	}
 }
 
@@ -2336,23 +2375,22 @@ public remove_attribute(client, inum)
 //menubuy 3- choose the upgrade
 public Action:Menu_SpecialUpgradeChoice(client, cat_choice, String:TitleStr[100], selectidx)
 {
-	new i, j
+	int i, j
 
-	
-	new Handle:menu = CreateMenu(MenuHandler_SpecialUpgradeChoice);
+	Handle menu = CreateMenu(MenuHandler_SpecialUpgradeChoice);
 	SetMenuPagination(menu, 2);
 	if (cat_choice != -1)
 	{
-		decl String:desc_str[512]
-		new w_id = current_w_list_id[client]
-		new tmp_up_idx
-		new tmp_spe_up_idx
-		new tmp_ref_idx
-		new Float:tmp_val
-		new Float:tmp_ratio
-		new slot
-		decl String:plus_sign[1]
-		new String:buft[64]
+		char desc_str[512]
+		int w_id = current_w_list_id[client]
+		int tmp_up_idx
+		int tmp_spe_up_idx
+		int tmp_ref_idx
+		float tmp_val
+		float tmp_ratio
+		int slot
+		char plus_sign[2]
+		char buft[64]
 		
 		current_w_c_list_id[client] = cat_choice
 		slot = current_slot_used[client]
@@ -2384,7 +2422,7 @@ public Action:Menu_SpecialUpgradeChoice(client, cat_choice, String:TitleStr[100]
 					tmp_ratio *= -1.0
 					plus_sign = "-"
 				}
-				new String:buf[64]
+				char buf[64]
 				Format(buf, sizeof(buf), "%T", upgradesNames[tmp_up_idx], client)
 				if (tmp_ratio < 0.99)
 				{
@@ -2483,19 +2521,19 @@ public MenuHandler_AttributesTweak_action(Handle:menu, MenuAction:action, client
 {
 	if (IsValidClient(client) && IsPlayerAlive(client) && !client_respawn_checkpoint[client])
 	{
-		new s = current_slot_used[client]
+		int s = current_slot_used[client]
 		if (s >= 0 && s < 4 && param2 < MAX_ATTRIBUTES_ITEM)
 		{
 			if (param2 >= 0)
 			{
-				new u = currentupgrades_idx[client][s][param2]
+				int u = currentupgrades_idx[client][s][param2]
 				if (u != 9999)
 				{
 					if (upgrades_costs[u] < -0.0001)
 					{
-						new iCash = GetEntProp(client, Prop_Send, "m_nCurrency", iCash);
-						new nb_time_upgraded = RoundToFloor((upgrades_i_val[u] - currentupgrades_val[client][s][param2]) / upgrades_ratio[u])
-						new up_cost = upgrades_costs[u] * nb_time_upgraded * 3
+						int iCash = GetEntProp(client, Prop_Send, "m_nCurrency");
+						int nb_time_upgraded = RoundToFloor((upgrades_i_val[u] - currentupgrades_val[client][s][param2]) / upgrades_ratio[u])
+						int up_cost = upgrades_costs[u] * nb_time_upgraded * 3
 						if (iCash >= up_cost)
 						{
 							
@@ -2503,13 +2541,13 @@ public MenuHandler_AttributesTweak_action(Handle:menu, MenuAction:action, client
 							SetEntProp(client, Prop_Send, "m_nCurrency", iCash - up_cost);
 							client_iCash[client] = iCash;
 							client_spent_money[client][s] += up_cost
-							new String:buffer[80];
+							char buffer[80];
 							Format(buffer, sizeof(buffer), "%T", "Attribute removed", client, current_slot_name[s], upgradesNames[u]);
 							PrintToChat(client,"%s", buffer);
 						}
 						else
 						{
-							new String:buffer[64]
+							char buffer[64]
 							Format(buffer, sizeof(buffer), "%T", "Not enough money!!", client);
 							PrintToChat(client, buffer);
 						}
@@ -2612,21 +2650,21 @@ public isValidVIP(client)
 //menubuy 3- choose the upgrade
 public Action:Menu_UpgradeChoice(client, cat_choice, String:TitleStr[100])
 {
-	new i
+	int i
 
-	new Handle:menu = CreateMenu(MenuHandler_UpgradeChoice);
+	Handle menu = CreateMenu(MenuHandler_UpgradeChoice);
 	if (cat_choice != -1)
 	{
-		new w_id = current_w_list_id[client]
+		int w_id = current_w_list_id[client]
 
-		decl String:desc_str[255]
-		new tmp_up_idx
-		new tmp_ref_idx
-		new up_cost
-		new Float:tmp_val
-		new Float:tmp_ratio
-		new slot
-		decl String:plus_sign[1]
+		char desc_str[255]
+		int tmp_up_idx
+		int tmp_ref_idx
+		int up_cost
+		float tmp_val
+		float tmp_ratio
+		int slot
+		char plus_sign[2]
 		current_w_c_list_id[client] = cat_choice
 		slot = current_slot_used[client]
 		for (i = 0; (tmp_up_idx = given_upgrd_list[w_id][cat_choice][i]); i++)
@@ -2734,7 +2772,7 @@ public MenuHandler_BuyNewWeapon(Handle:menu, MenuAction:action, mclient, param2)
 {
 	if (action == MenuAction_Select)
 	{
-		new iCash = GetEntProp(mclient, Prop_Send, "m_nCurrency", iCash);
+		int iCash = GetEntProp(mclient, Prop_Send, "m_nCurrency");
 		if (iCash > 200)
 		{
 			if (currentitem_idx[mclient][3])
@@ -2751,7 +2789,7 @@ public MenuHandler_BuyNewWeapon(Handle:menu, MenuAction:action, mclient, param2)
 		}
 		else
 		{
-			new String:buffer[64]
+			char buffer[64]
 			Format(buffer, sizeof(buffer), "%T", "Not enough money!!", mclient);
 			PrintToChat(mclient, buffer);
 		}
@@ -2777,20 +2815,20 @@ public MenuHandler_UpgradeChoice(Handle:menu, MenuAction:action, mclient, param2
 	if (action == MenuAction_Select)
 	{
 		client_respawn_handled[mclient] = 0
-		new slot = current_slot_used[mclient]
-		new w_id = current_w_list_id[mclient]
-		new cat_id = current_w_c_list_id[mclient]
-		new upgrade_choice = given_upgrd_list[w_id][cat_id][param2]
-		new inum = upgrades_ref_to_idx[mclient][slot][upgrade_choice]
+		int slot = current_slot_used[mclient]
+		int w_id = current_w_list_id[mclient]
+		int cat_id = current_w_c_list_id[mclient]
+		int upgrade_choice = given_upgrd_list[w_id][cat_id][param2]
+		int inum = upgrades_ref_to_idx[mclient][slot][upgrade_choice]
 
 		if (is_client_got_req(mclient, upgrade_choice, slot, inum))
 		{
 			UpgradeItem(mclient, upgrade_choice, inum, 1.0)
 			GiveNewUpgradedWeapon_(mclient, slot)
 		}
-		decl String:fstr2[100]
-		decl String:fstr[40]
-		decl String:fstr3[20]
+		char fstr2[100]
+		char fstr[40]
+		char fstr3[20]
 		if (slot != 4)
 		{
 			Format(fstr, sizeof(fstr), "%t", given_upgrd_classnames[w_id][cat_id], 
@@ -2808,13 +2846,13 @@ public MenuHandler_UpgradeChoice(Handle:menu, MenuAction:action, mclient, param2
 			fstr)
 		}
 		SetMenuTitle(menu, fstr2);
-		decl String:desc_str[255]
-		new tmp_up_idx
-		new tmp_ref_idx
-		new up_cost
-		new Float:tmp_val
-		new Float:tmp_ratio
-		decl String:plus_sign[1]
+		char desc_str[255]
+		int tmp_up_idx
+		int tmp_ref_idx
+		int up_cost
+		float tmp_val
+		float tmp_ratio
+		char plus_sign[2]
 		
 		tmp_up_idx = given_upgrd_list[w_id][cat_id][param2]
 		up_cost = upgrades_costs[tmp_up_idx] / 2
@@ -2853,7 +2891,7 @@ public MenuHandler_UpgradeChoice(Handle:menu, MenuAction:action, mclient, param2
 			tmp_ratio *= -1.0
 			plus_sign = "-"
 		}
-		new String:buf[64]
+		char buf[64]
 		Format(buf, sizeof(buf), "%T", upgradesNames[tmp_up_idx], mclient)
 		if (tmp_ratio < 0.99)
 		{
@@ -3108,4 +3146,16 @@ public Action:Command_Refund(client, args)
 	LogAction(client, client, "\"%L\" removed all upgrades on \"%L\"", client, client);
 
 	return Plugin_Handled;
+}
+
+/**
+ * Returns the m_AttributeList offset.  This does not correspond to the CUtlVector instance
+ * (which is offset by 0x04).
+ */
+static Address GetTheEntityAttributeList(int entity) {
+	int offsAttributeList = GetEntSendPropOffs(entity, "m_AttributeList", true);
+	if (offsAttributeList > 0) {
+		return GetEntityAddress(entity) + view_as<Address>(offsAttributeList);
+	}
+	return Address_Null;
 }

@@ -16,18 +16,26 @@ int dynamic_prop_button;
 
 public void OnPluginStart()
 {
+	PrecacheModel("models/props_doors/roll-up_door_full.mdl",true);
+	PrecacheModel("models/props_wasteland/exterior_fence001a.mdl",true);
+	PrecacheModel("models/props_lab/freightelevatorbutton.mdl",true); 
+	PrecacheSound("ambient/machines/wall_move4.wav");
+
 	HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
 	//HookEvent("round_end", Round_End_Hook);
+	HookEvent("round_end", event_round_end, EventHookMode_PostNoCopy);
+
 }
 
 
 public void OnMapEnd()
 {
-	/* Clean up timers */
-	if (g_timer != INVALID_HANDLE) {
-		delete(g_timer);
-		g_timer = INVALID_HANDLE;
-	}  
+delete g_timer;
+}
+
+public void event_round_end(Event event, const char[] name, bool dontBroadcast)
+{
+delete g_timer;
 }
 
 public void event_round_freeze_end(Event event, const char[] name, bool dontBroadcast)
@@ -48,9 +56,6 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 	ang[1] = 270.0;
 	ang[2] = 0.0;
 
-	PrecacheModel("models/props_doors/roll-up_door_full.mdl",true);
-
-
 
 	ent_dynamic_blockstatic = CreateEntityByName("prop_dynamic"); 
  
@@ -60,11 +65,6 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 
 	DispatchSpawn(ent_dynamic_blockstatic);
 	TeleportEntity(ent_dynamic_blockstatic, pos, ang, NULL_VECTOR);
-
-
-
-
-
 
 
 	pos[0] = -3702.0;
@@ -106,7 +106,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 	ang[0] = 0.0;
 	ang[1] = 180.0;
 	ang[2] = 0.0;
-	PrecacheModel("models/props_wasteland/exterior_fence001a.mdl",true);
+
 
 	ent_dynamic_block1 = CreateEntityByName("prop_dynamic"); 
  
@@ -126,7 +126,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 // Create dynamic model 
 void CreateModel(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname) 
 { 
-	PrecacheModel("models/props_lab/freightelevatorbutton.mdl"); 
+
      
 	dynamic_prop = CreateEntityByName("prop_dynamic"); 
      
@@ -153,7 +153,7 @@ void CreateModel(const float fwd[3], const float ang[3], const char[] origin, co
 
 void CreateButton(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname) 
 { 
-	PrecacheModel("models/props_lab/freightelevatorbutton.mdl"); 
+
 
 	dynamic_prop_button = CreateEntityByName("func_button"); 
      
@@ -207,7 +207,7 @@ public void OnPressed(const char[] output, int caller, int activator, float dela
 	// Remove glow entity from func_button
 	SetEntProp(dynamic_prop_button, Prop_Send, "m_glowEntity", -1); 
 
-	g_timer = CreateTimer(0.01, gate, _, TIMER_REPEAT);
+	g_timer = CreateTimer(0.1, gate, _, TIMER_REPEAT);
 	
 }
 
@@ -235,6 +235,7 @@ public Action gate(Handle timer)
 	{
 		numlift = 0;
 		SetConVarInt(FindConVar("sb_unstick"), 1);
+		g_timer = null;
 		return Plugin_Stop;
 	}
  
@@ -256,9 +257,8 @@ public Action gate(Handle timer)
 
 public void OnTouch(int client, int other)
 {
-if(other>=0){
-
-if(IsFakeClient(other) && GetClientTeam(other) == 2)
+if(other > 0 && other <= MaxClients){
+if(IsClientInGame(other) && IsFakeClient(other) && GetClientTeam(other) == 2)
 {
 SetConVarInt(FindConVar("sb_unstick"), 0);
 //PrintToChatAll ("touched");

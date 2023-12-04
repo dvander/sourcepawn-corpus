@@ -1,13 +1,14 @@
-#pragma semicolon 1
-
 #include <sdktools>
 
-new iAmount;
-new bool:g_bTimerOn = false;
+#pragma semicolon 1
+#pragma newdecls required
 
-#define PLUGIN_VERSION "1.0"
+int iAmount;
+bool g_bTimerOn = false;
 
-public Plugin:myinfo =
+#define PLUGIN_VERSION "1.1"
+
+public Plugin myinfo =
 {
 	name = "TF2 Merasmus Countdown plugin",
 	author = "Headline code modified by PC Gamer",
@@ -15,13 +16,13 @@ public Plugin:myinfo =
 	version = PLUGIN_VERSION
 };
 
-public OnPluginStart()
+public void OnPluginStart()
 {
 	RegAdminCmd("sm_mcountdown", Command_CountDown, ADMFLAG_GENERIC, "Starts a countdown");
 	RegAdminCmd("sm_mstopcountdown", Command_StopCountDown, ADMFLAG_GENERIC, "Stops a countdown");
 }
 
-public OnMapStart()
+public void OnMapStart()
 {
 	PrecacheSound("vo/halloween_merasmus/sf14_merasmus_minigame_overtime_02.mp3", true);
 	PrecacheSound("vo/halloween_merasmus/sf14_merasmus_begins_01sec.mp3", true);
@@ -32,7 +33,7 @@ public OnMapStart()
 	PrecacheSound("/player/taunt_bell.wav", true);	
 }
 
-public Action:Command_CountDown(client, args)
+public Action Command_CountDown(int client, int args)
 {
 	if (args != 1)
 	{
@@ -41,14 +42,14 @@ public Action:Command_CountDown(client, args)
 	}
 	EmitSoundToAll("vo/halloween_merasmus/sf14_merasmus_minigame_overtime_02.mp3");	
 	g_bTimerOn = true;
-	new String:sArg1[32];
+	char sArg1[32];
 	GetCmdArg(1, sArg1, sizeof(sArg1));
 	StringToIntEx(sArg1, iAmount);
 	CreateTimer(1.0, Timer_CountDown, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 	return Plugin_Handled;
 }
 
-public Action:Command_StopCountDown(client, args)
+public Action Command_StopCountDown(int client, int args)
 {
 	if (args != 0)
 	{
@@ -60,7 +61,7 @@ public Action:Command_StopCountDown(client, args)
 	return Plugin_Handled;
 }
 
-public Action:Timer_CountDown(Handle:timer, any:data)
+public Action Timer_CountDown(Handle timer, any data)
 {
 	if (iAmount == -1)
 	{

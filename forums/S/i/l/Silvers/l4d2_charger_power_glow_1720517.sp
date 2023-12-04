@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.4"
+/*
+*	Charger Power - Objects Glow
+*	Copyright (C) 2023 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.7"
 
 /*=======================================================================================
 	Plugin Info:
@@ -11,6 +31,15 @@
 
 ========================================================================================
 	Change Log:
+
+1.7 (27-Jul-2023)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+
+1.6 (15-Aug-2021)
+	- Fixed "Cannot create new entity when no map is running" error. Thanks to "noto3" for reporting.
+
+1.5 (13-Aug-2021)
+	- Fixed not displaying a glow for all vehicle types. Thanks to "DonProof" for reporting.
 
 1.4 (10-May-2020)
 	- Extra checks to prevent "IsAllowedGameMode" throwing errors.
@@ -50,7 +79,7 @@
 Handle g_hTimerStart;
 ConVar g_hCvarAllow, g_hCvarColor, g_hCvarLimit, g_hCvarMPGameMode, g_hCvarObjects, g_hCvarRange;
 int g_iCount, g_iCvarColor, g_iCvarLimit, g_iCvarRange, g_iEntities[MAX_ALLOWED], g_iTarget[MAX_ALLOWED];
-bool g_bLoaded, g_bShowProp[MAXPLAYERS+1];
+bool g_bLoaded, g_bMapStarted, g_bShowProp[MAXPLAYERS+1];
 
 
 
@@ -118,7 +147,7 @@ public void OnClientDisconnect(int client)
 
 void LateLoad()
 {
-	g_hTimerStart = CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+	g_hTimerStart = CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 
 	for( int i = 1; i <= MaxClients; i++ )
 	{
@@ -137,7 +166,7 @@ void ResetPlugin(bool all)
 	{
 		if( IsValidEntRef(g_iEntities[i]) )
 		{
-			AcceptEntityInput(g_iEntities[i], "Kill");
+			RemoveEntity(g_iEntities[i]);
 		}
 		g_iEntities[i] = 0;
 	}
@@ -165,12 +194,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -183,7 +212,7 @@ void GetCvars()
 	g_iCvarRange = g_hCvarRange.IntValue;
 }
 
-public void ConVarChanged_Glow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Glow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	g_iCvarColor = GetColor(g_hCvarColor);
 
@@ -265,6 +294,9 @@ bool IsAllowedGameMode()
 	if( g_hCvarMPGameMode == null )
 		return false;
 
+	if( g_bMapStarted == false )
+		return false;
+
 	g_iCurrentMode = 0;
 
 	int entity = CreateEntityByName("info_gamemode");
@@ -285,7 +317,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -302,7 +334,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client > 0 )
@@ -336,7 +368,7 @@ void CheckClient(int client)
 	}
 }
 
-public Action TimerHook(Handle timer)
+Action TimerHook(Handle timer)
 {
 	int entity;
 	for( int i = 0; i < MAX_ALLOWED; i++ )
@@ -348,9 +380,11 @@ public Action TimerHook(Handle timer)
 			SDKHook(entity, SDKHook_SetTransmit, OnTransmit);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client > 0 )
@@ -366,28 +400,35 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
+public void OnMapStart()
+{
+	g_bMapStarted = true;
+}
+
 public void OnMapEnd()
 {
+	g_bMapStarted = false;
+
 	ResetPlugin(true);
 }
 
-public void Event_RoundEnd(Handle event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(true);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_hTimerStart == null )
-		g_hTimerStart = CreateTimer(4.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		g_hTimerStart = CreateTimer(4.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	g_hTimerStart = null;
 
 	if( g_bLoaded == true )
-		return;
+		return Plugin_Continue;
 
 	g_bLoaded = true;
 	g_iCount = 0;
@@ -417,15 +458,15 @@ public Action tmrStart(Handle timer)
 
 				if( (iType & PROP_CAR && strncmp(sModelName, "models/props_vehicles/", 22) == 0) &&
 				(
-					strcmp(sModelName, "cara_69sedan.mdl") == 0 ||
-					strcmp(sModelName, "cara_82hatchback.mdl") == 0 ||
-					strcmp(sModelName, "cara_82hatchback_wrecked.mdl") == 0 ||
-					strcmp(sModelName, "cara_84sedan.mdl") == 0 ||
-					strcmp(sModelName, "cara_95sedan.mdl") == 0 ||
-					strcmp(sModelName, "cara_95sedan_wrecked.mdl") == 0 ||
-					strcmp(sModelName, "police_car_city.mdl") == 0 ||
-					strcmp(sModelName, "police_car_rural.mdl") == 0 ||
-					strcmp(sModelName, "taxi_cab.mdl") == 0
+					strcmp(sModelName[22], "cara_69sedan.mdl") == 0 ||
+					strcmp(sModelName[22], "cara_82hatchback.mdl") == 0 ||
+					strcmp(sModelName[22], "cara_82hatchback_wrecked.mdl") == 0 ||
+					strcmp(sModelName[22], "cara_84sedan.mdl") == 0 ||
+					strcmp(sModelName[22], "cara_95sedan.mdl") == 0 ||
+					strcmp(sModelName[22], "cara_95sedan_wrecked.mdl") == 0 ||
+					strcmp(sModelName[22], "police_car_city.mdl") == 0 ||
+					strcmp(sModelName[22], "police_car_rural.mdl") == 0 ||
+					strcmp(sModelName[22], "taxi_cab.mdl") == 0
 				)
 				)
 				{
@@ -499,15 +540,17 @@ public Action tmrStart(Handle timer)
 
 		SDKHook(entity, SDKHook_SetTransmit, OnTransmit);
 	}
+
+	return Plugin_Continue;
 }
 
-public void OnAwakened(const char[] output, int caller, int activator, float delay)
+void OnAwakened(const char[] output, int caller, int activator, float delay)
 {
 	SetEntPropEnt(caller, Prop_Data, "m_hPhysicsAttacker", activator);
 	SetEntPropFloat(caller, Prop_Data, "m_flLastPhysicsInfluenceTime", GetGameTime());
 }
 
-public void OnHealthChanged(const char[] output, int caller, int activator, float delay)
+void OnHealthChanged(const char[] output, int caller, int activator, float delay)
 {
 	if( GetEntProp(caller, Prop_Data, "m_iHealth") >= g_iCvarLimit )
 	{
@@ -520,7 +563,7 @@ public void OnHealthChanged(const char[] output, int caller, int activator, floa
 			{
 				if( IsValidEntRef(g_iEntities[i]) )
 				{
-					AcceptEntityInput(g_iEntities[i], "Kill");
+					RemoveEntity(g_iEntities[i]);
 				}
 
 				g_iTarget[i] = 0;
@@ -531,7 +574,7 @@ public void OnHealthChanged(const char[] output, int caller, int activator, floa
 	}
 }
 
-public Action OnTransmit(int entity, int client)
+Action OnTransmit(int entity, int client)
 {
 	if( g_bShowProp[client] )
 		return Plugin_Continue;

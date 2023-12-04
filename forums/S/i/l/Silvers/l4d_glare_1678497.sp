@@ -1,6 +1,6 @@
 /*
 *	Glare
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.6"
+#define PLUGIN_VERSION 		"2.14"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,41 @@
 
 ========================================================================================
 	Change Log:
+
+2.14 (28-Aug-2022)
+	- Really fixed invalid handles.
+
+	- Explanation: the forward "Attachments_OnWeaponSwitch" triggers when someone disconnects and their weapon drops.
+	- This triggered the plugin to attempt to create a light for that player while they were disconnecting and still in-game.
+	- At that point another timer handle was being created but never cleared because they were already disconnecting.
+	- This happens before OnClientDisconnect_Post. Using a bool to store when someone is disconnecting prevents the bug.
+
+2.13 (19-Aug-2022)
+	- Changes attempting to fix invalid handles. Thanks to "gongo" and "ur5efj" for reporting.
+
+2.12 (04-Aug-2022)
+	- Changes to fix floating beams and broken beams, mostly in L4D1. Thanks to "gongo" for reporting and help testing.
+	- Changes to support unloading and late loading of the "Attachments_API" plugin.
+	- Fixed the "Auto Shotgun" weapon not having beams in L4D1.
+
+2.11 (11-Jun-2022)
+	- Fixed not removing the beam on client disconnect. Thanks to "gongo" for reporting.
+
+2.10 (09-Jun-2022)
+	- Fixed invalid client errors. Thanks to "gongo" for reporting.
+
+2.9 (09-Jun-2022)
+	- Fixed the beam not changing color when in thirdperson view.
+	- Fixed a random beam showing on the map at 0,0,0. Thanks to "Lux" for a solution.
+	- Fixed the "tongue_grab" event from throwing "no active hook" errors. No longer toggling the hook.
+
+2.8 (29-Apr-2022)
+	- Added cvar "l4d_glare_bots" to control if bots can use the Glare Beams. Requested by "Voevoda".
+	- Fixed cvar "l4d_glare_default" to only affect new players who haven't set a glare color. Thanks to "Voevoda" for reporting.
+
+2.7 (18-Sep-2021)
+	- Menu now returns to the page it was on before selecting an option.
+	- Fixed showing the glare when the light is off and changing colors in the menu.
 
 2.6 (11-Jul-2021)
 	- Added cvar "l4d_glare_default" to default the glare to off for new players.
@@ -112,8 +147,8 @@
 #define ATTACHMENT_POINT		"flashlight"
 
 
-ConVar g_hCvarAllow, g_hCvarAlpha, g_hCvarColor, g_hCvarCustom, g_hCvarDefault, g_hCvarHalo, g_hCvarLength, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarTransmit, g_hCvarWidth;
-int g_iCvarAlpha, g_iCvarColor, g_iCvarCustom, g_iCvarDefault, g_iCvarLength, g_iCvarTransmit, g_iCvarWidth;
+ConVar g_hCvarAllow, g_hCvarAlpha, g_hCvarBots, g_hCvarColor, g_hCvarCustom, g_hCvarDefault, g_hCvarHalo, g_hCvarLength, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarTransmit, g_hCvarWidth;
+int g_iCvarAlpha, g_iCvarBots, g_iCvarColor, g_iCvarCustom, g_iCvarDefault, g_iCvarLength, g_iCvarTransmit, g_iCvarWidth;
 bool g_bCvarAllow, g_bMapStarted, g_bLateLoad, g_bLeft4Dead2, g_bAttachments;
 float g_fCvarHalo;
 Handle g_hCookie;
@@ -125,6 +160,8 @@ int g_iPlayerEnum[MAXPLAYERS+1];
 int g_iWeaponIndex[MAXPLAYERS+1];
 int g_iGlareColor[MAXPLAYERS+1];
 bool g_bDetected[MAXPLAYERS+1];
+bool g_bQuitting[MAXPLAYERS+1];
+Handle g_hTimerCreate[MAXPLAYERS+1];
 Handle g_hTimerDetect;
 StringMap g_hColors;
 StringMap g_hWeapons;
@@ -203,6 +240,7 @@ public void OnPluginStart()
 	LoadTranslations("core.phrases");
 
 	g_hCvarAllow =			CreateConVar(	"l4d_glare_allow",		"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
+	g_hCvarBots =			CreateConVar(	"l4d_glare_bots",		"2",			"Can bots have Glare beams? 0=Off. 1=Give using the _color cvar. 2=Give random color.", CVAR_FLAGS );
 	g_hCvarAlpha =			CreateConVar(	"l4d_glare_bright",		"155.0",		"Brightness of the beam.", CVAR_FLAGS );
 	g_hCvarColor =			CreateConVar(	"l4d_glare_color",		"250 250 200",	"The beam color. RGB (red, green, blue) values (0-255).", CVAR_FLAGS );
 	g_hCvarCustom =			CreateConVar(	"l4d_glare_custom",		"2",			"0=Use servers glare color. 1=Allow clients to customise the glare color. 2=Save and restore clients custom glare color.", CVAR_FLAGS );
@@ -223,6 +261,7 @@ public void OnPluginStart()
 	g_hCvarModes.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarBots.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarAlpha.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarColor.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarCustom.AddChangeHook(ConVarChanged_Cvars);
@@ -236,6 +275,9 @@ public void OnPluginStart()
 	CreateColors();
 	g_hCookie = RegClientCookie("l4d_glare", "Glare Color", CookieAccess_Protected);
 
+	// Always active to prevent randomly throws errors: "Exception reported: Game event "tongue_grab" has no active hook" - this error shouldn't even occur since everything was hooked/unhooked correctly, no other events throw this error
+	HookEvent("tongue_grab", Event_BlockStart);
+
 	// Weapons
 	g_hWeapons = new StringMap();
 	g_hWeapons.SetValue("pistol", 1);
@@ -244,6 +286,7 @@ public void OnPluginStart()
 	g_hWeapons.SetValue("pumpshotgun", 1);
 	g_hWeapons.SetValue("shotgun_chrome", 1);
 	g_hWeapons.SetValue("hunting_rifle", 1);
+	g_hWeapons.SetValue("autoshotgun", 1);
 
 	if( g_bLeft4Dead2 )
 	{
@@ -253,7 +296,6 @@ public void OnPluginStart()
 		g_hWeapons.SetValue("rifle_sg552", 1);
 		g_hWeapons.SetValue("rifle_desert", 1);
 		g_hWeapons.SetValue("rifle_ak47", 1);
-		g_hWeapons.SetValue("autoshotgun", 1);
 		g_hWeapons.SetValue("shotgun_spas", 1);
 		g_hWeapons.SetValue("sniper_awp", 1);
 		g_hWeapons.SetValue("sniper_military", 1);
@@ -280,19 +322,54 @@ public void Attachments_OnPluginEnd()
 public void OnPluginEnd()
 {
 	for( int i = 1; i <= MaxClients; i++ )
+	{
+		g_iLightState[i] = LIGHT_OFF;
+		g_iWeaponIndex[i] = 0;
+		g_iPlayerEnum[i] = 0;
+		g_iWeaponIndex[i] = 0;
+
 		DeleteLight(i);
+	}
 }
 
-public void OnClientConnected(int client)
+public void OnClientDisconnect(int client)
+{
+	g_bQuitting[client] = true;
+	DeleteLight(client);
+}
+
+public void OnClientDisconnect_Post(int client)
+{
+	g_bQuitting[client] = false;
+}
+
+public void OnClientPutInServer(int client)
 {
 	g_iGlareColor[client] = g_iCvarColor;
-	if( g_iCvarDefault == 0 )
-		g_iLightState[client] = LIGHT_DEFAULT;
+
+	if( g_iCvarBots == 2 && IsFakeClient(client) )
+	{
+		g_iLightState[client] = LIGHT_OFF;
+		g_iGlareColor[client] = GetRandomInt(0, 16776960);
+	}
+
+	/* Set beam colors for specific bots
+	if( IsFakeClient(client) )
+	{
+		char name[MAX_NAME_LENGTH];
+		GetClientName(client, name, sizeof name);
+
+		if( strcmp(name, "Bill") == 0 || strcmp(name, "Nick") == 0 )			g_iGlareColor[client] = GetColor("0 255 0");
+		else if( strcmp(name, "Zoey") == 0 || strcmp(name, "Rochelle") == 0 )	g_iGlareColor[client] = GetColor("255 0 0");
+		else if( strcmp(name, "Francis") == 0 || strcmp(name, "Coach") == 0 )	g_iGlareColor[client] = GetColor("0 0 255");
+		else if( strcmp(name, "Louis") == 0 || strcmp(name, "Ellis") == 0 )		g_iGlareColor[client] = GetColor("255 100 0");
+	}
+	// */
 }
 
 public void OnClientCookiesCached(int client)
 {
-	if( g_iCvarCustom == 2 )
+	if( g_iCvarCustom == 2 && !IsFakeClient(client) )
 	{
 		char sCookie[10];
 		GetClientCookie(client, g_hCookie, sCookie, sizeof(sCookie));
@@ -313,9 +390,13 @@ public void OnClientCookiesCached(int client)
 				SetEntProp(entity, Prop_Send, "m_clrRender", g_iGlareColor[client]);
 				AcceptEntityInput(entity, "LightOff");
 
-				if( g_iPlayerEnum[client] == 0 && IsClientInGame(client) && GetEntProp(client, Prop_Send, "m_fEffects") == 4 )
-					CreateTimer(0.1, TimerLightOn, g_iLightIndex[client]);
+				if( g_iPlayerEnum[client] == 0 && IsClientInGame(client) && GetEntProp(client, Prop_Send, "m_fEffects") & 4 )
+					CreateTimer(0.1, TimerLightOn, GetClientUserId(client));
 			}
+		}
+		else if( g_iCvarDefault == 0 )
+		{
+			g_iLightState[client] = LIGHT_DEFAULT;
 		}
 	}
 }
@@ -325,7 +406,7 @@ public void OnClientCookiesCached(int client)
 // ====================================================================================================
 //					COMMAND GLARE
 // ====================================================================================================
-public Action CmdGlare(int client, int args)
+Action CmdGlare(int client, int args)
 {
 	if( !g_iCvarCustom )
 	{
@@ -351,6 +432,7 @@ public Action CmdGlare(int client, int args)
 			if( g_hColors.GetString(sColor, sColor, sizeof(sColor)) )
 			{
 				g_iGlareColor[client] = GetColor(sColor);
+				g_iLightState[client] = LIGHT_OFF;
 
 				if( g_iCvarCustom == 2 )
 				{
@@ -365,14 +447,13 @@ public Action CmdGlare(int client, int args)
 					SetVariantString(sColor);
 					AcceptEntityInput(entity, "color");
 					AcceptEntityInput(entity, "LightOff");
-					if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") == 4 )
-						CreateTimer(0.1, TimerLightOn, g_iLightIndex[client]);
+					if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") & 4 )
+						CreateTimer(0.1, TimerLightOn, GetClientUserId(client));
 				}
-				else
-				{
-					DeleteLight(client);
-					CreateLight(client);
-				}
+				// else
+				// {
+					// CreateLight(client);
+				// }
 			}
 		}
 	}
@@ -390,6 +471,7 @@ public Action CmdGlare(int client, int args)
 			ExplodeString(sColor, " ", sSplit, sizeof(sSplit), sizeof(sSplit[]));
 			Format(sColor, sizeof(sColor), "%d %d %d", StringToInt(sSplit[0]), StringToInt(sSplit[1]), StringToInt(sSplit[2]));
 			g_iGlareColor[client] = GetColor(sColor);
+			g_iLightState[client] = LIGHT_OFF;
 
 			if( g_iCvarCustom == 2 )
 			{
@@ -404,14 +486,13 @@ public Action CmdGlare(int client, int args)
 				SetVariantString(sColor);
 				AcceptEntityInput(entity, "color");
 				AcceptEntityInput(entity, "LightOff");
-				if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") == 4 )
-					CreateTimer(0.1, TimerLightOn, g_iLightIndex[client]);
+				if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") & 4 )
+					CreateTimer(0.1, TimerLightOn, GetClientUserId(client));
 			}
-			else
-			{
-				DeleteLight(client);
-				CreateLight(client);
-			}
+			// else
+			// {
+				// CreateLight(client);
+			// }
 		}
 	}
 
@@ -457,13 +538,13 @@ void AddColorItem(char[] sName, const char[] sColor)
 	g_hMenu.AddItem(sColor, sName);
 }
 
-public int Menu_Light(Menu menu, MenuAction action, int client, int index)
+int Menu_Light(Menu menu, MenuAction action, int client, int index)
 {
 	switch( action )
 	{
 		case MenuAction_Select:
 		{
-			g_hMenu.Display(client, 0);
+			g_hMenu.DisplayAt(client, 7 * RoundToFloor(index / 7.0), 0);
 
 			// Delete
 			if( index == 0 )
@@ -475,7 +556,8 @@ public int Menu_Light(Menu menu, MenuAction action, int client, int index)
 				{
 					SetClientCookie(client, g_hCookie, "0");
 				}
-				return;
+
+				return 0;
 			}
 
 			// Create
@@ -483,6 +565,7 @@ public int Menu_Light(Menu menu, MenuAction action, int client, int index)
 			menu.GetItem(index, sColor, sizeof(sColor));
 
 			g_iGlareColor[client] = GetColor(sColor);
+			g_iLightState[client] = GetEntProp(client, Prop_Send, "m_fEffects") & 4 ? LIGHT_ON : LIGHT_OFF;
 
 			if( g_iCvarCustom == 2 )
 			{
@@ -494,19 +577,22 @@ public int Menu_Light(Menu menu, MenuAction action, int client, int index)
 			int entity = g_iLightIndex[client];
 			if( entity && IsValidEntRef(entity) )
 			{
+				SDKUnhook(entity, SDKHook_SetTransmit, Hook_SetTransmitLight);
+
 				SetVariantString(sColor);
 				AcceptEntityInput(entity, "color");
 				AcceptEntityInput(entity, "LightOff");
-				if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") == 4 )
-					CreateTimer(0.1, TimerLightOn, g_iLightIndex[client]);
+				if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") & 4 )
+					CreateTimer(0.1, TimerLightOn, GetClientUserId(client));
 			}
-			else
-			{
-				DeleteLight(client);
-				CreateLight(client);
-			}
+			// else
+			// {
+				// CreateLight(client);
+			// }
 		}
 	}
+
+	return 0;
 }
 
 
@@ -522,6 +608,7 @@ public void OnMapStart()
 public void OnMapEnd()
 {
 	g_bMapStarted = false;
+	OnPluginEnd();
 }
 
 public void OnConfigsExecuted()
@@ -529,12 +616,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -546,6 +633,7 @@ void GetCvars()
 	g_iCvarColor = GetColor(sColor);
 	g_iCvarCustom = g_hCvarCustom.IntValue;
 	g_iCvarDefault = g_hCvarDefault.IntValue;
+	g_iCvarBots = g_hCvarBots.IntValue;
 	g_iCvarAlpha = g_hCvarAlpha.IntValue;
 	g_fCvarHalo = g_hCvarHalo.FloatValue;
 	g_iCvarLength = g_hCvarLength.IntValue;
@@ -592,9 +680,9 @@ void IsAllowed()
 		{
 			for( int i = 1; i <= MaxClients; i++ )
 			{
-				if( IsClientInGame(i) && !IsFakeClient(i) )
+				if( IsClientInGame(i) )
 				{
-					OnClientConnected(i);
+					OnClientPutInServer(i);
 					OnClientCookiesCached(i);
 				}
 			}
@@ -605,11 +693,16 @@ void IsAllowed()
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false || g_bAttachments == false) )
 	{
+		g_bLateLoad = true;
 		g_bCvarAllow = false;
 		UnhookEvents();
 
 		for( int i = 1; i <= MaxClients; i++ )
 		{
+			g_iLightState[i] = LIGHT_OFF;
+			g_iWeaponIndex[i] = 0;
+			g_iPlayerEnum[i] = 0;
+			g_iWeaponIndex[i] = 0;
 			DeleteLight(i);
 		}
 	}
@@ -673,7 +766,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -692,7 +785,8 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 void HookEvents()
 {
-	HookEvent("round_start",					Event_RoundStart,	EventHookMode_PostNoCopy);
+	HookEvent("round_end",						Event_RoundEnd, EventHookMode_PostNoCopy);
+	HookEvent("round_start",					Event_RoundStart, EventHookMode_PostNoCopy);
 	HookEvent("player_ledge_grab",				Event_LedgeGrab);
 	HookEvent("revive_begin",					Event_ReviveStart);
 	HookEvent("revive_end",						Event_ReviveEnd);
@@ -701,7 +795,6 @@ void HookEvents()
 	HookEvent("player_spawn",					Event_Unblock);
 	HookEvent("lunge_pounce",					Event_BlockHunter);
 	HookEvent("pounce_end",						Event_BlockEndHunt);
-	HookEvent("tongue_grab",					Event_BlockStart);
 	HookEvent("tongue_release",					Event_BlockEnd);
 
 	if( g_bLeft4Dead2 )
@@ -715,7 +808,8 @@ void HookEvents()
 
 void UnhookEvents()
 {
-	UnhookEvent("round_start",					Event_RoundStart,	EventHookMode_PostNoCopy);
+	UnhookEvent("round_end",					Event_RoundEnd, EventHookMode_PostNoCopy);
+	UnhookEvent("round_start",					Event_RoundStart, EventHookMode_PostNoCopy);
 	UnhookEvent("player_ledge_grab",			Event_LedgeGrab);
 	UnhookEvent("revive_begin",					Event_ReviveStart);
 	UnhookEvent("revive_end",					Event_ReviveEnd);
@@ -724,7 +818,6 @@ void UnhookEvents()
 	UnhookEvent("player_spawn",					Event_Unblock);
 	UnhookEvent("lunge_pounce",					Event_BlockHunter);
 	UnhookEvent("pounce_end",					Event_BlockEndHunt);
-	UnhookEvent("tongue_grab",					Event_BlockStart);
 	UnhookEvent("tongue_release",				Event_BlockEnd);
 
 	if( g_bLeft4Dead2 )
@@ -736,9 +829,14 @@ void UnhookEvents()
 	}
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
-	for( int i = 1; i < MAXPLAYERS; i++ )
+	OnPluginEnd();
+}
+
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+	for( int i = 1; i <= MaxClients; i++ )
 	{
 		g_iPlayerEnum[i] = 0;
 		g_iWeaponIndex[i] = 0;
@@ -754,7 +852,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	{
 		for( int i = 1; i <= MaxClients; i++ )
 		{
-			if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
+			if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) && !IsFakeClient(i) )
 			{
 				SetView(i, false);
 			}
@@ -762,82 +860,107 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(event.GetInt("victim"));
-	if( client > 0 )
-		g_iPlayerEnum[client] |= ENUM_BLOCKED;
+	if( g_bCvarAllow )
+	{
+		int client = GetClientOfUserId(event.GetInt("victim"));
+		if( client )
+		{
+			g_iPlayerEnum[client] |= ENUM_BLOCKED;
+		}
+	}
 }
 
-public void Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] &= ~ENUM_BLOCKED;
+	}
 }
 
-public void Event_BlockHunter(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockHunter(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] |= ENUM_POUNCED;
+	}
 }
 
-public void Event_BlockEndHunt(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockEndHunt(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] &= ~ENUM_POUNCED;
+	}
 }
 
-public void Event_LedgeGrab(Event event, const char[] name, bool dontBroadcast)
+void Event_LedgeGrab(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] |= ENUM_ONLEDGE;
+	}
 }
 
-public void Event_ReviveStart(Event event, const char[] name, bool dontBroadcast)
+void Event_ReviveStart(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] |= ENUM_INREVIVE;
+	}
 
 	client = GetClientOfUserId(event.GetInt("userid"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] |= ENUM_INREVIVE;
+	}
 }
 
-public void Event_ReviveEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_ReviveEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] &= ~ENUM_INREVIVE;
+	}
 
 	client = GetClientOfUserId(event.GetInt("userid"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] &= ~ENUM_INREVIVE;
+	}
 }
 
-public void Event_ReviveSuccess(Event event, const char[] name, bool dontBroadcast)
+void Event_ReviveSuccess(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
-	if( client > 0 )
+	if( client )
 	{
 		g_iPlayerEnum[client] &= ~ENUM_INREVIVE;
 		g_iPlayerEnum[client] &= ~ENUM_ONLEDGE;
 	}
 
 	client = GetClientOfUserId(event.GetInt("userid"));
-	if( client > 0 )
+	if( client )
+	{
 		g_iPlayerEnum[client] &= ~ENUM_INREVIVE;
+	}
 }
 
-public void Event_Unblock(Event event, const char[] name, bool dontBroadcast)
+void Event_Unblock(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if( client > 0)
+	if( client )
 	{
+		DeleteLight(client);
+		g_iWeaponIndex[client] = 0;
 		g_iPlayerEnum[client] = 0;
 		g_bDetected[client] = false;
 	}
@@ -848,7 +971,7 @@ public void Event_Unblock(Event event, const char[] name, bool dontBroadcast)
 // ====================================================================================================
 //					THIRDPERSON DETECT
 // ====================================================================================================
-public Action TimerDetect(Handle timer)
+Action TimerDetect(Handle timer)
 {
 	if( g_bCvarAllow == false || g_iCvarTransmit == 0 )
 	{
@@ -858,12 +981,22 @@ public Action TimerDetect(Handle timer)
 
 	for( int i = 1; i <= MaxClients; i++ )
 	{
-		if( g_iLightIndex[i] && g_bDetected[i] == false && IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
+		if( g_iLightIndex[i] && IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) && !IsFakeClient(i) )
 		{
 			if( GetEntPropFloat(i, Prop_Send, "m_TimeForceExternalView") > GetGameTime() )
-				SetView(i, true);
+			{
+				if( g_bDetected[i] == false )
+				{
+					SetView(i, true);
+				}
+			}
 			else
-				SetView(i, false);
+			{
+				if( g_bDetected[i] == true )
+				{
+					SetView(i, false);
+				}
+			}
 		}
 	}
 
@@ -874,27 +1007,28 @@ public void TP_OnThirdPersonChanged(int client, bool bIsThirdPerson)
 {
 	if( bIsThirdPerson == true && g_bDetected[client] == false )
 	{
-		g_bDetected[client] = true;
-		SetView(client, true);
+		if( IsClientInGame(client) )
+		{
+			SetView(client, true);
+		}
 	}
 	else if( bIsThirdPerson == false && g_bDetected[client] == true )
 	{
-		g_bDetected[client] = false;
-		SetView(client, false);
+		if( IsClientInGame(client) )
+		{
+			SetView(client, false);
+		}
 	}
 }
 
 void SetView(int client, bool bSetView)
 {
-	if( bSetView )
+	g_bDetected[client] = bSetView;
+	DeleteLight(client);
+	
+	if( g_iLightState[client] == LIGHT_ON )
 	{
-		int entity = g_iLightIndex[client];
-		if( entity && (entity = EntRefToEntIndex(entity)) != INVALID_ENT_REFERENCE )
-			SDKUnhook(entity, SDKHook_SetTransmit, Hook_SetTransmitLight);
-	} else {
-		int entity = g_iLightIndex[client];
-		if( entity && (entity = EntRefToEntIndex(entity)) != INVALID_ENT_REFERENCE )
-			SDKHook(entity, SDKHook_SetTransmit, Hook_SetTransmitLight);
+		CreateLight(client);
 	}
 }
 
@@ -907,124 +1041,141 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 {
 	if( g_bCvarAllow )
 	{
-		if( g_iLightState[client] == LIGHT_DEFAULT ) return;
+		if( g_iLightState[client] == LIGHT_DEFAULT ) return Plugin_Continue;
 
-		int entity = g_iLightIndex[client];
-
-		if( GetClientTeam(client) == 2 && IsPlayerAlive(client) )
+		if( GetClientTeam(client) == 2 && IsPlayerAlive(client) && (g_iCvarBots || !IsFakeClient(client)) )
 		{
-			if( IsValidEntRef(entity) == false )
+			// Last weapon or player model changed.
+			int active = GetEntPropEnt(client, Prop_Data, "m_hActiveWeapon");
+
+			if( g_iWeaponIndex[client] != active )
 			{
-				g_iLightState[client] = LIGHT_ON;
-				CreateLight(client);
+				g_iWeaponIndex[client] = active;
+
+				// No weapon, turn off light.
+				if( active == -1 )
+				{
+					g_iPlayerEnum[client] |= ENUM_BLOCK;
+					g_iLightState[client] = LIGHT_OFF;
+					DeleteLight(client);
+					return Plugin_Continue;
+				}
+
+				g_iPlayerEnum[client] &= ~ENUM_BLOCK;
+
+				char sTemp[32];
+				GetClientWeapon(client, sTemp, sizeof(sTemp));
+
+				int val;
+				if( g_hWeapons.GetValue(sTemp[7], val) == false )
+				{
+					g_iPlayerEnum[client] |= ENUM_BLOCK;
+				}
+
+				// Re-attach to different gun
+				int entity = g_iLightIndex[client];
+				if( g_iPlayerEnum[client] == 0 && IsValidEntRef(entity) )
+				{
+					int bone = GetEntPropEnt(entity, Prop_Send, "moveparent");
+					if( bone == -1 ) bone = Attachments_GetWorldModel(client, active);
+
+					SetVariantString("!activator");
+					AcceptEntityInput(entity, "SetParent", bone);
+					SetVariantString(ATTACHMENT_POINT);
+					AcceptEntityInput(entity, "SetParentAttachment", bone, bone);
+
+					TeleportEntity(entity, NULL_VECTOR, view_as<float>({-90.0, 0.0, 0.0}), NULL_VECTOR);
+				}
+			}
+			else if( GetEntProp(client, Prop_Send, "m_usingMountedWeapon") != 0 )
+			{
+				g_iPlayerEnum[client] |= ENUM_MINIGUN;
 			}
 			else
 			{
-				// Last weapon or player model changed.
-				int active = GetEntPropEnt(client, Prop_Data, "m_hActiveWeapon");
+				g_iPlayerEnum[client] &= ~ENUM_MINIGUN;
+			}
 
-				if( g_iWeaponIndex[client] != active )
+			// Light on, else off
+			if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") & 4 )
+			{
+				if( g_iLightState[client] == LIGHT_OFF )
 				{
-					g_iWeaponIndex[client] = active;
-
-					// No weapon, turn off light.
-					if( active == -1 )
-					{
-						g_iPlayerEnum[client] |= ENUM_BLOCK;
-						AcceptEntityInput(entity, "LightOff");
-						g_iLightState[client] = LIGHT_OFF;
-						return;
-					}
-
-					g_iPlayerEnum[client] &= ~ENUM_BLOCK;
-
-					char sTemp[32];
-					GetClientWeapon(client, sTemp, sizeof(sTemp));
-
-					int val;
-					if( g_hWeapons.GetValue(sTemp[7], val) == false )
-					{
-						g_iPlayerEnum[client] |= ENUM_BLOCK;
-					}
-
-					// Re-attach to different gun
-					if( g_iPlayerEnum[client] == 0 )
-					{
-						int bone = GetEntPropEnt(entity, Prop_Send, "moveparent");
-						if( bone == -1 ) bone = Attachments_GetWorldModel(client, active);
-
-						SetVariantString("!activator");
-						AcceptEntityInput(entity, "SetParent", bone);
-						SetVariantString(ATTACHMENT_POINT);
-						AcceptEntityInput(entity, "SetParentAttachment", bone, bone);
-
-						TeleportEntity(entity, NULL_VECTOR, view_as<float>({-90.0, 0.0, 0.0}), NULL_VECTOR);
-					}
+					g_iLightState[client] = LIGHT_ON;
+					CreateLight(client);
 				}
-				else if( GetEntProp(client, Prop_Send, "m_usingMountedWeapon") != 0 )
+			}
+			else
+			{
+				if( g_iLightState[client] == LIGHT_ON )
 				{
-					g_iPlayerEnum[client] |= ENUM_MINIGUN;
-				}
-				else
-				{
-					g_iPlayerEnum[client] &= ~ENUM_MINIGUN;
-				}
-
-				if( g_iPlayerEnum[client] == 0 && GetEntProp(client, Prop_Send, "m_fEffects") == 4 )
-				{
-					if( g_iLightState[client] == LIGHT_OFF )
-					{
-						AcceptEntityInput(entity, "LightOn");
-						g_iLightState[client] = LIGHT_ON;
-					}
-				}
-				else
-				{
-					if( g_iLightState[client] == LIGHT_ON )
-					{
-						AcceptEntityInput(entity, "LightOff");
-						g_iLightState[client] = LIGHT_OFF;
-					}
+					g_iLightState[client] = LIGHT_OFF;
+					DeleteLight(client);
 				}
 			}
 		}
 		else
 		{
-			if( IsValidEntRef(entity) == true )
+			if( IsValidEntRef(g_iLightIndex[client]) == true )
+			{
 				DeleteLight(client);
+			}
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 public void Attachments_OnWeaponSwitch(int client, int weapon, int ent_views, int ent_world)
 {
-	// Turn off between change to prevent flash at players feet
-	int entity = g_iLightIndex[client];
-	if( IsValidEntRef(entity) )
+	DeleteLight(client);
+
+	if( g_iLightState[client] == LIGHT_ON )
 	{
-		AcceptEntityInput(entity, "LightOff");
-		g_iLightState[client] = LIGHT_OFF;
+		CreateLight(client);
 	}
 }
 
 void DeleteLight(int client)
 {
+	delete g_hTimerCreate[client];
+
 	int entity = g_iLightIndex[client];
 	g_iLightIndex[client] = 0;
+
 	if( IsValidEntRef(entity) )
 	{
-		AcceptEntityInput(entity, "Kill");
-		SDKUnhook(entity, SDKHook_SetTransmit, Hook_SetTransmitLight);
+		AcceptEntityInput(entity, "ClearParent");
+		RemoveEntity(entity);
 	}
 }
 
 void CreateLight(int client)
 {
-	int entity = g_iLightIndex[client];
-	if( IsValidEntRef(entity) )
-		return;
+	DeleteLight(client);
 
-	entity = CreateEntityByName("beam_spotlight");
+	if( !g_bQuitting[client] )
+	{
+		g_hTimerCreate[client] = CreateTimer(0.3, TimerCreate, GetClientUserId(client));
+	}
+}
+
+Action TimerCreate(Handle timer, int client)
+{
+	client = GetClientOfUserId(client);
+	if( client && IsClientInGame(client) )
+	{
+		CreateBeam(client);
+	}
+
+	g_hTimerCreate[client] = null;
+
+	return Plugin_Continue;
+}
+
+void CreateBeam(int client)
+{
+	int entity = CreateEntityByName("beam_spotlight");
 	if( entity == -1)
 		return;
 
@@ -1034,7 +1185,7 @@ void CreateLight(int client)
 	}
 	else
 	{
-		if( !g_bLeft4Dead2 && !g_bDetected[client] )
+		if( !g_bDetected[client] )
 		{
 			SDKHook(entity, SDKHook_SetTransmit, Hook_SetTransmitLight);
 		}
@@ -1077,19 +1228,31 @@ void CreateLight(int client)
 	}
 }
 
-public Action Hook_SetTransmitLight(int entity, int client)
+Action Hook_SetTransmitLight(int entity, int client)
 {
 	if( g_iLightIndex[client] == EntIndexToEntRef(entity) )
 		return Plugin_Handled;
 	return Plugin_Continue;
 }
 
-public Action TimerLightOn(Handle timer, any entity)
+Action TimerLightOn(Handle timer, any client)
 {
-	if( IsValidEntRef(entity) )
+	client = GetClientOfUserId(client);
+	if( client && IsClientInGame(client) )
 	{
-		AcceptEntityInput(entity, "LightOn");
+		int entity = g_iLightIndex[client];
+		if( IsValidEntRef(entity) )
+		{
+			AcceptEntityInput(entity, "LightOn");
+
+			if( !g_bDetected[client] )
+			{
+				SDKHook(entity, SDKHook_SetTransmit, Hook_SetTransmitLight);
+			}
+		}
 	}
+
+	return Plugin_Continue;
 }
 
 bool IsValidEntRef(int entity)

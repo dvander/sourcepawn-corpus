@@ -60,8 +60,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define POINT_PROP_USE_TARGET         "point_prop_use_target"
-
 #define MODEL_GASCAN                  "models/props_junk/gascan001a.mdl"
 
 #define SOUND_GASCAN_FILL_POUR        "player/items/gas_can_fill_pour_01.wav"
@@ -70,35 +68,35 @@ public Plugin myinfo =
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_gascan_use_range;
+ConVar g_hCvar_gascan_use_range;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Enabled;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_Gascan = -1;
+int g_iModel_Gascan = -1;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_gascan_use_range;
+float g_fCvar_gascan_use_range;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static bool   gc_bBlockFillSound[MAXPLAYERS+1];
-static int    gc_iWeaponGascanEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+bool gc_bWeaponSwitchPostHooked[MAXPLAYERS+1];
+bool gc_bBlockFillSound[MAXPLAYERS+1];
+int gc_iWeaponGascanEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
 
 // ====================================================================================================
 // Plugin Start
@@ -149,25 +147,25 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    LateLoad();
+
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_fCvar_gascan_use_range = g_hCvar_gascan_use_range.FloatValue;
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
@@ -175,7 +173,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -183,9 +181,6 @@ public void LateLoad()
             continue;
 
         OnClientPutInServer(client);
-
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-        OnWeaponSwitchPost(client, weapon);
     }
 }
 
@@ -193,26 +188,31 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     if (IsFakeClient(client))
         return;
 
+    if (gc_bWeaponSwitchPostHooked[client])
+        return;
+
+    gc_bWeaponSwitchPostHooked[client] = true;
     SDKHook(client, SDKHook_WeaponSwitchPost, OnWeaponSwitchPost);
+
+    int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    OnWeaponSwitchPost(client, weapon);
 }
 
 /****************************************************************************************************/
 
 public void OnClientDisconnect(int client)
 {
+    gc_bWeaponSwitchPostHooked[client] = false;
     gc_bBlockFillSound[client] = false;
     gc_iWeaponGascanEntRef[client] = INVALID_ENT_REFERENCE;
 }
 
 /****************************************************************************************************/
 
-public void OnWeaponSwitchPost(int client, int weapon)
+void OnWeaponSwitchPost(int client, int weapon)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -243,7 +243,7 @@ public void OnWeaponSwitchPost(int client, int weapon)
 
 /****************************************************************************************************/
 
-public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float vel[3], const float angles[3], int weapon, int subtype, int cmdnum, int tickcount, int seed, const int mouse[2])
+public void OnPlayerRunCmdPost(int client)
 {
     if (!IsValidClientIndex(client))
         return;
@@ -266,16 +266,16 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
 
     bool validDistance = true;
 
-    int gas_nozzle = INVALID_ENT_REFERENCE;
-    while ((gas_nozzle = FindEntityByClassname(gas_nozzle, POINT_PROP_USE_TARGET)) != INVALID_ENT_REFERENCE)
+    float vPosClient[3];
+    float vPosTarget[3];
+    float distance;
+
+    int target = INVALID_ENT_REFERENCE;
+    while ((target = FindEntityByClassname(target, "point_prop_use_target")) != INVALID_ENT_REFERENCE)
     {
-        float vPos[3];
-        GetClientEyePosition(client, vPos);
-
-        float vPosGazNozzle[3];
-        GetEntPropVector(gas_nozzle, Prop_Send, "m_vecOrigin", vPosGazNozzle);
-
-        float distance = GetVectorDistance(vPos, vPosGazNozzle);
+        GetClientEyePosition(client, vPosClient);
+        GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vPosTarget);
+        distance = GetVectorDistance(vPosClient, vPosTarget);
 
         if (distance <= g_fCvar_gascan_use_range)
         {
@@ -293,9 +293,9 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -305,7 +305,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -318,9 +318,12 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public Action Event_GascanPourBlocked(Event event, const char[] name, bool dontBroadcast)
+Action Event_GascanPourBlocked(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
+
+    if (client == 0)
+        return Plugin_Continue;
 
     if (gc_bBlockFillSound[client])
         return Plugin_Handled;
@@ -330,8 +333,11 @@ public Action Event_GascanPourBlocked(Event event, const char[] name, bool dontB
 
 /****************************************************************************************************/
 
-public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
+Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
 {
+    if (channel != SNDCHAN_STATIC)
+        return Plugin_Continue;
+
     if (!IsValidClientIndex(entity))
         return Plugin_Continue;
 
@@ -353,7 +359,7 @@ public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_M
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -365,7 +371,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
     PrintToConsole(client, "");
-    PrintToConsole(client, "gascan_use_range : %.2f", g_fCvar_gascan_use_range);
+    PrintToConsole(client, "gascan_use_range : %.1f", g_fCvar_gascan_use_range);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

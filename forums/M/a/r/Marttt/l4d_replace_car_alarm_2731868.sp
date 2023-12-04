@@ -9,7 +9,7 @@ Change Log:
     - Added pallete color.
 
 1.0.3 (20-January-2021)
-    - Now compatible with Mutant Tanks plugin. (big thanks to "Crasher_3637" for adding support)
+    - Now compatible with Mutant Tanks plugin. (big thanks to "Psyk0tik" for adding support)
 
 1.0.2 (18-January-2021)
     - Fixed plugin crashing on Glubtastic 1, 3rd Map. (thanks "jeremyvillanueva" for reporting)
@@ -67,13 +67,11 @@ public Plugin myinfo =
 // Filenames
 // ====================================================================================================
 #define CONFIG_FILENAME               "l4d_replace_car_alarm"
-#define DATA_FILENAME                 "l4d_replace_car_alarm.cfg"
+#define DATA_FILENAME                 "l4d_replace_car_alarm"
 
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_PROP_CAR_ALARM      "prop_car_alarm"
-
 #define ALARMCAR_MODEL                "models/props_vehicles/cara_95sedan.mdl"
 #define ALARMCAR_GLASS_ALARM_ON       "models/props_vehicles/cara_95sedan_glass_alarm.mdl"
 #define ALARMCAR_GLASS_ALARM_OFF      "models/props_vehicles/cara_95sedan_glass.mdl"
@@ -93,52 +91,53 @@ public Plugin myinfo =
 #define DISTANCE_SIDE                 27.0
 #define DISTANCE_UPBACK               31.0
 
+#define MAXENTITIES                   2048
+
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Chance;
-static ConVar g_hCvar_GlassOn;
-static ConVar g_hCvar_GlassOff;
-static ConVar g_hCvar_Sound;
-static ConVar g_hCvar_Chirp;
-static ConVar g_hCvar_Lights;
-static ConVar g_hCvar_Headlights;
-static ConVar g_hCvar_Timer;
-static ConVar g_hCvar_Remark;
-static ConVar g_hCvar_GameEvent;
-static ConVar g_hCvar_Targetname;
-static ConVar g_hCvar_Color;
-static ConVar g_hCvar_IgnoreCarAlarm;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Chance;
+ConVar g_hCvar_GlassOn;
+ConVar g_hCvar_GlassOff;
+ConVar g_hCvar_Sound;
+ConVar g_hCvar_Chirp;
+ConVar g_hCvar_Lights;
+ConVar g_hCvar_Headlights;
+ConVar g_hCvar_Timer;
+ConVar g_hCvar_Remark;
+ConVar g_hCvar_GameEvent;
+ConVar g_hCvar_Targetname;
+ConVar g_hCvar_Color;
+ConVar g_hCvar_IgnoreCarAlarm;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Chance;
-static bool   g_bCvar_GlassOn;
-static bool   g_bCvar_GlassOff;
-static bool   g_bCvar_Sound;
-static bool   g_bCvar_Chirp;
-static bool   g_bCvar_Lights;
-static bool   g_bCvar_Headlights;
-static bool   g_bCvar_Timer;
-static bool   g_bCvar_Remark;
-static bool   g_bCvar_GameEvent;
-static bool   g_bCvar_Targetname;
-static bool   g_bCvar_PalleteColor;
-static bool   g_bCvar_MaintainColor;
-static bool   g_bCvar_RandomColor;
-static bool   g_bCvar_IgnoreCarAlarm;
+bool g_bL4D2;
+bool g_bCvar_Enabled;
+bool g_bCvar_Chance;
+bool g_bCvar_GlassOn;
+bool g_bCvar_GlassOff;
+bool g_bCvar_Sound;
+bool g_bCvar_Chirp;
+bool g_bCvar_Lights;
+bool g_bCvar_Headlights;
+bool g_bCvar_Timer;
+bool g_bCvar_Remark;
+bool g_bCvar_GameEvent;
+bool g_bCvar_Targetname;
+bool g_bCvar_PalleteColor;
+bool g_bCvar_MaintainColor;
+bool g_bCvar_RandomColor;
+bool g_bCvar_IgnoreCarAlarm;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Color[3];
-static int    g_iCarIncrement;
-static int    g_iPalleteColors[][3] = {{138,  37,   9}, { 52,  46,  46}, { 84, 101, 144}, { 99, 135, 157},
+int g_iCvar_Color[3];
+int g_iCarIncrement;
+int g_iPalleteColors[][3] = {{138,  37,   9}, { 52,  46,  46}, { 84, 101, 144}, { 99, 135, 157},
                                        {114,  80,  52}, {135, 166, 158}, {138, 137,  89}, {153,  65,  29},
                                        {153,  95, 110}, {156,  81,  62}, {162, 189, 196}, {178, 160,  94},
                                        {182,  92,  68}, {182, 122,  68}, {197, 176, 129}, {212, 158,  70},
@@ -147,18 +146,29 @@ static int    g_iPalleteColors[][3] = {{138,  37,   9}, { 52,  46,  46}, { 84, 1
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_Chance;
+float g_fCvar_Chance;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sMapName[64];
-static char   g_sCvar_Color[12];
+char g_sMapName[64];
+char g_sCvar_Color[12];
+
+// ====================================================================================================
+// entity - Plugin Variables
+// ====================================================================================================
+bool ge_bIgnoreEntity[MAXENTITIES+1];
 
 // ====================================================================================================
 // ArrayList - Plugin Variables
 // ====================================================================================================
-static ArrayList g_alModel;
+ArrayList g_alModel;
+
+// ====================================================================================================
+// StringMap - Plugin Variables
+// ====================================================================================================
+StringMap g_smModel;
+StringMap g_smModelRotate;
 
 // ====================================================================================================
 // Plugin Start
@@ -175,8 +185,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
     g_bL4D2 = (engine == Engine_Left4Dead2);
 
-    g_alModel = new ArrayList(ByteCountToCells(64));
-
     return APLRes_Success;
 }
 
@@ -184,6 +192,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    g_alModel = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
+    g_smModel = new StringMap();
+    g_smModelRotate = new StringMap();
+
     LoadModelsData();
 
     CreateConVar("l4d_replace_car_alarm_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
@@ -232,29 +244,42 @@ public void OnPluginStart()
 void LoadModelsData()
 {
     char path[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "data/%s", DATA_FILENAME);
+    BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "data/%s.cfg", DATA_FILENAME);
+
+    if (!FileExists(path))
+    {
+        SetFailState("Missing required data file on \"data/%s.cfg\", please re-download.", DATA_FILENAME);
+        return;
+    }
 
     g_alModel.Clear();
+    g_smModel.Clear();
 
-    if (FileExists(path))
+    g_smModelRotate.Clear();
+    g_smModelRotate.SetString("models/props_vehicles/police_car.mdl", "");
+    g_smModelRotate.SetString("models/props_vehicles/police_car_city.mdl", "");
+    g_smModelRotate.SetString("models/props_vehicles/police_car_rural.mdl", "");
+    g_smModelRotate.SetString("models/props_vehicles/van.mdl", "");
+    g_smModelRotate.SetString("models/props_vehicles/van001a.mdl", "");
+    g_smModelRotate.SetString("models/props_vehicles/van_interior.mdl", "");
+
+    File hFile = OpenFile(path, "r");
+    if (hFile != null)
     {
-        File hFile = OpenFile(path, "r");
-        if (hFile != null)
+        char g_sModels[64];
+        while (!hFile.EndOfFile() && hFile.ReadLine(g_sModels, sizeof(g_sModels)))
         {
-            char g_sModels[64];
-            while (!hFile.EndOfFile() && hFile.ReadLine(g_sModels, sizeof(g_sModels)))
-            {
-                TrimString(g_sModels);
-                StringToLowerCase(g_sModels);
+            TrimString(g_sModels);
+            StringToLowerCase(g_sModels);
 
-                if (g_sModels[0] == 'm')
-                    g_alModel.PushString(g_sModels);
+            if (g_sModels[0] == 'm')
+            {
+                g_alModel.PushString(g_sModels);
+                g_smModel.SetString(g_sModels, "");
             }
         }
-        delete hFile;
     }
-    else
-        SetFailState("Missing required file on \"data/%s\", please re-download.", DATA_FILENAME);
+    delete hFile;
 }
 
 /****************************************************************************************************/
@@ -281,21 +306,19 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_Chance = g_hCvar_Chance.FloatValue;
@@ -312,24 +335,23 @@ public void GetCvars()
     g_bCvar_Targetname = g_hCvar_Targetname.BoolValue;
     g_hCvar_Color.GetString(g_sCvar_Color, sizeof(g_sCvar_Color));
     TrimString(g_sCvar_Color);
-    StringToLowerCase(g_sCvar_Color);
-    g_bCvar_PalleteColor = StrEqual(g_sCvar_Color, "pallete");
-    g_bCvar_MaintainColor = StrEqual(g_sCvar_Color, "maintain");
-    g_bCvar_RandomColor = StrEqual(g_sCvar_Color, "random");
+    g_bCvar_PalleteColor = StrEqual(g_sCvar_Color, "pallete", false);
+    g_bCvar_MaintainColor = StrEqual(g_sCvar_Color, "maintain", false);
+    g_bCvar_RandomColor = StrEqual(g_sCvar_Color, "random", false);
     g_iCvar_Color = ConvertRGBToIntArray(g_sCvar_Color);
     g_bCvar_IgnoreCarAlarm = g_hCvar_IgnoreCarAlarm.BoolValue;
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
     while ((entity = FindEntityByClassname(entity, "p*")) != INVALID_ENT_REFERENCE)
     {
-        if (HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
+        if (HasEntProp(entity, Prop_Send, "m_hasTankGlow")) // CPhysicsProp
             RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
     }
 }
@@ -338,16 +360,13 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
+    if (ge_bIgnoreEntity[entity])
         return;
 
-    if (classname[0] != 'p')
-        return;
-
-    if (!HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
+    if (!HasEntProp(entity, Prop_Send, "m_hasTankGlow")) // CPhysicsProp
         return;
 
     RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
@@ -355,7 +374,17 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
+        return;
+
+    ge_bIgnoreEntity[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void OnNextFrame(int entityRef)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -365,18 +394,15 @@ public void OnNextFrame(int entityRef)
     if (entity == INVALID_ENT_REFERENCE)
         return;
 
-    if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
-        return;
-
     if (GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity") != -1) // Ignore cars created by Mutant Tanks plugin
         return;
 
     if (g_bCvar_IgnoreCarAlarm)
     {
-        char classname[15];
+        char classname[36];
         GetEntityClassname(entity, classname, sizeof(classname));
 
-        if (StrEqual(classname, CLASSNAME_PROP_CAR_ALARM))
+        if (StrEqual(classname, "prop_car_alarm"))
             return;
     }
 
@@ -418,28 +444,22 @@ void ReplaceWithAlarmCar(int entity)
         }
     }
 
-    char modelname[64];
+    char modelname[PLATFORM_MAX_PATH];
     GetEntPropString(entity, Prop_Data, "m_ModelName", modelname, sizeof(modelname));
     StringToLowerCase(modelname);
 
-    if (g_alModel.FindString(modelname) == -1)
+    char buffer[1];
+    if (!g_smModel.GetString(modelname, buffer, sizeof(buffer)))
         return;
 
     float vPos[3];
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPos);
 
     float vAng[3];
-    GetEntPropVector(entity, Prop_Send, "m_angRotation", vAng);
+    GetEntPropVector(entity, Prop_Data, "m_angAbsRotation", vAng);
 
-    if (StrEqual(modelname, "models/props_vehicles/police_car.mdl") ||
-        StrEqual(modelname, "models/props_vehicles/police_car_city.mdl") ||
-        StrEqual(modelname, "models/props_vehicles/police_car_rural.mdl") ||
-        StrEqual(modelname, "models/props_vehicles/van.mdl") ||
-        StrEqual(modelname, "models/props_vehicles/van001a.mdl") ||
-        StrEqual(modelname, "models/props_vehicles/van_interior.mdl"))
-    {
+    if (g_smModelRotate.GetString(modelname, buffer, sizeof(buffer)))
         vAng[1] += 90.0;
-    }
 
     int color[4];
 
@@ -477,7 +497,7 @@ void ReplaceWithAlarmCar(int entity)
 
 /**
 // ====================================================================================================
-:::BEGIN::: -> Source Code (with changes) from DieTeetasse - [L4D1&2] Spawn Alarmcars plugin https://forums.alliedmods.net/showthread.php?p=1311841
+:::BEGIN::: -> Source Code (with changes) from DieTeetasse - [L4D1&2] Spawn Alarmcars plugin https://forums.alliedmods.net/showthread.php?t=139352
 // ====================================================================================================
 */
 
@@ -500,8 +520,8 @@ void SpawnAlarmCar(float vPos[3], float vAng[3], char[] rendercolor, char[] targ
         g_iCarIncrement = 1;
 
     // create car
-    int carEntity = CreateEntityByName(CLASSNAME_PROP_CAR_ALARM);
-    SetEntProp(carEntity, Prop_Data, "m_iHammerID", -1); // Set value to check it on SpawnPost/EntitySpawned/NextFrame
+    int carEntity = CreateEntityByName("prop_car_alarm");
+    ge_bIgnoreEntity[carEntity] = true;
 
     if (!g_bCvar_Targetname || targetname[0] == 0)
     {
@@ -518,7 +538,7 @@ void SpawnAlarmCar(float vPos[3], float vAng[3], char[] rendercolor, char[] targ
     }
     else
     {
-        FormatEx(carName, sizeof(carName), "%s", targetname);
+        strcopy(carName, sizeof(carName), targetname);
         FormatEx(glassOnName, sizeof(glassOnName), "l4d_rca_glasson-%s", targetname);
         FormatEx(glassOffName, sizeof(glassOffName), "l4d_rca_glassoff-%s", targetname);
         FormatEx(timerName, sizeof(timerName), "l4d_rca_alarmtimer-%s", targetname);
@@ -534,48 +554,47 @@ void SpawnAlarmCar(float vPos[3], float vAng[3], char[] rendercolor, char[] targ
     DispatchKeyValue(carEntity, "model", ALARMCAR_MODEL);
     DispatchKeyValue(carEntity, "rendercolor", rendercolor);
 
-    char tempString[256];
-    Format(tempString, 256, "%s,PlaySound,,0.2,-1", chirpSoundName);
+    char tempString[128];
+    Format(tempString, sizeof(tempString), "%s,PlaySound,,0.2,-1", chirpSoundName);
     DispatchKeyValue(carEntity, "OnCarAlarmChirpStart", tempString);
-    Format(tempString, 256, "%s,ShowSprite,,0.2,-1", lightsName);
+    Format(tempString, sizeof(tempString), "%s,ShowSprite,,0.2,-1", lightsName);
     DispatchKeyValue(carEntity, "OnCarAlarmChirpStart", tempString);
-    Format(tempString, 256, "%s,HideSprite,,0.7,-1", lightsName);
+    Format(tempString, sizeof(tempString), "%s,HideSprite,,0.7,-1", lightsName);
     DispatchKeyValue(carEntity, "OnCarAlarmChirpEnd", tempString);
-    Format(tempString, 256, "%s,Enable,,0,-1", timerName);
+    Format(tempString, sizeof(tempString), "%s,Enable,,0,-1", timerName);
     DispatchKeyValue(carEntity, "OnCarAlarmStart", tempString);
-    Format(tempString, 256, "%s,PlaySound,,0,-1", alarmSoundName);
+    Format(tempString, sizeof(tempString), "%s,PlaySound,,0,-1", alarmSoundName);
     DispatchKeyValue(carEntity, "OnCarAlarmStart", tempString);
-    Format(tempString, 256, "%s,Enable,,0,-1", glassOffName);
-    DispatchKeyValue(carEntity, "OnCarAlarmStart", tempString);
-    DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", glassOnName);
+    Format(tempString, sizeof(tempString), "%s,Enable,,0,-1", glassOffName);
     DispatchKeyValue(carEntity, "OnCarAlarmStart", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", timerName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", glassOnName);
+    DispatchKeyValue(carEntity, "OnCarAlarmStart", tempString);
+    DispatchKeyValue(carEntity, "OnHitByTank", tempString);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", timerName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", alarmSoundName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", alarmSoundName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", chirpSoundName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", chirpSoundName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", lightsName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", lightsName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", headlightsName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", headlightsName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", remarkName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", remarkName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-    Format(tempString, 256, "%s,Kill,,0,-1", gameEventName);
+    Format(tempString, sizeof(tempString), "%s,Kill,,0,-1", gameEventName);
     DispatchKeyValue(carEntity, "OnCarAlarmEnd", tempString);
     DispatchKeyValue(carEntity, "OnHitByTank", tempString);
-
-    TeleportEntity(carEntity, vPos, vAng, NULL_VECTOR);
+    DispatchKeyValueVector(carEntity, "origin", vPos);
+    DispatchKeyValueVector(carEntity, "angles", vAng);
     DispatchSpawn(carEntity);
-    ActivateEntity(carEntity);
 
     // create glasses
     if (g_bCvar_GlassOn)
@@ -619,10 +638,9 @@ void CreateGlass(char[] targetName, bool startDisabled, float vPos[3], float vAn
     DispatchKeyValue(entity, "targetname", targetName);
     DispatchKeyValue(entity, "model", startDisabled ? ALARMCAR_GLASS_ALARM_OFF : ALARMCAR_GLASS_ALARM_ON);
     DispatchKeyValue(entity, "StartDisabled", startDisabled ? "1" : "0");
-
-    TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
+    DispatchKeyValueVector(entity, "angles", vAng);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -643,10 +661,9 @@ void CreateSound(char[] targetName, char[] spawnFlags, char[] messageName, float
     DispatchKeyValue(entity, "message", messageName);
     DispatchKeyValue(entity, "SourceEntityName", carName);
     DispatchKeyValue(entity, "radius", "4000");
-
-    TeleportEntity(entity, newPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", newPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
+    ActivateEntity(entity); // Don't work without it
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -699,10 +716,8 @@ void CreateLight(char[] targetName, char[] renderColor, float vPos[3], char[] ca
     DispatchKeyValue(entity, "renderamt", "255");
     DispatchKeyValue(entity, "HDRColorScale", "0.7");
     DispatchKeyValue(entity, "GlowProxySize", "5");
-
-    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -744,10 +759,9 @@ void CreateHeadlight(char[] targetName, float vPos[3], float vAng[3], char[] car
     DispatchKeyValue(entity, "renderamt", "150");
     DispatchKeyValue(entity, "maxspeed", "100");
     DispatchKeyValue(entity, "HDRColorScale", "0.5");
-
-    TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
+    DispatchKeyValueVector(entity, "angles", vAng);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -763,23 +777,21 @@ void CreateLogicTimer(char[] targetName, char[] lightsName, char[] headlightsNam
     DispatchKeyValue(entity, "StartDisabled", "1");
     DispatchKeyValue(entity, "RefireTime", "0.75");
 
-    char tempString[256];
-    Format(tempString, 256, "%s,ShowSprite,,0,-1", lightsName);
+    char tempString[128];
+    Format(tempString, sizeof(tempString), "%s,ShowSprite,,0,-1", lightsName);
     DispatchKeyValue(entity, "OnTimer", tempString);
-    Format(tempString, 256, "%s,ShowSprite,,0,-1", lightsName);
+    Format(tempString, sizeof(tempString), "%s,ShowSprite,,0,-1", lightsName);
     DispatchKeyValue(entity, "OnTimer", tempString);
-    Format(tempString, 256, "%s,LightOn,,0,-1", headlightsName);
+    Format(tempString, sizeof(tempString), "%s,LightOn,,0,-1", headlightsName);
     DispatchKeyValue(entity, "OnTimer", tempString);
-    Format(tempString, 256, "%s,HideSprite,,0.5,-1", lightsName);
+    Format(tempString, sizeof(tempString), "%s,HideSprite,,0.5,-1", lightsName);
     DispatchKeyValue(entity, "OnTimer", tempString);
-    Format(tempString, 256, "%s,HideSprite,,0.5,-1", lightsName);
+    Format(tempString, sizeof(tempString), "%s,HideSprite,,0.5,-1", lightsName);
     DispatchKeyValue(entity, "OnTimer", tempString);
-    Format(tempString, 256, "%s,LightOff,,0.5,-1", headlightsName);
+    Format(tempString, sizeof(tempString), "%s,LightOff,,0.5,-1", headlightsName);
     DispatchKeyValue(entity, "OnTimer", tempString);
-
-    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -793,10 +805,9 @@ void CreateRemark(char[] targetName, float vPos[3], float vAng[3], char[] carNam
 
     DispatchKeyValue(entity, "targetname", targetName);
     DispatchKeyValue(entity, "contextsubject", "remark_caralarm");
-
-    TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
+    DispatchKeyValueVector(entity, "angles", vAng);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -812,10 +823,9 @@ void CreateGameEvent(char[] targetName, float vPos[3], float vAng[3], char[] car
     DispatchKeyValue(entity, "spawnflags", "1");
     DispatchKeyValue(entity, "range", "100");
     DispatchKeyValue(entity, "event_name", "explain_disturbance");
-
-    TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
+    DispatchKeyValueVector(entity, "angles", vAng);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetVariantString(carName);
     AcceptEntityInput(entity, "SetParent", entity, entity, 0);
@@ -885,14 +895,14 @@ void MatrixMulti(float matA[3], float matB[3], float matC[3], float vec[3])
 
 /**
 // ====================================================================================================
-:::END::: -> Source Code from DieTeetasse - [L4D1&2] Spawn Alarmcars plugin https://forums.alliedmods.net/showthread.php?p=1311841
+:::END::: -> Source Code from DieTeetasse - [L4D1&2] Spawn Alarmcars plugin https://forums.alliedmods.net/showthread.php?t=139352
 // ====================================================================================================
 */
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdModelsReload(int client, int args)
+Action CmdModelsReload(int client, int args)
 {
     LoadModelsData();
 
@@ -901,14 +911,14 @@ public Action CmdModelsReload(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdCarAlarmRefresh(int client, int args)
+Action CmdCarAlarmRefresh(int client, int args)
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
     while ((entity = FindEntityByClassname(entity, "p*")) != INVALID_ENT_REFERENCE)
     {
-        if (HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
+        if (HasEntProp(entity, Prop_Send, "m_hasTankGlow")) // CPhysicsProp
             RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
     }
 
@@ -917,7 +927,7 @@ public Action CmdCarAlarmRefresh(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -926,7 +936,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_replace_car_alarm_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_replace_car_alarm_Activate : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_replace_car_alarm_chance : %.2f%% (%s)", g_fCvar_Chance, g_bCvar_Chance ? "true" : "false");
+    PrintToConsole(client, "l4d_replace_car_alarm_chance : %.1f%% (%s)", g_fCvar_Chance, g_bCvar_Chance ? "true" : "false");
     PrintToConsole(client, "l4d_replace_car_alarm_glass_on : %b (%s)", g_bCvar_GlassOn, g_bCvar_GlassOn ? "true" : "false");
     PrintToConsole(client, "l4d_replace_car_alarm_glass_off : %b (%s)", g_bCvar_GlassOff, g_bCvar_GlassOff ? "true" : "false");
     PrintToConsole(client, "l4d_replace_car_alarm_sound : %b (%s)", g_bCvar_Sound, g_bCvar_Sound ? "true" : "false");
@@ -939,11 +949,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_replace_car_alarm_targetname : %b (%s)", g_bCvar_Targetname, g_bCvar_Targetname ? "true" : "false");
     PrintToConsole(client, "l4d_replace_car_alarm_color : \"%s\"", g_sCvar_Color);
     PrintToConsole(client, "l4d_replace_car_alarm_ignore_car_alarm : %b (%s)", g_bCvar_IgnoreCarAlarm, g_bCvar_IgnoreCarAlarm ? "true" : "false");
-    PrintToConsole(client, "----------------------------------------------------------------------");
+    PrintToConsole(client, "");
+    PrintToConsole(client, "---------------------------- Other Infos  ----------------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "Map : \"%s\"", g_sMapName);
-    PrintToConsole(client, "");
-    PrintToConsole(client, "----------------------------------------------------------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "Models:");
     char modelname[64];
@@ -961,19 +970,6 @@ public Action CmdPrintCvars(int client, int args)
 // ====================================================================================================
 // Helpers
 // ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
 /**
  * Converts the string to lower case.
  *

@@ -1,52 +1,46 @@
-#include <socket>
+#include <SteamWorks>
+#undef REQUIRE_PLUGIN
 #include <updater>
+#pragma newdecls required
 
-#define HOST_PATH "api.steampowered.com"
 #define UPDATE_URL "www.coldcommunity.com/dev/plugins/familyshare_manager/update.txt"
 #define MAX_STEAMID_LENGTH 21
 #define MAX_COMMUNITYID_LENGTH 18 
 
-new Handle:g_hCvar_AppId = INVALID_HANDLE;
-new Handle:g_hCvar_APIKey = INVALID_HANDLE;
-new Handle:g_hCvar_BanMessage = INVALID_HANDLE;
-new Handle:g_hCvar_Whitelist = INVALID_HANDLE;
-new Handle:g_hCvar_IgnoreAdmins = INVALID_HANDLE;
+ConVar g_hCvar_BanMessage;
+ConVar g_hCvar_Whitelist;
+ConVar g_hCvar_IgnoreAdmins;
 
-// The maximum returned length of 174 occurs when an unauthorized key is provided
-// Header length really shouldn't be 900 characters long. But just in case...
-new String:g_sAPIBuffer[MAXPLAYERS + 1][1024];
-new Handle:g_hAPISocket[MAXPLAYERS + 1];
 
-new String:g_sWhitelist[PLATFORM_MAX_PATH];
-new Handle:g_hWhitelistTrie = INVALID_HANDLE;
-new bool:g_bParsed = false;
+char g_sWhitelist[PLATFORM_MAX_PATH];
+StringMap g_hWhitelistTrie;
+bool g_bParsed;
 
-public Plugin:myinfo =
+public Plugin myinfo =
 {
     name = "Family Share Manager",
-    author = "Sidezz (+bonbon, 11530)",
+    author = "s (+bonbon, 11530)",
     description = "Whitelist or ban family shared accounts",
-    version = "1.4.2",
+    version = "1.5.5",
     url = "www.coldcommunity.com"
 };
 
-public OnPluginStart()
+public void OnPluginStart()
 {
     if(LibraryExists("updater"))
     {
         Updater_AddPlugin(UPDATE_URL);
+        Updater_ForceUpdate();
     }
 
     g_bParsed = false;
     g_hWhitelistTrie = CreateTrie();
-    g_hCvar_AppId = CreateConVar("sm_familyshare_appid", "320", "Application ID of current game. HL2:DM (320), CS:S (240), CS:GO (730), TF2 (440)", FCVAR_NOTIFY);
-    g_hCvar_APIKey = CreateConVar("sm_familyshare_apikey", "XXXXXXXXXXXXXXXXXXXX", "Steam developer web API key", FCVAR_PROTECTED);
     g_hCvar_BanMessage = CreateConVar("sm_familyshare_banmessage", "Family sharing is disabled.", "Message to display in sourcebans/on ban", FCVAR_NOTIFY);
     g_hCvar_IgnoreAdmins = CreateConVar("sm_familyshare_ignoreadmins", "1", "Check and unblock admins?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
     g_hCvar_Whitelist = CreateConVar("sm_familyshare_whitelist", "familyshare_whitelist.ini", "File to use for whitelist (addons/sourcemod/configs/file)");
 
-    decl String:file[PLATFORM_MAX_PATH], String:filePath[PLATFORM_MAX_PATH];
-    GetConVarString(g_hCvar_Whitelist, file, sizeof(file));
+    char file[PLATFORM_MAX_PATH]; char filePath[PLATFORM_MAX_PATH];
+    g_hCvar_Whitelist.GetString(file, sizeof(file));
     BuildPath(Path_SM, g_sWhitelist, sizeof(g_sWhitelist), "configs/%s", file);
     LogMessage("Built Filepath to: %s", g_sWhitelist);
 
@@ -54,8 +48,7 @@ public OnPluginStart()
     CreateDirectory(filePath, 511);
 
     AutoExecConfig();
-
-    parseList();
+    parseList(false);
 
     RegAdminCmd("sm_reloadlist", command_reloadWhiteList, ADMFLAG_ROOT, "Reload the whitelist");
     RegAdminCmd("sm_addtolist", command_addToList, ADMFLAG_ROOT, "Add a player to the whitelist");
@@ -63,28 +56,30 @@ public OnPluginStart()
     RegAdminCmd("sm_displaylist", command_displayList, ADMFLAG_ROOT, "View current whitelist");
 }
 
-public OnLibraryAdded(const String:name[])
+public void OnLibraryAdded(const char[] name)
 {
     if (StrEqual(name, "updater"))
     {
-        Updater_AddPlugin(UPDATE_URL)
+        Updater_AddPlugin(UPDATE_URL);
+        Updater_ForceUpdate();
     }
 }
 
-public Updater_OnPluginUpdated()
+public int Updater_OnPluginUpdated()
 {
+    PrintToServer("Family Share Manager has been updated!");
     ReloadPlugin();
 }
 
-public Action:command_removeFromList(client, args)
+public Action command_removeFromList(int client, int args)
 {
-    new Handle:hFile = OpenFile(g_sWhitelist, "a+");
+    File hFile = OpenFile(g_sWhitelist, "a+");
 
-    if(hFile == INVALID_HANDLE)
+    if(hFile == null)
     {
         LogError("[Family Share Manager] Critical Error: hFile is Invalid. --> command_removeFromList");
         PrintToChat(client, "[Family Share Manager] Plugin has encountered a critial error with the list file.");
-        CloseHandle(hFile);
+        delete hFile;
         return Plugin_Handled;
     }
 
@@ -94,16 +89,16 @@ public Action:command_removeFromList(client, args)
         return Plugin_Handled;
     }
 
-    decl String:steamid[32], String:playerSteam[32];
+    char steamid[32]; char playerSteam[32];
     GetCmdArgString(playerSteam, sizeof(playerSteam));
 
     StripQuotes(playerSteam);
     TrimString(playerSteam);
   
-    new bool:found = false;
-    new Handle:fileArray = CreateArray(32);
+    bool found = false;
+    ArrayList fileArray = CreateArray(32);
 
-    while(!IsEndOfFile(hFile) && ReadFileLine(hFile, steamid, sizeof(steamid)))
+    while(!hFile.EndOfFile() && hFile.ReadLine(steamid, sizeof(steamid)))
     {
         if(strlen(steamid) < 1 || IsCharSpace(steamid[0])) continue;
 
@@ -113,7 +108,7 @@ public Action:command_removeFromList(client, args)
         //Not found, add to next file.
         if(!StrEqual(steamid, playerSteam, false))
         {
-            PushArrayString(fileArray, steamid);
+            fileArray.PushString(steamid);
         }
 
         //Found, remove from file.
@@ -123,15 +118,15 @@ public Action:command_removeFromList(client, args)
         }
     }
 
-    CloseHandle(hFile);
+    delete hFile;
 
     //Delete and rewrite list if found..
     if(found)
     {
-        DeleteFile(g_sWhitelist); //I hate this, scares the shit out of me.
-        new Handle:newFile = OpenFile(g_sWhitelist, "a+");
+        DeleteFile(g_sWhitelist);
+        File newFile = OpenFile(g_sWhitelist, "a+");
 
-        if(newFile == INVALID_HANDLE)
+        if(newFile == null)
         {
             LogError("[Family Share Manager] Critical Error: newFile is Invalid. --> command_removeFromList");
             PrintToChat(client, "[Family Share Manager] Plugin has encountered a critial error with the list file.");
@@ -142,26 +137,26 @@ public Action:command_removeFromList(client, args)
         
         LogMessage("Begin rewrite of list..");
 
-        for(new i = 0; i < GetArraySize(fileArray); i++)
+        for(int i = 0; i < GetArraySize(fileArray); i++)
         {
-            decl String:writeLine[32];
-            GetArrayString(fileArray, i, writeLine, sizeof(writeLine));
-            WriteFileLine(newFile, writeLine);
+            char writeLine[32];
+            fileArray.GetString(i, writeLine, sizeof(writeLine));
+            newFile.WriteLine(writeLine);
             LogMessage("Wrote %s to list.", writeLine);
         }
 
-        CloseHandle(newFile);
-        CloseHandle(fileArray);
-        parseList();
+        delete newFile;
+        delete fileArray;
+        parseList(false);
         return Plugin_Handled;
     }
     else PrintToChat(client, "[Family Share Manager] Steam ID: %s not found, no action taken.", playerSteam);
     return Plugin_Handled;
 }
 
-public Action:command_addToList(client, args)
+public Action command_addToList(int client, int args)
 {
-    new Handle:hFile = OpenFile(g_sWhitelist, "a+");
+    File hFile = OpenFile(g_sWhitelist, "a+");
     
     //Argument Count:
     switch(args)
@@ -169,36 +164,36 @@ public Action:command_addToList(client, args)
         //Create Player List:
         case 0:
         {
-            new Handle:playersMenu = CreateMenu(playerMenuHandle);
-            for(new i = 1; i <= MaxClients; i++)
+            Menu playersMenu = new Menu(playerMenuHandle);
+            for(int i = 1; i <= MaxClients; i++)
             {
                 if(IsClientAuthorized(i) && i != client)
                 {
-                    SetMenuTitle(playersMenu, "Viewing all players...");
+                    playersMenu.SetTitle("Viewing all players...");
 
-                    decl String:formatItem[2][32];
+                    char formatItem[2][32];
                     Format(formatItem[0], sizeof(formatItem[]), "%i", GetClientUserId(i));
                     Format(formatItem[1], sizeof(formatItem[]), "%N", i);
 
                     //Adds menu item per player --> Client User ID, Display as Username.
-                    AddMenuItem(playersMenu, formatItem[0], formatItem[1]);
+                    playersMenu.AddItem(formatItem[0], formatItem[1]);
                 }
             }
 
-            SetMenuExitButton(playersMenu, true);
-            SetMenuPagination(playersMenu, 7);
-            DisplayMenu(playersMenu, client, MENU_TIME_FOREVER);
+            playersMenu.ExitButton = true;
+            playersMenu.Pagination = 7;
+            playersMenu.Display(client, MENU_TIME_FOREVER);
 
             PrintToChat(client, "[Family Share Manager] Displaying players menu...");
 
-            CloseHandle(hFile);
+            delete hFile;
             return Plugin_Handled;
         }
 
         //Directly write Steam ID:
         default:
         {
-            decl String:steamid[32];
+            char steamid[32];
             GetCmdArgString(steamid, sizeof(steamid));
 
             StripQuotes(steamid);
@@ -207,7 +202,7 @@ public Action:command_addToList(client, args)
             if(StrContains(steamid, "STEAM_", false) == -1)
             {
                 PrintToChat(client, "[Family Share Manager] Invalid Input - Not a Steam 2 ID. (STEAM_0:X:XXXX)");
-                CloseHandle(hFile);
+                delete hFile;
                 return Plugin_Handled;
             }
 
@@ -215,40 +210,38 @@ public Action:command_addToList(client, args)
             {
                 LogError("[Family Share Manager] Critical Error: hFile is Invalid. --> command_addToList");
                 PrintToChat(client, "[Family Share Manager] Plugin has encountered a critial error with the list file.");
-                CloseHandle(hFile);
+                delete hFile;
                 return Plugin_Handled;
             }
 
-            WriteFileLine(hFile, steamid);
+            hFile.WriteLine(steamid);
             PrintToChat(client, "[Family Share Manager] Successfully added %s to the list.", steamid);
-            CloseHandle(hFile);
-            parseList();
+            delete hFile;
+            parseList(false);
             return Plugin_Handled;
         }
     }
-
-    return Plugin_Handled;
 }
 
-public playerMenuHandle(Handle:playerMenu, MenuAction:action, client, menuItem)
+public int playerMenuHandle(Menu playerMenu, MenuAction action, int client, int menuItem)
 {
     if(action == MenuAction_Select) 
     {   
         //Should be our Client's User ID.
-        decl String:menuItems[32]; 
-        GetMenuItem(playerMenu, menuItem, menuItems, sizeof(menuItems));
+        char menuItems[32]; 
+        playerMenu.GetItem(menuItem, menuItems, sizeof(menuItems));
 
-        new target = GetClientOfUserId(StringToInt(menuItems));
+        int target = GetClientOfUserId(StringToInt(menuItems));
         
         //Invalid UserID/Client Index:
-        if(target == 0)
+        if(!target)
         {
             LogError("[Family Share Manager] Critical Error: Invalid Client of User Id --> playerMenuHandle");
-            CloseHandle(playerMenu);
+            delete playerMenu;
             return;
         }
 
-        decl String:steamid[32];
+        char steamid[32];
         GetClientAuthId(target, AuthId_Steam2, steamid, sizeof(steamid));
 
         StripQuotes(steamid);
@@ -260,34 +253,34 @@ public playerMenuHandle(Handle:playerMenu, MenuAction:action, client, menuItem)
             return;
         }
 
-        new Handle:hFile = OpenFile(g_sWhitelist, "a+");
-        if(hFile == INVALID_HANDLE)
+        File hFile = OpenFile(g_sWhitelist, "a+");
+        if(hFile == null)
         {
             LogError("[Family Share Manager] Critical Error: hFile is Invalid. --> playerMenuHandle");
             PrintToChat(client, "[Family Share Manager] Plugin has encountered a critial error with the list file.");
-            CloseHandle(hFile);
+            delete hFile;
             return;
         }
 
-        WriteFileLine(hFile, steamid);
+        hFile.WriteLine(steamid);
         PrintToChat(client, "[Family Share Manager] Successfully added %s (%N) to the list.", steamid, target);
-        CloseHandle(hFile);
-        parseList();
+        delete hFile;
+        parseList(false);
         return;
     }
 
     else if(action == MenuAction_End)
     {
-        CloseHandle(playerMenu);
+        delete playerMenu;
     }
 }
 
-public Action:command_displayList(client, args)
+public Action command_displayList(int client, int args)
 {
-    decl String:auth[32];
-    new Handle:hFile = OpenFile(g_sWhitelist, "a+");
+    char auth[32];
+    File hFile = OpenFile(g_sWhitelist, "a+");
 
-    while(!IsEndOfFile(hFile) && ReadFileLine(hFile, auth, sizeof(auth)))
+    while(!hFile.EndOfFile() && hFile.ReadLine(auth, sizeof(auth)))
     {
         TrimString(auth);
         StripQuotes(auth);
@@ -302,24 +295,24 @@ public Action:command_displayList(client, args)
         }
     }
 
-    CloseHandle(hFile);
+    delete hFile;
     return Plugin_Handled;
 }
 
-public Action:command_reloadWhiteList(client, args)
+public Action command_reloadWhiteList(int client, int args)
 {
     PrintToChat(client, "[Family Share Manager] Rebuilding whitelist...");
     parseList(true, client);
     return Plugin_Handled;
 }
 
-parseList(bool:rebuild = false, client = 0)
+void parseList(bool rebuild, int client = 0)
 {
-    decl String:auth[32];
-    new Handle:hFile = OpenFile(g_sWhitelist, "a+");
+    char auth[32];
+    File hFile = OpenFile(g_sWhitelist, "a+");
     LogMessage("Begin parseList()");
 
-    while(!IsEndOfFile(hFile) && ReadFileLine(hFile, auth, sizeof(auth)))
+    while(!hFile.EndOfFile() && hFile.ReadLine(auth, sizeof(auth)))
     {
         TrimString(auth);
         StripQuotes(auth);
@@ -328,7 +321,7 @@ parseList(bool:rebuild = false, client = 0)
 
         if(StrContains(auth, "STEAM_", false) != -1)
         {
-            SetTrieString(g_hWhitelistTrie, auth, auth);
+            g_hWhitelistTrie.SetString(auth, auth, true);
             LogMessage("Added %s to whitelist", auth);
         }
     }
@@ -336,17 +329,17 @@ parseList(bool:rebuild = false, client = 0)
     LogMessage("End parseList()");
     if(rebuild && client) PrintToChat(client, "[Family Share Manager] Rebuild complete!");
     g_bParsed = true;
-    CloseHandle(hFile);
+    delete hFile;
 }
 
-public OnClientPostAdminCheck(client)
+public void OnClientPostAdminCheck(int client)
 {
-    new bool:whiteListed = false;
+    bool whiteListed = false;
     if(g_bParsed)
     {
-        decl String:auth[2][64];
+        char auth[2][64];
         GetClientAuthId(client, AuthId_Steam2, auth[0], sizeof(auth[]));
-        whiteListed = GetTrieString(g_hWhitelistTrie, auth[0], auth[1], sizeof(auth[]));
+        whiteListed = g_hWhitelistTrie.GetString(auth[0], auth[1], sizeof(auth[]));
         if(whiteListed)
         {
             LogMessage("Whitelist found player: %N", client);
@@ -354,152 +347,54 @@ public OnClientPostAdminCheck(client)
         }
     }
 
-    if(CheckCommandAccess(client, "sm_admin", ADMFLAG_GENERIC) && GetConVarInt(g_hCvar_IgnoreAdmins) > 0)
+    if(CheckCommandAccess(client, "sm_admin", ADMFLAG_GENERIC) && g_hCvar_IgnoreAdmins.IntValue > 0)
     {
         return;
     }
-
-    if(!IsFakeClient(client))
-        checkFamilySharing(client);
 }
 
-public OnClientDisconnect(client)
+stock int GetClientOfAuthId(int authid)
 {
-    if (g_hAPISocket[client] != INVALID_HANDLE)
+    for(int i = 1; i <= MaxClients; i++)
     {
-        CloseHandle(g_hAPISocket[client]);
-        g_hAPISocket[client] = INVALID_HANDLE;
-    }
-}
-
-public OnSocketConnected(Handle:socket, any:userid)
-{
-    new client = GetClientOfUserId(userid);
-
-    if (!client)
-    {
-        CloseHandle(socket);
-        return;
-    }
-
-    decl String:apikey[64];
-    decl String:get[256];
-    decl String:request[512];
-    decl String:steamid[MAX_STEAMID_LENGTH];
-    decl String:steamid64[MAX_COMMUNITYID_LENGTH];
-
-    GetConVarString(g_hCvar_APIKey, apikey, sizeof(apikey));
-    GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid));
-    GetCommunityIDString(steamid, steamid64, sizeof(steamid64));
-
-    Format(get, sizeof(get),
-           "%s/IPlayerService/IsPlayingSharedGame/v0001/?key=%s&steamid=%s&appid_playing=%d&format=json",
-           HOST_PATH, apikey, steamid64, GetConVarInt(g_hCvar_AppId));
-
-    Format(request, sizeof(request),
-           "GET http://%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\nAccept-Encoding: *\r\n\r\n",
-           get, HOST_PATH);
-
-    SocketSend(socket, request);
-}
-
-public OnSocketReceive(Handle:socket, String:receiveData[], dataSize, any:userid)
-{
-    new client = GetClientOfUserId(userid);
-
-    if (client > 0)
-    {
-        StrCat(g_sAPIBuffer[client], 1024, receiveData);
-    
-        if (StrContains(receiveData, "404 Not Found", false) != -1)
+        if(IsClientConnected(i))
         {
-            OnSocketError(socket, 404, 404, userid);
-        }
-
-        else if (StrContains(receiveData, "Unauthorized", false) != -1)
-        {
-            OnSocketError(socket, 403, 403, userid);
-        }
-    }
-}
-
-public OnSocketError(Handle:socket, const errorType, const errorNum, any:userid)
-{
-    new client = GetClientOfUserId(userid);
-    if (client > 0)
-    {
-        g_hAPISocket[client] = INVALID_HANDLE;
-        LogError("Error checking family sharing for %L -- error %d (%d)", client, errorType, errorNum);
-    }
-
-    CloseHandle(socket);
-}
-
-public OnSocketDisconnected(Handle:socket, any:userid)
-{
-    new client = GetClientOfUserId(userid);
-
-    if (client > 0)
-    {
-        g_hAPISocket[client] = INVALID_HANDLE;
-        ReplaceString(g_sAPIBuffer[client], 1024, " ", "");
-        ReplaceString(g_sAPIBuffer[client], 1024, "\t", "");
-
-        new index = StrContains(g_sAPIBuffer[client], "\"lender_steamid\":", false);
-
-        if (index == -1)
-        {
-            LogError("unexpected error returned in request - %s", g_sAPIBuffer[client]);
-        }
-
-        else
-        {
-            index += strlen("\"lender_steamid\":");
-            decl String:banMessage[128];
-            GetConVarString(g_hCvar_BanMessage, banMessage, sizeof(banMessage));
-            if (g_sAPIBuffer[client][index + 1] != '0' || g_sAPIBuffer[client][index + 2] != '"')
-            {
-                LogMessage("Banning %L for 10 minutes", client);
-                ServerCommand("sm_ban #%i 10 \"%s\"", userid, banMessage);
-            }
+            char steamid[32]; GetClientAuthId(i, AuthId_Steam3, steamid, sizeof(steamid));
+            char split[3][32]; 
+            ExplodeString(steamid, ":", split, sizeof(split), sizeof(split[]));
+            ReplaceString(split[2], sizeof(split[]), "]", "");
+            //Split 1: [U:
+            //Split 2: 1:
+            //Split 3: 12345]
+            
+            int auth = StringToInt(split[2]);
+            if(auth == authid) return i;
         }
     }
 
-    CloseHandle(socket);
+    return -1;
 }
 
-Action:checkFamilySharing(client)
+public int SteamWorks_OnValidateClient(int ownerauthid, int authid)
 {
-    new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
+    int client = GetClientOfAuthId(authid);
+    if(ownerauthid != authid)
+    {
+        char banMessage[PLATFORM_MAX_PATH]; g_hCvar_BanMessage.GetString(banMessage, sizeof(banMessage));
+        KickClient(client, banMessage);
+    }
 
-    g_hAPISocket[client] = socket;
-    g_sAPIBuffer[client][0] = '\0';
+    /*
+    //Now using SteamWorks:
+    EUserHasLicenseForAppResult result = SteamWorks_HasLicenseForApp(client, g_hCvar_AppId.IntValue);
 
-    SocketSetArg(socket, GetClientUserId(client));
-    SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, HOST_PATH, 80);
+    //Debug text: PrintToServer("Client %N License Value: %i", client, view_as<int>(result));
+
+    //No License, kick em:
+    if(result > k_EUserHasLicenseResultHasLicense)
+    {
+        char banMessage[PLATFORM_MAX_PATH]; g_hCvar_BanMessage.GetString(banMessage, sizeof(banMessage));
+        KickClient(client, banMessage);
+    }
+    */
 }
-
-// Credit to 11530
-// https://forums.alliedmods.net/showthread.php?t=183443&highlight=communityid
-stock bool:GetCommunityIDString(const String:SteamID[], String:CommunityID[], const CommunityIDSize)
-{
-    decl String:SteamIDParts[3][11];
-    new const String:Identifier[] = "76561197960265728";
-    
-    if ((CommunityIDSize < 1) || (ExplodeString(SteamID, ":", SteamIDParts, sizeof(SteamIDParts), sizeof(SteamIDParts[])) != 3))
-    {
-        CommunityID[0] = '\0';
-        return false;
-    }
-
-    new Current, CarryOver = (SteamIDParts[1][0] == '1');
-    for (new i = (CommunityIDSize - 2), j = (strlen(SteamIDParts[2]) - 1), k = (strlen(Identifier) - 1); i >= 0; i--, j--, k--)
-    {
-        Current = (j >= 0 ? (2 * (SteamIDParts[2][j] - '0')) : 0) + CarryOver + (k >= 0 ? ((Identifier[k] - '0') * 1) : 0);
-        CarryOver = Current / 10;
-        CommunityID[i] = (Current % 10) + '0';
-    }
-
-    CommunityID[CommunityIDSize - 1] = '\0';
-    return true;
-}  

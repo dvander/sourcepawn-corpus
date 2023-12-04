@@ -4,8 +4,7 @@ Reverse Friendly-Fire (l4d_reverse_ff) by Mystik Spiral
   
 Purpose:  
   
-Left4Dead(2) SourceMod plugin that reverses friendly-fire.  
-The attacker takes all of the damage and the victim takes none.  
+Left4Dead(2) SourceMod plugin that reverses friendly-fire...attacker takes damage, victim does not.  
   
   
 Objectives:  
@@ -17,14 +16,14 @@ Objectives:
 Description and options:  
   
   
-Reverses friendly-fire weapon damage for survivors and claw attacks for infected.  
+Reverses friendly-fire weapon damage on survivor team and claw attacks on infected team.  
 Does not reverse burn/blast damage, except for grenade launcher (see Suggestion section below).  
-Supports client language translation, currently English, French, Spanish, and Russian.  
+Supports client language translation, currently English, French, Spanish, Russian, and Traditional Chinese.  
   
-Please note the following for the true/false options below:  
-Regardless of the setting, the victim never takes damage from the attacker.  
-True means friendly-fire is reversed for that option and the attacker takes all of the damage.  
-False means friendy-fire is disabled for that option and the attacker does not take any damage.  
+Please note the following for the true(1) / false(0) options below:  
+· The victim never takes damage from the attacker.  
+· 1 = friendly-fire is reversed for that option and the attacker takes damage.  
+· 0 = friendly-fire is disabled for that option and the attacker does not take damage.  
   
 - Option to ReverseFF when attacker is an admin. [reverseff_admin (default: 0/false)]  
 - Option to ReverseFF when victim is a bot. [reverseff_bot (default: 0/false)]  
@@ -41,8 +40,13 @@ False means friendy-fire is disabled for that option and the attacker does not t
 - Option to specify maximum infected damage allowed per chapter before kick/ban (0=disable). [reverseff_infectedmaxdmg (default: 50)]  
 - Option to specify maximum tank damage allowed per chapter before kick/ban (0=disable).  [reverseff_tankmaxdmg (default: 300)]  
 - Option to specify kick/ban duration in minutes. (0=permanent ban, -1=kick instead of ban). [reverseff_banduration (default: 10)]  
-- Option to specify no ReverseFF based on distance between victim and attacker (0=disable). [reverseff_proximity (default: 32)]  
+- Option to specify ReverseFF based on distance between victim and attacker (0=disable). [reverseff_proximity (default: 32)]  
+- Option to specify ReverseFF based on cooldown timer (0=disable). [reverseff_cooldowntime (default: 0)]  
+- Option to enable/disable stumble effect from grenade launcher friendly-fire (0=disable). [reverseff_glstumble (default: 0)]  
+- Option to enable/disable plugin (0=Plugin off, 1=Plugin on) [reverseff_enable (default=1)]  
 - Option to enable/disable plugin by game mode. [reverseff_modes_on, reverseff_modes_off, reverseff_modes_tog]  
+- Option to enable/disable plugin announcement (0=Announcement off, 1=Announcement on) [reverseff_announcement (default=1)]  
+- Option to display/suppress ReverseFF chat messages (0=Suppress chat messages, 1=Display chat messages) [reverseff_chatmsg (default=1)]  
   
   
 Suggestion:  
@@ -63,9 +67,28 @@ Although griefers will take significant damage, other players may not notice any
   
 Credits:  
   
+CFG file requested by user2000  
+Victim incapacitated option requested by Shao  
+L4D1/2 engine check fix requested by Crasher_3637/Psyk0tik  
+Reverse accusation vocalizations requested by kooper990  
+Kick or ban option requested by Maku and Crasher_3637/Psyk0tik  
+ReverseFF for infected requested by Kai0205  
+Short FF grace immediately after killing SI requested by Kai0205  
+L4D1/2 specific checks fix requested by kooper990 and Marttt  
+Attacker incapped option and mounted gun option requested by Shao  
+Melee and chainsaw option requested by Shao  
+Charger carry and Smoker pull option requested by Shao  
 Chainsaw damage fix by pan0s  
+Damage modifier by percentage requested by TrueDarkness  
+Promximity option requested by Shao  
+Announcement option requested by tamasa1969  
+Chat option requested by kevinracer  
+Cooldown timer requested by Shao  
 Game modes on/off/tog by Silvers  
 GetClientDist adapted from UndoFF by dcx2  
+Traditional Chinese translation by in2002  
+SM 11 compile warnings fix requested by S.A.S  
+  
   
 Want to contribute code enhancements?  
 Create a pull request using this GitHub repository: https://github.com/Mystik-Spiral/l4d_reverse_ff  
@@ -81,7 +104,7 @@ Plugin discussion: https://forums.alliedmods.net/showthread.php?t=329035
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "2.8"
+#define PLUGIN_VERSION "2.8.5"
 #define CVAR_FLAGS FCVAR_NOTIFY
 #define TRANSLATION_FILENAME "l4d_reverse_ff.phrases"
 
@@ -93,6 +116,7 @@ ConVar cvar_reverseff_bot;
 ConVar cvar_reverseff_survivormaxdmg;
 ConVar cvar_reverseff_infectedmaxdmg;
 ConVar cvar_reverseff_tankmaxdmg;
+ConVar cvar_reverseff_cooldowntime;
 ConVar cvar_reverseff_banduration;
 ConVar cvar_reverseff_proximity;
 ConVar cvar_reverseff_incapped;
@@ -101,6 +125,9 @@ ConVar cvar_reverseff_mountedgun;
 ConVar cvar_reverseff_melee;
 ConVar cvar_reverseff_chainsaw;
 ConVar cvar_reverseff_pullcarry;
+ConVar cvar_reverseff_announce;
+ConVar cvar_reverseff_chatmsg;
+ConVar cvar_reverseff_glstumble;
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModesOn, g_hCvarModesOff, g_hCvarModesTog;
 
 float g_fCvarDamageMultiplier;
@@ -109,6 +136,8 @@ float g_fCvarDamageModifierInfected;
 float g_fAccumDamage[MAXPLAYERS + 1];
 float g_fAccumDamageAsTank[MAXPLAYERS + 1];
 float g_fAccumDamageAsInfected[MAXPLAYERS + 1];
+float g_fLastShotTime[MAXPLAYERS + 1];
+float g_fCooldownTime;
 float g_fProximity;
 float g_fSurvivorMaxDamage;
 float g_fInfectedMaxDamage;
@@ -126,8 +155,12 @@ bool g_bCvarReverseIfPullCarry;
 bool g_bCvarReverseIfMountedgun;
 bool g_bCvarReverseIfMelee;
 bool g_bCvarReverseIfChainsaw;
+bool g_bCvarAnnounce;
+bool g_bCvarChatMsg;
+bool g_bCvarGLstumble;
 bool g_bGrace[MAXPLAYERS + 1];
 bool g_bToggle[MAXPLAYERS + 1];
+bool g_bCooldownFlag[MAXPLAYERS + 1];
 bool g_bCvarAllow, g_bMapStarted;
 bool g_bL4D2;
 bool g_bAllReversePlugins;
@@ -189,12 +222,16 @@ public void OnPluginStart()
 	cvar_reverseff_survivormaxdmg = CreateConVar("reverseff_survivormaxdmg", "200", "Maximum damage allowed before kick/ban survivor (0=disable)", CVAR_FLAGS);
 	cvar_reverseff_infectedmaxdmg = CreateConVar("reverseff_infectedmaxdmg", "50", "Maximum damage allowed before kick/ban infected (0=disable)", CVAR_FLAGS);
 	cvar_reverseff_tankmaxdmg = CreateConVar("reverseff_tankmaxdmg", "300", "Maximum damage allowed before kick/ban tank (0=disable)", CVAR_FLAGS);
+	cvar_reverseff_cooldowntime = CreateConVar("reverseff_cooldowntime", "0", "Cool down time in seconds (0=disable)", CVAR_FLAGS);
 	cvar_reverseff_banduration = CreateConVar("reverseff_banduration", "10", "Ban duration in minutes (0=permanent ban, -1=kick instead of ban)", CVAR_FLAGS);
 	cvar_reverseff_proximity = CreateConVar("reverseff_proximity", "32", "Attacker/victim distance to prevent ReverseFF (0=disable)", CVAR_FLAGS);
 	cvar_reverseff_mountedgun = CreateConVar("reverseff_mountedgun", "1", "0=Do not ReverseFF from mountedgun, 1=ReverseFF from mountedgun", CVAR_FLAGS);
 	cvar_reverseff_melee = CreateConVar("reverseff_melee", "1", "0=Do not ReverseFF from melee, 1=ReverseFF from melee", CVAR_FLAGS);
 	cvar_reverseff_chainsaw = CreateConVar("reverseff_chainsaw", "1", "0=Do not ReverseFF from chainsaw, 1=ReverseFF from chainsaw", CVAR_FLAGS);
 	cvar_reverseff_pullcarry = CreateConVar("reverseff_pullcarry", "0", "0=Do not ReverseFF during Smoker pull or Charger carry, 1=ReverseFF from pull/carry", CVAR_FLAGS);
+	cvar_reverseff_announce = CreateConVar("reverseff_announce", "1", "0=Do not announce plugin, 1=Announce plugin", CVAR_FLAGS);
+	cvar_reverseff_chatmsg = CreateConVar("reverseff_chatmsg", "1", "0=Do not display ReverseFF chat messages, 1=Display ReverseFFchat messages", CVAR_FLAGS);
+	cvar_reverseff_glstumble = CreateConVar("reverseff_glstumble", "0", "0=Do not reverse stumble effect from GrenadeLauncher, 1=Reverse stumble effect from GrenadeLauncher", CVAR_FLAGS);
 	g_hCvarAllow = CreateConVar("reverseff_enabled", "1", "0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
 	g_hCvarModesOn = CreateConVar("reverseff_modes_on", "", "Game mode names on, comma separated, no spaces. (Empty=all).", CVAR_FLAGS );
 	g_hCvarModesOff = CreateConVar("reverseff_modes_off", "", "Game mode names off, comma separated, no spaces. (Empty=none).", CVAR_FLAGS );
@@ -209,6 +246,7 @@ public void OnPluginStart()
 	cvar_reverseff_survivormaxdmg.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_infectedmaxdmg.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_tankmaxdmg.AddChangeHook(action_ConVarChanged);
+	cvar_reverseff_cooldowntime.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_banduration.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_proximity.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_incapped.AddChangeHook(action_ConVarChanged);
@@ -217,6 +255,9 @@ public void OnPluginStart()
 	cvar_reverseff_melee.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_chainsaw.AddChangeHook(action_ConVarChanged);
 	cvar_reverseff_pullcarry.AddChangeHook(action_ConVarChanged);
+	cvar_reverseff_announce.AddChangeHook(action_ConVarChanged);
+	cvar_reverseff_chatmsg.AddChangeHook(action_ConVarChanged);
+	cvar_reverseff_glstumble.AddChangeHook(action_ConVarChanged);
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
 	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
@@ -289,7 +330,7 @@ public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char
 	IsAllowed();
 }
 
-public int action_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+public void action_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -304,6 +345,7 @@ void GetCvars()
 	g_fSurvivorMaxDamage = cvar_reverseff_survivormaxdmg.FloatValue;
 	g_fInfectedMaxDamage = cvar_reverseff_infectedmaxdmg.FloatValue;
 	g_fTankMaxDamage = cvar_reverseff_tankmaxdmg.FloatValue;
+	g_fCooldownTime = cvar_reverseff_cooldowntime.FloatValue;
 	g_iBanDuration = cvar_reverseff_banduration.IntValue;
 	g_fProximity = cvar_reverseff_proximity.FloatValue;
 	g_bCvarReverseIfIncapped = cvar_reverseff_incapped.BoolValue;
@@ -312,6 +354,9 @@ void GetCvars()
 	g_bCvarReverseIfMelee = cvar_reverseff_melee.BoolValue;
 	g_bCvarReverseIfChainsaw = cvar_reverseff_chainsaw.BoolValue;
 	g_bCvarReverseIfPullCarry = cvar_reverseff_pullcarry.BoolValue;
+	g_bCvarAnnounce = cvar_reverseff_announce.BoolValue;
+	g_bCvarChatMsg = cvar_reverseff_chatmsg.BoolValue;
+	g_bCvarGLstumble = cvar_reverseff_glstumble.BoolValue;
 }
 
 void IsAllowed()
@@ -412,7 +457,10 @@ public void OnClientPutInServer(int client)
 
 public void OnClientPostAdminCheck(int client)
 {
-	CreateTimer(16.0, AnnouncePlugin, client);
+	if (g_bCvarAnnounce)
+	{
+		CreateTimer(16.0, AnnouncePlugin, client);
+	}
 }
 
 public void OnClientDisconnect(int client)
@@ -467,12 +515,45 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 		{
 			ReverseIfChainsaw = true;
 		}
+		
+		//is cooldown feature enabled
+		if (g_fCooldownTime > 0.0)
+		{
+			//debug cooldown parameters
+			//PrintToServer("Time: %f, Last: %f, CDflag: %b, Atk: %i", GetGameTime(), g_fLastShotTime[attacker], g_bCooldownFlag[attacker], attacker);
+			//cooldown flag is off
+			if (!g_bCooldownFlag[attacker])
+			{
+				//update current damage time and set cooldown flag on
+				g_fLastShotTime[attacker] = GetGameTime();
+				g_bCooldownFlag[attacker] = true;
+				CreateTimer(g_fCooldownTime, CooldownTimer, attacker);
+			}
+			//cooldown flag is on
+			else
+			{
+				//shotgun pellets from same shot have same time
+				if (GetGameTime() != g_fLastShotTime[attacker])
+				{
+					//do not process damage
+					return Plugin_Handled;					
+				}
+			}
+		}
+		//
 		//debug victim/attacker distance
 		//PrintToServer("Distance between victim and attacker: %f", GetClientDist(victim, attacker));
-		//if weapon not melee or chainsaw, do not reverseff when distance between victim and attacker is less than reverseff_proximity
-		if (!bWeaponMelee && !bWeaponChainsaw && GetClientDist(victim, attacker) < g_fProximity)
+		//if weapon not melee or chainsaw
+		if (!bWeaponMelee && !bWeaponChainsaw)
 		{
-			return Plugin_Handled;
+			//ignore ff based on reverseff_proximity
+			//if reverseff_proximity > 0 ignore ff if distance < reverseff_proximity
+			//if reverseff_proximity < 0 ignore ff if distance > abs(reverseff_proximity)
+			float fDistance = GetClientDist(victim, attacker);
+			if ( (g_fProximity > 0 && fDistance < g_fProximity) || (g_fProximity < 0 && fDistance > FloatAbs(g_fProximity)) )
+			{
+				return Plugin_Handled;
+			}
 		}
 		//debug weapon
 		//PrintToServer("GL: %b, MG: %b, InfCls: %s, weapon: %i", bWeaponGL, bWeaponMG, sInflictorClass, weapon);
@@ -561,10 +642,18 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 					//then damage attacker as self-inflicted for actual damage so there is no vocalization, just pain grunt.
 					SetEntityHealth(victim, GetClientHealth(victim) + 1);
 					SDKHooks_TakeDamage(victim, inflictor, attacker, 1.0, 0, weapon, g_fDmgFrc, g_fDmgPos);
-					SDKHooks_TakeDamage(attacker, inflictor, attacker, damage, damagetype, weapon, damageForce, damagePosition);
+					//if using grenade launcher and reverseff_glstumble is false then ignore stumble effect, else reverse stumble effect
+					if (bWeaponGL && !g_bCvarGLstumble)
+					{
+						SDKHooks_TakeDamage(attacker, inflictor, attacker, damage, 0, weapon, g_fDmgFrc, g_fDmgPos);
+					}
+					else
+					{
+						SDKHooks_TakeDamage(attacker, inflictor, attacker, damage, damagetype, weapon, damageForce, damagePosition);
+					}
 				}
 
-				if (damage > 0 && !IsFakeClient(attacker))
+				if (damage > 0 && !IsFakeClient(attacker) && g_bCvarChatMsg)
 				{
 					if (!g_bToggle[attacker])
 					{
@@ -639,7 +728,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				//inflict damage to attacker
 				SDKHooks_TakeDamage(attacker, inflictor, victim, damage, damagetype, weapon, damageForce, damagePosition);
 				//PrintToServer("%N %T %N", attacker, "Attacked", LANG_SERVER, victim);
-				CPrintToChat(attacker, "{orange}[ReverseFF]{lightgreen} %t {olive}%N{lightgreen}, %t.", "YouAttacked", victim, "InfectedFF");
+				if (g_bCvarChatMsg)
+				{
+					CPrintToChat(attacker, "{orange}[ReverseFF]{lightgreen} %t {olive}%N{lightgreen}, %t.", "YouAttacked", victim, "InfectedFF");
+				}
 			}
 			//no damage for victim
 			return Plugin_Handled;
@@ -677,6 +769,8 @@ public Action ChainsawTakeDamageTimer(Handle timer, Handle dataPack)
 	SetEntityHealth(victim, GetClientHealth(victim) + 1);
 	SDKHooks_TakeDamage(victim, inflictor, attacker, 1.0, 0, weapon, g_fDmgFrc, g_fDmgPos);
 	SDKHooks_TakeDamage(attacker, inflictor, attacker, damage, damagetype, weapon, damageForce, damagePosition);
+	
+	return Plugin_Continue;
 }
 
 stock bool IsWeaponGrenadeLauncher(char[] sInflictorClass)
@@ -749,6 +843,13 @@ public Action AnnouncePlugin(Handle timer, int client)
 			CPrintToChat(client, "%T", "Announce", client);
 		}
 	}
+	return Plugin_Continue;
+}
+
+public Action CooldownTimer(Handle timer, int attacker)
+{
+	g_bCooldownFlag[attacker] = false;
+	return Plugin_Continue;
 }
 
 public Action Event_StartGrace (Event event, const char[] name, bool dontBroadcast)
@@ -771,6 +872,7 @@ public Action Event_StartGrace (Event event, const char[] name, bool dontBroadca
 		g_hEndGrace[client] = CreateTimer(2.0, EndGrace, client);
 		//PrintToServer("Event_StartGrace");
 	}
+	return Plugin_Continue;
 }
 
 public Action EndGrace (Handle timer, int client)
@@ -778,6 +880,7 @@ public Action EndGrace (Handle timer, int client)
 		g_bGrace[client] = false;
 		g_hEndGrace[client] = INVALID_HANDLE;
 		//PrintToServer("Event_EndGrace");
+		return Plugin_Continue;
 }
 
 public Action Event_PullCarry (Event event, const char[] name, bool dontBroadcast)
@@ -788,6 +891,7 @@ public Action Event_PullCarry (Event event, const char[] name, bool dontBroadcas
 		g_bGrace[client] = true;
 		//PrintToServer("Event_PullCarry");
 	}
+	return Plugin_Continue;
 }
 
 public Action Event_PounceRide (Event event, const char[] name, bool dontBroadcast)
@@ -795,11 +899,13 @@ public Action Event_PounceRide (Event event, const char[] name, bool dontBroadca
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	g_bGrace[client] = true;
 	//PrintToServer("Event_PounceRide");
+	return Plugin_Continue;
 }
 
 public Action FlipToggle(Handle timer, int attacker)
 {
   g_bToggle[attacker] = false;
+  return Plugin_Continue;
 }
 
 stock bool IsTank(int client)

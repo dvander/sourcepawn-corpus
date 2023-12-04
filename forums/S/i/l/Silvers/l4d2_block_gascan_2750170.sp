@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1"
+#define PLUGIN_VERSION 		"1.2"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.2 (10-Oct-2021)
+	- Changed the cvar "l4d2_block_gascan_types" default value from "9" to "1".
 
 1.1 (17-Jun-2021)
 	- Made compatible with the "Pour Gas" plugin.
@@ -109,11 +112,11 @@ public void OnPluginStart()
 	g_hCvarDrop = CreateConVar(			"l4d2_block_gascan_drop",			"1",				"0=Off. 1=Prevent dropping the gascan when denied pouring.", CVAR_FLAGS );
 	g_hCvarPrint = CreateConVar(		"l4d2_block_gascan_print",			"1",				"0=Off. 1=Print a message to the client explaining they cannot use this gascan.", CVAR_FLAGS );
 	g_hCvarStagger = CreateConVar(		"l4d2_block_gascan_stagger",		"1",				"0=Off. 1=Stagger the client when denied pouring.", CVAR_FLAGS );
-	g_hCvarTypes = CreateConVar(		"l4d2_block_gascan_types",			"9",				"Which models to block. 1=Standard, 2=Scavenge, 4=Green, 8=Green with Diesel text. Add numbers together.", CVAR_FLAGS );
+	g_hCvarTypes = CreateConVar(		"l4d2_block_gascan_types",			"1",				"Which models to block. 1=Standard, 2=Scavenge, 4=Green, 8=Green with Diesel text. Add numbers together.", CVAR_FLAGS );
 	g_hCvarModes = CreateConVar(		"l4d2_block_gascan_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff = CreateConVar(		"l4d2_block_gascan_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog = CreateConVar(		"l4d2_block_gascan_modes_tog",		"0",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
-	CreateConVar(						"l4d2_block_gascan_version",		PLUGIN_VERSION,		"Block Gascan plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar(						"l4d2_block_gascan_version",		PLUGIN_VERSION,		"Scavenge Pouring - Unleaded Gas Only plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,				"l4d2_block_gascan");
 
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
@@ -305,13 +308,6 @@ public MRESReturn ShouldStartAction(Handle hReturn, Handle hParams)
 				int skin = GetEntProp(weapon, Prop_Send, "m_nSkin");
 				if( g_iCvarTypes & (1 << skin) )
 				{
-					// Stagger
-					if( g_bCvarStagger )
-					{
-						SetVariantString("self.Stagger(Vector())");
-						AcceptEntityInput(client, "RunScriptCode");
-					}
-
 					// Prevent dropping gascan
 					if( g_bCvarDrop )
 					{
@@ -321,6 +317,13 @@ public MRESReturn ShouldStartAction(Handle hReturn, Handle hParams)
 						dPack.WriteCell(GetClientUserId(client));
 						dPack.WriteCell(EntIndexToEntRef(weapon));
 						RequestFrame(OnFrame, dPack);
+					}
+
+					// Stagger
+					if( g_bCvarStagger )
+					{
+						SetVariantString("self.Stagger(Vector())");
+						AcceptEntityInput(client, "RunScriptCode");
 					}
 
 					// Hint

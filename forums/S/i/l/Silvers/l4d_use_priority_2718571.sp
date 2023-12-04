@@ -1,6 +1,6 @@
 /*
 *	Use Priority Patch
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.2"
+#define PLUGIN_VERSION 		"2.5"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,21 @@
 
 ========================================================================================
 	Change Log:
+
+2.5 (22-Nov-2022)
+	- Fixed crash on L4D1 on Windows. Thanks to "ZBzibing" for testing.
+
+2.4 (01-Aug-2022)
+	- Plugin updated to restore Windows L4D1 functionality. Unable to replicate the crash.
+
+2.3 (12-Sep-2021)
+	- GameData and plugin updated to ignore Windows L4D1 due to crashing. Seems to be caused by last game update.
+
+2.2b (26-Aug-2021)
+	- GameData updated. Fixed possible rare instance of crashing the server.
+
+2.2a (10-Aug-2021)
+	- L4D1: GameData updated. Fixed breaking from 1.0.4.0 update.
 
 2.2 (13-Jul-2021)
 	- Fixed "Entity -1" errors. Thanks to "HarryPotter" for reporting.
@@ -102,10 +117,9 @@ public void OnPluginStart()
 		SetFailState("Failed to find \"CBaseEntity::GetUsePriority\" signature.");
 	if( !DHookEnableDetour(hDetour, false, GetUsePriority_Pre) )
 		SetFailState("Failed to detour \"CBaseEntity::GetUsePriority\" pre.");
-	if( !DHookEnableDetour(hDetour, true, GetUsePriority) )
-		SetFailState("Failed to detour \"CBaseEntity::GetUsePriority\" post.");
 
 	delete hDetour;
+	delete hGameData;
 
 	// ====================================================================================================
 	// CVAR
@@ -118,33 +132,23 @@ public void OnPluginStart()
 // ====================================================================================================
 //					DETOURS
 // ====================================================================================================
-public MRESReturn GetUsePriority_Pre(int pThis, Handle hReturn, Handle hParams)
-{
-	return MRES_Ignored;
-}
-
-public MRESReturn GetUsePriority(int pThis, Handle hReturn)
+MRESReturn GetUsePriority_Pre(int pThis, Handle hReturn, Handle hParams)
 {
 	if( pThis == -1 ) return MRES_Ignored;
-
 	int parent = GetEntPropEnt(pThis, Prop_Send, "moveparent");
 
 	// Is attached to something attached to clients?
-	for( ;; )
+	while( parent > MaxClients )
 	{
-		if( parent > MaxClients )
-		{
-			parent = GetEntPropEnt(parent, Prop_Send, "moveparent");
-		} else {
-			break;
-		}
+		parent = GetEntPropEnt(parent, Prop_Send, "moveparent");
 	}
 
 	// Don't allow using
 	if( parent > 0 && parent <= MaxClients )
 	{
 		DHookSetReturn(hReturn, 0);
-		return MRES_Supercede;
+		return MRES_Override;
+		// return MRES_Supercede; // Infinite loop crash with DHooks
 	}
 
 	return MRES_Ignored;

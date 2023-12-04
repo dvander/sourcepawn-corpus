@@ -1,6 +1,6 @@
 /*
 *	Lamps
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.10"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.10 (21-Dec-2022)
+	- Changed command "sm_lamp" to spawn a temporary lamp by index. Requested by "replay_84".
+
+1.9 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.8 (30-Sep-2020)
 	- Changed "l4d_lamp_precache" cvar default value to blank.
@@ -98,6 +104,19 @@ int g_iCvarBreak, g_iCvarColor, g_iCvarRandom, g_iEntities[MAX_ALLOWED][MAX_INDE
 bool g_bCvarAllow, g_bMapStarted, g_bLoaded, g_bValidMap, g_bLeft4Dead2;
 char g_sCvarColor[12];
 float g_fCvarBright;
+
+enum
+{
+	INDEX_ENTITY_0,
+	INDEX_ENTITY_1,
+	INDEX_ENTITY_2,
+	INDEX_ENTITY_3,
+	INDEX_ENTITY_4,
+	INDEX_ENTITY_5,
+	INDEX_ENTITY_6,
+	INDEX_CONFIG,
+	INDEX_TYPE
+}
 
 static const char g_sSoundsZap[5][32]	=
 {
@@ -225,7 +244,7 @@ public void OnPluginStart()
 	g_hCvarColor.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRandom.AddChangeHook(ConVarChanged_Cvars);
 
-	RegAdminCmd("sm_lamp",			CmdLamp,			ADMFLAG_ROOT,	"Spawns a temporary Lamp at your crosshair.");
+	RegAdminCmd("sm_lamp",			CmdLampSpawn,		ADMFLAG_ROOT,	"Opens the menu to spawn a temporary lamp. Optional arg spawns a temporary Lamp at your crosshair: sm_lamp [index]");
 	RegAdminCmd("sm_lampset",		CmdLampSet,			ADMFLAG_ROOT, 	"Will save temp lamps to the map. 0 args = sm_lampset (save origin/angles/color/brightness). 2 args = sm_lampset <break|bright|beam|glow|halo|length|width|speed> <value>. 3 args = sm_set <R> <G> <B> (color255)");
 	RegAdminCmd("sm_lampdel",		CmdLampDelete,		ADMFLAG_ROOT, 	"Removes the Lamp you are pointing at and deletes from the config if saved.");
 	RegAdminCmd("sm_lampclear",		CmdLampClear,		ADMFLAG_ROOT, 	"Removes all lamps from the current map.");
@@ -310,12 +329,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -409,7 +428,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -440,12 +459,12 @@ void UnhookEvents()
 	UnhookEvent("player_spawn",			Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
@@ -453,7 +472,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
@@ -466,10 +485,11 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 // ====================================================================================================
 //					LOAD LIGHTS
 // ====================================================================================================
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadLamps();
+	return Plugin_Continue;
 }
 
 void LoadLamps()
@@ -647,8 +667,8 @@ int SpawnLamp(const float vOrigin[3], const float vAngles[3], int color, int typ
 
 	// SAVE INDEX
 	g_iEntities[index][0] = EntIndexToEntRef(entity);
-	g_iEntities[index][MAX_INDEX-2] = type;
-	g_iEntities[index][MAX_INDEX-1] = cfgindex;
+	g_iEntities[index][INDEX_TYPE] = type;
+	g_iEntities[index][INDEX_CONFIG] = cfgindex;
 
 	// HOOK HEALTH
 	if( g_iCvarBreak && breakable )
@@ -984,14 +1004,14 @@ void ParentEntities(int target, int entity)
 // ====================================================================================================
 //					BREAK
 // ====================================================================================================
-public void OnBreak(const char[] output, int caller, int activator, float delay)
+void OnBreak(const char[] output, int caller, int activator, float delay)
 {
 	int entity = EntIndexToEntRef(caller);
 	for( int i = 0; i < MAX_ALLOWED; i++ )
 	{
 		if( entity == g_iEntities[i][0] )
 		{
-			int type = g_iEntities[i][MAX_INDEX-2];
+			int type = g_iEntities[i][INDEX_TYPE];
 			UnhookSingleEntityOutput(entity, "OnTakeDamage", OnBreak);
 			UnhookSingleEntityOutput(entity, "OnHealthChanged", OnBreak);
 
@@ -1026,19 +1046,31 @@ public void OnBreak(const char[] output, int caller, int activator, float delay)
 
 				float vPos[3];
 				GetEntPropVector(caller, Prop_Data, "m_vecOrigin", vPos);
-				if( type == TYPE_TV )
-					vPos[2] += 30.0;
-				else if( type == TYPE_FLOOD )
-					vPos[2] += 80.0;
-				else if( type == TYPE_GENERATOR1 || type == TYPE_GENERATOR2  || type == TYPE_GENERATOR3 )
-					vPos[2] += 65.0;
-				else if( type == TYPE_POLICE )
+
+				switch( type )
 				{
-					vPos[1] -= 10.0;
-					vPos[2] += 70.0;
+					case TYPE_TV:
+					{
+						vPos[2] += 30.0;
+					}
+					case TYPE_FLOOD:
+					{
+						vPos[2] += 80.0;
+					}
+					case TYPE_GENERATOR1, TYPE_GENERATOR2, TYPE_GENERATOR3:
+					{
+						vPos[2] += 65.0;
+					}
+					case TYPE_POLICE:
+					{
+						vPos[1] -= 10.0;
+						vPos[2] += 70.0;
+					}
+					default:
+					{
+						vPos[2] += 5.0;
+					}
 				}
-				else
-					vPos[2] += 5.0;
 
 				TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
 				SetVariantString("OnUser1 !self:Stop::0.2:1");
@@ -1248,7 +1280,7 @@ void ShowMenuMain(int client)
 	g_hMenuMain.Display(client, MENU_TIME_FOREVER);
 }
 
-public int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
+int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1280,6 +1312,8 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
 			case 10:		ConfirmWipe(client);
 		}
 	}
+
+	return 0;
 }
 
 void ConfirmDelete(int client)
@@ -1292,7 +1326,7 @@ void ConfirmDelete(int client)
 	hMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int DeleteMenuHandler(Menu menu, MenuAction action, int client, int index)
+int DeleteMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1315,6 +1349,8 @@ public int DeleteMenuHandler(Menu menu, MenuAction action, int client, int index
 			ShowMenuMain(client);
 		}
 	}
+
+	return 0;
 }
 
 void ConfirmWipe(int client)
@@ -1327,7 +1363,7 @@ void ConfirmWipe(int client)
 	hMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int WipeMenuHandler(Menu menu, MenuAction action, int client, int index)
+int WipeMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1350,6 +1386,8 @@ public int WipeMenuHandler(Menu menu, MenuAction action, int client, int index)
 			ShowMenuMain(client);
 		}
 	}
+
+	return 0;
 }
 
 void ListLamps(int client)
@@ -1381,7 +1419,7 @@ void ListLamps(int client)
 void WipeLamps(int client)
 {
 	for( int i = 0; i < MAX_ALLOWED; i++ )
-		g_iEntities[i][MAX_INDEX-1] = 0;
+		g_iEntities[i][INDEX_CONFIG] = 0;
 
 	char sPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_SPAWNS);
@@ -1431,7 +1469,7 @@ void ShowMenuTemp(int client)
 	g_hMenuTemp.Display(client, MENU_TIME_FOREVER);
 }
 
-public int TempMenuHandler(Menu menu, MenuAction action, int client, int index)
+int TempMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1459,6 +1497,8 @@ public int TempMenuHandler(Menu menu, MenuAction action, int client, int index)
 		int menupos = menu.Selection;
 		menu.DisplayAt(client, menupos, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 
@@ -1471,7 +1511,7 @@ void ShowMenuSave(int client)
 	g_hMenuSave.Display(client, MENU_TIME_FOREVER);
 }
 
-public int SaveMenuHandler(Menu menu, MenuAction action, int client, int index)
+int SaveMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1499,6 +1539,8 @@ public int SaveMenuHandler(Menu menu, MenuAction action, int client, int index)
 		int menupos = menu.Selection;
 		menu.DisplayAt(client, menupos, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 void SaveLampSpawn(int client, int type, int color, char sColor[12])
@@ -1508,7 +1550,7 @@ void SaveLampSpawn(int client, int type, int color, char sColor[12])
 	if( index != -1 )
 	{
 		int cfgindex = SaveLampNew(client, vPos, vAng, type, sColor);
-		g_iEntities[index][MAX_INDEX-1] = cfgindex;
+		g_iEntities[index][INDEX_CONFIG] = cfgindex;
 	}
 }
 
@@ -1552,61 +1594,75 @@ int SaveLampNew(int client, float vPos[3], float vAng[3], int type, char sColor[
 
 	float glow;
 	int halo, beam, length, width, speed;
-	if( type == TYPE_POLICE )
-	{
-		length = 7;
-		width = 10;
-		speed = 800;
-	}
-	else if( type == TYPE_SPIN )
-	{
-		length = 200;
-		width = 40;
-		speed = 100;
-	}
-	else if( type == TYPE_FLOOD )
-	{
-		glow = 0.2;
-		halo = 50;
-		beam = 100;
-		length = 300;
-		width = 40;
-	}
-	else if( type == TYPE_GENERATOR1 || type == TYPE_GENERATOR2 || type == TYPE_GENERATOR3 )
-	{
-		glow = 0.2;
-		halo = 50;
-		beam = 50;
-		length = 400;
-		width = 40;
-	}
-	else if( type == TYPE_DROPPED )
-	{
-		glow = 0.2;
-		halo = 50;
-		length = 100;
-		width = 20;
-	}
-	else if( type == TYPE_LIGHT15 )
-	{
-		glow = 0.2;
-		halo = 10;
-		length = 100;
-		width = 30;
-	}
-	else if( type == TYPE_LIGHT18 || type == TYPE_LIGHT19 || type == TYPE_LIGHT20 )
-	{
-		if( type == TYPE_LIGHT18 )
-			width = 350;
-		else if( type == TYPE_LIGHT19 )
-			width = 50;
-		else if( type == TYPE_LIGHT20 )
-			width = 150;
 
-		glow = 0.2;
-		halo = 50;
-		beam = 50;
-		length = 800;
+	switch( type )
+	{
+		case TYPE_POLICE:
+		{
+			length = 7;
+			width = 10;
+			speed = 800;
+		}
+		case TYPE_SPIN:
+		{
+			length = 200;
+			width = 40;
+			speed = 100;
+		}
+		case TYPE_FLOOD:
+		{
+			glow = 0.2;
+			halo = 50;
+			beam = 100;
+			length = 300;
+			width = 40;
+		}
+		case TYPE_GENERATOR1, TYPE_GENERATOR2, TYPE_GENERATOR3:
+		{
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 400;
+			width = 40;
+		}
+		case TYPE_DROPPED:
+		{
+			glow = 0.2;
+			halo = 50;
+			length = 100;
+			width = 20;
+		}
+		case TYPE_LIGHT15:
+		{
+			glow = 0.2;
+			halo = 10;
+			length = 100;
+			width = 30;
+		}
+		case TYPE_LIGHT18:
+		{
+			width = 350;
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 800;
+		}
+		case TYPE_LIGHT19:
+		{
+			width = 50;
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 800;
+		}
+		case TYPE_LIGHT20:
+		{
+			width = 150;
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 800;
+		}
 	}
 
 	// Save angle / origin
@@ -1662,159 +1718,189 @@ int SetupLamp(int client, float vPos[3] = NULL_VECTOR, float vAng[3] = NULL_VECT
 	float vDir[3];
 
 
-	if( type == TYPE_BATTERY || type == TYPE_LANTERN || type == TYPE_FLOOD || type == TYPE_TV ||
-		type == TYPE_GENERATOR1 || type == TYPE_GENERATOR2 || type == TYPE_GENERATOR3 )
+	switch( type )
 	{
-		vAng[0] += 90.0;
-		vPos[2] += 0.2;
+		case TYPE_BATTERY, TYPE_LANTERN, TYPE_FLOOD, TYPE_TV, TYPE_GENERATOR1, TYPE_GENERATOR2, TYPE_GENERATOR3:
+		{
+			vAng[0] += 90.0;
+			vPos[2] += 0.2;
+		}
+		case TYPE_DROPPED:
+		{
+			vAng[0] -= 270.0;
+		}
+		case TYPE_SPIN:
+		{
+			vAng[0] += 90.0;
+			vPos[2] += 5.0;
+		}
+		case TYPE_SEARCH:
+		{
+			vAng[1] -= 90.0;
+			vAng[0] += 270.0;
+			vPos[2] += 8.0;
+		}
+		case TYPE_EXIT1:
+		{
+			vAng[0] -= 90.0;
+		}
+		case TYPE_EMERGENCY:
+		{
+			vAng[1] -= 90.0;
+		}
+		case TYPE_EXIT2:
+		{
+			GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
+			vPos[0] += vDir[0] * 8.0;
+			vPos[1] += vDir[1] * 8.0;
+			vPos[2] += vDir[2] * 8.0;
+			vAng[0] -= 90.0;
+		}
+		case TYPE_POLICE:
+		{
+			GetAngleVectors(vAng, NULL_VECTOR, NULL_VECTOR, vDir);
+			vAng[0] += 90.0;
+			vPos[2] -= 62.0;
+		}
+		case TYPE_LIGHT1:
+		{
+			vAng[0] -= 90.0;
+			GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
+			vPos[0] += vDir[0] * 5.0;
+			vPos[1] += vDir[1] * 5.0;
+		}
+		case TYPE_LIGHT4:
+		{
+			GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
+			vPos[0] += vDir[0] * 5.0;
+			vPos[1] += vDir[1] * 5.0;
+		}
+		case TYPE_LIGHT6:
+		{
+			vAng[0] -= 90.0;
+			GetAngleVectors(vAng, NULL_VECTOR, NULL_VECTOR, vDir);
+			vPos[0] += vDir[0] * -5.0;
+			vPos[1] += vDir[1] * -5.0;
+			vPos[2] += vDir[2] * -5.0;
+		}
+		case TYPE_LIGHT7, TYPE_LIGHT8:
+		{
+			vAng[1] -= 90.0;
+		}
+		case TYPE_LIGHT5:
+		{
+			GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
+			vPos[0] += vDir[0] * 4.0;
+			vPos[1] += vDir[1] * 4.0;
+		}
+		case TYPE_LIGHT9:
+		{
+			vAng[0] -= 90.0;
+		}
+		case TYPE_LIGHT11:
+		{
+			GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
+			vPos[0] += vDir[0] * 16.0;
+			vPos[1] += vDir[1] * 16.0;
+		}
+		case TYPE_LIGHT14:
+		{
+			GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
+			vPos[0] += vDir[0] * 10.0;
+			vPos[1] += vDir[1] * 10.0;
+			vPos[2] += vDir[2] * 10.0;
+			vAng[0] += 90.0;
+		}
+		case TYPE_LIGHT17:
+		{
+			vAng[0] -= 90.0;
+		}
+		case TYPE_LIGHT18, TYPE_LIGHT19, TYPE_LIGHT20:
+		{
+			vAng[0] += 90.0;
+		}
+		case TYPE_LIGHT22, TYPE_LIGHT23, TYPE_LIGHT24, TYPE_LIGHT25:
+		{
+			vAng[0] += 90.0;
+		}
 	}
-	else if( type == TYPE_DROPPED )
-		vAng[0] -= 270.0;
-	else if( type == TYPE_SPIN )
-	{
-		vAng[0] += 90.0;
-		vPos[2] += 5.0;
-	}
-	else if( type == TYPE_SEARCH )
-	{
-		vAng[1] -= 90.0;
-		vAng[0] += 270.0;
-		vPos[2] += 8.0;
-	}
-	else if( type == TYPE_EXIT1 )
-		vAng[0] -= 90.0;
-	else if( type == TYPE_EMERGENCY )
-		vAng[1] -= 90.0;
-	else if( type == TYPE_EXIT2 )
-	{
-		GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] += vDir[0] * 8.0;
-		vPos[1] += vDir[1] * 8.0;
-		vPos[2] += vDir[2] * 8.0;
-		vAng[0] -= 90.0;
-	}
-	else if( type == TYPE_POLICE )
-	{
-		GetAngleVectors(vAng, NULL_VECTOR, NULL_VECTOR, vDir);
-		vAng[0] += 90.0;
-		vPos[2] -= 62.0;
-	}
-	else if( type == TYPE_FLOOD )
-		vPos[2] += 81.0;
-	else if( type == TYPE_LIGHT1 )
-	{
-		vAng[0] -= 90.0;
-		GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] += vDir[0] * 5.0;
-		vPos[1] += vDir[1] * 5.0;
-	}
-	else if( type == TYPE_LIGHT4 )
-	{
-		GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] += vDir[0] * 5.0;
-		vPos[1] += vDir[1] * 5.0;
-	}
-	else if( type == TYPE_LIGHT6 )
-	{
-		vAng[0] -= 90.0;
-		GetAngleVectors(vAng, NULL_VECTOR, NULL_VECTOR, vDir);
-		vPos[0] += vDir[0] * -5.0;
-		vPos[1] += vDir[1] * -5.0;
-		vPos[2] += vDir[2] * -5.0;
-	}
-	else if( type == TYPE_LIGHT7 || type == TYPE_LIGHT8 )
-		vAng[1] -= 90.0;
-	else if( type == TYPE_LIGHT5 )
-	{
-		GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] += vDir[0] * 4.0;
-		vPos[1] += vDir[1] * 4.0;
-	}
-	else if( type == TYPE_LIGHT9 )
-		vAng[0] -= 90.0;
-	else if( type == TYPE_LIGHT11 )
-	{
-		GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] += vDir[0] * 16.0;
-		vPos[1] += vDir[1] * 16.0;
-	}
-	else if( type == TYPE_LIGHT14 )
-	{
-		GetAngleVectors(vAng, vDir, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] += vDir[0] * 10.0;
-		vPos[1] += vDir[1] * 10.0;
-		vPos[2] += vDir[2] * 10.0;
-		vAng[0] += 90.0;
-	}
-	else if( type == TYPE_LIGHT17 )
-		vAng[0] -= 90.0;
-	else if( type == TYPE_LIGHT18 || type == TYPE_LIGHT19 || type == TYPE_LIGHT20 )
-		vAng[0] += 90.0;
-	else if( type >= TYPE_LIGHT22 )
-		vAng[0] += 90.0;
 
 
 	float glow = 0.3; int halo = 100; int beam = 100; int length; int width; int speed;
-	if( type == TYPE_POLICE )
-	{
-		length = 7;
-		width = 10;
-		speed = 800;
-	}
-	else if( type == TYPE_SPIN )
-	{
-		length = 200;
-		width = 40;
-		speed = 100;
-	}
-	else if( type == TYPE_FLOOD )
-	{
-		glow = 0.2;
-		halo = 50;
-		length = 300;
-		width = 40;
-	}
-	else if( type == TYPE_GENERATOR1 || type == TYPE_GENERATOR2 || type == TYPE_GENERATOR3 )
-	{
-		glow = 0.2;
-		halo = 50;
-		beam = 50;
-		length = 400;
-		width = 40;
-	}
-	else if( type == TYPE_DROPPED )
-	{
-		halo = 50;
-		length = 100;
-		width = 20;
-	}
-	else if( type == TYPE_LIGHT15 )
-	{
-		glow = 0.2;
-		halo = 10;
-		length = 100;
-		width = 30;
-	}
-	else if( type == TYPE_LIGHT18 || type == TYPE_LIGHT19 || type == TYPE_LIGHT20 )
-	{
-		if( type == TYPE_LIGHT18 )
-			width = 350;
-		else if( type == TYPE_LIGHT19 )
-			width = 50;
-		else if( type == TYPE_LIGHT20 )
-			width = 150;
 
-		glow = 0.2;
-		halo = 50;
-		beam = 50;
-		length = 800;
+	switch( type )
+	{
+		case TYPE_POLICE:
+		{
+			length = 7;
+			width = 10;
+			speed = 800;
+		}
+		case TYPE_SPIN:
+		{
+			length = 200;
+			width = 40;
+			speed = 100;
+		}
+		case TYPE_FLOOD:
+		{
+			glow = 0.2;
+			halo = 50;
+			length = 300;
+			width = 40;
+		}
+		case TYPE_GENERATOR1, TYPE_GENERATOR2, TYPE_GENERATOR3:
+		{
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 400;
+			width = 40;
+		}
+		case TYPE_DROPPED:
+		{
+			halo = 50;
+			length = 100;
+			width = 20;
+		}
+		case TYPE_LIGHT15:
+		{
+			glow = 0.2;
+			halo = 10;
+			length = 100;
+			width = 30;
+		}
+		case TYPE_LIGHT18:
+		{
+			width = 350;
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 800;
+		}
+		case TYPE_LIGHT19:
+		{
+			width = 50;
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 800;
+		}
+		case TYPE_LIGHT20:
+		{
+			width = 150;
+			glow = 0.2;
+			halo = 50;
+			beam = 50;
+			length = 800;
+		}
 	}
 
 	int index = SpawnLamp(vPos, vAng, color, type, cfgindex, g_fCvarBright, glow, halo, beam, length, width, speed, g_iCvarBreak);
 	return index;
 }
 
-public bool TraceFilter(int entity, int contentsMask, any client)
+bool TraceFilter(int entity, int contentsMask, int client)
 {
 	if( entity == client )
 		return false;
@@ -1831,7 +1917,7 @@ void ShowMenuBrightness(int client)
 	g_hMenuBrightness.Display(client, MENU_TIME_FOREVER);
 }
 
-public int BrightnessMenuHandler(Menu menu, MenuAction action, int client, int index)
+int BrightnessMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1852,6 +1938,8 @@ public int BrightnessMenuHandler(Menu menu, MenuAction action, int client, int i
 		}
 		ShowMenuBrightness(client);
 	}
+
+	return 0;
 }
 
 void SetBrightness(int client, int brightness)
@@ -1893,7 +1981,7 @@ void ShowMenuColor(int client)
 	g_hMenuColor.Display(client, MENU_TIME_FOREVER);
 }
 
-public int ColorMenuHandler(Menu menu, MenuAction action, int client, int index)
+int ColorMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1914,6 +2002,8 @@ public int ColorMenuHandler(Menu menu, MenuAction action, int client, int index)
 		}
 		ShowMenuColor(client);
 	}
+
+	return 0;
 }
 
 // ====================================================================================================
@@ -1924,7 +2014,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1939,6 +2029,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1954,9 +2046,9 @@ void SetAngle(int client, int index)
 		{
 			entity = g_iEntities[i][0];
 
-			if( entity == aim  )
+			if( entity == aim )
 			{
-				if( g_iEntities[i][MAX_INDEX-2] == TYPE_SPIN )
+				if( g_iEntities[i][INDEX_TYPE] == TYPE_SPIN )
 					entity = g_iEntities[i][2];
 
 				GetEntPropVector(entity, Prop_Send, "m_angRotation", vAng);
@@ -1988,7 +2080,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -2003,6 +2095,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -2018,9 +2112,9 @@ void SetOrigin(int client, int index)
 		{
 			entity = g_iEntities[i][0];
 
-			if( entity == aim  )
+			if( entity == aim )
 			{
-				if( g_iEntities[i][MAX_INDEX-2] == TYPE_SPIN )
+				if( g_iEntities[i][INDEX_TYPE] == TYPE_SPIN )
 					entity = g_iEntities[i][2];
 
 				GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
@@ -2051,7 +2145,7 @@ void SetOrigin(int client, int index)
 // ====================================================================================================
 //					sm_lamp
 // ====================================================================================================
-public Action CmdLamp(int client, int args)
+Action CmdLampSpawn(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -2065,6 +2159,34 @@ public Action CmdLamp(int client, int args)
 		return Plugin_Handled;
 	}
 
+	if( args == 1 )
+	{
+		// Get index
+		char sTemp[4];
+		GetCmdArg(1, sTemp, sizeof(sTemp));
+		int index = StringToInt(sTemp);
+
+		if( index > 0 && index <= MAX_LAMPS )
+		{
+			index -= 1;
+
+			float vPos[3], vAng[3];
+
+			if( index + 1 == TYPE_EXIT1 || index + 1 == TYPE_EXIT2 )
+				SetupLamp(client, vPos, vAng, 65280, index + 1);
+			else if( index + 1 == TYPE_FLOOD || index + 1 == TYPE_GENERATOR1 || index + 1 == TYPE_GENERATOR2 || index + 1 == TYPE_SPIN )
+				SetupLamp(client, vPos, vAng, 16777215, index + 1);
+			else if( index + 1 == TYPE_GENERATOR3 )
+				SetupLamp(client, vPos, vAng, 255, index + 1);
+			else
+				SetupLamp(client, vPos, vAng, g_iCvarColor, index + 1);
+		}
+		else
+		{
+			PrintToChat(client, "%sInvalid lamp index (%d). Min: 1. Max: %d", CHAT_TAG, index, MAX_LAMPS);
+		}
+	}
+
 	ShowMenuMain(client);
 	return Plugin_Handled;
 }
@@ -2072,7 +2194,7 @@ public Action CmdLamp(int client, int args)
 // ====================================================================================================
 //					sm_lampdel
 // ====================================================================================================
-public Action CmdLampDelete(int client, int args)
+Action CmdLampDelete(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -2105,7 +2227,7 @@ public Action CmdLampDelete(int client, int args)
 	if( index == -1 )
 		return Plugin_Handled;
 
-	cfgindex = g_iEntities[index][MAX_INDEX-1];
+	cfgindex = g_iEntities[index][INDEX_CONFIG];
 	if( cfgindex == 0 )
 	{
 		DeleteLamp(index);
@@ -2114,8 +2236,8 @@ public Action CmdLampDelete(int client, int args)
 
 	for( int i = index + 1; i < MAX_ALLOWED; i++ )
 	{
-		if( g_iEntities[i][MAX_INDEX-1] )
-			g_iEntities[i][MAX_INDEX-1]--;
+		if( g_iEntities[i][INDEX_CONFIG] )
+			g_iEntities[i][INDEX_CONFIG]--;
 	}
 
 	DeleteLamp(index);
@@ -2194,7 +2316,7 @@ public Action CmdLampDelete(int client, int args)
 // ====================================================================================================
 //					sm_lamprefresh
 // ====================================================================================================
-public Action CmdLampRefresh(int client, int args)
+Action CmdLampRefresh(int client, int args)
 {
 	ResetPlugin();
 	LoadLamps();
@@ -2204,7 +2326,7 @@ public Action CmdLampRefresh(int client, int args)
 // ====================================================================================================
 //					sm_lampclear
 // ====================================================================================================
-public Action CmdLampClear(int client, int args)
+Action CmdLampClear(int client, int args)
 {
 	ResetPlugin();
 	PrintToChat(client, "%sAll Lamps cleared from the map.", CHAT_TAG);
@@ -2214,7 +2336,7 @@ public Action CmdLampClear(int client, int args)
 // ====================================================================================================
 //					sm_lampwipe
 // ====================================================================================================
-public Action CmdLampWipe(int client, int args)
+Action CmdLampWipe(int client, int args)
 {
 	WipeLamps(client);
 	return Plugin_Handled;
@@ -2223,7 +2345,7 @@ public Action CmdLampWipe(int client, int args)
 // ====================================================================================================
 //					sm_lampset
 // ====================================================================================================
-public Action CmdLampSet(int client, int args)
+Action CmdLampSet(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -2329,6 +2451,13 @@ void SetLampColor(int client, char sRed[4], char sGreen[4], char sBlue[4])
 	entity = g_iEntities[index][1];
 	if( IsValidEntRef(entity) )
 	{
+		int type = g_iEntities[index][INDEX_TYPE];
+		if( type == TYPE_GENERATOR3 || type == TYPE_TV || type == TYPE_EMERGENCY )
+		{
+			PrintToChat(client, "%sNo dynamic light to set brightness", CHAT_TAG);
+			return;
+		}
+
 		int color;
 		color = StringToInt(sRed);
 		color += 256 * StringToInt(sGreen);
@@ -2358,13 +2487,13 @@ void SaveLampData(int client, int color = 0, int brightness = 0, float glow = -1
 	if( index == -1 )
 		return;
 
-	int cfgindex = g_iEntities[index][MAX_INDEX-1];
+	int cfgindex = g_iEntities[index][INDEX_CONFIG];
 	if( cfgindex == 0 )
 	{
 		float vPos[3], vAng[3];
 		char sColor[12];
 
-		int type = g_iEntities[index][MAX_INDEX-2];
+		int type = g_iEntities[index][INDEX_TYPE];
 		if( type == TYPE_SPIN )
 			entity = g_iEntities[index][2];
 
@@ -2372,11 +2501,15 @@ void SaveLampData(int client, int color = 0, int brightness = 0, float glow = -1
 		GetEntPropVector(entity, Prop_Send, "m_angRotation", vAng);
 
 		entity = g_iEntities[index][1];
-		color = GetEntProp(entity, Prop_Send, "m_clrRender");
-		Format(sColor,sizeof(sColor), "%d %d %d", color & 0xFF, (color & 0xFF00) / 256, color / 65536);
+
+		if( type != TYPE_GENERATOR3 && type != TYPE_TV && type != TYPE_EMERGENCY )
+		{
+			color = GetEntProp(entity, Prop_Send, "m_clrRender");
+			Format(sColor,sizeof(sColor), "%d %d %d", color & 0xFF, (color & 0xFF00) / 256, color / 65536);
+		}
 
 		cfgindex = SaveLampNew(client, vPos, vAng, type, sColor);
-		g_iEntities[index][MAX_INDEX-1] = cfgindex;
+		g_iEntities[index][INDEX_CONFIG] = cfgindex;
 
 		if( cfgindex == 0 )
 		{
@@ -2466,7 +2599,7 @@ void SaveLampData(int client, int color = 0, int brightness = 0, float glow = -1
 
 			DeleteLamp(index);
 			SpawnData(cfgindex, hFile, sMap);
-			g_iEntities[index][MAX_INDEX-1] = cfgindex;
+			g_iEntities[index][INDEX_CONFIG] = cfgindex;
 
 			delete hFile;
 			return;
@@ -2477,7 +2610,7 @@ void SaveLampData(int client, int color = 0, int brightness = 0, float glow = -1
 		{
 			float vPos[3], vAng[3];
 
-			if( g_iEntities[index][MAX_INDEX-2] == TYPE_SPIN )
+			if( g_iEntities[index][INDEX_TYPE] == TYPE_SPIN )
 				entity = g_iEntities[index][2];
 
 			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
@@ -2489,10 +2622,10 @@ void SaveLampData(int client, int color = 0, int brightness = 0, float glow = -1
 
 		if( brightness == 1 )
 		{
-			int type = g_iEntities[index][MAX_INDEX-2];
+			int type = g_iEntities[index][INDEX_TYPE];
 			if( type == TYPE_GENERATOR3 || type == TYPE_TV || type == TYPE_EMERGENCY )
 			{
-				PrintToChat(client, "%sNo dynamic light to set brightness");
+				PrintToChat(client, "%sNo dynamic light to set brightness", CHAT_TAG);
 				return;
 			}
 
@@ -2507,13 +2640,17 @@ void SaveLampData(int client, int color = 0, int brightness = 0, float glow = -1
 
 		if( color == 1 )
 		{
-			entity = g_iEntities[index][1];
-			if( IsValidEntRef(entity) )
+			int type = g_iEntities[index][INDEX_TYPE];
+			if( type != TYPE_GENERATOR3 && type != TYPE_TV && type != TYPE_EMERGENCY )
 			{
-				color = GetEntProp(entity, Prop_Send, "m_clrRender");
-				char sColor[12];
-				Format(sColor,sizeof(sColor), "%d %d %d", color & 0xFF, (color & 0xFF00) / 256, color / 65536);
-				hFile.SetString("color", sColor);
+				entity = g_iEntities[index][1];
+				if( IsValidEntRef(entity) )
+				{
+					color = GetEntProp(entity, Prop_Send, "m_clrRender");
+					char sColor[12];
+					Format(sColor,sizeof(sColor), "%d %d %d", color & 0xFF, (color & 0xFF00) / 256, color / 65536);
+					hFile.SetString("color", sColor);
+				}
 			}
 		}
 
@@ -2565,7 +2702,7 @@ void DeleteLamp(int index, bool all = true)
 	KillEntity(g_iEntities[index][6]);
 	g_iEntities[index][6] = 0;
 
-	if( g_iEntities[index][MAX_INDEX-2] == TYPE_TV )
+	if( g_iEntities[index][INDEX_TYPE] == TYPE_TV )
 	{
 		entity = g_iEntities[index][0];
 		if( IsValidEntRef(entity) )
@@ -2587,7 +2724,7 @@ void DeleteLamp(int index, bool all = true)
 			g_iEntities[index][0] = 0;
 			UnhookSingleEntityOutput(entity, "OnTakeDamage", OnBreak);
 			UnhookSingleEntityOutput(entity, "OnHealthChanged", OnBreak);
-			AcceptEntityInput(entity, "Kill");
+			RemoveEntity(entity);
 		}
 	}
 }

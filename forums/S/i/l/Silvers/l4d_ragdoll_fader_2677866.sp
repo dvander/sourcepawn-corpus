@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.9"
+/*
+*	Ragdoll Fader
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.2"
 
 /*=======================================================================================
 	Plugin Info:
@@ -7,10 +27,16 @@
 *	Author	:	SilverShot
 *	Descrp	:	Fades common infected ragdolls.
 *	Link	:	https://forums.alliedmods.net/showthread.php?t=306789
-*	Plugins	:	http://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
+*	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
 
 ========================================================================================
 	Change Log:
+
+1.2 (12-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
+1.1 (20-Jan-2022)
+	- Fixed not working on map change. Thanks to "Cloud talk" for reporting.
 
 1.0 (24-Dec-2019)
 	- Initial release.
@@ -77,31 +103,36 @@ void ResetPlugin()
 	DeleteFader();
 }
 
-public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+public void OnMapEnd()
+{
+	ResetPlugin();
+}
+
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(2.0, tmrLoad, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(2.0, TimerLoad, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(2.0, tmrLoad, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(2.0, TimerLoad, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrLoad(Handle timer)
+Action TimerLoad(Handle timer)
 {
 	CreateFader();
+	return Plugin_Continue;
 }
 
-// Old method when chance 100% and dissolving all infected to always remove ragdoll. New method prevents ragdoll removal if dissolve visual effects have reached the max active limit.
 void CreateFader()
 {
 	if( g_iRagdollFader && EntRefToEntIndex(g_iRagdollFader) != INVALID_ENT_REFERENCE )

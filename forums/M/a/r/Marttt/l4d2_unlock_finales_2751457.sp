@@ -2,6 +2,14 @@
 // ====================================================================================================
 Change Log:
 
+1.0.3 (17-March-2022)
+    - Fixed plugin not removing invisible walls on Last Stand map. (thanks "VYRNACH_GAMING" for reporting)
+
+1.0.2 (13-March-2022)
+    - Fixed plugin not removing invisible walls on Crash Course map. (thanks "VYRNACH_GAMING" for reporting)
+    - Fixed blacklist map logic not blocking changes for some events.
+    - Added support for the upcoming update that will change the "anv_mapfixes" prefix to "community_update".
+
 1.0.1 (01-July-2021)
     - Now requires left4dhooks.
     - Fixed a bug where SI couldn't spawn before finale starts on vs (2nd team). (thanks "noto3" for reporting)
@@ -20,7 +28,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Unlock Finales"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Allow to start finale events with survivors everywhere"
-#define PLUGIN_VERSION                "1.0.1"
+#define PLUGIN_VERSION                "1.0.3"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=333274"
 
 // ====================================================================================================
@@ -61,39 +69,33 @@ public Plugin myinfo =
 #define CONFIG_FILENAME               "l4d2_unlock_finales"
 
 // ====================================================================================================
-// Defines
-// ====================================================================================================
-#define CLASSNAME_TRIGGER_FINALE      "trigger_finale"
-
-// ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_BlacklistMaps;
-static ConVar g_hCvar_VanillaOnly;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_BlacklistMaps;
+ConVar g_hCvar_VanillaOnly;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bLeft4DHooks;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bIsBlacklistMap;
-static bool   g_bIsVanillaFinaleMap;
-static bool   g_bC10M5;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_VanillaOnly;
+bool g_bLeft4DHooks;
+bool g_bEventsHooked;
+bool g_bIsBlacklistMap;
+bool g_bIsVanillaFinaleMap;
+bool g_bC10M5;
+bool g_bCvar_Enabled;
+bool g_bCvar_VanillaOnly;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sMapName[64];
-static char   g_sCvar_BlacklistMaps[512];
+char g_sMapName[64];
+char g_sCvar_BlacklistMaps[512];
 
 /****************************************************************************************************/
 
-static char   strScriptUnlockBuffer[256];
-static char   strScriptUnlock[][] =
+char strScriptUnlockBuffer[256];
+char strScriptUnlock[][] =
 {
     "NAV_FINALE <- 64",
     "",
@@ -107,8 +109,8 @@ static char   strScriptUnlock[][] =
     "}"
 };
 
-static char   strScriptResetBuffer[256];
-static char   strScriptReset[][] =
+char strScriptResetBuffer[256];
+char strScriptReset[][] =
 {
     "NAV_FINALE <- 64",
     "NAV_CHECKPOINT <- 2048",
@@ -199,25 +201,23 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_VanillaOnly = g_hCvar_VanillaOnly.BoolValue;
@@ -232,7 +232,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     if (!g_bCvar_Enabled)
         return;
@@ -243,13 +243,7 @@ public void LateLoad()
     if (!HasAnySurvivorLeftSafeArea())
         return;
 
-    if (g_bIsVanillaFinaleMap)
-    {
-        UnlockFinaleNav();
-
-        DoMapSpecificConfigs();
-    }
-    else
+    if (!g_bIsVanillaFinaleMap)
     {
         if (g_bCvar_VanillaOnly)
             return;
@@ -259,11 +253,11 @@ public void LateLoad()
 
         if (!L4D_IsMissionFinalMap())
             return;
-
-        UnlockFinaleNav();
-
-        DoMapSpecificConfigs();
     }
+
+    UnlockFinaleNav();
+
+    DoMapSpecificConfigs();
 }
 
 /****************************************************************************************************/
@@ -279,10 +273,7 @@ public void OnEntityCreated(int entity, const char[] classname)
     if (g_bIsBlacklistMap)
         return;
 
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
@@ -290,7 +281,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
 {
     char targetname[23];
     GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
@@ -299,34 +290,36 @@ public void OnSpawnPost(int entity)
     if (targetname[0] == 0)
         return;
 
-    if (StrContains(targetname, "anv_mapfixes_rockslide") != -1)
+    if (StrContains(targetname, "anv_mapfixes_rockslide") != -1 || StrContains(targetname, "community_update_rockslide") != -1)
         AcceptEntityInput(entity, "Kill");
 }
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
         HookEvent("player_left_safe_area", Event_PlayerLeftSafeArea);
         HookEvent("round_end", Event_RoundEnd);
 
-        HookEntityOutput(CLASSNAME_TRIGGER_FINALE, "UseStart", OnUseStart);
+        HookEntityOutput("trigger_finale", "UseStart", OnUseStart);
+        HookEntityOutput("trigger_finale", "FinaleStart", OnFinaleStart);
 
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
         UnhookEvent("player_left_safe_area", Event_PlayerLeftSafeArea);
         UnhookEvent("round_end", Event_RoundEnd);
 
-        UnhookEntityOutput(CLASSNAME_TRIGGER_FINALE, "UseStart", OnUseStart);
+        UnhookEntityOutput("trigger_finale", "UseStart", OnUseStart);
+        UnhookEntityOutput("trigger_finale", "FinaleStart", OnFinaleStart);
 
         return;
     }
@@ -334,18 +327,12 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_PlayerLeftSafeArea(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerLeftSafeArea(Event event, const char[] name, bool dontBroadcast)
 {
     if (g_bIsBlacklistMap)
         return;
 
-    if (g_bIsVanillaFinaleMap)
-    {
-        UnlockFinaleNav();
-
-        DoMapSpecificConfigs();
-    }
-    else
+    if (!g_bIsVanillaFinaleMap)
     {
         if (g_bCvar_VanillaOnly)
             return;
@@ -355,16 +342,16 @@ public void Event_PlayerLeftSafeArea(Event event, const char[] name, bool dontBr
 
         if (!L4D_IsMissionFinalMap())
             return;
-
-        UnlockFinaleNav();
-
-        DoMapSpecificConfigs();
     }
+
+    UnlockFinaleNav();
+
+    DoMapSpecificConfigs();
 }
 
 /****************************************************************************************************/
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
     if (g_bIsBlacklistMap)
         return;
@@ -390,7 +377,115 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public void DoMapSpecificConfigs()
+void OnUseStart(const char[] output, int caller, int activator, float delay)
+{
+    if (g_bIsBlacklistMap)
+        return;
+
+    int entity;
+    char targetname[64];
+
+    if (StrEqual(g_sMapName, ",c3m4_plantation,"))
+    {
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
+        {
+            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+            StringToLowerCase(targetname);
+
+            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return") || StrEqual(targetname, "community_update_point_of_no_return"))
+                AcceptEntityInput(entity, "Kill");
+        }
+    }
+    else if (StrEqual(g_sMapName, ",c4m5_milltown_escape,"))
+    {
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
+        {
+            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+            StringToLowerCase(targetname);
+
+            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return") || StrEqual(targetname, "community_update_point_of_no_return"))
+                AcceptEntityInput(entity, "Kill");
+        }
+    }
+    else if (StrEqual(g_sMapName, ",c9m2_lots,"))
+    {
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
+        {
+            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+            StringToLowerCase(targetname);
+
+            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return") || StrEqual(targetname, "community_update_point_of_no_return"))
+                AcceptEntityInput(entity, "Kill");
+        }
+    }
+    else if (StrEqual(g_sMapName, ",c12m5_cornfield,"))
+    {
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
+        {
+            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+            StringToLowerCase(targetname);
+
+            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return") || StrEqual(targetname, "community_update_point_of_no_return"))
+                AcceptEntityInput(entity, "Kill");
+        }
+    }
+}
+
+/****************************************************************************************************/
+
+void OnFinaleStart(const char[] output, int caller, int activator, float delay)
+{
+    if (g_bIsBlacklistMap)
+        return;
+
+    int entity;
+    char targetname[64];
+
+    if (StrEqual(g_sMapName, ",c9m2_lots,"))
+    {
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
+        {
+            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+            StringToLowerCase(targetname);
+
+            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return") || StrEqual(targetname, "community_update_point_of_no_return"))
+                AcceptEntityInput(entity, "Kill");
+        }
+    }
+}
+
+/****************************************************************************************************/
+
+void UnlockFinaleNav()
+{
+    int entity = CreateEntityByName("logic_script");
+    DispatchSpawn(entity);
+
+    SetVariantString(strScriptUnlockBuffer);
+    AcceptEntityInput(entity, "RunScriptCode");
+    AcceptEntityInput(entity, "Kill");
+}
+
+/****************************************************************************************************/
+
+void ResetFinaleNav()
+{
+    int entity = CreateEntityByName("logic_script");
+    DispatchSpawn(entity);
+
+    SetVariantString(strScriptResetBuffer);
+    AcceptEntityInput(entity, "RunScriptCode");
+    AcceptEntityInput(entity, "Kill");
+}
+
+/****************************************************************************************************/
+
+void DoMapSpecificConfigs()
 {
     if (!g_bCvar_Enabled)
         return;
@@ -478,93 +573,27 @@ public void DoMapSpecificConfigs()
             }
         }
     }
-}
-
-/****************************************************************************************************/
-
-public void OnUseStart(const char[] output, int caller, int activator, float delay)
-{
-    int entity;
-    char targetname[64];
-
-    if (StrEqual(g_sMapName, ",c3m4_plantation,"))
+    else if (StrEqual(g_sMapName, ",c14m2_lighthouse,"))
     {
         entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
+        while ((entity = FindEntityByClassname(entity, "func_brush")) != INVALID_ENT_REFERENCE)
         {
             GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
             StringToLowerCase(targetname);
 
-            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return"))
+            if (StrEqual(targetname, "lookout_clip"))
+            {
                 AcceptEntityInput(entity, "Kill");
+                break;
+            }
         }
     }
-    else if (StrEqual(g_sMapName, ",c4m5_milltown_escape,"))
-    {
-        entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
-        {
-            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
-            StringToLowerCase(targetname);
-
-            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return"))
-                AcceptEntityInput(entity, "Kill");
-        }
-    }
-    else if (StrEqual(g_sMapName, ",c9m2_lots,"))
-    {
-        entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
-        {
-            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
-            StringToLowerCase(targetname);
-
-            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return"))
-                AcceptEntityInput(entity, "Kill");
-        }
-    }
-    else if (StrEqual(g_sMapName, ",c12m5_cornfield,"))
-    {
-        entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, "env_physics_blocker")) != INVALID_ENT_REFERENCE)
-        {
-            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
-            StringToLowerCase(targetname);
-
-            if (StrEqual(targetname, "anv_mapfixes_point_of_no_return"))
-                AcceptEntityInput(entity, "Kill");
-        }
-    }
-}
-
-/****************************************************************************************************/
-
-public void UnlockFinaleNav()
-{
-    int entity = CreateEntityByName("logic_script");
-    DispatchSpawn(entity);
-
-    SetVariantString(strScriptUnlockBuffer);
-    AcceptEntityInput(entity, "RunScriptCode");
-    AcceptEntityInput(entity, "Kill");
-}
-
-/****************************************************************************************************/
-
-public void ResetFinaleNav()
-{
-    int entity = CreateEntityByName("logic_script");
-    DispatchSpawn(entity);
-
-    SetVariantString(strScriptResetBuffer);
-    AcceptEntityInput(entity, "RunScriptCode");
-    AcceptEntityInput(entity, "Kill");
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -576,7 +605,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d2_unlock_finales_vanilla_only : %b (%s)", g_bCvar_VanillaOnly, g_bCvar_VanillaOnly ? "true" : "false");
     PrintToConsole(client, "l4d2_unlock_finales_blacklist_maps : \"%s\"", g_sCvar_BlacklistMaps);
     PrintToConsole(client, "");
-    PrintToConsole(client, "----------------------------------------------------------------------");
+    PrintToConsole(client, "---------------------------- Other Infos  ----------------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "left4dhooks : %s", g_bLeft4DHooks ? "true" : "false");
     PrintToConsole(client, "Map : \"%s\"", g_sMapName);
@@ -593,19 +622,6 @@ public Action CmdPrintCvars(int client, int args)
 // ====================================================================================================
 // Helpers
 // ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
 /**
  * Converts the string to lower case.
  *
@@ -626,12 +642,21 @@ void StringToLowerCase(char[] input)
  *
  * @return              True if any survivor have left safe area, false otherwise.
  */
+int g_iEntTerrorPlayerManager = INVALID_ENT_REFERENCE;
 bool HasAnySurvivorLeftSafeArea()
 {
-    int entity = FindEntityByClassname(-1, "terror_player_manager");
+    int entity = EntRefToEntIndex(g_iEntTerrorPlayerManager);
 
     if (entity == INVALID_ENT_REFERENCE)
+        entity = FindEntityByClassname(-1, "terror_player_manager");
+
+    if (entity == INVALID_ENT_REFERENCE)
+    {
+        g_iEntTerrorPlayerManager = INVALID_ENT_REFERENCE;
         return false;
+    }
+
+    g_iEntTerrorPlayerManager = EntIndexToEntRef(entity);
 
     return (GetEntProp(entity, Prop_Send, "m_hasAnySurvivorLeftSafeArea") == 1);
 }

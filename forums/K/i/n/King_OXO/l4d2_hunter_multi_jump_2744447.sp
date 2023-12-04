@@ -1,162 +1,175 @@
-/*
- * Double Jump
- *
- * Description:
- *  Allows players to double-jump
- *  Original idea: NcB_Sav
- *
- * Convars:
- *  sm_doublejump_enabled [bool] : Enables or disable double-jumping. Default: 1
- *  sm_doublejump_boost [amount] : Amount to boost the player. Default: 250
- *  sm_doublejump_max [jumps]    : Maximum number of re-jumps while airborne. Default: 1
- *
- * Changelog:
- *  v1.1.0 - Update by StrikerTheHedgefox
- *   Overhaul. Doesn't use OnGameFrame anymore, and ditches an unnecessary variable.
- *  v1.0.1
- *   Minor code optimization.
- *  v1.0.0
- *   Initial release.
- *
- * Known issues:
- *  Doesn't register all mouse-wheel triggered +jumps
- *
- * Todo:
- *  Employ upcoming OnClientCommand function to remove excess OnGameFrame-age.
- *
- * Contact:
- *  Paegus: paegus@gmail.com
- *  SourceMod: http://www.sourcemod.net
- *  Hidden:Source: http://www.hidden-source.com
- *  NcB_Sav: http://forums.alliedmods.net/showthread.php?t=99228
- */
-#define PLUGIN_VERSION		"1.1.0"
+#define PLUGIN_VERSION		"2.0"
 
 #include <sdktools>
 #include <sourcemod>
 
+#pragma newdecls required
+#pragma semicolon 1
+
 #define ZOMBIECLASS_HUNTER 3
 
-public Plugin:myinfo = {
-	name		= "Double Jump",
-	author		= "Paegus & StrikerTheHedgefox",
-	description	= "Allows double-jumping.",
+public Plugin myinfo = 
+{
+	name		= "[L4D2] Hunter Advanced Jump",
+	author		= "King_OXO",
+	description	= "Allows hunter use advanced jumps",
 	version		= PLUGIN_VERSION,
 	url			= ""
 }
 
-new
-	Handle:g_cvJumpBoost	= INVALID_HANDLE,
-	Handle:g_cvJumpEnable	= INVALID_HANDLE,
-	Handle:g_cvJumpMax		= INVALID_HANDLE,
-	Float:g_flBoost			= 250.0,
-	bool:g_bDoubleJump		= true,
-	g_fLastButtons[MAXPLAYERS+1],
-	g_iJumps[MAXPLAYERS+1],
-	g_iJumpMax
+ConVar cvarJumpBoost;
+ConVar cvarPluginEnable;
+ConVar cvarJumpMax;
+float vBoost;
+bool AllowPlugin;
+bool pouncing[MAXPLAYERS+1];
+int LastButtons[MAXPLAYERS+1];
+int Jumps[MAXPLAYERS+1];
+int iJumps;
 	
-public OnPluginStart() {
-	CreateConVar(
-		"l4d2_multijump_version", PLUGIN_VERSION,
-		"Double Jump Version",
-		FCVAR_NOTIFY
-	)
+public void OnPluginStart() 
+{
+	CreateConVar("hunter_jump_version", PLUGIN_VERSION, "Hunter Advanced Jump Version", FCVAR_NOTIFY);
 	
-	g_cvJumpEnable = CreateConVar(
-		"l4d2_multijump_enabled", "1",
-		"Enables double-jumping.",
-		FCVAR_NOTIFY
-	)
+	cvarPluginEnable = CreateConVar("hunter_jump_enabled", "1", "Enables Hunter Advanced Jump.", FCVAR_NOTIFY);
 	
-	g_cvJumpBoost = CreateConVar(
-		"l4d2_multijump_boost", "250.0",
-		"The amount of vertical boost to apply to double jumps.",
-		FCVAR_NOTIFY
-	)
+	cvarJumpBoost = CreateConVar("hunter_jump_boost", "250.0", "Hunter Jump Boost", FCVAR_NOTIFY);
 	
-	g_cvJumpMax = CreateConVar(
-		"l4d2_multijump_max", "1",
-		"The maximum number of re-jumps allowed while already jumping.",
-		FCVAR_NOTIFY
-	)
+	cvarJumpMax = CreateConVar("hunter_jump_max", "1", "Hunter Max Jumps", FCVAR_NOTIFY);
 	
-	HookConVarChange(g_cvJumpBoost,		convar_ChangeBoost)
-	HookConVarChange(g_cvJumpEnable,	convar_ChangeEnable)
-	HookConVarChange(g_cvJumpMax,		convar_ChangeMax)
+	HookConVarChange(cvarJumpBoost,		convar_ChangeBoost);
+	HookConVarChange(cvarPluginEnable,	convar_ChangeEnable);
+	HookConVarChange(cvarJumpMax,		convar_ChangeMax);
 	
-	g_bDoubleJump	= GetConVarBool(g_cvJumpEnable)
-	g_flBoost		= GetConVarFloat(g_cvJumpBoost)
-	g_iJumpMax		= GetConVarInt(g_cvJumpMax)
+	HookEvent("ability_use", Event_lunge);
 	
-	AutoExecConfig(true, "l4d2_hunter_multi_jump");
+	AllowPlugin	= GetConVarBool(cvarPluginEnable);
+	vBoost		= GetConVarFloat(cvarJumpBoost);
+	iJumps		= GetConVarInt(cvarJumpMax);
+	
+	AutoExecConfig(true, "l4d2_hunter_advanced_jump");
 }
 
-public convar_ChangeBoost(Handle:convar, const String:oldVal[], const String:newVal[]) {
-	g_flBoost = StringToFloat(newVal)
+public void convar_ChangeBoost(Handle convar, const char[] oldVal, const char[] newVal) 
+{
+	vBoost = StringToFloat(newVal);
 }
 
-public convar_ChangeEnable(Handle:convar, const String:oldVal[], const String:newVal[]) {
-	if (StringToInt(newVal) >= 1) {
-		g_bDoubleJump = true
-	} else {
-		g_bDoubleJump = false
+public void convar_ChangeEnable(Handle convar, const char[] oldVal, const char[] newVal) 
+{
+	if (StringToInt(newVal) >= 1) 
+	{
+		AllowPlugin = true;
+	} 
+	else 
+	{
+		AllowPlugin = false;
 	}
 }
 
-public convar_ChangeMax(Handle:convar, const String:oldVal[], const String:newVal[]) {
-	g_iJumpMax = StringToInt(newVal)
+public void convar_ChangeMax(Handle convar, const char[] oldVal, const char[] newVal) 
+{
+	iJumps = StringToInt(newVal);
 }
 
-stock Landed(const any:client) {
-	g_iJumps[client] = 0	// reset jumps count
+void Landed(int client) 
+{
+	Jumps[client] = 0;
+}
+
+void Event_lunge(Event event, const char[] sName, bool dontBroadCast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	char abilityName[64];
+    
+    GetEventString(event,"ability",abilityName,sizeof(abilityName));
+    if(IsValidClient(client) && strcmp(abilityName,"ability_lunge",false) == 0 && !pouncing[client])
+    {
+        pouncing[client] = true;
+        CreateTimer(0.1, groundTouchTimer, client, TIMER_REPEAT);
+    }
+}
+
+Action groundTouchTimer(Handle timer, any client)
+{
+    if((IsValidClient(client) && isGrounded(client)) || !IsPlayerAlive(client))
+    {
+        pouncing[client] = false;
+        KillTimer(timer);
+    }
+	
+	return Plugin_Continue;
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
-	if(g_bDoubleJump)
+	if(AllowPlugin)
 	{
-		new fCurFlags = GetEntityFlags(client);
+		float Altura = MeasureHeightDistance(client);
+		if(pouncing[client] && !IsFakeClient(client) && Altura <= 10.0)
+		{
+			ReJump(client);
+		}
+		int fCurFlags = GetEntityFlags(client);
 		if(fCurFlags & FL_ONGROUND)
 		{
 			Landed(client);
 		}
-		else if(!(g_fLastButtons[client] & IN_JUMP) && (buttons & IN_JUMP) && !(fCurFlags & FL_ONGROUND) && IsValidHunter(client))
+		else if(!(LastButtons[client] & IN_JUMP) && (buttons & IN_JUMP) && !(fCurFlags & FL_ONGROUND) && IsValidHunter(client))
 		{
 			ReJump(client);
 		}
 		
-		g_fLastButtons[client] = buttons;
-	}
-}
-
-stock ReJump(const any:client)
-{
-	if (g_iJumps[client] < g_iJumpMax) // has jumped at least once but hasn't exceeded max re-jumps
-	{						
-		g_iJumps[client]++											// increment jump count
-		decl Float:vVel[3]
-		GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVel)	// get current speeds
-		
-		vVel[2] = g_flBoost
-		TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vVel)		// boost player
-	}
-}
-
-stock bool:IsValidClient(client)
-{
-	if (client <= 0 || client > MaxClients || !IsClientInGame(client))
-	{
-		return false;
+		LastButtons[client] = buttons;
 	}
 	
-	return true;
+	return Plugin_Continue;
 }
 
-stock bool:IsValidHunter(client)
+float MeasureHeightDistance(int client)
+{
+	float fPos[3], fDirAngle[3];
+	
+	GetEntPropVector(client, Prop_Send, "m_vecOrigin", fPos);
+	fDirAngle[0] = 90.0; fDirAngle[1] = 0.0; fDirAngle[2] = 0.0;
+	
+	Handle hTrace = TR_TraceRayFilterEx(fPos, fDirAngle, MASK_SHOT, RayType_Infinite, NonEntityFilter);
+	if (!TR_DidHit(hTrace))
+	{
+		delete hTrace;
+		return 0.0;
+	}
+	
+	float fTraceEnd[3];
+	TR_GetEndPosition(fTraceEnd, hTrace);
+	
+	delete hTrace;
+	return GetVectorDistance(fPos, fTraceEnd, false);
+}
+
+bool NonEntityFilter(int entity, int contentsMask, any data)
+{
+	return (entity && IsValidEntity(entity));
+}
+
+void ReJump(int client)
+{
+	if (Jumps[client] < iJumps)
+	{						
+		Jumps[client]++;
+		float vVel[3];
+		GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVel);
+		
+		vVel[2] += vBoost * 1.1;
+		TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vVel);
+	}
+}
+
+bool IsValidHunter(int client)
 {
 	if (IsValidClient(client) && GetClientTeam(client) == 3)
 	{
-		new class = GetEntProp(client, Prop_Send, "m_zombieClass");
+		int class = GetEntProp(client, Prop_Send, "m_zombieClass");
 		if (class == ZOMBIECLASS_HUNTER)
 		{
 			return true;
@@ -164,4 +177,18 @@ stock bool:IsValidHunter(client)
 	}
 	
 	return false;
+}
+
+bool IsValidClient(int client)
+{
+    if (client > 0 && client <= MaxClients && IsClientInGame(client))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool isGrounded(int client)
+{
+    return (GetEntProp(client,Prop_Data,"m_fFlags") & FL_ONGROUND) > 0;
 }

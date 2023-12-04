@@ -13,7 +13,7 @@ Change Log:
 // ====================================================================================================
 #define PLUGIN_NAME                   "[ANY] Chat Trigger to Lower Case"
 #define PLUGIN_AUTHOR                 "Mart"
-#define PLUGIN_DESCRIPTION            "Auto converts chat triggers to lower case"
+#define PLUGIN_DESCRIPTION            "Automatically converts chat triggers to lowercase"
 #define PLUGIN_VERSION                "1.0.0"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328004"
 
@@ -57,155 +57,172 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Trim;
+ConVar g_hCvar_Enabled;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Trim;
+bool g_bConfigsExecuted;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char g_sChatTriggerPrefix[2][32];
+char g_sChatInput[128];
+
+// ====================================================================================================
+// ArrayList - Plugin Variables
+// ====================================================================================================
+ArrayList g_alChatTrigger;
 
 // ====================================================================================================
 // Plugin Start
 // ====================================================================================================
 public void OnPluginStart()
 {
+    g_alChatTrigger = new ArrayList();
+
+    ParseCoreConfigFile();
+
     CreateConVar("chat_trigger_lowercase_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled = CreateConVar("chat_trigger_lowercase_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Trim    = CreateConVar("chat_trigger_lowercase_trim", "1", "Trim (remove whitespaces) the text when it starts with a chat trigger.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
 
     // Hook plugin ConVars change
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Trim.AddChangeHook(Event_ConVarChanged);
 
     // Load plugin configs from .cfg
     AutoExecConfig(true, CONFIG_FILENAME);
 
-    ParseCoreConfigFile();
-
     // Admin Commands
+    RegAdminCmd("sm_chat_trigger_lowercase_reload", CmdReload, ADMFLAG_ROOT, "Reload the chat triggers config.");
     RegAdminCmd("sm_print_cvars_chat_trigger_lowercase", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
+}
+
+/****************************************************************************************************/
+
+public void OnMapStart()
+{
+    // Fix for when OnConfigsExecuted is not executed by SM in some games
+    RequestFrame(OnConfigsExecuted);
 }
 
 /****************************************************************************************************/
 
 public void OnConfigsExecuted()
 {
+    if (g_bConfigsExecuted)
+        return;
+
+    g_bConfigsExecuted = true;
+
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-    g_bCvar_Trim = g_hCvar_Trim.BoolValue;
-
-    g_bConfigLoaded = true;
 }
 
 /****************************************************************************************************/
 
 public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
 {
-    if (!g_bConfigLoaded)
-        return Plugin_Continue;
-
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
 
-    char input[128];
-    strcopy(input, sizeof(input), sArgs);
-
-    if (g_bCvar_Trim)
-        TrimString(input);
-
-    if (IsPrefix(input[0]))
-        StringToLowerCase(input);
-
-    if (StrEqual(input, sArgs))
+    if (!IsChatTriggerPrefix(sArgs[0]))
         return Plugin_Continue;
 
-    FakeClientCommandEx(client, "%s %s", command, input);
+    strcopy(g_sChatInput, sizeof(g_sChatInput), sArgs);
+    StringToLowerCase(g_sChatInput);
+
+    if (StrEqual(g_sChatInput, sArgs))
+        return Plugin_Continue;
+
+    FakeClientCommandEx(client, "%s %s", command, g_sChatInput);
+
     return Plugin_Stop;
 }
 
-// ====================================================================================================
-// Thanks to Silvers and Dragokas
-// ====================================================================================================
-bool ParseCoreConfigFile()
+/****************************************************************************************************/
+
+void ParseCoreConfigFile()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, sizeof(path), CONFIGS_CORE_FILENAME);
 
+    if (!FileExists(path))
+    {
+        SetFailState("Missing required config file on \"%s\", please re-download.", CONFIGS_CORE_FILENAME);
+        return;
+    }
+
+    int line;
+    int col;
+
+    g_alChatTrigger.Clear();
+
     SMCParser parser = new SMCParser();
     SMC_SetReaders(parser, INVALID_FUNCTION, CoreConfig_KeyValue, INVALID_FUNCTION);
-
-    int line = 0;
-    int col = 0;
     SMCError result = parser.ParseFile(path, line, col);
     delete parser;
 
     if (result != SMCError_Okay)
     {
         char error[128];
-        SMC_GetErrorString(result, error, sizeof error);
+        SMC_GetErrorString(result, error, sizeof(error));
         SetFailState("%s on line %i, col %i of %s [%i]", error, line, col, path, result);
     }
-    return (result == SMCError_Okay);
 }
 
 /****************************************************************************************************/
 
-public SMCResult CoreConfig_KeyValue(Handle parser, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
+SMCResult CoreConfig_KeyValue(Handle parser, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
 {
-    if (StrEqual(key, "PublicChatTrigger"))
+    if (StrEqual(key, "PublicChatTrigger") || StrEqual(key, "SilentChatTrigger"))
     {
-        strcopy(g_sChatTriggerPrefix[0], sizeof(g_sChatTriggerPrefix[]), value);
-        return SMCParse_Continue;
+        for (int i = 0; i < strlen(value); i++)
+        {
+            if (g_alChatTrigger.FindValue(value[i]) == -1)
+                g_alChatTrigger.Push(value[i]);
+        }
     }
 
-    if (StrEqual(key, "SilentChatTrigger"))
-    {
-        strcopy(g_sChatTriggerPrefix[1], sizeof(g_sChatTriggerPrefix[]), value);
-        return SMCParse_Continue;
-    }
     return SMCParse_Continue;
 }
 
 /****************************************************************************************************/
 
-bool IsPrefix(int ascii)
+bool IsChatTriggerPrefix(int ascii)
 {
-    for (int i = 0; i < sizeof(g_sChatTriggerPrefix); i++)
-    {
-        for (int c = 0; c < sizeof(g_sChatTriggerPrefix[]); c++)
-        {
-            if (ascii == g_sChatTriggerPrefix[i][c])
-                return true;
-        }
-    }
-    return false;
+    return (g_alChatTrigger.FindValue(ascii) != -1);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdReload(int client, int args)
+{
+    ParseCoreConfigFile();
+
+    if (IsValidClient(client))
+        PrintToChat(client, "\x04[Chat triggers config reloaded]");
+
+    return Plugin_Handled;
+}
+
+/****************************************************************************************************/
+
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -214,7 +231,16 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "chat_trigger_lowercase_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "chat_trigger_lowercase_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "chat_trigger_lowercase_trim : %b (%s)", g_bCvar_Trim, g_bCvar_Trim ? "true" : "false");
+    PrintToConsole(client, "");
+    PrintToConsole(client, "--------------------------- Chat Triggers ----------------------------");
+    PrintToConsole(client, "");
+    PrintToConsole(client, "count : %i", g_alChatTrigger.Length);
+    char chattrigger[2];
+    for (int i = 0; i < g_alChatTrigger.Length; i++)
+    {
+        g_alChatTrigger.GetString(i, chattrigger, sizeof(chattrigger));
+        PrintToConsole(client, "%s", chattrigger);
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -225,6 +251,32 @@ public Action CmdPrintCvars(int client, int args)
 // ====================================================================================================
 // Helpers
 // ====================================================================================================
+/**
+ * Validates if is a valid client index.
+ *
+ * @param client        Client index.
+ * @return              True if client index is valid, false otherwise.
+ */
+bool IsValidClientIndex(int client)
+{
+    return (1 <= client <= MaxClients);
+}
+
+/****************************************************************************************************/
+
+/**
+ * Validates if is a valid client.
+ *
+ * @param client        Client index.
+ * @return              True if client index is valid and client is in game, false otherwise.
+ */
+bool IsValidClient(int client)
+{
+    return (IsValidClientIndex(client) && IsClientInGame(client));
+}
+
+/****************************************************************************************************/
+
 /**
  * Converts the string to lower case.
  *

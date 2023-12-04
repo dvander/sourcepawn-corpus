@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION		"1.1"
+#define PLUGIN_VERSION		"1.3"
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -25,6 +25,13 @@ public Plugin myinfo =
 	  
 	 1.1 (29-Apr-2021)
 	  - Added ConVar "sm_name_normalizer_eat_multi_space" - Eat subsequent space characters? (1 - Yes, 0 - No)
+	  
+	 1.2 (05-Oct-2021)
+	  - Added ConVar "sm_name_normalizer_always_hide_nick_change" - to always hide nickname change notification in chat
+	  - Added missing sm_name_normalizer.cfg config file.
+	  
+	 1.3 (15-Sep-2023)
+	  - Fixed array out of bounds caused by prohibiting access to a cell beyond the array dimension in SM 1.11.
 */
 
 const int MAXLENGTH_FLAG = 32;
@@ -32,8 +39,10 @@ const int MAXLENGTH_FLAG = 32;
 bool g_Proto;
 bool g_bLateload;
 bool g_bEatMultiSpace;
+bool g_bHideNickChange;
 
 ConVar g_hCvarEatMultiSpace;
+ConVar g_hCvarHideNickChange;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -45,10 +54,15 @@ public void OnPluginStart()
 {
 	CreateConVar("sm_name_normalizer_version", PLUGIN_VERSION, "Plugin version", FCVAR_DONTRECORD | CVAR_FLAGS );
 	
-	g_hCvarEatMultiSpace = CreateConVar("sm_name_normalizer_eat_multi_space",	"1",	"Eat subsequent space characters? (1 - Yes, 0 - No)", CVAR_FLAGS );
+	g_hCvarEatMultiSpace 	= CreateConVar("sm_name_normalizer_eat_multi_space",			"1",	"Eat subsequent space characters? (1 - Yes, 0 - No)", CVAR_FLAGS );
+	g_hCvarHideNickChange 	= CreateConVar("sm_name_normalizer_always_hide_nick_change",	"0",	"Always hide nickname change notification in chat? (1 - Yes, 0 - No)", CVAR_FLAGS );
+	
+	AutoExecConfig(true, "sm_name_normalizer");
 	
 	GetCvars();
+	
 	g_hCvarEatMultiSpace.AddChangeHook(OnCvarChanged);
+	g_hCvarHideNickChange.AddChangeHook(OnCvarChanged);
 	
 	g_Proto = CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf;
 	
@@ -82,6 +96,7 @@ public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] new
 void GetCvars()
 {
 	g_bEatMultiSpace = g_hCvarEatMultiSpace.BoolValue;
+	g_bHideNickChange = g_hCvarHideNickChange.BoolValue;
 }
 
 public void OnClientPutInServer(int client)
@@ -94,11 +109,11 @@ public void OnClientPutInServer(int client)
 
 void ValidateName(int client)
 {
-	char sName[MAX_NAME_LENGTH];
-	char sNew[MAX_NAME_LENGTH];
+	char sName[MAX_NAME_LENGTH+1];
+	char sNew[MAX_NAME_LENGTH+1];
 	int i, iPrev, j, k, bytes;
 	
-	if( !GetClientInfo(client, "name", sName, sizeof sName) )
+	if( !GetClientInfo(client, "name", sName, sizeof(sName)-1) )
 	{
 		return;
 	}
@@ -183,6 +198,10 @@ public Action UserMessage_SayText2(UserMsg msg_id, BfRead msg, const int[] playe
 	if( strcmp(sFlag, "#Cstrike_Name_Change") == 0 )
 	{
 		RequestFrame(OnNextFrame, GetClientUserId(iSender));
+		if( g_bHideNickChange )
+		{
+			return Plugin_Handled;
+		}
 	}
 	return Plugin_Continue;
 }
@@ -196,3 +215,5 @@ public void OnNextFrame(int UserId)
 		ValidateName(client);
 	}
 }
+
+

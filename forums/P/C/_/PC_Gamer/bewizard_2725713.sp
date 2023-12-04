@@ -1,13 +1,11 @@
-#include <sourcemod>
 #include <sdkhooks> 
 #include <tf2_stocks> 
 #include <tf2attributes> 
-#include <tf2items>
 
 #pragma semicolon 1 
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.0" 
+#define PLUGIN_VERSION "1.1" 
 
 #define HHH        "models/bots/merasmus/merasmus.mdl" 
 #define BOMBMODEL  "models/props_lakeside_event/bomb_temp.mdl" 
@@ -65,25 +63,25 @@
 #define BOSS 		5
 #define METEOR 		6
 #define ZOMBIEH 	7
-
 #define ZOMBIE 		8
 #define PUMPKIN2 	9
 
-int iLastRand; 
-Handle g_hCvarThirdPerson; 
+Handle g_hCvarThirdPerson;
+Handle g_hSDKTeamAddPlayer;
+Handle g_hSDKTeamRemovePlayer;
+Handle g_hEquipWearable;
 bool g_bIsWizard[MAXPLAYERS + 1]; 
 bool IsTaunting[MAXPLAYERS + 1]; 
 bool ms = false; 
-int lastTeam[MAXPLAYERS + 1];
-Handle g_hSDKTeamAddPlayer;
-Handle g_hSDKTeamRemovePlayer;
 bool g_wait[MAXPLAYERS + 1];
+int iLastRand; 
+int lastTeam[MAXPLAYERS + 1];
 int ParticleIndex;
 
 public Plugin myinfo = 
 {
 	name = "[TF2] Be the Mighty Wizard Merasmus", 
-	author = "Starman4xz, Mitch, Pelipoika, FlaminSarge, Tylerst, Benoist3012, modified by PC Gamer",
+	author = "PC Gamer, using code from Starman4xz, Mitch, Pelipoika, FlaminSarge, Tylerst, and Benoist3012",
 	description = "Play as the Wizard Merasmus", 
 	version = PLUGIN_VERSION, 
 	url = "www.sourcemod.com" 
@@ -108,6 +106,21 @@ public void OnPluginStart()
 	SetFailState("Could not find CTeam::RemovePlayer!");
 	
 	delete hGameData;
+	
+	GameData hTF2 = new GameData("sm-tf2.games"); // sourcemod's tf2 gamedata
+
+	if (!hTF2)
+	SetFailState("This plugin is designed for a TF2 dedicated server only.");
+
+	StartPrepSDKCall(SDKCall_Player);
+	PrepSDKCall_SetVirtual(hTF2.GetOffset("RemoveWearable") - 1);    // EquipWearable offset is always behind RemoveWearable, subtract its value by 1
+	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+	g_hEquipWearable = EndPrepSDKCall();
+
+	if (!g_hEquipWearable)
+	SetFailState("Failed to create call: CBasePlayer::EquipWearable");
+
+	delete hTF2; 
 
 	LoadTranslations("common.phrases"); 
 	g_hCvarThirdPerson = CreateConVar("bewizard_thirdperson", "1", "Whether or not wizard ought to be in third-person", 0, true, 0.0, true, 1.0); 
@@ -167,7 +180,7 @@ public void OnMapStart()
 	PrecacheSound(SND_SCREAM4);
 } 
 
-public Action OnPlayerActivate(Handle hEvent, const char[] strEventName, bool dontBroadcast )
+public void OnPlayerActivate(Handle hEvent, const char[] strEventName, bool dontBroadcast )
 {
 	int client = GetClientOfUserId( GetEventInt( hEvent, "userid" ) );
 	if( !IsValidClient(client) )
@@ -183,7 +196,7 @@ public void OnClientDisconnect(int client)
 	SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
-public Action Event_DeathPre(Handle event, const char[] name, bool dontBroadcast)
+public void Event_DeathPre(Handle event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(GetEventInt(event, "attacker"));
 	char weapon[20];
@@ -208,7 +221,7 @@ public Action Event_DeathPre(Handle event, const char[] name, bool dontBroadcast
 	}
 }
 
-public Action Event_Death(Handle event, const char[] name, bool dontBroadcast) 
+public void Event_Death(Handle event, const char[] name, bool dontBroadcast) 
 { 
 	int client = GetClientOfUserId(GetEventInt(event, "userid")); 
 	int deathflags = GetEventInt(event, "death_flags"); 
@@ -233,7 +246,7 @@ public Action Event_Death(Handle event, const char[] name, bool dontBroadcast)
 	} 
 } 
 
-public Action Event_Endround(Handle event, const char[] name, bool dontBroadcast)
+public void Event_Endround(Handle event, const char[] name, bool dontBroadcast)
 {
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -268,7 +281,7 @@ public Action Event_Endround(Handle event, const char[] name, bool dontBroadcast
 	}
 }
 
-Action SetModel(int client, const char[] model) 
+void SetModel(int client, const char[] model) 
 { 
 	if (IsValidClient(client) && IsPlayerAlive(client)) 
 	{ 
@@ -284,7 +297,7 @@ Action SetModel(int client, const char[] model)
 	} 
 } 
 
-Action RemoveModel(int client) 
+void RemoveModel(int client) 
 { 
 	if (IsValidClient(client) && g_bIsWizard[client])
 	{ 
@@ -337,7 +350,7 @@ public Action Command_wizard(int client, int args)
 	return Plugin_Handled; 
 } 
 
-Action Makewizard(int client) 
+void Makewizard(int client) 
 { 
 	lastTeam[client] = GetClientTeam(client); 
 	float origin[3];
@@ -490,10 +503,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			return Plugin_Handled;
 		}
 	} 
-	return Plugin_Continue; 
-} 
+	return Plugin_Continue;
+}
 
-public Action ResetTaunt(Handle timer, any client) 
+Action ResetTaunt(Handle timer, any client) 
 { 
 	if (g_bIsWizard[client])
 	{
@@ -501,9 +514,11 @@ public Action ResetTaunt(Handle timer, any client)
 		MakePlayerInvisible(client, 255); 
 		SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
 	}
+	
+	return Plugin_Handled;
 } 
 
-Action MakePlayerInvisible(int client, int alpha) 
+void MakePlayerInvisible(int client, int alpha) 
 { 
 	SetWeaponsAlpha(client, alpha); 
 	SetWearableAlpha(client, alpha); 
@@ -511,7 +526,7 @@ Action MakePlayerInvisible(int client, int alpha)
 	SetEntityRenderColor(client, 255, 255, 255, alpha); 
 } 
 
-Action SetWeaponsAlpha (int client, int alpha) 
+void SetWeaponsAlpha (int client, int alpha) 
 { 
 	char classname[64]; 
 	int m_hMyWeapons = FindSendPropInfo("CBasePlayer", "m_hMyWeapons"); 
@@ -563,10 +578,12 @@ Action DoHellfire(Handle timer, any client)
 			TeleportEntity(k, NULL_VECTOR, NULL_VECTOR, vecc); 
 			TF2_IgnitePlayer(k, client); 
 		} 
-	} 
+	}
+	
+	return Plugin_Handled;
 } 
 
-Action PlayHellfire() 
+void PlayHellfire() 
 { 
 	int soundswitch; 
 	soundswitch = GetRandomInt(1, 3); 
@@ -598,7 +615,7 @@ bool IsValidClient(int client)
 	return IsClientInGame(client); 
 } 
 
-Action TF2_RemoveAllWearables(int client) 
+void TF2_RemoveAllWearables(int client) 
 { 
 	int wearable = -1; 
 	while ((wearable = FindEntityByClassname(wearable, "tf_wearable*")) != -1) 
@@ -638,7 +655,7 @@ Action TF2_RemoveAllWearables(int client)
 	} 
 } 
 
-Action SetWearableAlpha(int client, int alpha) 
+void SetWearableAlpha(int client, int alpha) 
 { 
 	int count; 
 	for (int z = MaxClients + 1; z <= 2048; z++) 
@@ -655,10 +672,9 @@ Action SetWearableAlpha(int client, int alpha)
 		if (alpha == 0) AcceptEntityInput(z, "Kill"); 
 		count++; 
 	} 
-	return; 
 } 
 
-Action Command_getms1() 
+void Command_getms1() 
 {  
 	int soundswitch; 
 	soundswitch = GetRandomInt(1, 4);     
@@ -881,20 +897,9 @@ Action Command_ms4(Handle timer)
 	return Plugin_Handled;	
 }
 
-Action forceSpellbook(int client) 
+void forceSpellbook(int client) 
 { 
-	Handle hWeapon = TF2Items_CreateItem(OVERRIDE_ALL|FORCE_GENERATION); 
-	TF2Items_SetClassname(hWeapon, "tf_weapon_spellbook"); 
-	TF2Items_SetItemIndex(hWeapon, 1070); 
-	TF2Items_SetLevel(hWeapon, 100); 
-	TF2Items_SetQuality(hWeapon, 6); 
-	TF2Items_SetNumAttributes(hWeapon, 1); 
-	TF2Items_SetAttribute(hWeapon, 0, 547, 0.5); 
-
-	int entity = TF2Items_GiveNamedItem(client, hWeapon); 
-	CloseHandle(hWeapon); 
-	EquipPlayerWeapon(client, entity); 
-	return; 
+	CreateWeapon(client, "tf_weapon_spellbook", 1070, 6, 99, 6, 0); //Spellbook Magazine
 } 
 
 void SetSpell2(int client, int spell, int uses) 
@@ -916,7 +921,7 @@ int GetSpellBook(int client)
 	return -1; 
 } 
 
-Action Playbombsound() 
+void Playbombsound() 
 { 
 	int soundswitch; 
 	soundswitch = GetRandomInt(1, 4);     
@@ -947,6 +952,8 @@ Action StartBombAttack(Handle timer, any client)
 	CreateTimer(11.75, ResetTaunt, client); 
 	CreateTimer(11.0, KillBombs, BTime); 
 	TimedParticle(client, "merasmus_book_attack", 11.0); 
+	
+	return Plugin_Handled;	
 } 
 
 Action CreateBomb(Handle timer, any client) 
@@ -955,13 +962,17 @@ Action CreateBomb(Handle timer, any client)
 	{ 
 		SpawnClusters(client); 
 	} 
+	
+	return Plugin_Handled;	
 } 
 Action KillBombs(Handle timer, any Btimer) 
 { 
-	KillTimer(Btimer); 
+	KillTimer(Btimer);
+	
+	return Plugin_Handled;	
 } 
 
-Action SpawnClusters(int ent) 
+void SpawnClusters(int ent) 
 { 
 	if (IsValidEntity(ent)) 
 	{ 
@@ -1011,7 +1022,7 @@ Action ExplodeBomblet(Handle timer, any ent)
 		int client = GetEntPropEnt(ent, Prop_Data, "m_hOwnerEntity"); 
 		if (!IsValidClient(client))
 		{
-			return;
+			return Plugin_Handled;
 		}
 		int team = GetEntProp(client, Prop_Send, "m_iTeamNum"); 
 
@@ -1034,9 +1045,11 @@ Action ExplodeBomblet(Handle timer, any ent)
 			AcceptEntityInput(explosion, "Explode"); 
 			AcceptEntityInput(explosion, "Kill"); 
 		}         
-	} 
+	}
+	
+	return Plugin_Handled;	
 } 
-Action TimedParticle(int client, const char path[32], float FTime) 
+void TimedParticle(int client, const char path[32], float FTime) 
 { 
 	int TParticle = CreateEntityByName("info_particle_system"); 
 	if (IsValidEdict(TParticle)) 
@@ -1065,12 +1078,16 @@ Action KillTParticle(Handle timer, any index)
 	if (IsValidEntity(index)) 
 	{ 
 		AcceptEntityInput(index, "Kill"); 
-	} 
+	}
+	
+	return Plugin_Handled;	
 }  
 
 Action ResetSpeed(Handle timer, any client)
 {
 	TF2_StunPlayer(client, 0.0, 0.0, TF_STUNFLAG_SLOWDOWN);
+	
+	return Plugin_Handled;
 }
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
@@ -1087,7 +1104,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	return Plugin_Changed;
 } 
 
-Action TF2_SwitchtoSlot(int client, int slot)
+void TF2_SwitchtoSlot(int client, int slot)
 {
 	if (slot >= 0 && slot <= 5 && IsClientInGame(client) && IsPlayerAlive(client))
 	{
@@ -1112,22 +1129,13 @@ Action Makemelee(Handle timer, any client)
 	TF2_RemoveWeaponSlot(client, 1);
 	TF2_RemoveWeaponSlot(client, 0);
 
-	Handle hWeapon = TF2Items_CreateItem(OVERRIDE_ALL|FORCE_GENERATION);
-	if (hWeapon != INVALID_HANDLE)
+	CreateWeapon(client, "tf_weapon_club", 3, 6, 99, 2, 0); //Kukri
+	
+	int Weaponc = GetPlayerWeaponSlot(client, TFWeaponSlot_Melee); // melee weapon changes
+	if(IsValidEntity(Weaponc))
 	{
-		TF2Items_SetClassname(hWeapon, "tf_weapon_club");
-		TF2Items_SetItemIndex(hWeapon, 3);
-		TF2Items_SetLevel(hWeapon, 100);
-		TF2Items_SetQuality(hWeapon, 5);
-		
-		int weapon = TF2Items_GiveNamedItem(client, hWeapon);
-		EquipPlayerWeapon(client, weapon);
-
-		CloseHandle(hWeapon);
-
-		SetEntProp(weapon, Prop_Send, "m_nModelIndexOverrides", -1);
+		SetEntProp(Weaponc, Prop_Send, "m_nModelIndexOverrides", -1);
 	}
-
 
 	TF2_SwitchtoSlot(client, TFWeaponSlot_Melee);	
 
@@ -1173,6 +1181,8 @@ Action Makemelee(Handle timer, any client)
 	
 	forceSpellbook(client); 
 	SetSpell2(client, 0, 500);
+	
+	return Plugin_Handled;	
 }
 
 bool IsValidWeapon(int weapon)
@@ -1280,6 +1290,8 @@ int ShootProjectile(int client, int spell)
 public Action Waiting(Handle timer, any client) 
 {
 	g_wait[client] = false; 
+	
+	return Plugin_Handled;	
 }
 
 void BuildParticle(int client, const char path[32])
@@ -1316,4 +1328,189 @@ void RemoveParticle()
 	{
 		AcceptEntityInput(ParticleIndex, "Kill");
 	}	
+}
+
+bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int level, int slot, int paint)
+{
+	TF2_RemoveWeaponSlot(client, slot);
+	
+	int weapon = CreateEntityByName(classname);
+	
+	if (!IsValidEntity(weapon))
+	{
+		return false;
+	}
+	
+	char entclass[64];
+	GetEntityNetClass(weapon, entclass, sizeof(entclass));
+	SetEntData(weapon, FindSendPropInfo(entclass, "m_iItemDefinitionIndex"), itemindex);	 
+	SetEntData(weapon, FindSendPropInfo(entclass, "m_bInitialized"), 1);
+	SetEntData(weapon, FindSendPropInfo(entclass, "m_iEntityQuality"), quality);
+	SetEntProp(weapon, Prop_Send, "m_bValidatedAttachedEntity", 1); 
+	
+	if (level)
+	{
+		SetEntData(weapon, FindSendPropInfo(entclass, "m_iEntityLevel"), level);
+	}
+	else
+	{
+		SetEntData(weapon, FindSendPropInfo(entclass, "m_iEntityLevel"), GetRandomInt(1,99));
+	}
+
+	if (paint > 0)
+	{
+		TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(paint));	//Set Warpaint
+	}
+	
+	switch (itemindex)
+	{
+	case 810, 736, 933, 1080, 1102:
+		{
+			SetEntData(weapon, FindSendPropInfo(entclass, "m_iObjectType"), 3);
+		}
+	case 998:
+		{
+			SetEntData(weapon, FindSendPropInfo(entclass, "m_nChargeResistType"), GetRandomInt(0,2));
+		}
+	case 1069, 1070, 1132, 5604:
+		{
+			TF2Attrib_SetByName(weapon, "single wep deploy time decreased", 0.5);
+		}
+	case 1071:
+		{
+			TF2Attrib_SetByName(weapon, "item style override", 0.0);
+			TF2Attrib_SetByName(weapon, "loot rarity", 1.0);		
+			TF2Attrib_SetByName(weapon, "turn to gold", 1.0);
+
+			DispatchSpawn(weapon);
+			EquipPlayerWeapon(client, weapon);
+			
+			return true; 
+		}		
+	}
+
+	if(quality == 9)
+	{
+		TF2Attrib_SetByName(weapon, "is australium item", 1.0);
+		TF2Attrib_SetByName(weapon, "item style override", 1.0);
+	}
+
+	if(itemindex == 200 || itemindex == 220 || itemindex == 448 || itemindex == 15002 || itemindex == 15015 || itemindex == 15021 || itemindex == 15029 || itemindex == 15036 || itemindex == 15053 || itemindex == 15065 || itemindex == 15069 || itemindex == 15106 || itemindex == 15107 || itemindex == 15108 || itemindex == 15131 || itemindex == 15151 || itemindex == 15157 || itemindex == 449 || itemindex == 15013 || itemindex == 15018 || itemindex == 15035 || itemindex == 15041 || itemindex == 15046 || itemindex == 15056 || itemindex == 15060 || itemindex == 15061 || itemindex == 15100 || itemindex == 15101
+			|| itemindex == 15102 || itemindex == 15126 || itemindex == 15148 || itemindex == 44 || itemindex == 221 || itemindex == 205 || itemindex == 228 || itemindex == 1104 || itemindex == 15006 || itemindex == 15014 || itemindex == 15028 || itemindex == 15043 || itemindex == 15052 || itemindex == 15057 || itemindex == 15081 || itemindex == 15104 || itemindex == 15105 || itemindex == 15129 || itemindex == 15130 || itemindex == 15150 || itemindex == 196 || itemindex == 447 || itemindex == 208 || itemindex == 215 || itemindex == 1178 || itemindex == 15005 || itemindex == 15017 || itemindex == 15030 || itemindex == 15034
+			|| itemindex == 15049 || itemindex == 15054 || itemindex == 15066 || itemindex == 15067 || itemindex == 15068 || itemindex == 15089 || itemindex == 15090 || itemindex == 15115 || itemindex == 15141 || itemindex == 351 || itemindex == 740 || itemindex == 192 || itemindex == 214 || itemindex == 326 || itemindex == 206 || itemindex == 308 || itemindex == 996 || itemindex == 1151 || itemindex == 15077 || itemindex == 15079 || itemindex == 15091 || itemindex == 15092 || itemindex == 15116 || itemindex == 15117 || itemindex == 15142 || itemindex == 15158 || itemindex == 207 || itemindex == 130 || itemindex == 15009
+			|| itemindex == 15012 || itemindex == 15024 || itemindex == 15038 || itemindex == 15045 || itemindex == 15048 || itemindex == 15082 || itemindex == 15083 || itemindex == 15084 || itemindex == 15113 || itemindex == 15137 || itemindex == 15138 || itemindex == 15155 || itemindex == 172 || itemindex == 327 || itemindex == 404 || itemindex == 202 || itemindex == 41 || itemindex == 312 || itemindex == 424 || itemindex == 15004 || itemindex == 15020 || itemindex == 15026 || itemindex == 15031 || itemindex == 15040 || itemindex == 15055 || itemindex == 15086 || itemindex == 15087 || itemindex == 15088 || itemindex == 15098
+			|| itemindex == 15099 || itemindex == 15123 || itemindex == 15124 || itemindex == 15125 || itemindex == 15147 || itemindex == 425 || itemindex == 997 || itemindex == 197 || itemindex == 329 || itemindex == 15073 || itemindex == 15074 || itemindex == 15075 || itemindex == 15139 || itemindex == 15140 || itemindex == 15114 || itemindex == 15156 || itemindex == 305 || itemindex == 211 || itemindex == 15008 || itemindex == 15010 || itemindex == 15025 || itemindex == 15039 || itemindex == 15050 || itemindex == 15078 || itemindex == 15097 || itemindex == 15121 || itemindex == 15122 || itemindex == 15123 || itemindex == 15145
+			|| itemindex == 15146 || itemindex == 35 || itemindex == 411 || itemindex == 37 || itemindex == 304 || itemindex == 201 || itemindex == 402 || itemindex == 15000 || itemindex == 15007 || itemindex == 15019 || itemindex == 15023 || itemindex == 15033 || itemindex == 15059 || itemindex == 15070 || itemindex == 15071 || itemindex == 15072 || itemindex == 15111 || itemindex == 15112 || itemindex == 15135 || itemindex == 15136 || itemindex == 15154 || itemindex == 203 || itemindex == 15001 || itemindex == 15022 || itemindex == 15032 || itemindex == 15037 || itemindex == 15058 || itemindex == 15076 || itemindex == 15110
+			|| itemindex == 15134 || itemindex == 15153 || itemindex == 193 || itemindex == 401 || itemindex == 210 || itemindex == 15011 || itemindex == 15027 || itemindex == 15042 || itemindex == 15051 || itemindex == 15062 || itemindex == 15063 || itemindex == 15064 || itemindex == 15103 || itemindex == 15128 || itemindex == 15129 || itemindex == 15149 || itemindex == 194 || itemindex == 649 || itemindex == 15062 || itemindex == 15094 || itemindex == 15095 || itemindex == 15096 || itemindex == 15118 || itemindex == 15119 || itemindex == 15143 || itemindex == 15144 || itemindex == 209 || itemindex == 15013 || itemindex == 15018
+			|| itemindex == 15035 || itemindex == 15041 || itemindex == 15046 || itemindex == 15056 || itemindex == 15060 || itemindex == 15061 || itemindex == 15100 || itemindex == 15101 || itemindex == 15102 || itemindex == 15126 || itemindex == 15148 || itemindex == 415 || itemindex == 15003 || itemindex == 15016 || itemindex == 15044 || itemindex == 15047 || itemindex == 15085 || itemindex == 15109 || itemindex == 15132 || itemindex == 15133 || itemindex == 15152 || itemindex == 1153)
+	{
+		if(GetRandomInt(1,15) == 1)
+		{
+			TF2Attrib_SetByDefIndex(weapon, 2053, 1.0);
+		}
+	}
+	
+	if(quality == 11)
+	{
+		if (GetRandomInt(1,10) == 1)
+		{
+			TF2Attrib_SetByDefIndex(weapon, 2025, 1.0);
+		}
+		else if (GetRandomInt(1,10) == 2)
+		{
+			TF2Attrib_SetByDefIndex(weapon, 2025, 2.0);
+			TF2Attrib_SetByDefIndex(weapon, 2014, GetRandomInt(1,7) + 0.0);
+		}
+		else if (GetRandomInt(1,10) == 3)
+		{
+			TF2Attrib_SetByDefIndex(weapon, 2025, 3.0);
+			TF2Attrib_SetByDefIndex(weapon, 2014, GetRandomInt(1,7) + 0.0);
+			TF2Attrib_SetByDefIndex(weapon, 2013, GetRandomInt(2002,2008) + 0.0);
+		}
+		TF2Attrib_SetByDefIndex(weapon, 214, view_as<float>(GetRandomInt(0, 9000)));
+	}
+	
+	if (quality == 15)
+	{
+		switch(itemindex)
+		{
+		case 30666, 30667, 30668, 30665:
+			{
+				TF2Attrib_RemoveByDefIndex(weapon, 725);
+			}
+		default:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 725, GetRandomFloat(0.0,1.0));
+			}
+		}
+	}
+
+	if (itemindex == 405 || itemindex == 608 || itemindex == 1101 || itemindex == 133 || itemindex == 444 || itemindex == 57 || itemindex == 231 || itemindex == 642 || itemindex == 131 || itemindex == 406 || itemindex == 1099 || itemindex == 1144)
+	{
+		DispatchSpawn(weapon);
+		SDKCall(g_hEquipWearable, client, weapon);
+	}
+
+	else
+	{
+		DispatchSpawn(weapon);
+		EquipPlayerWeapon(client, weapon);
+	}
+	
+	if (quality !=9)
+	{
+		if (itemindex == 13
+				|| itemindex == 200
+				|| itemindex == 23
+				|| itemindex == 209
+				|| itemindex == 18
+				|| itemindex == 205
+				|| itemindex == 10
+				|| itemindex == 199
+				|| itemindex == 21
+				|| itemindex == 208
+				|| itemindex == 12
+				|| itemindex == 19
+				|| itemindex == 206
+				|| itemindex == 20
+				|| itemindex == 207
+				|| itemindex == 15
+				|| itemindex == 202
+				|| itemindex == 11
+				|| itemindex == 9
+				|| itemindex == 22
+				|| itemindex == 29
+				|| itemindex == 211
+				|| itemindex == 14
+				|| itemindex == 201
+				|| itemindex == 16
+				|| itemindex == 203
+				|| itemindex == 24
+				|| itemindex == 210)	
+		{
+			if (GetRandomInt(1,2) < 3)
+			{
+				TF2_SwitchtoSlot(client, slot);
+				int iRand = GetRandomInt(1,4);
+				if (iRand == 1)
+				{
+					TF2Attrib_SetByDefIndex(weapon, 134, 701.0);	
+				}
+				else if (iRand == 2)
+				{
+					TF2Attrib_SetByDefIndex(weapon, 134, 702.0);	
+				}	
+				else if (iRand == 3)
+				{
+					TF2Attrib_SetByDefIndex(weapon, 134, 703.0);	
+				}
+				else if (iRand == 4)
+				{
+					TF2Attrib_SetByDefIndex(weapon, 134, 704.0);	
+				}
+			}
+		}
+	}
+
+	return true;
 }

@@ -1,6 +1,6 @@
 /*
 *	Respawn Rescue Closet
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.7"
+#define PLUGIN_VERSION 		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,29 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (24-Dec-2022)
+	- Fixed any potential invalid timer errors that were bound to happen with the previous version.
+
+1.10 (24-Dec-2022)
+	- Fixed the rescue models becoming non-solid when simply opening the door and not rescuing someone. Thanks to "replay_84" for reporting.
+	- Using a backup event to set the respawn count, if the "survivor_rescued" event does not trigger.
+	- Increased how far players must be from the rescue model to make it solid again.
+
+1.9 (21-Dec-2022)
+	- Closets will become non-solid when someone is rescued, until players are no longer nearby.
+	- Doors will automatically close when a player is not nearby and the rescue entity will respawn if allowed.
+	- Raised the rescue entity slightly to prevent players falling through the world. Thanks to "replay_84" for reporting.
+	- Changed command "sm_closet_pos" to allow targeting any/invisible closets within 100 units distance. Requested by "replay_84".
+	- Fixed command "sm_closet_list" not showing the correct type as relative to the "sm_closet" command.
+	- Invisible types will delete the temporary model after 30 seconds.
+	- Thanks to "replay_84" for lots of help testing.
+
+1.8 (15-Jan-2022)
+	- Fixed cvar "l4d_closet_respawn" not allowing a single closet to respawn multiple times. Thanks to "maclarens" for reporting.
+	- This will close the doors and re-create the rescue entity after 9 seconds. Players may get stuck if they don't move out before.
+	- Bots usually auto teleport if stuck.
+	- Should be able to close the door manually to allow more rescues, up to the cvar limit.
 
 1.7 (15-Feb-2021)
 	- Fixed "Invalid game event handle". Thanks to "maclarens" for reporting.
@@ -81,11 +104,17 @@
 
 #include <sourcemod>
 #include <sdktools>
+#include <sdkhooks>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define CHAT_TAG			"\x04[\x05Rescue Closet\x04] \x01"
 #define CONFIG_SPAWNS		"data/l4d_closet.cfg"
-#define MAX_SPAWNS			32
+
+#define MAX_SPAWNS			32			// Maximum rescue closets allowed on the map
+#define RANGE_SOLID			200.0		// Furthest range players must be for the model to become solid again
+
+#define DOOR_MINS			-35.0		// m_vecMins (suggest not changing)
+#define DOOR_MAXS			35.0		// m_vecMaxs (suggest not changing)
 
 #define	MODEL_PROP			"models/props_urban/outhouse002.mdl"
 #define	MODEL_DOOR			"models/props_urban/outhouse_door001.mdl"
@@ -95,9 +124,39 @@
 
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarForce, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRandom, g_hCvarRespawn;
-int g_iCvarRandom, g_iCvarRespawn, g_iPlayerSpawn, g_iRoundStart, g_iSpawnCount, g_iSpawns[MAX_SPAWNS][5];
-bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2, g_bLoaded, g_bCvarForce;
+int g_iCvarRandom, g_iCvarRespawn, g_iPlayerSpawn, g_iRoundStart, g_iSpawnCount, g_iSpawns[MAX_SPAWNS][7];
+float g_fLastRescue[MAX_SPAWNS];
+Handle g_hTimerReset[MAX_SPAWNS];
+bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2, g_bLoaded, g_bBlockOpen, g_bForceOpen, g_bCvarForce;
 Menu g_hMenuPos;
+
+enum
+{
+	INDEX_MODEL,
+	INDEX_DOOR1,
+	INDEX_DOOR2,
+	INDEX_RESCUE,
+	INDEX_INDEX,
+	INDEX_TYPE,
+	INDEX_COUNT
+}
+
+enum
+{
+	TYPE_TOILET,
+	TYPE_CABINET,
+	TYPE_INVISIBLE,
+	TYPE_TEMP_MODEL
+}
+
+// Thanks to "Dragokas" (taken from Left4DHooks:
+enum // m_eDoorState
+{
+	DOOR_STATE_CLOSED,
+	DOOR_STATE_OPENING_IN_PROGRESS,
+	DOOR_STATE_OPENED,
+	DOOR_STATE_CLOSING_IN_PROGRESS
+}
 
 
 
@@ -135,7 +194,7 @@ public void OnPluginStart()
 	g_hCvarModesOff =	CreateConVar(	"l4d_closet_modes_off",		"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =	CreateConVar(	"l4d_closet_modes_tog",		"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarRandom =		CreateConVar(	"l4d_closet_random",		"-1",			"-1=All, 0=None. Otherwise randomly select this many Rescue Closets to spawn from the maps config.", CVAR_FLAGS );
-	g_hCvarRespawn =	CreateConVar(	"l4d_closet_respawn",		"0",			"0=Infinite. Number of times to allow a closet to respawn players.", CVAR_FLAGS );
+	g_hCvarRespawn =	CreateConVar(	"l4d_closet_respawn",		"2",			"0=Infinite. Number of times to allow a closet to respawn players.", CVAR_FLAGS );
 	CreateConVar(						"l4d_closet_version",		PLUGIN_VERSION, "Respawn Rescue Closet plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,				"l4d_closet");
 
@@ -152,7 +211,7 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_closet",			CmdSpawnerTemp,		ADMFLAG_ROOT, 	"Spawns a temporary Rescue Closet at your crosshair. <Model: 0=Toilet, 1=Gun Cabinet. 2=Invisible model.>");
 	RegAdminCmd("sm_closet_save",		CmdSpawnerSave,		ADMFLAG_ROOT, 	"Spawns a Rescue Closet at your crosshair and saves to config. <Model: 0=Toilet, 1=Gun Cabinet. 2=Invisible model.>");
-	RegAdminCmd("sm_closet_del",		CmdSpawnerDel,		ADMFLAG_ROOT, 	"Removes the Rescue Closet you are pointing at and deletes from the config if saved. Must be near-by to delete invisible closets.");
+	RegAdminCmd("sm_closet_del",		CmdSpawnerDel,		ADMFLAG_ROOT, 	"Removes the Rescue Closet you are pointing at and deletes from the config if saved. Must be nearby to delete invisible closets.");
 	RegAdminCmd("sm_closet_clear",		CmdSpawnerClear,	ADMFLAG_ROOT, 	"Removes all Rescue Closets spawned by this plugin from the current map.");
 	RegAdminCmd("sm_closet_reload",		CmdSpawnerReload,	ADMFLAG_ROOT, 	"Removes all Rescue Closets and reloads the data config.");
 	RegAdminCmd("sm_closet_wipe",		CmdSpawnerWipe,		ADMFLAG_ROOT, 	"Removes all Rescue Closets from the current map and deletes them from the config.");
@@ -197,12 +256,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -228,7 +287,8 @@ void IsAllowed()
 		HookEvent("round_end",			Event_RoundEnd,		EventHookMode_PostNoCopy);
 		HookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
 		HookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
-		HookEvent("survivor_rescued",	Event_PlayerRescue,	EventHookMode_PostNoCopy);
+		HookEvent("survivor_rescued",	Event_PlayerRescue);
+		HookEvent("award_earned",		Event_AwardEarned);
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
@@ -238,7 +298,8 @@ void IsAllowed()
 		UnhookEvent("round_end",		Event_RoundEnd,		EventHookMode_PostNoCopy);
 		UnhookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
 		UnhookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
-		UnhookEvent("survivor_rescued",	Event_PlayerRescue,	EventHookMode_PostNoCopy);
+		UnhookEvent("survivor_rescued",	Event_PlayerRescue);
+		UnhookEvent("award_earned",		Event_AwardEarned);
 	}
 }
 
@@ -300,7 +361,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -315,72 +376,36 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 
 
 // ====================================================================================================
-//					EVENTS
+//					EVENTS - Spawn
 // ====================================================================================================
-public void Event_PlayerRescue(Event event, const char[] name, bool dontBroadcast)
-{
-	// Strange that event is being returned as 0 sometimes... see post#40
-	if( g_iCvarRespawn && event )
-	{
-		int client = GetClientOfUserId(GetEventInt(event, "victim"));
-
-		if( client && IsClientInGame(client) && GetClientTeam(client) == 2 )
-		{
-			int entity;
-			float vCli[3], vPos[3];
-			GetClientAbsOrigin(client, vCli);
-
-			for( int i = 0; i < MAX_SPAWNS; i++ )
-			{
-				entity = g_iSpawns[i][3];
-				if( IsValidEntRef(entity) )
-				{
-					GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
-					if( GetVectorDistance(vPos, vCli) <= 100 )
-					{
-						int count = GetEntProp(entity, Prop_Data, "m_iHammerID");
-
-						if( count >= g_iCvarRespawn )
-						{
-							 AcceptEntityInput(entity, "Kill");
-						} else {
-							SetEntProp(entity, Prop_Data, "m_iHammerID", count + 1);
-						}
-
-						break;
-					}
-				}
-			}
-		}
-	}
-}
-
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(false);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadSpawns();
 
 	if( g_bCvarForce )
 		DoVScript();
+
+	return Plugin_Continue;
 }
 
 void DoVScript()
@@ -398,7 +423,7 @@ void DoVScript()
 
 	SetVariantString(sTemp);
 	AcceptEntityInput(entity, "RunScriptCode");
-	AcceptEntityInput(entity, "Kill");
+	RemoveEntity(entity);
 }
 
 
@@ -503,7 +528,7 @@ void CreateSpawn(const float vOrigin[3], float vAngles[3], int index, int type)
 	int iSpawnIndex = -1;
 	for( int i = 0; i < MAX_SPAWNS; i++ )
 	{
-		if( g_iSpawns[i][3] == 0 )
+		if( g_iSpawns[i][INDEX_RESCUE] == 0 )
 		{
 			iSpawnIndex = i;
 			break;
@@ -516,12 +541,12 @@ void CreateSpawn(const float vOrigin[3], float vAngles[3], int index, int type)
 	int entity_door;
 	int entity;
 
-	if( type != 2 )
+	if( type != TYPE_INVISIBLE )
 	{
 		entity = CreateEntityByName("prop_dynamic_override");
 
 		DispatchKeyValue(entity, "solid", "6");
-		if( type == 1 )
+		if( type == TYPE_CABINET )
 		{
 			SetEntityModel(entity, MODEL_DOORM);
 			vAngles[1] += 180.0;
@@ -534,28 +559,36 @@ void CreateSpawn(const float vOrigin[3], float vAngles[3], int index, int type)
 
 		if( !g_bLeft4Dead2 )
 		{
-			SetEntProp(entity, Prop_Send, "m_CollisionGroup", 6);
+			// SetEntProp(entity, Prop_Send, "m_CollisionGroup", 6);
 			SetEntProp(entity, Prop_Send, "m_usSolidFlags", 2048);
 			SetEntProp(entity, Prop_Send, "m_nSolidType", 2);
 		}
 
-		if( type != 1 )
+		if( type == TYPE_TEMP_MODEL )
 		{
-			entity_door = CreateEntityByName("prop_door_rotating");
-			DispatchKeyValue(entity_door, "solid", "6");
-			DispatchKeyValue(entity_door, "disableshadows", "1");
-			DispatchKeyValue(entity_door, "distance", "100");
-			DispatchKeyValue(entity_door, "spawnpos", "0");
-			DispatchKeyValue(entity_door, "opendir", "1");
-			DispatchKeyValue(entity_door, "spawnflags", "8192");
-			SetEntityModel(entity_door, MODEL_DOOR);
-			TeleportEntity(entity_door, vOrigin, vAngles, NULL_VECTOR);
-			DispatchSpawn(entity_door);
-			SetVariantString("!activator");
-			AcceptEntityInput(entity_door, "SetParent", entity);
-			TeleportEntity(entity_door, view_as<float>({27.5, -17.0, 3.49}), NULL_VECTOR, NULL_VECTOR);
-			AcceptEntityInput(entity_door, "ClearParent", entity);
-			HookSingleEntityOutput(entity_door, "OnOpen", OnOpen_Func, false);
+			CreateTimer(30.0, TimerDelete, EntIndexToEntRef(entity));
+		}
+
+		if( type != TYPE_CABINET )
+		{
+			if( type != TYPE_TEMP_MODEL )
+			{
+				entity_door = CreateEntityByName("prop_door_rotating");
+				DispatchKeyValue(entity_door, "solid", "6");
+				DispatchKeyValue(entity_door, "disableshadows", "1");
+				DispatchKeyValue(entity_door, "distance", "100");
+				DispatchKeyValue(entity_door, "spawnpos", "0");
+				DispatchKeyValue(entity_door, "opendir", "1");
+				DispatchKeyValue(entity_door, "spawnflags", "8192");
+				SetEntityModel(entity_door, MODEL_DOOR);
+				TeleportEntity(entity_door, vOrigin, vAngles, NULL_VECTOR);
+				DispatchSpawn(entity_door);
+				SetVariantString("!activator");
+				AcceptEntityInput(entity_door, "SetParent", entity);
+				TeleportEntity(entity_door, view_as<float>({27.5, -17.0, 3.49}), NULL_VECTOR, NULL_VECTOR);
+				AcceptEntityInput(entity_door, "ClearParent", entity);
+				HookSingleEntityOutput(entity_door, "OnOpen", OnOpen_Func, false);
+			}
 		}
 		else
 		{
@@ -591,7 +624,7 @@ void CreateSpawn(const float vOrigin[3], float vAngles[3], int index, int type)
 			AcceptEntityInput(entity_door_2, "ClearParent", entity);
 			HookSingleEntityOutput(entity_door_2, "OnOpen", OnOpen_Func, false);
 
-			g_iSpawns[iSpawnIndex][2] = EntIndexToEntRef(entity_door_2);
+			g_iSpawns[iSpawnIndex][INDEX_DOOR2] = EntIndexToEntRef(entity_door_2);
 		}
 	}
 
@@ -602,78 +635,497 @@ void CreateSpawn(const float vOrigin[3], float vAngles[3], int index, int type)
 
 	DispatchKeyValue(entity_rescue, "solid", "0");
 	DispatchKeyValue(entity_rescue, "model", "models/editor/playerstart.mdl");
-	SetEntPropVector(entity_rescue, Prop_Send, "m_vecMins", view_as<float>({-55.0, -55.0, 0.0}));
-	SetEntPropVector(entity_rescue, Prop_Send, "m_vecMaxs", view_as<float>({55.0, 55.0, 25.0}));
+	SetEntPropVector(entity_rescue, Prop_Send, "m_vecMins", view_as<float>({DOOR_MINS, DOOR_MINS, 0.0}));
+	SetEntPropVector(entity_rescue, Prop_Send, "m_vecMaxs", view_as<float>({DOOR_MAXS, DOOR_MAXS, 25.0}));
 	DispatchSpawn(entity_rescue);
-	AcceptEntityInput(entity_rescue, "TurnOn");
 
-	if( type == 1 )
-	{
-		vAngles[1] += 90.0;
-	// } else {
-		// vAngles[1] += 180.0;
-	}
-	TeleportEntity(entity_rescue, vOrigin, vAngles, NULL_VECTOR);
-
-	if( type == 0 )
-	{
-		static float vDir[3];
-		GetAngleVectors(vAngles, vDir, NULL_VECTOR, NULL_VECTOR);
-		vDir[0] = vOrigin[0] + (vDir[0] * 5.0);
-		vDir[1] = vOrigin[1] + (vDir[1] * 5.0);
-		vDir[2] = vOrigin[2] + (vDir[2] * 5.0) + 5.0;
-		TeleportEntity(entity_rescue, vDir, NULL_VECTOR, NULL_VECTOR);
-	}
+	static float vPos[3];
+	vPos = vOrigin;
+	vPos[2] += 5.0;
+	TeleportEntity(entity_rescue, vPos, vAngles, NULL_VECTOR);
 
 
 
 	// Store data
-	g_iSpawns[iSpawnIndex][0] = entity ? EntIndexToEntRef(entity) : 0;
-	g_iSpawns[iSpawnIndex][1] = entity_door ? EntIndexToEntRef(entity_door) : 0;
-	g_iSpawns[iSpawnIndex][3] = EntIndexToEntRef(entity_rescue);
-	g_iSpawns[iSpawnIndex][4] = index;
+	g_iSpawns[iSpawnIndex][INDEX_MODEL] = entity ? EntIndexToEntRef(entity) : 0;
+	g_iSpawns[iSpawnIndex][INDEX_DOOR1] = entity_door ? EntIndexToEntRef(entity_door) : 0;
+	g_iSpawns[iSpawnIndex][INDEX_RESCUE] = EntIndexToEntRef(entity_rescue);
+	g_iSpawns[iSpawnIndex][INDEX_TYPE] = type;
+	g_iSpawns[iSpawnIndex][INDEX_INDEX] = index;
 
 	g_iSpawnCount++;
 }
 
-public void OnOpen_Func(const char[] output, int caller, int activator, float delay)
+Action TimerDelete(Handle timer, int entity)
 {
+	if( IsValidEntRef(entity) )
+	{
+		RemoveEntity(entity);
+	}
+
+	return Plugin_Continue;
+}
+
+
+
+// ====================================================================================================
+//					EVENTS - SPAWN (non-guncabinet, for respawn count)
+// ====================================================================================================
+void Event_AwardEarned(Event event, const char[] name, bool dontBroadcast)
+{
+	// Detect rescue in case the "survivor_rescued" event does not fire
+	if( event.GetInt("award") == 80 )
+	{
+		int client = event.GetInt("subjectentid"); // Match respawn closet to player being rescued
+
+		if( client > 0 )
+		{
+			int entity;
+
+			for( int index = 0; index < MAX_SPAWNS; index++ )
+			{
+				entity = g_iSpawns[index][INDEX_RESCUE];
+				if( IsValidEntRef(entity) )
+				{
+					if( GetEntPropEnt(entity, Prop_Send, "m_survivor") == client )
+					{
+						if( GetGameTime() - g_fLastRescue[index] > 2.0 )
+						{
+							// Set last rescue time, used to make models non-solid when someone is rescued
+							g_fLastRescue[index] = GetGameTime();
+							RequestFrame(OnFrameDoorState, index);
+
+							// Spawn count
+							g_iSpawns[index][INDEX_COUNT]++;
+						}
+
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+void Event_PlayerRescue(Event event, const char[] name, bool dontBroadcast)
+{
+	// Strange this event is being returned as 0 sometimes... see post#40
+	// Using this to set spawn count
+	if( event && g_iCvarRespawn > 0 )
+	{
+		int client = GetClientOfUserId(GetEventInt(event, "victim"));
+
+		if( client && IsClientInGame(client) && GetClientTeam(client) == 2 )
+		{
+			int entity, index = -1;
+			float vClient[3], vPos[3], distance = 100.0;
+			GetClientAbsOrigin(client, vClient);
+
+			for( int i = 0; i < MAX_SPAWNS; i++ )
+			{
+				entity = g_iSpawns[i][INDEX_RESCUE];
+				if( IsValidEntRef(entity) )
+				{
+					GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
+					if( GetVectorDistance(vPos, vClient) <= distance )
+					{
+						distance = GetVectorDistance(vPos, vClient);
+						index = i;
+					}
+				}
+			}
+
+			if( index != -1 )
+			{
+				if( GetGameTime() - g_fLastRescue[index] > 2.0 )
+				{
+					// Set last rescue time, used to make models non-solid when someone is rescued
+					g_fLastRescue[index] = GetGameTime();
+					RequestFrame(OnFrameDoorState, index);
+
+					// Spawn count
+					g_iSpawns[index][INDEX_COUNT]++;
+				}
+			}
+		}
+	}
+}
+
+void OnFrameDoorState(int index)
+{
+	// Fix bug if auto-rescued and door hasn't opened
+	int entity = g_iSpawns[index][INDEX_DOOR1];
+	if( IsValidEntRef(entity) )
+	{
+		if( GetEntProp(entity, Prop_Send, "m_eDoorState") == DOOR_STATE_CLOSED )
+		{
+			g_bForceOpen = true;
+			AcceptEntityInput(entity, "Open");
+			g_bForceOpen = false;
+		}
+	}
+
+	entity = g_iSpawns[index][INDEX_DOOR2];
+	if( IsValidEntRef(entity) )
+	{
+		if( GetEntProp(entity, Prop_Send, "m_eDoorState") == DOOR_STATE_CLOSED )
+		{
+			g_bForceOpen = true;
+			AcceptEntityInput(entity, "Open");
+			g_bForceOpen = false;
+		}
+	}
+}
+
+
+
+// ====================================================================================================
+//					OUTPUT - OPEN DOOR
+// ====================================================================================================
+void OnOpen_Func(const char[] output, int caller, int activator, float delay)
+{
+	if( g_bBlockOpen ) return;
+
 	caller = EntIndexToEntRef(caller);
-	int arrindex;
+
+	// Find index from rescue door
+	int index = -1;
 	for( int i = 0; i < MAX_SPAWNS; i++ )
 	{
-		if( g_iSpawns[i][1] == caller || g_iSpawns[i][2] == caller )
+		if( g_iSpawns[i][INDEX_DOOR1] == caller || g_iSpawns[i][INDEX_DOOR2] == caller )
 		{
-			arrindex = i;
+			index = i;
 			break;
 		}
 	}
 
-	int rescue = g_iSpawns[arrindex][3];
-	if( IsValidEntRef(rescue) )
+	if( index != -1 )
 	{
-		AcceptEntityInput(rescue, "Rescue");
-		// if( IsValidEntRef(entity) ) AcceptEntityInput(entity, "DisableCollision"); // Makes the doors shut again
-
-		if( g_iCvarRespawn )
+		int rescue = g_iSpawns[index][INDEX_RESCUE];
+		if( IsValidEntRef(rescue) )
 		{
-			int entity = g_iSpawns[arrindex][0];
+			if( GetEntPropEnt(rescue, Prop_Send, "m_survivor") != -1 )
+			{
+				g_fLastRescue[index] = GetGameTime();
+			}
+
+			AcceptEntityInput(rescue, "Rescue");
+		}
+
+		// Set non-solid state on rescue only which is when g_fLastRescue < 2.0
+		if( g_iSpawns[index][INDEX_DOOR1] == caller )
+		{
+			if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+			{
+				if( !g_bForceOpen )
+					SetEntProp(caller, Prop_Send, "m_eDoorState", DOOR_STATE_OPENING_IN_PROGRESS);
+
+				SetEntProp(caller, Prop_Send, "m_CollisionGroup", 1);
+			}
+
+			HookSingleEntityOutput(caller, "OnFullyOpen", OnOpened_Func, true);
+		}
+		else
+		{
+			int entity = g_iSpawns[index][INDEX_DOOR1];
 			if( IsValidEntRef(entity) )
 			{
-				int count = GetEntProp(entity, Prop_Data, "m_iHammerID");
-				if( count >= g_iCvarRespawn )
+				g_bBlockOpen = true;
+				AcceptEntityInput(entity, "Open");
+				g_bBlockOpen = false;
+
+				if( GetGameTime() - g_fLastRescue[index] < 2.0 )
 				{
-					AcceptEntityInput(rescue, "Kill");
+					if( !g_bForceOpen )
+						SetEntProp(entity, Prop_Send, "m_eDoorState", DOOR_STATE_OPENING_IN_PROGRESS);
+
+					SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
+				}
+			}
+		}
+
+		if( g_iSpawns[index][INDEX_DOOR2] == caller )
+		{
+			if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+			{
+				if( !g_bForceOpen )
+					SetEntProp(caller, Prop_Send, "m_eDoorState", DOOR_STATE_OPENING_IN_PROGRESS);
+
+				SetEntProp(caller, Prop_Send, "m_CollisionGroup", 1);
+			}
+
+			HookSingleEntityOutput(caller, "OnFullyOpen", OnOpened_Func, true);
+		}
+		else
+		{
+			int entity = g_iSpawns[index][INDEX_DOOR2];
+			if( IsValidEntRef(entity) )
+			{
+				g_bBlockOpen = true;
+				AcceptEntityInput(entity, "Open");
+				g_bBlockOpen = false;
+
+				if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+				{
+					if( !g_bForceOpen )
+						SetEntProp(entity, Prop_Send, "m_eDoorState", DOOR_STATE_OPENING_IN_PROGRESS);
+
+					SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
+				}
+			}
+		}
+
+		if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+		{
+			int entity = g_iSpawns[index][INDEX_MODEL];
+			if( IsValidEntRef(entity) )
+			{
+				SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
+			}
+		}
+	}
+}
+
+void OnOpened_Func(const char[] output, int caller, int activator, float delay)
+{
+	caller = EntIndexToEntRef(caller);
+
+	int index = -1;
+	for( int i = 0; i < MAX_SPAWNS; i++ )
+	{
+		if( g_iSpawns[i][INDEX_DOOR1] == caller || g_iSpawns[i][INDEX_DOOR2] == caller )
+		{
+			index = i;
+			break;
+		}
+	}
+
+	if( index != -1 )
+	{
+		// Prevent getting stuck
+		if( g_iSpawns[index][INDEX_TYPE] != TYPE_INVISIBLE )
+		{
+			int entity;
+			bool set;
+
+			entity = g_iSpawns[index][INDEX_DOOR1];
+			if( IsValidEntRef(entity) )
+			{
+				set = true;
+
+				if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+				{
+					SetEntProp(entity, Prop_Send, "m_eDoorState", DOOR_STATE_CLOSING_IN_PROGRESS);
+					SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
+				}
+
+				if( caller != entity )
+				{
+					UnhookSingleEntityOutput(entity, "OnFullyOpen", OnOpened_Func);
+				}
+			}
+
+			entity = g_iSpawns[index][INDEX_DOOR2];
+			if( IsValidEntRef(entity) )
+			{
+				set = true;
+
+				if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+				{
+					SetEntProp(entity, Prop_Send, "m_eDoorState", DOOR_STATE_CLOSING_IN_PROGRESS);
+					SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
+				}
+
+				if( caller != entity )
+				{
+					UnhookSingleEntityOutput(entity, "OnFullyOpen", OnOpened_Func);
+				}
+			}
+
+			entity = g_iSpawns[index][INDEX_MODEL];
+			if( IsValidEntRef(entity) )
+			{
+				if( GetGameTime() - g_fLastRescue[index] < 2.0 )
+				{
+					set = true;
+					SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
+				}
+			}
+
+			if( set )
+			{
+				delete g_hTimerReset[index];
+				g_hTimerReset[index] = CreateTimer(1.0, TimerSolidAdd, index, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+			}
+		}
+		else
+		{
+			CreateTimer(5.0, TimerRespawnRescue, index);
+		}
+	}
+}
+
+Action TimerSolidAdd(Handle timer, int index)
+{
+	g_hTimerReset[index] = null;
+
+	// Find index
+	int entity = g_iSpawns[index][INDEX_MODEL];
+	if( IsValidEntRef(entity) )
+	{
+		float vClient[3], vPos[3];
+
+		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
+
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) && IsPlayerAlive(i) )
+			{
+				GetClientAbsOrigin(i, vClient);
+				if( GetVectorDistance(vPos, vClient) < RANGE_SOLID )
+				{
+					return Plugin_Continue;
 				}
 			}
 		}
 	}
 
-	// entity = g_iSpawns[arrindex][1];
-	// if( IsValidEntRef(entity) ) AcceptEntityInput(entity, "DisableCollision");
+	// Reset solid doors
+	entity = g_iSpawns[index][INDEX_DOOR1];
+	if( IsValidEntRef(entity) )
+	{
+		SetEntProp(entity, Prop_Send, "m_eDoorState", DOOR_STATE_OPENED);
+		SetEntProp(entity, Prop_Send, "m_CollisionGroup", 0);
 
-	// entity = g_iSpawns[arrindex][2];
-	// if( IsValidEntRef(entity) ) AcceptEntityInput(entity, "DisableCollision");
+		// Respawn?
+		if( !g_iCvarRespawn || g_iSpawns[index][INDEX_COUNT] < g_iCvarRespawn )
+		{
+			AcceptEntityInput(entity, "Close");
+			HookSingleEntityOutput(entity, "OnFullyClosed", OnClosed_Func);
+		}
+	}
+
+	entity = g_iSpawns[index][INDEX_DOOR2];
+	if( IsValidEntRef(entity) )
+	{
+		SetEntProp(entity, Prop_Send, "m_eDoorState", DOOR_STATE_OPENED);
+		SetEntProp(entity, Prop_Send, "m_CollisionGroup", 0);
+
+		// Respawn?
+		if( !g_iCvarRespawn || g_iSpawns[index][INDEX_COUNT] < g_iCvarRespawn )
+		{
+			AcceptEntityInput(entity, "Close");
+			HookSingleEntityOutput(entity, "OnFullyClosed", OnClosed_Func);
+		}
+	}
+
+	// Reset solid model
+	entity = g_iSpawns[index][INDEX_MODEL];
+	if( IsValidEntRef(entity) )
+	{
+		SetEntProp(entity, Prop_Send, "m_CollisionGroup", 0);
+	}
+
+	return Plugin_Stop;
+}
+
+
+
+// ====================================================================================================
+//					RESPAWN CLOSET
+// ====================================================================================================
+void OnClosed_Func(const char[] output, int caller, int activator, float delay)
+{
+	caller = EntIndexToEntRef(caller);
+
+	int index = -1;
+	for( int i = 0; i < MAX_SPAWNS; i++ )
+	{
+		if( g_iSpawns[i][INDEX_DOOR1] == caller || g_iSpawns[i][INDEX_DOOR2] == caller )
+		{
+			index = i;
+			break;
+		}
+	}
+
+	if( index != -1 )
+	{
+		bool pass;
+		int door1 = g_iSpawns[index][INDEX_DOOR1];
+		int door2 = g_iSpawns[index][INDEX_DOOR2];
+
+		if( door1 == caller )
+		{
+			if( IsValidEntRef(door2) )
+			{
+				if( GetEntProp(door2, Prop_Send, "m_eDoorState") == DOOR_STATE_CLOSED )
+				{
+					pass = true;
+					UnhookSingleEntityOutput(door2, "OnFullyClosed", OnClosed_Func);
+				}
+			}
+			else
+			{
+				pass = true;
+			}
+		}
+		else if( door2 == caller )
+		{
+			if( IsValidEntRef(door1) )
+			{
+				if( GetEntProp(door1, Prop_Send, "m_eDoorState") == DOOR_STATE_CLOSED )
+				{
+					pass = true;
+					UnhookSingleEntityOutput(door1, "OnFullyClosed", OnClosed_Func);
+				}
+			}
+			else
+			{
+				pass = true;
+			}
+		}
+
+		if( pass )
+		{
+			UnhookSingleEntityOutput(caller, "OnFullyClosed", OnClosed_Func);
+			CreateTimer(0.1, TimerRespawnRescue, index);
+		}
+	}
+}
+
+Action TimerRespawnRescue(Handle timer, int index)
+{
+	int rescue = g_iSpawns[index][INDEX_RESCUE];
+	g_iSpawns[index][INDEX_RESCUE] = 0;
+
+	// Respawn?
+	if( !g_iCvarRespawn || g_iSpawns[index][INDEX_COUNT] < g_iCvarRespawn )
+	{
+		if( IsValidEntRef(rescue) )
+		{
+			float vPos[3], vAng[3];
+
+			GetEntPropVector(rescue, Prop_Data, "m_vecOrigin", vPos);
+			GetEntPropVector(rescue, Prop_Data, "m_angRotation", vAng);
+
+			int entity_rescue = CreateEntityByName("info_survivor_rescue");
+
+			DispatchKeyValue(entity_rescue, "solid", "0");
+			DispatchKeyValue(entity_rescue, "model", "models/editor/playerstart.mdl");
+			SetEntPropVector(entity_rescue, Prop_Send, "m_vecMins", view_as<float>({DOOR_MINS, DOOR_MINS, 0.0}));
+			SetEntPropVector(entity_rescue, Prop_Send, "m_vecMaxs", view_as<float>({DOOR_MAXS, DOOR_MAXS, 25.0}));
+			DispatchSpawn(entity_rescue);
+
+			TeleportEntity(entity_rescue, vPos, vAng, NULL_VECTOR);
+
+			g_iSpawns[index][INDEX_RESCUE] = EntIndexToEntRef(entity_rescue);
+		}
+	}
+
+	// Remove rescue entity
+	if( IsValidEntRef(rescue) ) RemoveEntity(rescue);
+
+	return Plugin_Continue;
 }
 
 
@@ -683,7 +1135,7 @@ public void OnOpen_Func(const char[] output, int caller, int activator, float de
 // ====================================================================================================
 //					sm_closet_reload
 // ====================================================================================================
-public Action CmdSpawnerReload(int client, int args)
+Action CmdSpawnerReload(int client, int args)
 {
 	g_bCvarAllow = false;
 	ResetPlugin(true);
@@ -694,7 +1146,7 @@ public Action CmdSpawnerReload(int client, int args)
 // ====================================================================================================
 //					sm_closet
 // ====================================================================================================
-public Action CmdSpawnerTemp(int client, int args)
+Action CmdSpawnerTemp(int client, int args)
 {
 	if( !client )
 	{
@@ -722,14 +1174,14 @@ public Action CmdSpawnerTemp(int client, int args)
 	// Type of model
 	char sBuff[3];
 	int type;
-	if( args == 1 )
+	if( args == TYPE_CABINET )
 	{
 		GetCmdArg(1, sBuff, sizeof(sBuff));
 		type = StringToInt(sBuff);
-		if( type < 0 || type > 2 ) type = 0;
+		if( type < TYPE_TOILET || type > TYPE_INVISIBLE ) type = 0;
 	}
 
-	if( type == 0 ) vAng[1] += 180.0;
+	if( type == TYPE_TOILET ) vAng[1] += 180.0;
 	CreateSpawn(vPos, vAng, 0, type);
 
 	return Plugin_Handled;
@@ -738,7 +1190,7 @@ public Action CmdSpawnerTemp(int client, int args)
 // ====================================================================================================
 //					sm_closet_save
 // ====================================================================================================
-public Action CmdSpawnerSave(int client, int args)
+Action CmdSpawnerSave(int client, int args)
 {
 	if( !client )
 	{
@@ -813,21 +1265,21 @@ public Action CmdSpawnerSave(int client, int args)
 		// Type of model
 		char sBuff[3];
 		int type;
-		if( args == 1 )
+		if( args == TYPE_CABINET )
 		{
 			GetCmdArg(1, sBuff, sizeof(sBuff));
 			type = StringToInt(sBuff);
-			if( type < 0 || type > 2 ) type = 0;
+			if( type < TYPE_TOILET || type > TYPE_INVISIBLE ) type = 0;
 			hFile.SetNum("type", type);
 		}
 
 		// Save angle / origin
-		if( type == 0 ) vAng[1] += 180.0;
+		if( type == TYPE_TOILET ) vAng[1] += 180.0;
 		hFile.SetVector("ang", vAng);
 		hFile.SetVector("pos", vPos);
 
 		// Spawn
-		if( type == 2 ) type = 3; // So the model spawns to allow adjusting position. Reload to make invisible.
+		if( type == TYPE_INVISIBLE ) type = TYPE_TEMP_MODEL; // So the model spawns to allow adjusting position. Reload to make invisible.
 		CreateSpawn(vPos, vAng, iCount, type);
 
 		// Save cfg
@@ -846,7 +1298,7 @@ public Action CmdSpawnerSave(int client, int args)
 // ====================================================================================================
 //					sm_closet_del
 // ====================================================================================================
-public Action CmdSpawnerDel(int client, int args)
+Action CmdSpawnerDel(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -869,7 +1321,7 @@ public Action CmdSpawnerDel(int client, int args)
 
 		for( int i = 0; i < MAX_SPAWNS; i++ )
 		{
-			if( g_iSpawns[i][0] == entity || g_iSpawns[i][1] == entity )
+			if( g_iSpawns[i][INDEX_MODEL] == entity || g_iSpawns[i][INDEX_DOOR1] == entity )
 			{
 				index = i;
 				break;
@@ -880,19 +1332,19 @@ public Action CmdSpawnerDel(int client, int args)
 	if( index == -1 )
 	{
 		// Search by distance
-		float vCli[3], vPos[3];
-		GetClientAbsOrigin(client, vCli);
+		float vClient[3], vPos[3], distance = 100.0;
+		GetClientAbsOrigin(client, vClient);
 
 		for( int i = 0; i < MAX_SPAWNS; i++ )
 		{
-			entity = g_iSpawns[i][3];
+			entity = g_iSpawns[i][INDEX_RESCUE];
 			if( IsValidEntRef(entity) )
 			{
 				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
-				if( GetVectorDistance(vPos, vCli) <= 100 )
+				if( GetVectorDistance(vPos, vClient) <= distance )
 				{
+					distance = GetVectorDistance(vPos, vClient);
 					index = i;
-					break;
 				}
 			}
 		}
@@ -900,11 +1352,11 @@ public Action CmdSpawnerDel(int client, int args)
 
 	if( index == -1 )
 	{
-		PrintToChat(client, "%sCannot find near-by or under crosshair.", CHAT_TAG);
+		PrintToChat(client, "%sCannot find nearby or under crosshair.", CHAT_TAG);
 		return Plugin_Handled;
 	}
 
-	int cfgindex = g_iSpawns[index][4];
+	int cfgindex = g_iSpawns[index][INDEX_INDEX];
 	if( cfgindex == 0 )
 	{
 		RemoveSpawn(index);
@@ -913,8 +1365,8 @@ public Action CmdSpawnerDel(int client, int args)
 
 	for( int i = 0; i < MAX_SPAWNS; i++ )
 	{
-		if( g_iSpawns[i][4] > cfgindex )
-			g_iSpawns[i][4]--;
+		if( g_iSpawns[i][INDEX_INDEX] > cfgindex )
+			g_iSpawns[i][INDEX_INDEX]--;
 	}
 
 	g_iSpawnCount--;
@@ -1003,7 +1455,7 @@ public Action CmdSpawnerDel(int client, int args)
 // ====================================================================================================
 //					sm_closet_clear
 // ====================================================================================================
-public Action CmdSpawnerClear(int client, int args)
+Action CmdSpawnerClear(int client, int args)
 {
 	if( !client )
 	{
@@ -1020,7 +1472,7 @@ public Action CmdSpawnerClear(int client, int args)
 // ====================================================================================================
 //					sm_closet_wipe
 // ====================================================================================================
-public Action CmdSpawnerWipe(int client, int args)
+Action CmdSpawnerWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -1071,23 +1523,23 @@ public Action CmdSpawnerWipe(int client, int args)
 // ====================================================================================================
 //					sm_closet_glow
 // ====================================================================================================
-public Action CmdSpawnerGlow(int client, int args)
+Action CmdSpawnerGlow(int client, int args)
 {
 	static bool glow;
 	glow = !glow;
 	PrintToChat(client, "%sGlow has been turned %s", CHAT_TAG, glow ? "on" : "off");
 
-	VendorGlow(glow);
+	ClosetGlow(glow);
 	return Plugin_Handled;
 }
 
-void VendorGlow(int glow)
+void ClosetGlow(int glow)
 {
 	int ent;
 
 	for( int i = 0; i < MAX_SPAWNS; i++ )
 	{
-		ent = g_iSpawns[i][0];
+		ent = g_iSpawns[i][INDEX_MODEL];
 		if( IsValidEntRef(ent) )
 		{
 			SetEntProp(ent, Prop_Send, "m_iGlowType", glow ? 3 : 0);
@@ -1103,7 +1555,7 @@ void VendorGlow(int glow)
 // ====================================================================================================
 //					sm_closet_list
 // ====================================================================================================
-public Action CmdSpawnerList(int client, int args)
+Action CmdSpawnerList(int client, int args)
 {
 	char sModel[64];
 	float vPos[3];
@@ -1113,27 +1565,27 @@ public Action CmdSpawnerList(int client, int args)
 	{
 		type = -1;
 
-		ent = g_iSpawns[i][0];
+		ent = g_iSpawns[i][INDEX_MODEL];
 		if( IsValidEntRef(ent) )
 		{
-			type = 0;
+			type = TYPE_TOILET;
 
 			GetEntPropString(ent, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
 			if( strcmp(sModel, MODEL_DOORM) == 0 )
-				type = 1;
+				type = TYPE_CABINET;
 		}
 		else
 		{
-			ent = g_iSpawns[i][3];
+			ent = g_iSpawns[i][INDEX_RESCUE];
 			if( IsValidEntRef(ent) )
-				type = 2;
+				type = TYPE_INVISIBLE;
 		}
 
 		if( type != -1 )
 		{
 			count++;
 			GetEntPropVector(ent, Prop_Data, "m_vecOrigin", vPos);
-			PrintToChat(client, "%s%d) Type: %d. Pos: %f %f %f", CHAT_TAG, i+1, type-1, vPos[0], vPos[1], vPos[2]);
+			PrintToChat(client, "%s%d) Type: %d. Pos: %f %f %f", CHAT_TAG, i+1, type, vPos[0], vPos[1], vPos[2]);
 		}
 	}
 	PrintToChat(client, "%sTotal: %d.", CHAT_TAG, count);
@@ -1143,17 +1595,17 @@ public Action CmdSpawnerList(int client, int args)
 // ====================================================================================================
 //					sm_closet_tele
 // ====================================================================================================
-public Action CmdSpawnerTele(int client, int args)
+Action CmdSpawnerTele(int client, int args)
 {
 	if( args == 1 )
 	{
 		char arg[16];
 		GetCmdArg(1, arg, sizeof(arg));
 		int index = StringToInt(arg) - 1;
-		if( index > -1 && index < MAX_SPAWNS && IsValidEntRef(g_iSpawns[index][3]) )
+		if( index > -1 && index < MAX_SPAWNS && IsValidEntRef(g_iSpawns[index][INDEX_RESCUE]) )
 		{
 			float vPos[3];
-			GetEntPropVector(g_iSpawns[index][3], Prop_Data, "m_vecOrigin", vPos);
+			GetEntPropVector(g_iSpawns[index][INDEX_RESCUE], Prop_Data, "m_vecOrigin", vPos);
 			vPos[2] += 20.0;
 			TeleportEntity(client, vPos, NULL_VECTOR, NULL_VECTOR);
 			PrintToChat(client, "%sTeleported to %d.", CHAT_TAG, index + 1);
@@ -1170,7 +1622,7 @@ public Action CmdSpawnerTele(int client, int args)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdSpawnerPos(int client, int args)
+Action CmdSpawnerPos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -1182,7 +1634,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1192,39 +1644,86 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
-void SetOrigin(int client, int index)
+void SetOrigin(int client, int menuindex)
 {
+	int index = -1;
 	int entity = GetClientAimTarget(client, false);
-	if( entity == -1 )
-		return;
-
-	entity = EntIndexToEntRef(entity);
-
-	int arrindex;
-	for( int i = 0; i < MAX_SPAWNS; i++ )
+	if( entity != -1 )
 	{
-		if( g_iSpawns[i][0] == entity || g_iSpawns[i][1] == entity )
+		// Search by crosshair
+		entity = EntIndexToEntRef(entity);
+
+		for( int i = 0; i < MAX_SPAWNS; i++ )
 		{
-			entity = g_iSpawns[i][0];
-			arrindex = i;
-			break;
+			if( g_iSpawns[i][INDEX_MODEL] == entity || g_iSpawns[i][INDEX_DOOR1] == entity )
+			{
+				index = i;
+				break;
+			}
 		}
 	}
 
-	float vAng[3], vPos[3];
-	int entity_door = g_iSpawns[arrindex][1];
-	entity_door = EntRefToEntIndex(entity_door);
-	SetVariantString("!activator");
-	AcceptEntityInput(entity_door, "SetParent", entity);
+	if( index == -1 )
+	{
+		// Search by distance
+		float vClient[3], vPos[3], distance = 100.0;
+		GetClientAbsOrigin(client, vClient);
 
-	if( index == 6 || index == 7 )
+		for( int i = 0; i < MAX_SPAWNS; i++ )
+		{
+			entity = g_iSpawns[i][INDEX_RESCUE];
+			if( IsValidEntRef(entity) )
+			{
+				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
+				if( GetVectorDistance(vPos, vClient) <= distance )
+				{
+					distance = GetVectorDistance(vPos, vClient);
+					index = i;
+				}
+			}
+		}
+	}
+
+	if( index == -1 )
+	{
+		PrintToChat(client, "%sCannot find nearby or under crosshair.", CHAT_TAG);
+		return;
+	}
+
+	float vAng[3], vPos[3];
+	int entity_model = g_iSpawns[index][INDEX_MODEL];
+	int entity_door = g_iSpawns[index][INDEX_DOOR1];
+
+	// Parent doors to model
+	if( IsValidEntRef(entity_model) )
+	{
+		entity = entity_model;
+
+		if( IsValidEntRef(entity_door) )
+		{
+			SetVariantString("!activator");
+			AcceptEntityInput(entity_door, "SetParent", entity_model);
+		}
+
+		entity_door = g_iSpawns[index][INDEX_DOOR2];
+		if( IsValidEntRef(entity_door) )
+		{
+			SetVariantString("!activator");
+			AcceptEntityInput(entity_door, "SetParent", entity_model);
+		}
+	}
+
+	// Teleport
+	if( menuindex == 6 || menuindex == 7 )
 		GetEntPropVector(entity, Prop_Send, "m_angRotation", vAng);
 	else
 		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
 
-	switch( index )
+	switch( menuindex )
 	{
 		case 0: vPos[0] += 0.5;
 		case 1: vPos[1] += 0.5;
@@ -1236,7 +1735,7 @@ void SetOrigin(int client, int index)
 		case 7: vAng[1] += 90.0;
 	}
 
-	if( index == 6 || index == 7 )
+	if( menuindex == 6 || menuindex == 7 )
 	{
 		TeleportEntity(entity, NULL_VECTOR, vAng, NULL_VECTOR);
 		PrintToChat(client, "%sNew angle: %f %f %f", CHAT_TAG, vAng[0], vAng[1], vAng[2]);
@@ -1245,32 +1744,77 @@ void SetOrigin(int client, int index)
 		PrintToChat(client, "%sNew origin: %f %f %f", CHAT_TAG, vPos[0], vPos[1], vPos[2]);
 	}
 
-	AcceptEntityInput(entity_door, "ClearParent");
+	// Clear parent
+	entity_door = g_iSpawns[index][INDEX_DOOR1];
+	if( IsValidEntRef(entity_door) )
+	{
+		AcceptEntityInput(entity_door, "ClearParent");
+	}
+
+	entity_door = g_iSpawns[index][INDEX_DOOR2];
+	if( IsValidEntRef(entity_door) )
+	{
+		AcceptEntityInput(entity_door, "ClearParent");
+	}
 }
 
 void SaveData(int client)
 {
-	int entity;
-	entity = GetClientAimTarget(client, false);
-	if( entity == -1 )
-		return;
-
-	entity = EntIndexToEntRef(entity);
-
-	int cfgindex, index = -1;
-	for( int i = 0; i < MAX_SPAWNS; i++ )
+	int cfgindex;
+	int index = -1;
+	int entity = GetClientAimTarget(client, false);
+	if( entity != -1 )
 	{
-		if( g_iSpawns[i][0] == entity || g_iSpawns[i][1] == entity )
+		// Search by crosshair
+		entity = EntIndexToEntRef(entity);
+
+		for( int i = 0; i < MAX_SPAWNS; i++ )
 		{
-			index = i;
-			entity = g_iSpawns[i][0];
-			cfgindex = g_iSpawns[i][4];
-			break;
+			if( g_iSpawns[i][INDEX_MODEL] == entity || g_iSpawns[i][INDEX_DOOR1] == entity || g_iSpawns[i][INDEX_DOOR2] == entity )
+			{
+				index = i;
+				entity = g_iSpawns[i][INDEX_MODEL];
+				cfgindex = g_iSpawns[i][INDEX_INDEX];
+				break;
+			}
 		}
 	}
 
 	if( index == -1 )
+	{
+		// Search by distance
+		float vClient[3], vPos[3], distance = 100.0;
+		GetClientAbsOrigin(client, vClient);
+
+		for( int i = 0; i < MAX_SPAWNS; i++ )
+		{
+			entity = g_iSpawns[i][INDEX_RESCUE];
+			if( IsValidEntRef(entity) )
+			{
+				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
+				if( GetVectorDistance(vPos, vClient) <= distance )
+				{
+					cfgindex = g_iSpawns[i][INDEX_INDEX];
+					distance = GetVectorDistance(vPos, vClient);
+					index = i;
+				}
+			}
+		}
+
+		if( index != -1 )
+		{
+			if( IsValidEntRef(g_iSpawns[index][INDEX_MODEL]) )
+			{
+				entity = g_iSpawns[index][INDEX_MODEL];
+			}
+		}
+	}
+
+	if( index == -1 )
+	{
+		PrintToChat(client, "%sCannot find nearby or under crosshair.", CHAT_TAG);
 		return;
+	}
 
 	// Load config
 	char sPath[PLATFORM_MAX_PATH];
@@ -1308,6 +1852,11 @@ void SaveData(int client)
 	IntToString(cfgindex, sTemp, sizeof(sTemp));
 	if( hFile.JumpToKey(sTemp) )
 	{
+		if( g_iSpawns[index][INDEX_TYPE] == TYPE_CABINET )
+		{
+			vAng[1] -= 180.0;
+		}
+
 		hFile.SetVector("ang", vAng);
 		hFile.SetVector("pos", vPos);
 
@@ -1315,7 +1864,7 @@ void SaveData(int client)
 		hFile.Rewind();
 		hFile.ExportToFile(sPath);
 
-		PrintToChat(client, "%sSaved origin and angles to the data config", CHAT_TAG);
+		PrintToChat(client, "%s%d) Saved origin and angles to the data config", CHAT_TAG, cfgindex);
 	}
 }
 
@@ -1352,37 +1901,44 @@ bool IsValidEntRef(int entity)
 
 void ResetPlugin(bool all = true)
 {
+	g_bBlockOpen = false;
+	g_bForceOpen = false;
 	g_bLoaded = false;
 	g_iSpawnCount = 0;
 	g_iRoundStart = 0;
 	g_iPlayerSpawn = 0;
 
-	if( all )
-		for( int i = 0; i < MAX_SPAWNS; i++ )
+	for( int i = 0; i < MAX_SPAWNS; i++ )
+	{
+		g_fLastRescue[i] = 0.0;
+		delete g_hTimerReset[i];
+
+		if( all )
 			RemoveSpawn(i);
+	}
 }
 
 void RemoveSpawn(int index)
 {
 	int entity;
 
-	entity = g_iSpawns[index][0];
-	g_iSpawns[index][0] = 0;
-	if( IsValidEntRef(entity) )	AcceptEntityInput(entity, "kill");
+	entity = g_iSpawns[index][INDEX_MODEL];
+	g_iSpawns[index][INDEX_MODEL] = 0;
+	if( IsValidEntRef(entity) )	RemoveEntity(entity);
 
-	entity = g_iSpawns[index][1];
-	g_iSpawns[index][1] = 0;
-	if( IsValidEntRef(entity) )	AcceptEntityInput(entity, "kill");
+	entity = g_iSpawns[index][INDEX_DOOR1];
+	g_iSpawns[index][INDEX_DOOR1] = 0;
+	if( IsValidEntRef(entity) )	RemoveEntity(entity);
 
-	entity = g_iSpawns[index][2];
-	g_iSpawns[index][2] = 0;
-	if( IsValidEntRef(entity) )	AcceptEntityInput(entity, "kill");
+	entity = g_iSpawns[index][INDEX_DOOR2];
+	g_iSpawns[index][INDEX_DOOR2] = 0;
+	if( IsValidEntRef(entity) )	RemoveEntity(entity);
 
-	entity = g_iSpawns[index][3];
-	g_iSpawns[index][3] = 0;
-	if( IsValidEntRef(entity) )	AcceptEntityInput(entity, "kill");
+	entity = g_iSpawns[index][INDEX_RESCUE];
+	g_iSpawns[index][INDEX_RESCUE] = 0;
+	if( IsValidEntRef(entity) )	RemoveEntity(entity);
 
-	g_iSpawns[index][4] = 0;
+	g_iSpawns[index][INDEX_INDEX] = 0;
 }
 
 
@@ -1393,6 +1949,7 @@ void RemoveSpawn(int index)
 float GetGroundHeight(float vPos[3])
 {
 	float vAng[3];
+
 	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, _TraceFilter);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
@@ -1426,7 +1983,7 @@ bool SetTeleportEndPoint(int client, float vPos[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }

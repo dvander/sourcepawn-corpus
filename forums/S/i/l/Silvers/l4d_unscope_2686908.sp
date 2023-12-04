@@ -1,6 +1,6 @@
 /*
 *	Unscope Sniper On Shoot
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.10"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.10 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
+1.9 (11-Oct-2021)
+	- Fixed Zoom and Unzoom logic being inverted.
 
 1.8 (02-Jul-2021)
 	- Fixed randommly vocalizing. No more hackish workarounds, zooms and unzooms correctly. Thanks to "Iizuka07" for testing.
@@ -123,7 +129,7 @@ public void OnPluginStart()
 	g_hCvarModesOff =	CreateConVar(	"l4d_unscope_modes_off",		"",								"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =	CreateConVar(	"l4d_unscope_modes_tog",		"0",							"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarRescope =	CreateConVar(	"l4d_unscope_rescope",			"1",							"0=Off. 1=Rescope the view after shooting and reloading bolt action rifles (AWP and Scout).", CVAR_FLAGS );
-	g_hCvarTypes =		CreateConVar(	"l4d_unscope_types",			g_bLeft4Dead2 ? "15" : "1",		"1=Hunting Rifle. L4D2 only: 2=Sniper Military, 4=Sniper AWP, 8=Sniper Scout. 15=All.", CVAR_FLAGS );
+	g_hCvarTypes =		CreateConVar(	"l4d_unscope_types",			g_bLeft4Dead2 ? "15" : "1",		"1=Hunting Rifle. L4D2 only: 2=Sniper Military, 4=Sniper AWP, 8=Sniper Scout. 15=All. Add numbers together.", CVAR_FLAGS );
 	CreateConVar(						"l4d_unscope_version",			PLUGIN_VERSION,					"Unscope Sniper plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,				"l4d_unscope");
 
@@ -164,12 +170,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -271,7 +277,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -288,7 +294,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public Action Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 {
 	int weaponID = event.GetInt("weaponid");
 
@@ -319,7 +325,7 @@ public Action Event_WeaponFire(Event event, const char[] name, bool dontBroadcas
 }
 
 // Prevent scoping while reloading
-public Action Event_WeaponZoom(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponZoom(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iCvarRescope )
 	{
@@ -332,11 +338,10 @@ public Action Event_WeaponZoom(Event event, const char[] name, bool dontBroadcas
 				if( weapon != -1 )
 				{
 					// Verify sniper?
-					int val;
 					static char classname[24];
 					GetEdictClassname(weapon, classname, sizeof(classname));
 
-					if( g_aWeaponIDs.GetValue(classname, val) )
+					if( g_aWeaponIDs.ContainsKey(classname) )
 					{
 						UnzoomWeapon(client);
 					}
@@ -351,7 +356,7 @@ public void OnClientDisconnect(int client)
 	g_hTimerRescope[client] = null;
 }
 
-public Action TimerRescope(Handle timer, any client)
+Action TimerRescope(Handle timer, any client)
 {
 	client = GetClientOfUserId(client);
 	if( client && IsClientInGame(client) )
@@ -365,20 +370,22 @@ public Action TimerRescope(Handle timer, any client)
 			ZoomWeapon(client);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 void UnzoomWeapon(int client)
-{
-	SetEntPropEnt(client, Prop_Send, "m_hZoomOwner", client);
-	SetEntPropFloat(client, Prop_Send, "m_flFOVTime", GetGameTime());
-	SetEntPropFloat(client, Prop_Send, "m_flFOVRate", 0.3000);
-	SetEntProp(client, Prop_Send, "m_iFOV", 40);
-}
-
-void ZoomWeapon(int client)
 {
 	SetEntPropEnt(client, Prop_Send, "m_hZoomOwner", -1);
 	SetEntPropFloat(client, Prop_Send, "m_flFOVTime", 0.0);
 	SetEntPropFloat(client, Prop_Send, "m_flFOVRate", 0.0);
 	SetEntProp(client, Prop_Send, "m_iFOV", 0);
+}
+
+void ZoomWeapon(int client)
+{
+	SetEntPropEnt(client, Prop_Send, "m_hZoomOwner", client);
+	SetEntPropFloat(client, Prop_Send, "m_flFOVTime", GetGameTime());
+	SetEntPropFloat(client, Prop_Send, "m_flFOVRate", 0.3000);
+	SetEntProp(client, Prop_Send, "m_iFOV", 40);
 }

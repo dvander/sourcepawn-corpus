@@ -92,92 +92,92 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Intro;
-static ConVar g_hCvar_Cookies;
-static ConVar g_hCvar_SortEquippedFirst;
-static ConVar g_hCvar_ShowEquippedIcon;
-static ConVar g_hCvar_PistolMagnum;
-static ConVar g_hCvar_PumpShotgun;
-static ConVar g_hCvar_ShotgunChrome;
-static ConVar g_hCvar_AutoShotgun;
-static ConVar g_hCvar_SMGUzi;
-static ConVar g_hCvar_SMGSilenced;
-static ConVar g_hCvar_RifleM16;
-static ConVar g_hCvar_RifleAK47;
-static ConVar g_hCvar_HuntingRifle;
-static ConVar g_hCvar_CricketBat;
-static ConVar g_hCvar_Crowbar;
-static ConVar g_hCvar_Gascan;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Intro;
+ConVar g_hCvar_Cookies;
+ConVar g_hCvar_SortEquippedFirst;
+ConVar g_hCvar_ShowEquippedIcon;
+ConVar g_hCvar_PistolMagnum;
+ConVar g_hCvar_PumpShotgun;
+ConVar g_hCvar_ShotgunChrome;
+ConVar g_hCvar_AutoShotgun;
+ConVar g_hCvar_SMGUzi;
+ConVar g_hCvar_SMGSilenced;
+ConVar g_hCvar_RifleM16;
+ConVar g_hCvar_RifleAK47;
+ConVar g_hCvar_HuntingRifle;
+ConVar g_hCvar_CricketBat;
+ConVar g_hCvar_Crowbar;
+ConVar g_hCvar_Gascan;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Intro;
-static bool   g_bCvar_Cookies;
-static bool   g_bCvar_SortEquippedFirst;
-static bool   g_bCvar_ShowEquippedIcon;
-static bool   g_bCvar_PistolMagnum;
-static bool   g_bCvar_PumpShotgun;
-static bool   g_bCvar_ShotgunChrome;
-static bool   g_bCvar_AutoShotgun;
-static bool   g_bCvar_SMGUzi;
-static bool   g_bCvar_SMGSilenced;
-static bool   g_bCvar_RifleM16;
-static bool   g_bCvar_RifleAK47;
-static bool   g_bCvar_HuntingRifle;
-static bool   g_bCvar_CricketBat;
-static bool   g_bCvar_Crowbar;
-static bool   g_bCvar_Melee;
-static bool   g_bCvar_Gascan;
+bool g_bCvar_Enabled;
+bool g_bCvar_Intro;
+bool g_bCvar_Cookies;
+bool g_bCvar_SortEquippedFirst;
+bool g_bCvar_ShowEquippedIcon;
+bool g_bCvar_PistolMagnum;
+bool g_bCvar_PumpShotgun;
+bool g_bCvar_ShotgunChrome;
+bool g_bCvar_AutoShotgun;
+bool g_bCvar_SMGUzi;
+bool g_bCvar_SMGSilenced;
+bool g_bCvar_RifleM16;
+bool g_bCvar_RifleAK47;
+bool g_bCvar_HuntingRifle;
+bool g_bCvar_CricketBat;
+bool g_bCvar_Crowbar;
+bool g_bCvar_Melee;
+bool g_bCvar_Gascan;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_Intro;
+float g_fCvar_Intro;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iMenuWeaponRef[MAXPLAYERS+1];
-static char   gc_sMenuWeaponSkinName[MAXPLAYERS+1][22];
-static int    gc_iMenuPageIndex[MAXPLAYERS+1];
-static int    gc_iSkin_PistolMagnum[MAXPLAYERS+1];
-static int    gc_iSkin_SMGUzi[MAXPLAYERS+1];
-static int    gc_iSkin_SMGSilenced[MAXPLAYERS+1];
-static int    gc_iSkin_PumpShotgun[MAXPLAYERS+1];
-static int    gc_iSkin_ShotgunChrome[MAXPLAYERS+1];
-static int    gc_iSkin_AutoShotgun[MAXPLAYERS+1];
-static int    gc_iSkin_RifleM16[MAXPLAYERS+1];
-static int    gc_iSkin_RifleAK47[MAXPLAYERS+1];
-static int    gc_iSkin_HuntingRifle[MAXPLAYERS+1];
-static int    gc_iSkin_CricketBat[MAXPLAYERS+1];
-static int    gc_iSkin_Crowbar[MAXPLAYERS+1];
-static int    gc_iSkin_Gascan[MAXPLAYERS+1];
-
-// ====================================================================================================
-// Cookies - Plugin Variables
-// ====================================================================================================
-static Cookie g_ciSkin_PistolMagnum;
-static Cookie g_ciSkin_SMGUzi;
-static Cookie g_ciSkin_SMGSilenced;
-static Cookie g_ciSkin_PumpShotgun;
-static Cookie g_ciSkin_ShotgunChrome;
-static Cookie g_ciSkin_AutoShotgun;
-static Cookie g_ciSkin_RifleM16;
-static Cookie g_ciSkin_RifleAK47;
-static Cookie g_ciSkin_HuntingRifle;
-static Cookie g_ciSkin_CricketBat;
-static Cookie g_ciSkin_Crowbar;
-static Cookie g_ciSkin_Gascan;
+bool gc_bWeaponSwitchPostHooked[MAXPLAYERS+1];
+int gc_iMenuWeaponRef[MAXPLAYERS+1];
+char gc_sMenuWeaponSkinName[MAXPLAYERS+1][22];
+int gc_iMenuPageIndex[MAXPLAYERS+1];
+int gc_iSkin_PistolMagnum[MAXPLAYERS+1];
+int gc_iSkin_SMGUzi[MAXPLAYERS+1];
+int gc_iSkin_SMGSilenced[MAXPLAYERS+1];
+int gc_iSkin_PumpShotgun[MAXPLAYERS+1];
+int gc_iSkin_ShotgunChrome[MAXPLAYERS+1];
+int gc_iSkin_AutoShotgun[MAXPLAYERS+1];
+int gc_iSkin_RifleM16[MAXPLAYERS+1];
+int gc_iSkin_RifleAK47[MAXPLAYERS+1];
+int gc_iSkin_HuntingRifle[MAXPLAYERS+1];
+int gc_iSkin_CricketBat[MAXPLAYERS+1];
+int gc_iSkin_Crowbar[MAXPLAYERS+1];
+int gc_iSkin_Gascan[MAXPLAYERS+1];
 
 // ====================================================================================================
 // StringMap - Plugin Variables
 // ====================================================================================================
-static StringMap g_smWeaponCount;
-static StringMap g_smWeaponName;
+StringMap g_smWeaponCount;
+StringMap g_smWeaponName;
+
+// ====================================================================================================
+// Cookies - Plugin Variables
+// ====================================================================================================
+Cookie g_ciSkin_PistolMagnum;
+Cookie g_ciSkin_SMGUzi;
+Cookie g_ciSkin_SMGSilenced;
+Cookie g_ciSkin_PumpShotgun;
+Cookie g_ciSkin_ShotgunChrome;
+Cookie g_ciSkin_AutoShotgun;
+Cookie g_ciSkin_RifleM16;
+Cookie g_ciSkin_RifleAK47;
+Cookie g_ciSkin_HuntingRifle;
+Cookie g_ciSkin_CricketBat;
+Cookie g_ciSkin_Crowbar;
+Cookie g_ciSkin_Gascan;
 
 // ====================================================================================================
 // Plugin Start
@@ -192,9 +192,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         return APLRes_SilentFailure;
     }
 
-    g_smWeaponCount = new StringMap();
-    g_smWeaponName = new StringMap();
-
     return APLRes_Success;
 }
 
@@ -202,13 +199,16 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    g_smWeaponCount = new StringMap();
+    g_smWeaponName = new StringMap();
+
     LoadPluginTranslations();
 
     CreateConVar("l4d2_wskin_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled           = CreateConVar("l4d2_wskin_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Intro             = CreateConVar("l4d2_wskin_intro", "60.0", "Show intro message in chat this many seconds after a client joins.\n0 = OFF.", CVAR_FLAGS, true, 0.0);
     g_hCvar_SortEquippedFirst = CreateConVar("l4d2_wskin_sort_equipped_first", "1", "Equipped weapons appear first in the menu.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_ShowEquippedIcon  = CreateConVar("l4d2_wskin_show_equipped_icon", "1", "Shows a different icon for equipped weapons in menu if sorted (l4d2_wskin_sort_equipped_first = \"1\").\n❶ for primary weapons, ❷ for secondary weapons.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_ShowEquippedIcon  = CreateConVar("l4d2_wskin_show_equipped_icon", "1", "Shows a different icon for equipped weapons in menu if sorted (l4d2_wskin_sort_equipped_first = \"1\").\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Cookies           = CreateConVar("l4d2_wskin_cookies", "1", "Allow cookies for storing client preferences.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PistolMagnum      = CreateConVar("l4d2_wskin_pistol_magnum", "1", "Weapon skin option for Pistol Magnum.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PumpShotgun       = CreateConVar("l4d2_wskin_pump_shotgun", "1", "Weapon skin option for Pump Shotgun.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -259,18 +259,18 @@ public void OnPluginStart()
     g_ciSkin_Crowbar = new Cookie("l4d2_wskin_crowbar", "Weapons Skins Menu Cookie - Crowbar Melee", CookieAccess_Protected);
     g_ciSkin_Gascan = new Cookie("l4d2_wskin_gascan", "Weapons Skins Menu Cookie - Gascan", CookieAccess_Protected);
 
-    // Public Commands
+    // Commands
     RegConsoleCmd("sm_wskin", CmdWSkin, "Opens a menu to select and configure the weapon skins.");
 
     // Admin Commands
     RegAdminCmd("sm_getwskin", CmdGetWeaponSkin, ADMFLAG_ROOT, "Output to the chat the target skin/classname/model value of entities with \"weapon_*\" classname.");
-    RegAdminCmd("sm_setwskin", CmdSetWeaponSkin, ADMFLAG_ROOT, "Set the target skin value of entities with \"weapon_*\" classname. Usage: !setwskin <value>.");
+    RegAdminCmd("sm_setwskin", CmdSetWeaponSkin, ADMFLAG_ROOT, "Set the target skin value of entities with \"weapon_*\" classname. Usage: sm_setwskin <value>.");
     RegAdminCmd("sm_print_cvars_l4d2_wskin", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
 }
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -286,21 +286,19 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_Intro = g_hCvar_Intro.FloatValue;
@@ -327,7 +325,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void BuildMaps()
+void BuildMaps()
 {
     g_smWeaponCount.Clear();
     g_smWeaponName.Clear();
@@ -407,7 +405,7 @@ public void BuildMaps()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -425,12 +423,13 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     if (IsFakeClient(client))
         return;
 
+    if (gc_bWeaponSwitchPostHooked[client])
+        return;
+
+    gc_bWeaponSwitchPostHooked[client] = true;
     SDKHook(client, SDKHook_WeaponSwitchPost, OnWeaponSwitchPost);
 
     if (g_bCvar_Intro)
@@ -441,6 +440,7 @@ public void OnClientPutInServer(int client)
 
 public void OnClientDisconnect(int client)
 {
+    gc_bWeaponSwitchPostHooked[client] = false;
     gc_iMenuWeaponRef[client] = 0;
     gc_sMenuWeaponSkinName[client] = "";
     gc_iMenuPageIndex[client] = 0;
@@ -465,56 +465,63 @@ public void OnClientCookiesCached(int client)
     if (IsFakeClient(client))
         return;
 
-    if (!g_bConfigLoaded)
-        return;
-
     if (!g_bCvar_Cookies)
         return;
 
-    char sValue[2];
+    char cookiePistolMagnum[2];
+    g_ciSkin_PistolMagnum.Get(client, cookiePistolMagnum, sizeof(cookiePistolMagnum));
+    gc_iSkin_PistolMagnum[client] = StringToInt(cookiePistolMagnum);
 
-    g_ciSkin_PistolMagnum.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_PistolMagnum[client] = StringToInt(sValue);
+    char cookieSMGUzi[2];
+    g_ciSkin_SMGUzi.Get(client, cookieSMGUzi, sizeof(cookieSMGUzi));
+    gc_iSkin_SMGUzi[client] = StringToInt(cookieSMGUzi);
 
-    g_ciSkin_SMGUzi.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_SMGUzi[client] = StringToInt(sValue);
+    char cookieSMGSilenced[2];
+    g_ciSkin_SMGSilenced.Get(client, cookieSMGSilenced, sizeof(cookieSMGSilenced));
+    gc_iSkin_SMGSilenced[client] = StringToInt(cookieSMGSilenced);
 
-    g_ciSkin_SMGSilenced.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_SMGSilenced[client] = StringToInt(sValue);
+    char cookiePumpShotgun[2];
+    g_ciSkin_PumpShotgun.Get(client, cookiePumpShotgun, sizeof(cookiePumpShotgun));
+    gc_iSkin_PumpShotgun[client] = StringToInt(cookiePumpShotgun);
 
-    g_ciSkin_PumpShotgun.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_PumpShotgun[client] = StringToInt(sValue);
+    char cookieShotgunChrome[2];
+    g_ciSkin_ShotgunChrome.Get(client, cookieShotgunChrome, sizeof(cookieShotgunChrome));
+    gc_iSkin_ShotgunChrome[client] = StringToInt(cookieShotgunChrome);
 
-    g_ciSkin_ShotgunChrome.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_ShotgunChrome[client] = StringToInt(sValue);
+    char cookieAutoShotgun[2];
+    g_ciSkin_AutoShotgun.Get(client, cookieAutoShotgun, sizeof(cookieAutoShotgun));
+    gc_iSkin_AutoShotgun[client] = StringToInt(cookieAutoShotgun);
 
-    g_ciSkin_AutoShotgun.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_AutoShotgun[client] = StringToInt(sValue);
+    char cookieRifleM16[2];
+    g_ciSkin_RifleM16.Get(client, cookieRifleM16, sizeof(cookieRifleM16));
+    gc_iSkin_RifleM16[client] = StringToInt(cookieRifleM16);
 
-    g_ciSkin_RifleM16.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_RifleM16[client] = StringToInt(sValue);
+    char cookieRifleAK47[2];
+    g_ciSkin_RifleAK47.Get(client, cookieRifleAK47, sizeof(cookieRifleAK47));
+    gc_iSkin_RifleAK47[client] = StringToInt(cookieRifleAK47);
 
-    g_ciSkin_RifleAK47.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_RifleAK47[client] = StringToInt(sValue);
+    char cookieHuntingRifle[2];
+    g_ciSkin_HuntingRifle.Get(client, cookieHuntingRifle, sizeof(cookieHuntingRifle));
+    gc_iSkin_HuntingRifle[client] = StringToInt(cookieHuntingRifle);
 
-    g_ciSkin_HuntingRifle.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_HuntingRifle[client] = StringToInt(sValue);
+    char cookieCricketBat[2];
+    g_ciSkin_CricketBat.Get(client, cookieCricketBat, sizeof(cookieCricketBat));
+    gc_iSkin_CricketBat[client] = StringToInt(cookieCricketBat);
 
-    g_ciSkin_CricketBat.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_CricketBat[client] = StringToInt(sValue);
+    char cookieCrowbar[2];
+    g_ciSkin_Crowbar.Get(client, cookieCrowbar, sizeof(cookieCrowbar));
+    gc_iSkin_Crowbar[client] = StringToInt(cookieCrowbar);
 
-    g_ciSkin_Crowbar.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_Crowbar[client] = StringToInt(sValue);
-
-    g_ciSkin_Gascan.Get(client, sValue, sizeof(sValue));
-    gc_iSkin_Gascan[client] = StringToInt(sValue);
+    char cookieGascan[2];
+    g_ciSkin_Gascan.Get(client, cookieGascan, sizeof(cookieGascan));
+    gc_iSkin_Gascan[client] = StringToInt(cookieGascan);
 
     UpdateClientWeaponSkin(client);
 }
 
 /****************************************************************************************************/
 
-public void OnWeaponSwitchPost(int client, int weapon)
+void OnWeaponSwitchPost(int client, int weapon)
 {
     if (!IsValidEntity(weapon))
         return;
@@ -524,7 +531,7 @@ public void OnWeaponSwitchPost(int client, int weapon)
 
 /****************************************************************************************************/
 
-public void UpdateClientWeaponSkin(int client)
+void UpdateClientWeaponSkin(int client)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -539,10 +546,10 @@ public void UpdateClientWeaponSkin(int client)
 
     int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-    if (!IsValidEntity(activeWeapon))
+    if (activeWeapon == -1)
         return;
 
-    char classname[22];
+    char classname[36];
     GetEntityClassname(activeWeapon, classname, sizeof(classname));
 
     int skin = -1;
@@ -649,38 +656,40 @@ public void UpdateClientWeaponSkin(int client)
 
     SetEntProp(activeWeapon, Prop_Send, "m_nSkin", skin);
 
-    int viewWeapon = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
+    int viewModel = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
 
-    if (!IsValidEntity(viewWeapon))
+    if (viewModel == -1)
         return;
 
-    SetEntProp(viewWeapon, Prop_Send, "m_nSkin", skin);
+    SetEntProp(viewModel, Prop_Send, "m_nSkin", skin);
 }
 
 /****************************************************************************************************/
 
-public Action TimerIntro(Handle timer, int userid)
+Action TimerIntro(Handle timer, int userid)
 {
     if (!g_bCvar_Enabled)
-        return;
+        return Plugin_Stop;
 
     int client = GetClientOfUserId(userid);
 
-    if (!IsValidClient(client))
-        return;
+    if (client == 0)
+        return Plugin_Stop;
 
     int team = GetClientTeam(client);
 
     if (team != TEAM_SURVIVOR && team != TEAM_HOLDOUT)
-        return;
+        return Plugin_Stop;
 
     CPrintToChat(client, "%t", "Intro");
+
+    return Plugin_Stop;
 }
 
 // ====================================================================================================
-// Public Commands
+// Commands
 // ====================================================================================================
-public Action CmdWSkin(int client, int args)
+Action CmdWSkin(int client, int args)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Handled;
@@ -698,21 +707,21 @@ public Action CmdWSkin(int client, int args)
 // ====================================================================================================
 // Menus
 // ====================================================================================================
-public void CreateWeaponMenu(int client)
+void CreateWeaponMenu(int client)
 {
     Menu menu = new Menu(HandleWeaponMenu);
     menu.SetTitle("%T", "Weapon skins", client);
 
-    char sWeaponSlot1[22];
-    char sWeaponSlot2[22];
-    char sWeaponSlot5[22];
+    char sWeaponSlot1[36];
+    char sWeaponSlot2[36];
+    char sWeaponSlot5[36];
     char buffer[19];
 
     if (g_bCvar_SortEquippedFirst)
     {
         int entity;
-        char sTemp[22];
-        char sTemp2[22];
+        char sTemp[36];
+        char sTemp2[36];
 
         entity = GetPlayerWeaponSlot(client, 0);
 
@@ -865,14 +874,16 @@ public void CreateWeaponMenu(int client)
 
 /****************************************************************************************************/
 
-public int HandleWeaponMenu(Menu menu, MenuAction action, int client, int args)
+int HandleWeaponMenu(Menu menu, MenuAction action, int param1, int param2)
 {
     switch (action)
     {
         case MenuAction_Select:
         {
+            int client = param1;
+
             char sArg[22];
-            menu.GetItem(args, sArg, sizeof(sArg));
+            menu.GetItem(param2, sArg, sizeof(sArg));
 
             gc_iMenuPageIndex[client] = GetMenuSelectionPosition();
             gc_sMenuWeaponSkinName[client] = sArg;
@@ -890,7 +901,7 @@ public int HandleWeaponMenu(Menu menu, MenuAction action, int client, int args)
 
 /****************************************************************************************************/
 
-public void CreateWeaponSkinMenu(int client)
+void CreateWeaponSkinMenu(int client)
 {
     char sArg[22];
     sArg = gc_sMenuWeaponSkinName[client];
@@ -936,8 +947,7 @@ public void CreateWeaponSkinMenu(int client)
     for (int i = 0; i <= count; i++)
     {
         FormatEx(sSkin, sizeof(sSkin), "%s %s %i", skin == i ? "☑" : "☐", Translate(client, "%t", "Skin"), i + 1);
-        FormatEx(sSkinIndex, sizeof(sSkinIndex), "%i", i);
-
+        IntToString(i, sSkinIndex, sizeof(sSkinIndex));
         menu.AddItem(sSkinIndex, sSkin);
     }
 
@@ -946,14 +956,16 @@ public void CreateWeaponSkinMenu(int client)
 
 /****************************************************************************************************/
 
-public int HandleWeaponSkinMenu(Menu menu, MenuAction action, int client, int args)
+int HandleWeaponSkinMenu(Menu menu, MenuAction action, int param1, int param2)
 {
     switch (action)
     {
         case MenuAction_Select:
         {
+            int client = param1;
+
             char sArg[10];
-            menu.GetItem(args, sArg, sizeof(sArg));
+            menu.GetItem(param2, sArg, sizeof(sArg));
 
             int skin = StringToInt(sArg);
 
@@ -1030,7 +1042,9 @@ public int HandleWeaponSkinMenu(Menu menu, MenuAction action, int client, int ar
         }
         case MenuAction_Cancel:
         {
-            if (args == MenuCancel_ExitBack)
+            int client = param1;
+
+            if (param2 == MenuCancel_ExitBack)
                 CreateWeaponMenu(client);
         }
         case MenuAction_End:
@@ -1045,7 +1059,7 @@ public int HandleWeaponSkinMenu(Menu menu, MenuAction action, int client, int ar
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdGetWeaponSkin(int client, int args)
+Action CmdGetWeaponSkin(int client, int args)
 {
     if (!IsValidClient(client))
         return Plugin_Handled;
@@ -1061,7 +1075,7 @@ public Action CmdGetWeaponSkin(int client, int args)
     char classname[36];
     GetEntityClassname(entity, classname, sizeof(classname));
 
-    if (classname[0] != 'w' && classname[1] != 'e') // weapon_*
+    if (classname[0] != 'w' || classname[1] != 'e') // weapon_*
     {
         PrintToChat(client, "\x05Invalid target. \x03Usable only on entities with \x04weapon_* \x03classname.");
         return Plugin_Handled;
@@ -1069,7 +1083,7 @@ public Action CmdGetWeaponSkin(int client, int args)
 
     int skin = GetEntProp(entity, Prop_Send, "m_nSkin");
 
-    char modelname[64];
+    char modelname[PLATFORM_MAX_PATH];
     GetEntPropString(entity, Prop_Data, "m_ModelName", modelname, sizeof(modelname));
 
     PrintToChat(client, "\x05Skin: \x03%i\n\x05Class: \x03%s\n\x05Model: \x03%s", skin, classname, modelname);
@@ -1079,7 +1093,7 @@ public Action CmdGetWeaponSkin(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdSetWeaponSkin(int client, int args)
+Action CmdSetWeaponSkin(int client, int args)
 {
     if (!IsValidClient(client))
         return Plugin_Handled;
@@ -1101,7 +1115,7 @@ public Action CmdSetWeaponSkin(int client, int args)
     char classname[36];
     GetEntityClassname(entity, classname, sizeof(classname));
 
-    if (classname[0] != 'w' && classname[1] != 'e') // weapon_*
+    if (classname[0] != 'w' || classname[1] != 'e') // weapon_*
     {
         PrintToChat(client, "\x05Invalid target. \x03Usable only on entities with \x04weapon_* \x03classname.");
         return Plugin_Handled;
@@ -1109,7 +1123,7 @@ public Action CmdSetWeaponSkin(int client, int args)
 
     int skin_old = GetEntProp(entity, Prop_Send, "m_nSkin");
 
-    char sTemp[256];
+    char sTemp[3];
     GetCmdArg(1, sTemp, sizeof(sTemp));
 
     int skin_new = StringToInt(sTemp);
@@ -1126,7 +1140,7 @@ public Action CmdSetWeaponSkin(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1135,7 +1149,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_wskin_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_wskin_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_wskin_intro : %.2f (%s)", g_fCvar_Intro, g_bCvar_Intro ? "true" : "false");
+    PrintToConsole(client, "l4d2_wskin_intro : %.1f (%s)", g_fCvar_Intro, g_bCvar_Intro ? "true" : "false");
     PrintToConsole(client, "l4d2_wskin_cookies : %b (%s)", g_bCvar_Cookies, g_bCvar_Cookies ? "true" : "false");
     PrintToConsole(client, "l4d2_wskin_sort_equipped_first : %b (%s)", g_bCvar_SortEquippedFirst, g_bCvar_SortEquippedFirst ? "true" : "false");
     PrintToConsole(client, "l4d2_wskin_show_equipped_icon : %b (%s)", g_bCvar_ShowEquippedIcon, g_bCvar_ShowEquippedIcon ? "true" : "false");
@@ -1214,7 +1228,7 @@ char[] Translate(int client, const char[] message, any ...)
  *
  * On error/Errors:       If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

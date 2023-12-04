@@ -6,11 +6,12 @@
 
 #pragma semicolon 1
 #pragma newdecls required
-#define PLUGIN_VERSION "1.5"
+#define PLUGIN_VERSION "1.6"
 
 Handle g_hWearableEquip;
 Cookie g_hClientItems[16];
-bool b_Transmit[MAXPLAYERS + 1] = false;
+Cookie g_hClientClass;
+bool b_Transmit[MAXPLAYERS + 1] = {false, ...};
 
 public Plugin myinfo = 
 {
@@ -69,6 +70,8 @@ public void OnPluginStart()
 	g_hClientItems[13] = new Cookie("wearit3_index", "", CookieAccess_Private);
 	g_hClientItems[14] = new Cookie("wearit3_effect", "", CookieAccess_Private);
 	g_hClientItems[15] = new Cookie("wearit3_paint", "", CookieAccess_Private);	
+	
+	g_hClientClass = new Cookie("don_class", "", CookieAccess_Private);
 
 	HookEvent("post_inventory_application", EventInventoryApplication, EventHookMode_Post);	
 	HookEvent("player_changeclass", EventChangeClass, EventHookMode_Post);
@@ -101,7 +104,15 @@ public Action Command_Strip(int client, int args)
 	}
 	for (int i = 0; i < target_count; i++)
 	{
+		//ServerCommand("tf_models_remove #%d", GetClientUserId(target_list[i]));	
+	
 		TF2_RemoveAllWearables(target_list[i]);
+		
+		SetVariantString("");
+		AcceptEntityInput(target_list[i], "SetCustomModel");
+		SetEntProp(target_list[i], Prop_Send, "m_bCustomModelRotates", 0);
+		SetVariantString("ParticleEffectStop");
+		AcceptEntityInput(target_list[i], "DispatchEffect");
 
 		g_hClientItems[0].Set(target_list[i], "-1");		
 		g_hClientItems[1].Set(target_list[i], "-1");
@@ -136,6 +147,8 @@ public Action Command_HideHats(int client, int args)
 		PrintToChat(client, "You can now see !Wearit cosmetics");
 		b_Transmit[client] = false;
 	}
+	
+	return Plugin_Handled;
 }
 
 public Action Hook_SetTransmit(int entity, int client)
@@ -233,7 +246,12 @@ public Action Command_Don(int client, int args)
 		TF2_RemoveAllWearables(client);
 		CreateHat(client, itemIndex1, 10, 6, itemIndex6, itemIndex7); //First Cosmetic with effect
 		g_hClientItems[0].Set(client, buffer1);
-		g_hClientItems[5].Set(client, buffer6);		
+		g_hClientItems[5].Set(client, buffer6);	
+
+		char sPlayerClass[32];
+		int iPlayerClass = view_as<int>(TF2_GetPlayerClass(client));
+		IntToString(iPlayerClass, sPlayerClass, sizeof(sPlayerClass));
+		g_hClientClass.Set(client, sPlayerClass);		
 	}
 	
 	if (itemIndex1 > 0 && itemIndex6 < 1)
@@ -241,6 +259,11 @@ public Action Command_Don(int client, int args)
 		TF2_RemoveAllWearables(client);
 		CreateHat(client, itemIndex1, 10, 6, 0, itemIndex7); //First Cosmetic and no effect
 		g_hClientItems[0].Set(client, buffer1);
+		
+		char sPlayerClass[32];
+		int iPlayerClass = view_as<int>(TF2_GetPlayerClass(client));
+		IntToString(iPlayerClass, sPlayerClass, sizeof(sPlayerClass));
+		g_hClientClass.Set(client, sPlayerClass);		
 	}
 	
 	//--- Set Index2
@@ -338,7 +361,12 @@ public Action Command_Don1(int client, int args)
 	else
 	{
 		TF2_RemoveAllWearables(client);
-		g_hClientItems[7].Set(client, buffer1);		
+		g_hClientItems[7].Set(client, buffer1);
+
+		char sPlayerClass[32];
+		int iPlayerClass = view_as<int>(TF2_GetPlayerClass(client));
+		IntToString(iPlayerClass, sPlayerClass, sizeof(sPlayerClass));
+		g_hClientClass.Set(client, sPlayerClass);		
 	}
 	
 	GetCmdArg(2, buffer2, sizeof(buffer2)); //effect
@@ -662,22 +690,29 @@ public void EventChangeClass(Handle event, const char[] name, bool dontBroadcast
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if(IsClientInGame(client) && client > 0)
 	{
-		g_hClientItems[0].Set(client, "-1");		
-		g_hClientItems[1].Set(client, "-1");
-		g_hClientItems[2].Set(client, "-1");
-		g_hClientItems[3].Set(client, "-1");
-		g_hClientItems[4].Set(client, "-1");
-		g_hClientItems[5].Set(client, "-1");
-		g_hClientItems[6].Set(client, "-1");
-		g_hClientItems[7].Set(client, "-1");
-		g_hClientItems[8].Set(client, "-1");
-		g_hClientItems[9].Set(client, "-1");
-		g_hClientItems[10].Set(client, "-1");
-		g_hClientItems[11].Set(client, "-1");
-		g_hClientItems[12].Set(client, "-1");
-		g_hClientItems[13].Set(client, "-1");
-		g_hClientItems[14].Set(client, "-1");
-		g_hClientItems[15].Set(client, "-1");		
+		char sPlayerClass[32];
+		g_hClientClass.Get(client, sPlayerClass, 32);
+		int iEventPlayerClass = view_as<int>(GetEventInt(event, "class"));
+		int iPlayerClass = StringToInt(sPlayerClass);
+		if (iPlayerClass > 0 && iPlayerClass!= iEventPlayerClass)
+		{
+			g_hClientItems[0].Set(client, "-1");		
+			g_hClientItems[1].Set(client, "-1");
+			g_hClientItems[2].Set(client, "-1");
+			g_hClientItems[3].Set(client, "-1");
+			g_hClientItems[4].Set(client, "-1");
+			g_hClientItems[5].Set(client, "-1");
+			g_hClientItems[6].Set(client, "-1");
+			g_hClientItems[7].Set(client, "-1");
+			g_hClientItems[8].Set(client, "-1");
+			g_hClientItems[9].Set(client, "-1");
+			g_hClientItems[10].Set(client, "-1");
+			g_hClientItems[11].Set(client, "-1");
+			g_hClientItems[12].Set(client, "-1");
+			g_hClientItems[13].Set(client, "-1");
+			g_hClientItems[14].Set(client, "-1");
+			g_hClientItems[15].Set(client, "-1");
+		}
 	}
 }
 
@@ -842,22 +877,28 @@ public void EventInventoryApplication(Handle event, const char[] name, bool dont
 
 public void OnClientPostAdminCheck(int client)
 {
-	g_hClientItems[0].Set(client, "-1");
-	g_hClientItems[1].Set(client, "-1");
-	g_hClientItems[2].Set(client, "-1");
-	g_hClientItems[3].Set(client, "-1");
-	g_hClientItems[4].Set(client, "-1");
-	g_hClientItems[5].Set(client, "-1");
-	g_hClientItems[6].Set(client, "-1");
-	g_hClientItems[7].Set(client, "-1");
-	g_hClientItems[8].Set(client, "-1");
-	g_hClientItems[9].Set(client, "-1");
-	g_hClientItems[10].Set(client, "-1");
-	g_hClientItems[11].Set(client, "-1");
-	g_hClientItems[12].Set(client, "-1");
-	g_hClientItems[13].Set(client, "-1");
-	g_hClientItems[14].Set(client, "-1");
-	g_hClientItems[15].Set(client, "-1");	
+	char sPlayerClass[32];
+	g_hClientClass.Get(client, sPlayerClass, 32);
+	int iPlayerClass = StringToInt(sPlayerClass);
+	if (iPlayerClass < 1)
+	{
+		g_hClientItems[0].Set(client, "-1");
+		g_hClientItems[1].Set(client, "-1");
+		g_hClientItems[2].Set(client, "-1");
+		g_hClientItems[3].Set(client, "-1");
+		g_hClientItems[4].Set(client, "-1");
+		g_hClientItems[5].Set(client, "-1");
+		g_hClientItems[6].Set(client, "-1");
+		g_hClientItems[7].Set(client, "-1");
+		g_hClientItems[8].Set(client, "-1");
+		g_hClientItems[9].Set(client, "-1");
+		g_hClientItems[10].Set(client, "-1");
+		g_hClientItems[11].Set(client, "-1");
+		g_hClientItems[12].Set(client, "-1");
+		g_hClientItems[13].Set(client, "-1");
+		g_hClientItems[14].Set(client, "-1");
+		g_hClientItems[15].Set(client, "-1");
+	}
 }
 
 bool CreateHat(int client, int itemindex, int level = 10, int quality = 1, int effect = 0, int paint = 0)
@@ -889,147 +930,147 @@ bool CreateHat(int client, int itemindex, int level = 10, int quality = 1, int e
 		{
 		case 1:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 3100495.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 3100495.0); //A color similar to slate
 				TF2Attrib_SetByDefIndex(hat, 261, 3100495.0);
 			}
 		case 2:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 8208497.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 8208497.0); //A deep commitment to purple
 				TF2Attrib_SetByDefIndex(hat, 261, 8208497.0);
 			}
 		case 3:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 1315860.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 1315860.0); //A distinctive lack of hue
 				TF2Attrib_SetByDefIndex(hat, 261, 1315860.0);
 			}
 		case 4:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 12377523.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 12377523.0); //A mann's mint
 				TF2Attrib_SetByDefIndex(hat, 261, 12377523.0);
 			}
 		case 5:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 2960676.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 2960676.0); //After eight
 				TF2Attrib_SetByDefIndex(hat, 261, 2960676.0);
 			}
 		case 6:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 8289918.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 8289918.0); //Aged Moustache Grey
 				TF2Attrib_SetByDefIndex(hat, 261, 8289918.0);
 			}
 		case 7:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 15132390.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 15132390.0); //An Extraordinary abundance of tinge
 				TF2Attrib_SetByDefIndex(hat, 261, 15132390.0);
 			}
 		case 8:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 15185211.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 15185211.0); //Australium gold
 				TF2Attrib_SetByDefIndex(hat, 261, 15185211.0);
 			}
 		case 9:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 14204632.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 14204632.0); //Color no 216-190-216
 				TF2Attrib_SetByDefIndex(hat, 261, 14204632.0);
 			}
 		case 10:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 15308410.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 15308410.0); //Dark salmon injustice
 				TF2Attrib_SetByDefIndex(hat, 261, 15308410.0);
 			}
 		case 11:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 8421376.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 8421376.0); //Drably olive
 				TF2Attrib_SetByDefIndex(hat, 261, 8421376.0);
 			}
 		case 12:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 7511618.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 7511618.0); //Indubitably green
 				TF2Attrib_SetByDefIndex(hat, 261, 7511618.0);
 			}
 		case 13:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 13595446.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 13595446.0); //Mann co orange
 				TF2Attrib_SetByDefIndex(hat, 261, 13595446.0);
 			}
 		case 14:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 10843461.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 10843461.0); //Muskelmannbraun
 				TF2Attrib_SetByDefIndex(hat, 261, 10843461.0);
 			}
 		case 15:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 5322826.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 5322826.0); //Noble hatters violet
 				TF2Attrib_SetByDefIndex(hat, 261, 5322826.0);
 			}
 		case 16:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 12955537.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 12955537.0); //Peculiarly drab tincture
 				TF2Attrib_SetByDefIndex(hat, 261, 12955537.0);
 			}
 		case 17:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 16738740.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 16738740.0); //Pink as hell
 				TF2Attrib_SetByDefIndex(hat, 261, 16738740.0);
 			}
 		case 18:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 6901050.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 6901050.0); //Radigan conagher brown
 				TF2Attrib_SetByDefIndex(hat, 261, 6901050.0);
 			}
 		case 19:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 3329330.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 3329330.0); //A bitter taste of defeat and lime
 				TF2Attrib_SetByDefIndex(hat, 261, 3329330.0);
 			}
 		case 20:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 15787660.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 15787660.0); //The color of a gentlemanns business pants
 				TF2Attrib_SetByDefIndex(hat, 261, 15787660.0);
 			}
 		case 21:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 8154199.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 8154199.0); //Ye olde rustic colour
 				TF2Attrib_SetByDefIndex(hat, 261, 8154199.0);
 			}
 		case 22:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 4345659.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 4345659.0); //Zepheniahs greed
 				TF2Attrib_SetByDefIndex(hat, 261, 4345659.0);
 			}
 		case 23:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 6637376.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 6637376.0); //An air of debonair
 				TF2Attrib_SetByDefIndex(hat, 261, 2636109.0);
 			}
 		case 24:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 3874595.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 3874595.0); //Balaclavas are forever
 				TF2Attrib_SetByDefIndex(hat, 261, 1581885.0);
 			}
 		case 25:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 12807213.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 12807213.0); //Cream spirit
 				TF2Attrib_SetByDefIndex(hat, 261, 12091445.0);
 			}
 		case 26:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 4732984.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 4732984.0); //Operators overalls
 				TF2Attrib_SetByDefIndex(hat, 261, 3686984.0);
 			}
 		case 27:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 12073019.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 12073019.0); //Team spirit
 				TF2Attrib_SetByDefIndex(hat, 261, 5801378.0);
 			}
 		case 28:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 8400928.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 8400928.0); //The value of teamwork
 				TF2Attrib_SetByDefIndex(hat, 261, 2452877.0);
 			}
 		case 29:
 			{
-				TF2Attrib_SetByDefIndex(hat, 142, 11049612.0);
+				TF2Attrib_SetByDefIndex(hat, 142, 11049612.0); //Waterlogged lab coat
 				TF2Attrib_SetByDefIndex(hat, 261, 8626083.0);
 			}
 		}
@@ -1063,6 +1104,8 @@ stock Action TF2_RemoveAllWearables(int client)
 {
 	RemoveWearable(client, "tf_wearable", "CTFWearable");
 	RemoveWearable(client, "tf_powerup_bottle", "CTFPowerupBottle");
+	
+	return Plugin_Handled;	
 }
 
 stock Action RemoveWearable(int client, char[] classname, char[] networkclass)
@@ -1082,4 +1125,6 @@ stock Action RemoveWearable(int client, char[] classname, char[] networkclass)
 			}
 		}
 	}
+	
+	return Plugin_Handled;	
 }

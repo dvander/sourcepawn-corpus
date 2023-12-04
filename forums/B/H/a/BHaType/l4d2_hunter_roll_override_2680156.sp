@@ -3,71 +3,109 @@
 
 #include <sourcemod>
 #include <sdktools>
-#include <dhooks>
+
+#include <left4dhooks>
 
 public Plugin myinfo =
 {
-	name = "[L4D2] Hunter Roll Anim",
-	author = "BHaType",
-	description = "Overrides hunter animation",
-	version = "0.1",
-	url = ""
+    name = "[L4D2] Hunter Roll Anim",
+    author = "BHaType",
+    description = "Overrides hunter animation (now with chance)",
+    version = "0.2",
+    url = ""
 }
 
-Handle hSequence;
-
-static const int g_iSequesec[] =
+enum
 {
-	767,
-	765,
-	768,
-	624,
-	623,
-	622,
-	621
+    STATE_NONE,
+    STATE_SHOVED,
+    STATE_ROLL,
+    STATE_DEFAULT
 };
+
+static const char g_SequenceMatch[][] =
+{
+    "ACT_TERROR_HUNTER_POUNCE_KNOCKOFF_L",
+    "ACT_TERROR_HUNTER_POUNCE_KNOCKOFF_BACKWARD",
+    "ACT_TERROR_HUNTER_POUNCE_KNOCKOFF_FORWARD",
+    "ACT_TERROR_SHOVED_FORWARD",
+    "ACT_TERROR_SHOVED_BACKWARD",
+    "ACT_TERROR_SHOVED_LEFTWARD",
+    "ACT_TERROR_SHOVED_RIGHTWARD"
+};
+
+ConVar sm_hunter_roll_animation_chance;
 
 public void OnPluginStart()
 {
-	Handle hConf = LoadGameConfigFile("l4d_hunter_roll");
-	
-	hSequence = DHookCreate(GameConfGetOffset(hConf, "Sequence"), HookType_Entity, ReturnType_Int, ThisPointer_CBaseEntity, OnSequenceSelect);
-	DHookAddParam(hSequence, HookParamType_Int);
-	
-	delete hConf;
+    sm_hunter_roll_animation_chance = CreateConVar("sm_hunter_roll_animation_chance", "50.0", "Chance of roll animation");
 }
 
-public MRESReturn OnSequenceSelect(int client, Handle hReturn, Handle hParams)
-{
-	if (!IsClientInGame(client) || GetClientTeam(client) != 3 || !IsPlayerAlive(client) || GetEntProp(client, Prop_Send, "m_zombieClass") != 3)
-		return MRES_Ignored;
-	
-	int iSequence = DHookGetParam(hParams, 1);
-	
-	for (int i; i < sizeof g_iSequesec; i++)
-	{
-		if (g_iSequesec[i] == iSequence)
-		{
-			DHookSetParam(hParams, 1, 39);
-			DHookSetReturn(hReturn, 39);
-
-			return MRES_ChangedOverride;
-		}
-	}
-
-	return MRES_Ignored;
-}
- 
 public void OnClientPutInServer(int client)
 {
-	DHookEntity(hSequence, false, client);
+    AnimHookEnable(client, AnimHook);
 }
  
 public void OnAllPluginsLoaded()
 {
-	for (int client = 1; client <= MaxClients; client++)
-	{
-		if (IsClientInGame(client) && GetClientTeam(client) == 3)
-			DHookEntity(hSequence, false, client);
-	}
+    for (int i = 1; i <= MaxClients; i++)
+    {
+        if (IsClientInGame(i))
+        {
+            OnClientPutInServer(i);
+        }
+    }
+}
+
+Action AnimHook(int client, int &sequence)
+{
+    if (!ShouldOverrideAnimtion(client, sequence))
+        return Plugin_Continue;
+
+    sequence = AnimGetFromActivity("ACT_TERROR_HUNTER_POUNCE_KNOCKOFF_R");
+    return Plugin_Changed;
+}
+
+bool ShouldOverrideAnimtion(int client, int sequence)
+{
+    static int state[MAXPLAYERS + 1];
+
+    if (GetClientTeam(client) != 3)
+        return false;
+
+    if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Hunter)
+        return false;
+
+    if (state[client] == STATE_NONE && IsMatchedSequence(sequence))
+        state[client] = STATE_SHOVED;
+
+    if (state[client] == STATE_SHOVED)
+    {
+        if (sm_hunter_roll_animation_chance.FloatValue >= GetRandomFloat(1.0, 100.0))
+        {
+            state[client] = STATE_ROLL;
+        }
+        else
+        {
+            state[client] = STATE_DEFAULT;
+        }
+    }
+
+    if (state[client] != STATE_NONE && !L4D_IsPlayerStaggering(client))
+        state[client] = STATE_NONE;
+    
+    return state[client] == STATE_ROLL;
+}
+
+bool IsMatchedSequence(int sequence)
+{
+    for(int i; i < sizeof g_SequenceMatch; i++)
+    {
+        if (AnimGetFromActivity(g_SequenceMatch[i]) == sequence)
+        {
+            return true;
+        }
+    }
+    
+    return false;
 }

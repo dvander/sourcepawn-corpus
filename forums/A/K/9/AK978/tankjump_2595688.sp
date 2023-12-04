@@ -6,18 +6,20 @@
 new Handle:StopTime[MAXPLAYERS+1] = {	INVALID_HANDLE, ...};
 new Handle:g_enable = INVALID_HANDLE;
 new Handle:chance = INVALID_HANDLE;
+new Handle:jump_time = INVALID_HANDLE;
 
 new g_iVelocity	= -1;
 
 public Plugin:myinfo = {
 	name = "[L4D2]Tank Jump",
 	author = "AK978",
-	version = "1.1"
+	version = "1.2"
 }
 
 public OnPluginStart(){
 	g_enable = CreateConVar("l4d2_tankjump_enable", "1", " 0:關閉  , 1: 啟動");
 	chance = CreateConVar("l4d2_tankjump_chance", "30.0", "Tank Jump Chance");
+	jump_time = CreateConVar("l4d2_tankjump_time", "1.0", "Tank Jump Time");
 	
 	HookEvent("tank_spawn", Event_Tank_Spawn);
 	
@@ -34,13 +36,15 @@ public Action:Event_Tank_Spawn(Handle:event, const String:name[], bool:dontBroad
 			new Float:p=GetConVarFloat(chance);
 			new Float:r=GetRandomFloat(0.0, 100.0);
 			if(r<p){		
-				StopTime[Client] = CreateTimer(1.0, JumpingTimer, Client, TIMER_REPEAT);
+				StopTime[Client] = CreateTimer(GetConVarFloat(jump_time), JumpingTimer, GetClientUserId(Client), TIMER_REPEAT);
 			}
 		}
 	}
 }
 	
 public Action:JumpingTimer(Handle:timer, any:Client){
+	Client = GetClientOfUserId(Client);
+	
 	if(IsTank(Client) && IsPlayerAlive(Client)){
 		AddVelocity(Client, 300.0);
 	}

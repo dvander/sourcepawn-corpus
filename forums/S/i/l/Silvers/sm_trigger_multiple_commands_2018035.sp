@@ -1,6 +1,6 @@
 /*
 *	Trigger Multiple Commands
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,8 @@
 
 
 
-#define PLUGIN_VERSION		"1.5"
+#define PLUGIN_VERSION		"1.8"
+#define DEBUG_LOGGING		false
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +32,20 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (01-Oct-2023)
+	- Added a new menu option which allows requiring all players to be present to activate. Requested by "replay_84".
+	- Added a debug option (requires recompile) to log various data when activating a trigger to determine where it fails.
+	- Changed command "sm_trigger_dupe" to allow specifying an index to duplicate that trigger.
+	- Duplicated triggers now copy the size of the trigger instead of setting to the default size.
+	- Now when the plugin is late loaded, triggers will detect players inside and fire after being created if the criteria was met.
+	- Lots of thanks to "replay_84" for tons of testing and reporting back.
+
+1.7 (02-Sep-2022)
+	- Fixed client not connected errors. Thanks to "jjambo789" for reporting.
+
+1.6 (03-Jun-2022)
+	- Fixed client not connected errors. Thanks to "ZBzibing" for reporting.
 
 1.5 (20-Apr-2021)
 	- Fixed compile errors on SourceMod 1.11.
@@ -91,12 +106,12 @@ char g_sTeamTwo[MAX_TEAM_LENGTH] = "2";
 
 Handle g_hTimerBeam;
 ConVar g_hCvarAllow, g_hCvarBeam, g_hCvarColor, g_hCvarHalo, g_hCvarModel, g_hCvarRefire;
-Menu g_hMenuAuth, g_hMenuBExec, g_hMenuBots, g_hMenuChance, g_hMenuDelay, g_hMenuEdit, g_hMenuExec, g_hMenuLeave, g_hMenuPos, g_hMenuRefire, g_hMenuTeam, g_hMenuTime, g_hMenuType, g_hMenuVMaxs, g_hMenuVMins;
+Menu g_hMenuAll, g_hMenuAuth, g_hMenuBExec, g_hMenuBots, g_hMenuChance, g_hMenuDelay, g_hMenuEdit, g_hMenuExec, g_hMenuLeave, g_hMenuPos, g_hMenuRefire, g_hMenuTeam, g_hMenuTime, g_hMenuType, g_hMenuVMaxs, g_hMenuVMins;
 int g_iColors[4], g_iCvarRefire, g_iEngine, g_iHaloMaterial, g_iLaserMaterial, g_iPlayerSpawn, g_iRoundStart, g_iSelectedTrig;
-bool g_bCvarAllow, g_bLoaded;
+bool g_bLateLoad, g_bCvarAllow, g_bLoaded;
 
 Handle g_hTimerEnable[MAX_ENTITIES];
-int g_iChance[MAX_ENTITIES], g_iCmdData[MAX_ENTITIES], g_iInside[MAXPLAYERS], g_iMenuEdit[MAXPLAYERS], g_iMenuSelected[MAXPLAYERS], g_iRefireCount[MAX_ENTITIES], g_iTriggers[MAX_ENTITIES];
+int g_iChance[MAX_ENTITIES], g_iCmdData[MAX_ENTITIES], g_iInside[2049][MAXPLAYERS+1], g_iMenuEdit[MAXPLAYERS+1], g_iMenuSelected[MAXPLAYERS+1], g_iRefireCount[MAX_ENTITIES], g_iTriggers[MAX_ENTITIES];
 bool g_bStopEnd[MAX_ENTITIES];
 char g_sCommand[MAX_ENTITIES][CMD_MAX_LENGTH], g_sMaterialBeam[PLATFORM_MAX_PATH], g_sMaterialHalo[PLATFORM_MAX_PATH], g_sModelBox[PLATFORM_MAX_PATH];
 float g_fDelayTime[MAX_ENTITIES], g_fRefireTime[MAX_ENTITIES];
@@ -151,7 +166,10 @@ enum
 	FLAGS_ANY			= (1 << 23),
 	FLAGS_ADMIN			= (1 << 24),
 	FLAGS_CHEAT			= (1 << 25),
-	FLAGS_ADMINCHEAT	= (1 << 26)
+	FLAGS_ADMINCHEAT	= (1 << 26),
+	ALL_TRIGGER_ALIVE	= (1 << 27),
+	ALL_TRIGGER_T1		= (1 << 28),
+	ALL_TRIGGER_T2		= (1 << 29)
 }
 
 
@@ -170,6 +188,8 @@ public Plugin myinfo =
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
+	g_bLateLoad = late;
+
 	char sGameName[16];
 	GetGameFolderName(sGameName, sizeof(sGameName));
 
@@ -225,9 +245,13 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
 	// COMMANDS
+	#if DEBUG_LOGGING
+	RegAdminCmd("sm_trigger_bug",		CmdTriggerBug,		ADMFLAG_ROOT,	"Displays a menu with options to edit and position triggers.");
+	#endif
+
 	RegAdminCmd("sm_trigger",			CmdTriggerMenu,		ADMFLAG_ROOT,	"Displays a menu with options to edit and position triggers.");
 	RegAdminCmd("sm_trigger_add",		CmdTriggerAdd,		ADMFLAG_ROOT,	"Add a command to the currently selected trigger. Usage: sm_trigger_add <command>");
-	RegAdminCmd("sm_trigger_dupe",		CmdTriggerDupe,		ADMFLAG_ROOT,	"Create a trigger where you are standing and duplicate the settings from another trigger.");
+	RegAdminCmd("sm_trigger_dupe",		CmdTriggerDupe,		ADMFLAG_ROOT,	"Create a trigger where you are standing and duplicate the settings from another trigger. Optional: [index] to duplicate specified trigger index.");
 	RegAdminCmd("sm_trigger_flags",		CmdTriggerFlags,	ADMFLAG_ROOT,	"Usage: sm_trigger_flags <flags>. Displays the bit sum flags (from data config), eg: sm_trigger_flags 17039624");
 	RegAdminCmd("sm_trigger_reload",	CmdTriggerReload,	ADMFLAG_ROOT,	"Resets the plugin, removing all triggers and reloading the maps data config.");
 
@@ -337,6 +361,7 @@ public void OnPluginStart()
 	g_hMenuEdit.AddItem("", "Type Of Command To Exec");
 	g_hMenuEdit.AddItem("", "Command Flags (Admin/Cheat)");
 	g_hMenuEdit.AddItem("", "Who Can Activate");
+	g_hMenuEdit.AddItem("", "Required Players");
 	g_hMenuEdit.AddItem("", "Who Executes The Command");
 	g_hMenuEdit.AddItem("", "Refire Count");
 	g_hMenuEdit.AddItem("", "Refire Time");
@@ -374,6 +399,16 @@ public void OnPluginStart()
 	g_hMenuTeam.AddItem("", "All Players");
 	g_hMenuTeam.SetTitle("TMC: Who Activates the Trigger");
 	g_hMenuTeam.ExitBackButton = true;
+
+	g_hMenuAll = new Menu(DataMenuHandler);
+	g_hMenuAll.AddItem("", "Any player (not all)");
+	g_hMenuAll.AddItem("", "All alive");
+	Format(sTemp, sizeof(sTemp), "All Team %s", g_sTeamOne);
+	g_hMenuAll.AddItem("", sTemp);
+	Format(sTemp, sizeof(sTemp), "All Team %s", g_sTeamTwo);
+	g_hMenuAll.AddItem("", sTemp);
+	g_hMenuAll.SetTitle("TMC: Require all players to be present in the trigger?");
+	g_hMenuAll.ExitBackButton = true;
 
 	g_hMenuBots = new Menu(DataMenuHandler);
 	g_hMenuBots.AddItem("", "All");
@@ -523,15 +558,54 @@ public void OnPluginEnd()
 public void OnMapStart()
 {
 	GetCvars();
+
 	if( g_sMaterialBeam[0] ) g_iLaserMaterial = PrecacheModel(g_sMaterialBeam);
 	if( g_sMaterialHalo[0] ) g_iHaloMaterial = PrecacheModel(g_sMaterialHalo);
 	if( g_sModelBox[0] ) PrecacheModel(g_sModelBox, true);
+
+	#if DEBUG_LOGGING
+	char sMap[64];
+	GetCurrentMap(sMap, sizeof(sMap));
+	LogData("Map Started: %s", sMap);
+	#endif
 }
 
 public void OnMapEnd()
 {
 	ResetPlugin();
+
+	#if DEBUG_LOGGING
+	char sMap[64];
+	GetCurrentMap(sMap, sizeof(sMap));
+	LogData("Map Ended: %s", sMap);
+	#endif
 }
+
+#if DEBUG_LOGGING
+public void OnClientConnected(int client)
+{
+	int total;
+
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientConnected(i) && !IsFakeClient(i) ) total++;
+	}
+
+	LogData("[%d] CONNECT. %d (%N)", total, client, client);
+}
+
+public void OnClientDisconnect(int client)
+{
+	int total;
+
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientConnected(i) && !IsFakeClient(i) ) total++;
+	}
+
+	LogData("[%d] DISCONNECT. %d (%N)", total, client, client);
+}
+#endif
 
 void ResetPlugin()
 {
@@ -540,22 +614,30 @@ void ResetPlugin()
 	g_iPlayerSpawn = 0;
 	g_bLoaded = false;
 
-	for( int i = 0; i < MAXPLAYERS; i++ )
+	for( int i = 0; i <= MaxClients; i++ )
 	{
 		g_iMenuSelected[i] = 0;
 		g_iMenuEdit[i] = 0;
-		g_iInside[i] = 0;
+	}
+
+	for( int i = 0; i <= 2048; i++ )
+	{
+		for( int x = 0; x <= MaxClients; x++ )
+		{
+			g_iInside[i][x] = 0;
+		}
 	}
 
 	for( int i = 0; i < MAX_ENTITIES; i++ )
 	{
+		g_sCommand[i][0] = 0;
 		g_bStopEnd[i] = false;
 		g_iChance[i] = FIRE_CHANCE;
 		g_iRefireCount[i] = REFIRE_COUNT;
 		g_fRefireTime[i] = REFIRE_TIME;
 		g_fDelayTime[i] = DELAY_TIME;
 
-		if( IsValidEntRef(g_iTriggers[i]) ) AcceptEntityInput(g_iTriggers[i], "Kill");
+		if( IsValidEntRef(g_iTriggers[i]) ) RemoveEntity(g_iTriggers[i]);
 		g_iTriggers[i] = 0;
 
 		delete g_hTimerEnable[i];
@@ -572,12 +654,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -660,26 +742,27 @@ void IsAllowed()
 	}
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 ) CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 ) CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	LoadDataConfig();
+	return Plugin_Continue;
 }
 
 
@@ -736,6 +819,10 @@ void LoadDataConfig()
 				}
 
 				CreateTriggerMultiple(i, vPos, vMax, vMin, true);
+
+				#if DEBUG_LOGGING
+				LogData("Created trigger: %d [%s]", i, g_sCommand[i]);
+				#endif
 			}
 
 			hFile.GoBack();
@@ -750,7 +837,7 @@ void LoadDataConfig()
 // ====================================================================================================
 //					COMMAND - RELOAD
 // ====================================================================================================
-public Action CmdTriggerReload(int client, int args)
+Action CmdTriggerReload(int client, int args)
 {
 	g_bCvarAllow = false;
 	ResetPlugin();
@@ -766,9 +853,35 @@ public Action CmdTriggerReload(int client, int args)
 // ====================================================================================================
 //					COMMAND - FLAGS
 // ====================================================================================================
-public Action CmdTriggerDupe(int client, int args)
+Action CmdTriggerDupe(int client, int args)
 {
-	ShowMenuTrigList(client, 7);
+	if( client == 0 )
+	{
+		PrintToConsole(client, "[Trigger Commands] Command can only be used %s", IsDedicatedServer() ? "in game on a dedicated server." : "in chat on a Listen server.");
+		return Plugin_Handled;
+	}
+
+	if( args == 1 )
+	{
+		char temp[8];
+		GetCmdArg(1, temp, sizeof(temp));
+		int index = StringToInt(temp) - 1;
+
+		if( IsValidEntRef(g_iTriggers[index]) == true )
+		{
+			DupeTrigger(client, index);
+			ShowMainMenu(client);
+		}
+		else
+		{
+			PrintToChat(client, "%sInvalid trigger index '%d' to dupe.", CHAT_TAG, index + 1);
+			ShowMenuTrigList(client, 7);
+		}
+	}
+	else
+	{
+		ShowMenuTrigList(client, 7);
+	}
 	return Plugin_Handled;
 }
 
@@ -777,7 +890,7 @@ public Action CmdTriggerDupe(int client, int args)
 // ====================================================================================================
 //					COMMAND - FLAGS
 // ====================================================================================================
-public Action CmdTriggerFlags(int client, int args)
+Action CmdTriggerFlags(int client, int args)
 {
 	char sTemp[256];
 	GetCmdArg(1, sTemp, sizeof(sTemp));
@@ -794,33 +907,36 @@ public Action CmdTriggerFlags(int client, int args)
 void GetFlags(int flags, char[] sTemp, int size)
 {
 	Format(sTemp, size, "");
-	if( flags & ALLOW_TEAM_1 ==		ALLOW_TEAM_1 )		StrCat(sTemp, size, "ALLOW_TEAM_1|");
-	if( flags & ALLOW_TEAM_2 ==		ALLOW_TEAM_2 )		StrCat(sTemp, size, "ALLOW_TEAM_2|");
-	if( flags & ALLOW_TEAMS ==		ALLOW_TEAMS )		StrCat(sTemp, size, "ALLOW_TEAMS|");
-	if( flags & ALLOW_ALIVE ==		ALLOW_ALIVE )		StrCat(sTemp, size, "ALLOW_ALIVE|");
-	if( flags & ALLOW_DEAD ==		ALLOW_DEAD )		StrCat(sTemp, size, "ALLOW_DEAD|");
-	if( flags & ALLOW_SPEC ==		ALLOW_SPEC )		StrCat(sTemp, size, "ALLOW_SPEC|");
-	if( flags & ALLOW_ALL ==		ALLOW_ALL )			StrCat(sTemp, size, "ALLOW_ALL|");
-	if( flags & ALLOW_BOTS ==		ALLOW_BOTS )		StrCat(sTemp, size, "ALLOW_BOTS|");
-	if( flags & ALLOW_REAL ==		ALLOW_REAL )		StrCat(sTemp, size, "ALLOW_REAL|");
-	if( flags & EXEC_CLIENT ==		EXEC_CLIENT )		StrCat(sTemp, size, "EXEC_CLIENT|");
-	if( flags & EXEC_ALL ==			EXEC_ALL )			StrCat(sTemp, size, "EXEC_ALL|");
-	if( flags & EXEC_TEAM_1 ==		EXEC_TEAM_1 )		StrCat(sTemp, size, "EXEC_TEAM_1|");
-	if( flags & EXEC_TEAM_2 ==		EXEC_TEAM_2 )		StrCat(sTemp, size, "EXEC_TEAM_2|");
-	if( flags & EXEC_TEAMS ==		EXEC_TEAMS )		StrCat(sTemp, size, "EXEC_TEAMS|");
-	if( flags & EXEC_ALIVE ==		EXEC_ALIVE )		StrCat(sTemp, size, "EXEC_ALIVE|");
-	if( flags & EXEC_DEAD ==		EXEC_DEAD )			StrCat(sTemp, size, "EXEC_DEAD|");
-	if( flags & EXEC_BOTS ==		EXEC_BOTS )			StrCat(sTemp, size, "EXEC_BOTS|");
-	if( flags & EXEC_REAL ==		EXEC_REAL )			StrCat(sTemp, size, "EXEC_REAL|");
-	if( flags & LEAVE_NO ==			LEAVE_NO )			StrCat(sTemp, size, "LEAVE_NO|");
-	if( flags & LEAVE_YES ==		LEAVE_YES )			StrCat(sTemp, size, "LEAVE_YES|");
-	if( flags & COMMAND_SERVER ==	COMMAND_SERVER )	StrCat(sTemp, size, "COMMAND_SERVER|");
-	if( flags & COMMAND_CLIENT ==	COMMAND_CLIENT )	StrCat(sTemp, size, "COMMAND_CLIENT|");
-	if( flags & COMMAND_FAKE ==		COMMAND_FAKE )		StrCat(sTemp, size, "COMMAND_FAKE|");
-	if( flags & FLAGS_ANY ==		FLAGS_ANY )			StrCat(sTemp, size, "FLAGS_ANY|");
-	if( flags & FLAGS_ADMIN ==		FLAGS_ADMIN )		StrCat(sTemp, size, "FLAGS_ADMIN|");
-	if( flags & FLAGS_CHEAT ==		FLAGS_CHEAT )		StrCat(sTemp, size, "FLAGS_CHEAT|");
-	if( flags & FLAGS_ADMINCHEAT ==	FLAGS_ADMINCHEAT )	StrCat(sTemp, size, "FLAGS_ADMINCHEAT|");
+	if( flags & ALLOW_TEAM_1 ==			ALLOW_TEAM_1 )		StrCat(sTemp, size, "ALLOW_TEAM_1|");
+	if( flags & ALLOW_TEAM_2 ==			ALLOW_TEAM_2 )		StrCat(sTemp, size, "ALLOW_TEAM_2|");
+	if( flags & ALLOW_TEAMS ==			ALLOW_TEAMS )		StrCat(sTemp, size, "ALLOW_TEAMS|");
+	if( flags & ALLOW_ALIVE ==			ALLOW_ALIVE )		StrCat(sTemp, size, "ALLOW_ALIVE|");
+	if( flags & ALLOW_DEAD ==			ALLOW_DEAD )		StrCat(sTemp, size, "ALLOW_DEAD|");
+	if( flags & ALLOW_SPEC ==			ALLOW_SPEC )		StrCat(sTemp, size, "ALLOW_SPEC|");
+	if( flags & ALLOW_ALL ==			ALLOW_ALL )			StrCat(sTemp, size, "ALLOW_ALL|");
+	if( flags & ALLOW_BOTS ==			ALLOW_BOTS )		StrCat(sTemp, size, "ALLOW_BOTS|");
+	if( flags & ALLOW_REAL ==			ALLOW_REAL )		StrCat(sTemp, size, "ALLOW_REAL|");
+	if( flags & EXEC_CLIENT ==			EXEC_CLIENT )		StrCat(sTemp, size, "EXEC_CLIENT|");
+	if( flags & EXEC_ALL ==				EXEC_ALL )			StrCat(sTemp, size, "EXEC_ALL|");
+	if( flags & EXEC_TEAM_1 ==			EXEC_TEAM_1 )		StrCat(sTemp, size, "EXEC_TEAM_1|");
+	if( flags & EXEC_TEAM_2 ==			EXEC_TEAM_2 )		StrCat(sTemp, size, "EXEC_TEAM_2|");
+	if( flags & EXEC_TEAMS ==			EXEC_TEAMS )		StrCat(sTemp, size, "EXEC_TEAMS|");
+	if( flags & EXEC_ALIVE ==			EXEC_ALIVE )		StrCat(sTemp, size, "EXEC_ALIVE|");
+	if( flags & EXEC_DEAD ==			EXEC_DEAD )			StrCat(sTemp, size, "EXEC_DEAD|");
+	if( flags & EXEC_BOTS ==			EXEC_BOTS )			StrCat(sTemp, size, "EXEC_BOTS|");
+	if( flags & EXEC_REAL ==			EXEC_REAL )			StrCat(sTemp, size, "EXEC_REAL|");
+	if( flags & LEAVE_NO ==				LEAVE_NO )			StrCat(sTemp, size, "LEAVE_NO|");
+	if( flags & LEAVE_YES ==			LEAVE_YES )			StrCat(sTemp, size, "LEAVE_YES|");
+	if( flags & COMMAND_SERVER ==		COMMAND_SERVER )	StrCat(sTemp, size, "COMMAND_SERVER|");
+	if( flags & COMMAND_CLIENT ==		COMMAND_CLIENT )	StrCat(sTemp, size, "COMMAND_CLIENT|");
+	if( flags & COMMAND_FAKE ==			COMMAND_FAKE )		StrCat(sTemp, size, "COMMAND_FAKE|");
+	if( flags & FLAGS_ANY ==			FLAGS_ANY )			StrCat(sTemp, size, "FLAGS_ANY|");
+	if( flags & FLAGS_ADMIN ==			FLAGS_ADMIN )		StrCat(sTemp, size, "FLAGS_ADMIN|");
+	if( flags & FLAGS_CHEAT ==			FLAGS_CHEAT )		StrCat(sTemp, size, "FLAGS_CHEAT|");
+	if( flags & FLAGS_ADMINCHEAT ==		FLAGS_ADMINCHEAT )	StrCat(sTemp, size, "FLAGS_ADMINCHEAT|");
+	if( flags & ALL_TRIGGER_ALIVE ==	ALL_TRIGGER_ALIVE )	StrCat(sTemp, size, "ALL_TRIGGER_ALIVE|");
+	if( flags & ALL_TRIGGER_T1 ==		ALL_TRIGGER_T1 )	StrCat(sTemp, size, "ALL_TRIGGER_T1|");
+	if( flags & ALL_TRIGGER_T2 ==		ALL_TRIGGER_T2 )	StrCat(sTemp, size, "ALL_TRIGGER_T2|");
 
 	int len = strlen(sTemp);
 	if( len > 1 ) sTemp[len-1] = 0;
@@ -831,7 +947,7 @@ void GetFlags(int flags, char[] sTemp, int size)
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdTriggerAdd(int client, int args)
+Action CmdTriggerAdd(int client, int args)
 {
 	if( client == 0 )
 	{
@@ -855,7 +971,7 @@ public Action CmdTriggerAdd(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdTriggerMenu(int client, int args)
+Action CmdTriggerMenu(int client, int args)
 {
 	if( client == 0 )
 	{
@@ -866,6 +982,14 @@ public Action CmdTriggerMenu(int client, int args)
 	ShowMainMenu(client);
 	return Plugin_Handled;
 }
+
+#if DEBUG_LOGGING
+Action CmdTriggerBug(int client, int args)
+{
+	LogData("BUG LOGGED");
+	return Plugin_Handled;
+}
+#endif
 
 
 
@@ -892,7 +1016,7 @@ void ShowMainMenu(int client)
 	hMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int TrigMenuHandler(Menu menu, MenuAction action, int client, int index)
+int TrigMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -918,6 +1042,8 @@ public int TrigMenuHandler(Menu menu, MenuAction action, int client, int index)
 			ShowMenuTrigList(client, index);
 		}
 	}
+
+	return 0;
 }
 
 void ShowMenuTrigList(int client, int index)
@@ -966,7 +1092,7 @@ void ShowMenuTrigList(int client, int index)
 	hMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int TrigListMenuHandler(Menu menu, MenuAction action, int client, int index)
+int TrigListMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -1051,6 +1177,8 @@ public int TrigListMenuHandler(Menu menu, MenuAction action, int client, int ind
 			}
 		}
 	}
+
+	return 0;
 }
 
 
@@ -1058,7 +1186,7 @@ public int TrigListMenuHandler(Menu menu, MenuAction action, int client, int ind
 // ====================================================================================================
 //					MENU - TRIGGER BOX - EDIT OPTIONS
 // ====================================================================================================
-public int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
+int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1090,37 +1218,45 @@ public int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
 			}
 			case 3:
 			{
+				g_hMenuAll.ExitButton = true;
+				g_hMenuAll.ExitBackButton = true;
+				g_hMenuAll.Display(client, MENU_TIME_FOREVER);
+			}
+			case 4:
+			{
 				g_hMenuExec.ExitButton = true;
 				g_hMenuExec.ExitBackButton = true;
 				g_hMenuExec.Display(client, MENU_TIME_FOREVER);
 			}
-			case 4:
+			case 5:
 			{
 				g_hMenuRefire.ExitBackButton = true;
 				g_hMenuRefire.Display(client, MENU_TIME_FOREVER);
 			}
-			case 5:
+			case 6:
 			{
 				g_hMenuTime.ExitBackButton = true;
 				g_hMenuTime.Display(client, MENU_TIME_FOREVER);
 			}
-			case 6:
+			case 7:
 			{
 				g_hMenuDelay.ExitBackButton = true;
 				g_hMenuDelay.Display(client, MENU_TIME_FOREVER);
 			}
-			case 7:
+			case 8:
 			{
 				g_hMenuChance.ExitBackButton = true;
 				g_hMenuChance.Display(client, MENU_TIME_FOREVER);
 			}
-			case 8:
+			case 9:
 			{
 				g_hMenuLeave.ExitBackButton = true;
 				g_hMenuLeave.Display(client, MENU_TIME_FOREVER);
 			}
 		}
 	}
+
+	return 0;
 }
 
 
@@ -1128,7 +1264,7 @@ public int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU - DATA HANDLER
 // ====================================================================================================
-public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
+int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1166,7 +1302,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data = 0; // Setting up trigger, clear data for first time menu.
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 0: data |= COMMAND_SERVER;
 							case 1: data |= COMMAND_CLIENT;
@@ -1189,7 +1325,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data &= ~FLAGS_ADMINCHEAT;
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 0: data |= FLAGS_ANY;
 							case 1: data |= FLAGS_CHEAT;
@@ -1219,7 +1355,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data &= ~ALLOW_ALL;
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 0: data |= ALLOW_ALIVE;
 							case 1: data |= ALLOW_TEAM_1;
@@ -1228,6 +1364,26 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							case 4: data |= ALLOW_DEAD;
 							case 5: data |= ALLOW_SPEC;
 							case 6: data |= ALLOW_ALL;
+						}
+
+						show = true;
+						g_hMenuAll.ExitBackButton = false;
+						g_hMenuAll.Display(client, MENU_TIME_FOREVER);
+					}
+					else if( menu == g_hMenuAll )
+					{
+						if( g_iMenuEdit[client] )
+						{
+							data &= ~ALL_TRIGGER_ALIVE;
+							data &= ~ALL_TRIGGER_T1;
+							data &= ~ALL_TRIGGER_T2;
+						}
+
+						switch( index )
+						{
+							case 1: data |= ALL_TRIGGER_ALIVE;
+							case 2: data |= ALL_TRIGGER_T1;
+							case 3: data |= ALL_TRIGGER_T2;
 						}
 
 						show = true;
@@ -1242,7 +1398,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data &= ~ALLOW_BOTS;
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 1: data |= ALLOW_REAL;
 							case 2: data |= ALLOW_BOTS;
@@ -1278,7 +1434,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data &= ~EXEC_DEAD;
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 0: data |= EXEC_CLIENT;
 							case 1: data |= EXEC_ALL;
@@ -1312,7 +1468,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data &= ~EXEC_BOTS;
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 0: data |= EXEC_REAL;
 							case 1: data |= EXEC_BOTS;
@@ -1332,7 +1488,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 							data &= ~LEAVE_NO;
 						}
 
-						switch (index)
+						switch( index )
 						{
 							case 0: data |= LEAVE_YES;
 							case 1: data |= LEAVE_NO;
@@ -1376,6 +1532,8 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 			delete hFile;
 		}
 	}
+
+	return 0;
 }
 
 
@@ -1383,7 +1541,7 @@ public int DataMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU - TRIGGER BOX - REFIRE COUNT
 // ====================================================================================================
-public int RefireMenuHandler(Menu menu, MenuAction action, int client, int index)
+int RefireMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1409,7 +1567,7 @@ public int RefireMenuHandler(Menu menu, MenuAction action, int client, int index
 		{
 			PrintToChat(client, "%sCannot select + or - when setting up, please choose a default value.", CHAT_TAG);
 			g_hMenuRefire.Display(client, MENU_TIME_FOREVER);
-			return;
+			return 0;
 		}
 
 
@@ -1460,6 +1618,8 @@ public int RefireMenuHandler(Menu menu, MenuAction action, int client, int index
 		else if( index == 1 || index == 2 ) g_hMenuRefire.Display(client, MENU_TIME_FOREVER);
 		else g_hMenuEdit.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 
@@ -1467,7 +1627,7 @@ public int RefireMenuHandler(Menu menu, MenuAction action, int client, int index
 // ====================================================================================================
 //					MENU - TRIGGER BOX - REFIRE TIME
 // ====================================================================================================
-public int TimeMenuHandler(Menu menu, MenuAction action, int client, int index)
+int TimeMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1493,7 +1653,7 @@ public int TimeMenuHandler(Menu menu, MenuAction action, int client, int index)
 		{
 			PrintToChat(client, "%sCannot select + or - when setting up, please choose a default value.", CHAT_TAG);
 			g_hMenuTime.Display(client, MENU_TIME_FOREVER);
-			return;
+			return 0;
 		}
 
 
@@ -1529,6 +1689,8 @@ public int TimeMenuHandler(Menu menu, MenuAction action, int client, int index)
 		else if( index == 1 || index == 2 ) g_hMenuTime.Display(client, MENU_TIME_FOREVER);
 		else g_hMenuEdit.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 
@@ -1536,7 +1698,7 @@ public int TimeMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU - TRIGGER BOX - REFIRE TIME
 // ====================================================================================================
-public int DelayMenuHandler(Menu menu, MenuAction action, int client, int index)
+int DelayMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1562,7 +1724,7 @@ public int DelayMenuHandler(Menu menu, MenuAction action, int client, int index)
 		{
 			PrintToChat(client, "%sCannot select + or - when setting up, please choose a default value.", CHAT_TAG);
 			g_hMenuDelay.Display(client, MENU_TIME_FOREVER);
-			return;
+			return 0;
 		}
 
 
@@ -1607,6 +1769,8 @@ public int DelayMenuHandler(Menu menu, MenuAction action, int client, int index)
 		else if( index == 1 || index == 2 ) g_hMenuDelay.Display(client, MENU_TIME_FOREVER);
 		else g_hMenuEdit.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 
@@ -1614,7 +1778,7 @@ public int DelayMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU - TRIGGER BOX - FIRE CHANCE
 // ====================================================================================================
-public int ChanceMenuHandler(Menu menu, MenuAction action, int client, int index)
+int ChanceMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1679,6 +1843,8 @@ public int ChanceMenuHandler(Menu menu, MenuAction action, int client, int index
 		}
 		else g_hMenuEdit.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 
@@ -1686,7 +1852,7 @@ public int ChanceMenuHandler(Menu menu, MenuAction action, int client, int index
 // ====================================================================================================
 //					MENU - TRIGGER BOX - VMINS/VMAXS/VPOS - CALLBACKS
 // ====================================================================================================
-public int VMaxsMenuHandler(Menu menu, MenuAction action, int client, int index)
+int VMaxsMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1722,9 +1888,11 @@ public int VMaxsMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		g_hMenuVMaxs.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
-public int VMinsMenuHandler(Menu menu, MenuAction action, int client, int index)
+int VMinsMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1760,9 +1928,11 @@ public int VMinsMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		g_hMenuVMins.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -1799,6 +1969,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 
@@ -1894,7 +2066,8 @@ void DeleteTrigger(int client, int cfgindex)
 
 			if( hFile.JumpToKey(sTemp) )
 			{
-				if( IsValidEntRef(g_iTriggers[cfgindex-1]) )	AcceptEntityInput(g_iTriggers[cfgindex-1], "Kill");
+				if( IsValidEntRef(g_iTriggers[cfgindex-1]) )
+					RemoveEntity(g_iTriggers[cfgindex-1]);
 				g_iTriggers[cfgindex-1] = 0;
 
 				hFile.DeleteKey("vpos");
@@ -2000,11 +2173,6 @@ void DupeTrigger(int client, int cfgindex)
 	g_hTimerEnable[index] = null;
 	g_bStopEnd[index] = false;
 
-	float vPos[3];
-	GetClientAbsOrigin(client, vPos);
-
-	CreateTriggerMultiple(index, vPos, view_as<float>({ 25.0, 25.0, 100.0}), view_as<float>({ -25.0, -25.0, 0.0 }), true);
-
 	KeyValues hFile = ConfigOpen();
 	if( hFile != null )
 	{
@@ -2016,9 +2184,20 @@ void DupeTrigger(int client, int cfgindex)
 
 			if( hFile.JumpToKey(sTemp, true) )
 			{
+				float vPos[3];
+				float vMax[3] = { 25.0, 25.0, 100.0 };
+				float vMin[3] = { -25.0, -25.0, 0.0 };
+				if( IsValidEntRef(g_iTriggers[cfgindex]) )
+				{
+					GetEntPropVector(g_iTriggers[cfgindex], Prop_Send, "m_vecMaxs", vMax);
+					GetEntPropVector(g_iTriggers[cfgindex], Prop_Send, "m_vecMins", vMin);
+				}
+
+				GetClientAbsOrigin(client, vPos);
+
 				hFile.SetVector("vpos", vPos);
-				hFile.SetVector("vmax", view_as<float>({ 25.0, 25.0, 100.0}));
-				hFile.SetVector("vmin", view_as<float>({ -25.0, -25.0, 0.0 }));
+				hFile.SetVector("vmax", vMax);
+				hFile.SetVector("vmin", vMin);
 				hFile.SetString("command", g_sCommand[index]);
 				hFile.SetNum("refire_count", g_iRefireCount[index]);
 				hFile.SetFloat("refire_time", g_fRefireTime[index]);
@@ -2029,6 +2208,8 @@ void DupeTrigger(int client, int cfgindex)
 				ConfigSave(hFile);
 
 				PrintToChat(client, "%s\x01(\x05%d/%d\x01) - Saved duplicated trigger.", CHAT_TAG, index+1, MAX_ENTITIES, cfgindex+1);
+
+				CreateTriggerMultiple(index, vPos, vMax, vMin, true);
 			}
 			else
 			{
@@ -2130,9 +2311,28 @@ void CreateTriggerMultiple(int index, float vPos[3], float vMaxs[3], float vMins
 	HookSingleEntityOutput(trigger, "OnStartTouch", OnStartTouch);
 	HookSingleEntityOutput(trigger, "OnEndTouch", OnEndTouch);
 	g_iTriggers[index] = EntIndexToEntRef(trigger);
+
+	if( g_bLateLoad )
+	{
+		float vLoc[3], v1[3], v2[3];
+		AddVectors(vPos, vMins, v1);
+		AddVectors(vPos, vMaxs, v2);
+
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) )
+			{
+				GetClientAbsOrigin(i, vLoc);
+				if( vLoc[0] > v1[0] && vLoc[1] > v1[1] && vLoc[2] > v1[2] && vLoc[0] < v2[0] && vLoc[1] < v2[1] && vLoc[2] < v2[2] )
+				{
+					OnStartTouch("", trigger, i, 0.0);
+				}
+			}
+		}
+	}
 }
 
-public Action TimerEnable(Handle timer, any index)
+Action TimerEnable(Handle timer, int index)
 {
 	g_hTimerEnable[index] = null;
 	g_bStopEnd[index] = false;
@@ -2145,49 +2345,205 @@ public Action TimerEnable(Handle timer, any index)
 			AcceptEntityInput(trigger, "Enable");
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public void OnEndTouch(const char[] output, int caller, int activator, float delay)
+void OnEndTouch(const char[] output, int caller, int activator, float delay)
 {
-	if( activator > 0 && activator <= MaxClients ) g_iInside[activator] = 0;
-}
-
-public void OnStartTouch(const char[] output, int caller, int activator, float delay)
-{
-	if( IsClientInGame(activator) )
+	if( activator > 0 && activator <= MaxClients && IsClientInGame(activator) )
 	{
+		g_iInside[caller][activator] = 0;
+
+		#if DEBUG_LOGGING
 		caller = EntIndexToEntRef(caller);
 
 		for( int i = 0; i < MAX_ENTITIES; i++ )
 		{
 			if( caller == g_iTriggers[i] )
 			{
+				LogData("[%d] OnEndTouch. %d (%N)", i, activator, activator);
+			}
+		}
+		#endif
+	}
+}
+
+void OnStartTouch(const char[] output, int caller, int activator, float delay)
+{
+	if( IsClientInGame(activator) )
+	{
+		int callref = EntIndexToEntRef(caller);
+
+		for( int i = 0; i < MAX_ENTITIES; i++ )
+		{
+			if( callref == g_iTriggers[i] )
+			{
+				#if DEBUG_LOGGING
+				LogData("[%d] StartTouch. %d (%N)", i, activator, activator);
+				#endif
+
 				if( g_bStopEnd[i] == false )
 				{
 					bool executed = false;
 					int data = g_iCmdData[i];
 
 					// Require users to leave the box before re-trigger
-					if( data & LEAVE_NO != LEAVE_NO && g_iInside[activator] == caller ) return;
+					if( data & LEAVE_NO != LEAVE_NO && g_iInside[caller][activator] == callref )
+					{
+						#if DEBUG_LOGGING
+						LogData("[%d] Required to leave trigger before activating again: %d (%N)", i, activator, activator);
+						#endif
 
-					g_iInside[activator] = caller;
+						return;
+					}
 
+					g_iInside[caller][activator] = callref;
+
+					// All inside trigger
+					if( data & ALL_TRIGGER_ALIVE || data & ALL_TRIGGER_T1 || data & ALL_TRIGGER_T2 )
+					{
+						float vMaxs[3], vMins[3], vPos[3];
+						float v1[3], v2[3];
+						// float vLoc[3];
+						GetEntPropVector(g_iSelectedTrig, Prop_Send, "m_vecOrigin", vPos);
+						GetEntPropVector(g_iSelectedTrig, Prop_Send, "m_vecMaxs", vMaxs);
+						GetEntPropVector(g_iSelectedTrig, Prop_Send, "m_vecMins", vMins);
+						AddVectors(vPos, vMins, v1);
+						AddVectors(vPos, vMaxs, v2);
+
+						for( int x = 1; x <= MaxClients; x++ )
+						{
+							if( IsClientInGame(x) && IsPlayerAlive(x) )
+							{
+								if( data & ALLOW_BOTS == ALLOW_BOTS && !IsFakeClient(x) ) continue;
+								if( data & ALLOW_REAL == ALLOW_REAL && IsFakeClient(x) ) continue;
+
+								/* This should never actually happen, no need for this code here, was using to verify the trigger
+								if( !g_iInside[caller][x] )
+								{
+									GetClientAbsOrigin(x, vLoc);
+									if( vLoc[0] > v1[0] && vLoc[1] > v1[1] && vLoc[2] > v1[2] && vLoc[0] < v2[0] && vLoc[1] < v2[1] && vLoc[2] < v2[2] )
+									{
+										#if DEBUG_LOGGING
+										LogData("[%d] Not inside, but within vector. %d (%N) (T=%d)", i, x, x, GetClientTeam(x));
+										#endif
+
+										g_iInside[caller][x] = callref;
+									}
+								}
+								// */
+
+								if( data & ALL_TRIGGER_ALIVE && !g_iInside[caller][x] )
+								{
+									#if DEBUG_LOGGING
+									LogData("[%d] Required all inside alive. Player is not: %d (%N) (T=%d)", i, x, x, GetClientTeam(x));
+									#endif
+
+									return;
+								}
+
+								if( data & ALL_TRIGGER_T1 && !g_iInside[caller][x] && GetClientTeam(x) == 2 )
+								{
+									#if DEBUG_LOGGING
+									LogData("[%d] Required all inside Team 2. Player is not: %d (%N) (T=%d)", i, x, x, GetClientTeam(x));
+									#endif
+
+									return;
+								}
+
+								if( data & ALL_TRIGGER_T2 && !g_iInside[caller][x] && GetClientTeam(x) == 3 )
+								{
+									#if DEBUG_LOGGING
+									LogData("[%d] Required all inside Team 3. Player is not: %d (%N) (T=%d)", i, x, x, GetClientTeam(x));
+									#endif
+
+									return;
+								}
+							}
+						}
+					}
+
+					// Who to trigger
 					if( !(data & ALLOW_ALL == ALLOW_ALL) )
 					{
 						bool alive = IsPlayerAlive(activator);
-						if( data & ALLOW_ALIVE == ALLOW_ALIVE && !alive ) return;
-						if( data & ALLOW_DEAD == ALLOW_DEAD && alive ) return;
+						if( data & ALLOW_ALIVE == ALLOW_ALIVE && !alive )
+						{
+							#if DEBUG_LOGGING
+							LogData("[%d] Required alive to activate. Player is not: %d (%N) (T=%d)", i, activator, activator, GetClientTeam(activator));
+							#endif
+
+							return;
+						}
+
+						if( data & ALLOW_DEAD == ALLOW_DEAD && alive )
+						{
+							#if DEBUG_LOGGING
+							LogData("[%d] Required dead to activate. Player is not: %d (%N) (T=%d)", i, activator, activator, GetClientTeam(activator));
+							#endif
+
+							return;
+						}
 
 						int team = GetClientTeam(activator);
-						if( data & ALLOW_SPEC == ALLOW_SPEC && team != 1 ) return;
-						if( data & ALLOW_TEAMS == ALLOW_TEAMS && team == 1 ) return;
-						if( data & ALLOW_TEAM_1 == ALLOW_TEAM_1 && team != 2 ) return;
-						if( data & ALLOW_TEAM_2 == ALLOW_TEAM_2 && team != 3 ) return;
+						if( data & ALLOW_SPEC == ALLOW_SPEC && team != 1 )
+						{
+							#if DEBUG_LOGGING
+							LogData("[%d] Required spectator to activate. Player is not: %d (%N) (T=%d)", i, activator, activator, GetClientTeam(activator));
+							#endif
+
+							return;
+						}
+
+						if( data & ALLOW_TEAMS == ALLOW_TEAMS && team == 1 )
+						{
+							#if DEBUG_LOGGING
+							LogData("[%d] Required team 1 or 2 to activate. Player is not: %d (%N) (T=%d)", i, activator, activator, GetClientTeam(activator));
+							#endif
+
+							return;
+						}
+
+						if( data & ALLOW_TEAM_1 == ALLOW_TEAM_1 && team != 2 )
+						{
+							#if DEBUG_LOGGING
+							LogData("[%d] Required team 2 to activate. Player is not: %d (%N) (T=%d)", i, activator, activator, GetClientTeam(activator));
+							#endif
+
+							return;
+						}
+
+						if( data & ALLOW_TEAM_2 == ALLOW_TEAM_2 && team != 3 )
+						{
+							#if DEBUG_LOGGING
+							LogData("[%d] Required team 3 to activate. Player is not: %d (%N) (T=%d)", i, activator, activator, GetClientTeam(activator));
+							#endif
+
+							return;
+						}
+
 					}
 
 					bool bot = IsFakeClient(activator);
-					if( data & ALLOW_BOTS == ALLOW_BOTS && !bot ) return;
-					if( data & ALLOW_REAL == ALLOW_REAL && bot ) return;
+					if( data & ALLOW_BOTS == ALLOW_BOTS && !bot )
+					{
+						#if DEBUG_LOGGING
+						LogData("[%d] Required bots to activate. Player is not: %d (%N)", i, activator, activator);
+						#endif
+
+						return;
+					}
+
+					if( data & ALLOW_REAL == ALLOW_REAL && bot )
+					{
+						#if DEBUG_LOGGING
+						LogData("[%d] Required humans to activate. Player is not: %d (%N)", i, activator, activator);
+						#endif
+
+						return;
+					}
+
 
 					int chance = g_iChance[i];
 					if( chance == 100 || GetRandomInt(0, 100) <= chance ) // Chance to exec
@@ -2202,20 +2558,24 @@ public void OnStartTouch(const char[] output, int caller, int activator, float d
 								CreateTimer(g_fDelayTime[i], TimerExecuteCommand, GetClientUserId(activator) | (i << 7));
 							} else {
 								ExecuteCommand(activator, i);
+
+								#if DEBUG_LOGGING
+								LogData("[%d] Executing command (unlimited refires), Player: %d (%N)", i, i + 1, activator, activator);
+								#endif
 							}
 
 							if( g_fRefireTime[i] > 0.0 )
 							{
 								delete g_hTimerEnable[i];
 								g_hTimerEnable[i] = CreateTimer(g_fRefireTime[i], TimerEnable, i);
-								if( data & LEAVE_NO == LEAVE_NO )	AcceptEntityInput(caller, "Disable");
+								if( data & LEAVE_NO == LEAVE_NO )	AcceptEntityInput(callref, "Disable");
 							} else {
 								g_bStopEnd[i] = false;
 							}
 						}
 						else // Limited refires
 						{
-							int fired = GetEntProp(caller, Prop_Data, "m_iHammerID");
+							int fired = GetEntProp(callref, Prop_Data, "m_iHammerID");
 
 							if( g_iRefireCount[i] > fired )
 							{
@@ -2225,41 +2585,45 @@ public void OnStartTouch(const char[] output, int caller, int activator, float d
 									CreateTimer(g_fDelayTime[i], TimerExecuteCommand, GetClientUserId(activator) | (i << 7));
 								} else {
 									ExecuteCommand(activator, i);
+
+									#if DEBUG_LOGGING
+									LogData("[%d] Executing command (limited triggers %d of %d), index: %d. Player: %d (%N) [%s]", i, fired + 1, g_iRefireCount[i], i + 1, activator, activator, g_sCommand[i]);
+									#endif
 								}
 
-								SetEntProp(caller, Prop_Data, "m_iHammerID", fired + 1);
+								SetEntProp(callref, Prop_Data, "m_iHammerID", fired + 1);
 								if( fired + 1 != g_iRefireCount[i] ) // Enable again if allowed
 								{
 									if( g_fRefireTime[i] > 0.0 )
 									{
 										delete g_hTimerEnable[i];
 										g_hTimerEnable[i] = CreateTimer(g_fRefireTime[i], TimerEnable, i);
-										if( data & LEAVE_NO == LEAVE_NO )	AcceptEntityInput(caller, "Disable");
+										if( data & LEAVE_NO == LEAVE_NO )	AcceptEntityInput(callref, "Disable");
 									} else {
 										g_bStopEnd[i] = false;
 									}
 								}
 							} else {
 								g_bStopEnd[i] = true;
-								AcceptEntityInput(caller, "Disable");
+								AcceptEntityInput(callref, "Disable");
 							}
 						}
 
 						if( !executed && g_iCvarRefire == 1 && g_iRefireCount[i] != 0 )
 						{
-							int fired = GetEntProp(caller, Prop_Data, "m_iHammerID");
-							SetEntProp(caller, Prop_Data, "m_iHammerID", fired + 1);
+							int fired = GetEntProp(callref, Prop_Data, "m_iHammerID");
+							SetEntProp(callref, Prop_Data, "m_iHammerID", fired + 1);
 						}
 					} else { // Chance fail, do we add to refire?
 						if( g_iCvarRefire == 1 && g_iRefireCount[i] != 0 )
 						{
-							int fired = GetEntProp(caller, Prop_Data, "m_iHammerID");
+							int fired = GetEntProp(callref, Prop_Data, "m_iHammerID");
 							if( g_iRefireCount[i] > fired )
 							{
-								SetEntProp(caller, Prop_Data, "m_iHammerID", fired + 1);
+								SetEntProp(callref, Prop_Data, "m_iHammerID", fired + 1);
 							} else {
 								g_bStopEnd[i] = true;
-								AcceptEntityInput(caller, "Disable");
+								AcceptEntityInput(callref, "Disable");
 							}
 						}
 					}
@@ -2271,7 +2635,7 @@ public void OnStartTouch(const char[] output, int caller, int activator, float d
 	}
 }
 
-public Action TimerExecuteCommand(Handle timer, any bits)
+Action TimerExecuteCommand(Handle timer, int bits)
 {
 	int client = bits & 0x7F;
 	int index = bits >> 7;
@@ -2282,6 +2646,8 @@ public Action TimerExecuteCommand(Handle timer, any bits)
 	{
 		ExecuteCommand(client, index);
 	}
+
+	return Plugin_Continue;
 }
 
 void ExecuteCommand(int client, int index)
@@ -2308,9 +2674,9 @@ void ExecuteCommand(int client, int index)
 		if( num == MaxClients )
 		{
 			pass = false;
-			client = i;
-			if( IsClientInGame(client) )
+			if( IsClientInGame(i) )
 			{
+				client = i;
 				bot = IsFakeClient(client);
 				team = GetClientTeam(client);
 
@@ -2337,13 +2703,13 @@ void ExecuteCommand(int client, int index)
 			pass = true;
 		}
 
-		//Get the targets id and replace {me} with the client's id
-		char id[32];
-		Format(id, sizeof(id), "#%d", GetClientUserId(client));
-		ReplaceString(sCommand, sizeof(sCommand), "{me}", id, false);
-
 		if( pass )
 		{
+			//Get the targets id and replace {me} with the client's id
+			char id[32];
+			Format(id, sizeof(id), "#%d", GetClientUserId(client));
+			ReplaceString(sCommand, sizeof(sCommand), "{me}", id, false);
+
 			bot = IsFakeClient(client);
 			// COMMAND CHEAT FLAG
 			if( data & FLAGS_CHEAT == FLAGS_CHEAT || data & FLAGS_ADMINCHEAT == FLAGS_ADMINCHEAT )
@@ -2390,7 +2756,7 @@ void ExecuteCommand(int client, int index)
 // ====================================================================================================
 //					TRIGGER BOX - DISPLAY BEAM BOX
 // ====================================================================================================
-public Action TimerBeam(Handle timer)
+Action TimerBeam(Handle timer)
 {
 	if( IsValidEntRef(g_iSelectedTrig) )
 	{
@@ -2493,3 +2859,19 @@ bool IsValidEntRef(int entity)
 		return true;
 	return false;
 }
+
+#if DEBUG_LOGGING
+void LogData(const char[] format, any ...)
+{
+	static char sFile[PLATFORM_MAX_PATH], sTime[256], buffer[512];
+
+	BuildPath(Path_SM, sFile, sizeof(sFile), "logs/sm_trigger.log");
+	FormatTime(sTime, sizeof(sTime), "%d-%b-%Y %H:%M:%S");
+	VFormat(buffer, sizeof(buffer), format, 2);
+
+	File file = OpenFile(sFile, "a+");
+	file.WriteLine("%s  %s", sTime, buffer);
+	FlushFile(file);
+	delete file;
+}
+#endif

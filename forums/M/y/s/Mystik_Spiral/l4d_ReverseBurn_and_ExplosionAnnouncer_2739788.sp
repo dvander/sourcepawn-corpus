@@ -73,7 +73,7 @@ Plugin discussion: https://forums.alliedmods.net/showthread.php?t=331164
 #define PLUGIN_NAME                   "[L4D & L4D2] ReverseBurn and ExplosionAnnouncer"
 #define PLUGIN_AUTHOR                 "Mystik Spiral"
 #define PLUGIN_DESCRIPTION            "Reverses damage when victim burned instantly and continuously"
-#define PLUGIN_VERSION                "1.2.1"
+#define PLUGIN_VERSION                "1.2.2a"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=331164"
 
 // ====================================================================================================
@@ -443,12 +443,12 @@ public void OnClientDisconnect(int client)
 		gc_fLastChatOccurrence[client][type] = 0.0;
 	}
 	
-	if (g_bReverseBurnAtk[client] && g_bCvar_BanBurnDisconnect)										//MS
+	if (g_bReverseBurnAtk[client] && g_bCvar_BanBurnDisconnect && !IsFakeClient(client))			//MS
 	{																								//MS
 		//ban attacker for disconnecting during reverse burn										//MS
 		char BanMsg[50];																			//MS
 		Format(BanMsg, sizeof(BanMsg), "%t", "BurnGriefer", client);								//MS
-		BanClient(client, g_iCvar_BanDuration, BANFLAG_AUTO, "BurnGriefer", BanMsg, _, client);		//MS
+		BanClient(client, g_iCvar_BanDuration, BANFLAG_AUTO, "BurnGriefer", BanMsg, _, client);	//MS
 	}																								//MS
 }
 
@@ -1039,6 +1039,8 @@ public void OnAllPluginsLoaded()
 public void OnClientPutInServer(int client)
 {
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage_Player);
+	//in case new player joins in the middle of existing reverse burn
+	g_bReverseBurnAtk[client] = false;
 }
 
 public Action OnTakeDamage_Player(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
@@ -1071,7 +1073,7 @@ public Action OnTakeDamage_Player(int victim, int &attacker, int &inflictor, flo
 				//if weapon is using incendiary ammo and ReverseFF plugin is loaded, do not reverse burn
 				g_bReverseBurnAtk[attacker] = false;
 			}
-			//probably not needed, but if human attacker disconnects, do not burn bot that takes over
+			//if human attacker disconnects, do not burn bot that takes over
 			if  (IsFakeClient(attacker))
 			{
 				return Plugin_Handled;
@@ -1203,6 +1205,7 @@ public Action BeginBurnTimer(Handle timer, int client)
 	g_bFirstBurn[client] = false;
 	//clear handle for this timer
 	g_hBeginBurn[client] = null;
+	return Plugin_Continue;
 }
 
 public Action FinishBurnTimer(Handle timer, DataPack pack)
@@ -1246,6 +1249,7 @@ public Action FinishBurnTimer(Handle timer, DataPack pack)
 	g_bReverseBurnAtk[iAttacker] = false;
 	g_bReverseBurnVic[iVictim] = false;
 	g_hFinishBurn[iAttacker] = null;
+	return Plugin_Continue;
 }
 
 stock bool IsValidClientAndInGameAndSurvivor(int client)
@@ -1292,6 +1296,7 @@ public Action AnnouncePlugin(Handle timer, int client)
 			CPrintToChat(client, "%T", "Announce", client);
 		}
 	}
+	return Plugin_Continue;
 }
 
 stock bool IsClientAdmin(int client)

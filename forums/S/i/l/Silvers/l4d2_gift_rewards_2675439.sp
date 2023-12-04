@@ -1,6 +1,6 @@
 /*
 *	Gift Rewards
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.6"
+#define PLUGIN_VERSION 		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (09-Dec-2022)
+	- Fixed refilling ammo giving to wrong client due to Valve code inside "givecurrentammo" command. Thanks to "GL_INS" for reporting.
+	- Now optionally uses "Left 4 DHooks" to refill the weapon clip.
+
+1.7 (08-Mar-2022)
+	- Fixed cvar "l4d2_gift_rewards_count" not resetting the death count. Thanks to "mikaelangelis" for reporting.
 
 1.6 (04-Jul-2021)
 	- Added cvar "l4d2_gift_rewards_count" to control how many SI must die before allowing the chance of dropping a Gift.
@@ -89,9 +96,9 @@
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarChance1, g_hCvarChance2, g_hCvarChance3, g_hCvarCount, g_hGameDrop, g_hCvarDrop, g_hCvarSize, g_hCvarSpeed;// g_hCvarSizeStart
 int g_iCvarChance1, g_iCvarChance2, g_iCvarChance3, g_iTotalChance, g_iCvarCount, g_iDeathCount;
 bool g_bCvarAllow, g_bMapStarted;
-bool g_bWeaponHandling;
+bool g_bLeft4DHooks, g_bWeaponHandling;
 float g_fGameDrop, g_fCvarDrop, g_fCvarSize, g_fCvarSpeed, g_fRewarded[MAXPLAYERS + 1];// g_fCvarSizeStart
-Handle sdkCreateGift;
+Handle g_hSDK_CreateGift;
 
 /* Patch Method - replaced with manually spawning
 ArrayList g_ByteSaved;
@@ -99,6 +106,23 @@ Address g_Address;
 */
 
 
+
+// From Left4DHooks
+enum L4D2IntWeaponAttributes
+{
+	L4D2IWA_Damage,
+	L4D2IWA_Bullets,
+	L4D2IWA_ClipSize,
+	L4D2IWA_Bucket,
+	L4D2IWA_Tier, // L4D2 only
+	MAX_SIZE_L4D2IntWeaponAttributes
+};
+
+native int L4D2_GetIntWeaponAttribute(const char[] weaponName, L4D2IntWeaponAttributes attr);
+
+
+
+// From WeaponHandling
 enum L4D2WeaponType 
 {
 	L4D2WeaponType_Unknown = 0,
@@ -166,6 +190,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 2.");
 		return APLRes_SilentFailure;
 	}
+
+	MarkNativeAsOptional("L4D2_GetIntWeaponAttribute");
+
 	return APLRes_Success;
 }
 
@@ -173,12 +200,16 @@ public void OnLibraryAdded(const char[] name)
 {
 	if( strcmp(name, "WeaponHandling") == 0 )
 		g_bWeaponHandling = true;
+	if( strcmp(name, "left4dhooks") == 0 )
+		g_bLeft4DHooks = true;
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
 	if( strcmp(name, "WeaponHandling") == 0 )
 		g_bWeaponHandling = false;
+	if( strcmp(name, "left4dhooks") == 0 )
+		g_bLeft4DHooks = false;
 }
 
 public void OnPluginStart()
@@ -231,8 +262,8 @@ public void OnPluginStart()
 	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
 	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
 	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);
-	sdkCreateGift = EndPrepSDKCall();
-	if( sdkCreateGift == null )
+	g_hSDK_CreateGift = EndPrepSDKCall();
+	if( g_hSDK_CreateGift == null )
 		SetFailState("Could not prep the \"CHolidayGift::Create\" function.");
 
 	delete hGameData;
@@ -325,7 +356,7 @@ void PatchAddress(int patch)
 
 	if( !patched && patch )
 	{
-		patched = true;	
+		patched = true;
 
 		int len = g_ByteSaved.Length;
 
@@ -358,7 +389,7 @@ void PatchAddress(int patch)
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdReward(int client, int args)
+Action CmdReward(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -369,7 +400,7 @@ public Action CmdReward(int client, int args)
 	GiveAward(client); return Plugin_Handled;
 }
 
-public Action CmdGift(int client, int args)
+Action CmdGift(int client, int args)
 {
 	if( !client )
 	{
@@ -377,7 +408,7 @@ public Action CmdGift(int client, int args)
 		return Plugin_Handled;
 	}
 
-	if( sdkCreateGift == null )
+	if( g_hSDK_CreateGift == null )
 	{
 		ReplyToCommand(client, "[Gift] Missing gamedata. Cannot use this command.");
 		return Plugin_Handled;
@@ -396,7 +427,7 @@ public Action CmdGift(int client, int args)
 		return Plugin_Handled;
 	}
 
-	SDKCall(sdkCreateGift, vPos, view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), 0);
+	SDKCall(g_hSDK_CreateGift, vPos, view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), 0);
 	return Plugin_Handled;
 }
 
@@ -410,12 +441,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -534,7 +565,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -564,7 +595,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-public Action TimerSize(Handle timer, any entity)
+Action TimerSize(Handle timer, any entity)
 {
 	if( EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
 	{
@@ -579,12 +610,12 @@ public Action TimerSize(Handle timer, any entity)
 	return Plugin_Stop;
 }
 
-public void Event_Round(Event event, const char[] name, bool dontBroadcast)
+void Event_Round(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_Death(Event event, const char[] name, bool dontBroadcast)
+void Event_Death(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_fCvarDrop )
 	{
@@ -594,7 +625,7 @@ public void Event_Death(Event event, const char[] name, bool dontBroadcast)
 		{
 			g_iDeathCount++;
 
-			if( g_iCvarCount == 0 || g_iCvarCount >= g_iDeathCount )
+			if( g_iCvarCount == 0 || g_iDeathCount >= g_iCvarCount )
 			{
 				if( GetRandomFloat(0.0, 1.0) <= g_fCvarDrop )
 				{
@@ -603,14 +634,14 @@ public void Event_Death(Event event, const char[] name, bool dontBroadcast)
 					float vPos[3];
 					GetClientAbsOrigin(client, vPos);
 
-					SDKCall(sdkCreateGift, vPos, view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), 0);
+					SDKCall(g_hSDK_CreateGift, vPos, view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), 0);
 				}
 			}
 		}
 	}
 }
 
-public void Event_Gift(Event event, const char[] name, bool dontBroadcast)
+void Event_Gift(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
@@ -646,13 +677,31 @@ void GiveAward(int client)
 
 void RefillAmmo(int client)
 {
-	int bits = GetUserFlagBits(client);
-	int flags = GetCommandFlags("givecurrentammo");
-	SetUserFlagBits(client, ADMFLAG_ROOT);
-	SetCommandFlags("givecurrentammo", flags & ~FCVAR_CHEAT);
-	FakeClientCommand(client, "givecurrentammo");
-	SetUserFlagBits(client, bits);
-	SetCommandFlags("givecurrentammo", flags);
+	// Refill primary
+	int weapon = GetPlayerWeaponSlot(client, 0);
+	if( weapon != -1 )
+	{
+		int ammotype = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+		GivePlayerAmmo(client, 9999, ammotype, true);
+
+		/// Refill clip
+		if( g_bLeft4DHooks )
+		{
+			char sTemp[32];
+			GetEdictClassname(weapon, sTemp, sizeof(sTemp));
+			int clip = L4D2_GetIntWeaponAttribute(sTemp, L4D2IWA_ClipSize);
+			SetEntProp(weapon, Prop_Send, "m_iClip1", clip);
+		}
+	}
+
+	// This gives to lobby owner, Valve code: result = (CBaseCombatCharacter *)UTIL_PlayerByIndex(1);
+	// int bits = GetUserFlagBits(client);
+	// int flags = GetCommandFlags("givecurrentammo");
+	// SetUserFlagBits(client, ADMFLAG_ROOT);
+	// SetCommandFlags("givecurrentammo", flags & ~FCVAR_CHEAT);
+	// FakeClientCommand(client, "givecurrentammo");
+	// SetUserFlagBits(client, bits);
+	// SetCommandFlags("givecurrentammo", flags);
 }
 
 void HealPlayer(int client)
@@ -751,7 +800,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }

@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.2"
+/*
+*	Jockey Auto Jump
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.3"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.3 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.2 (10-May-2020)
 	- Extra checks to prevent "IsAllowedGameMode" throwing errors.
@@ -111,12 +134,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -213,7 +236,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -230,17 +253,17 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bRoundStart = false;
 }
 
-public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bRoundStart = true;
 }
 
-public void Event_Jockey(Event event, const char[] name, bool dontBroadcast)
+void Event_Jockey(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_bRoundStart )
 	{
@@ -256,7 +279,7 @@ public void Event_Jockey(Event event, const char[] name, bool dontBroadcast)
 					if( fake && g_iCvarBots == 0 ) return;
 					if( !fake && g_iCvarBots == 1 ) return;
 				}
-				CreateTimer(GetRandomFloat(g_fCvarTimeMin, g_fCvarTimeMax), tmrJump, userid);
+				CreateTimer(GetRandomFloat(g_fCvarTimeMin, g_fCvarTimeMax), TimerJump, userid);
 			}
 		}
 	}
@@ -286,7 +309,7 @@ void DoJump(int userid)
 					GetEntPropVector(victim, Prop_Send, "m_vecBaseVelocity", vel);
 					vel[2] += g_fCvarForce;
 					TeleportEntity(victim, NULL_VECTOR, NULL_VECTOR, vel);
-					CreateTimer(GetRandomFloat(g_fCvarTimeMin, g_fCvarTimeMax), tmrJump, userid);
+					CreateTimer(GetRandomFloat(g_fCvarTimeMin, g_fCvarTimeMax), TimerJump, userid);
 				} else {
 					RequestFrame(OnFrame, userid);
 				}
@@ -295,9 +318,10 @@ void DoJump(int userid)
 	}
 }
 
-public Action tmrJump(Handle timer, any userid)
+Action TimerJump(Handle timer, any userid)
 {
 	DoJump(userid);
+	return Plugin_Continue;
 }
 
 void OnFrame(int userid)

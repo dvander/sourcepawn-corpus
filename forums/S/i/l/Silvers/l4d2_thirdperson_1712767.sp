@@ -1,6 +1,6 @@
 /*
 *	Survivor Thirdperson
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.8 (23-Feb-2021)
 	- Fixed the Charger resetting a Survivors thirdperson view after punching them. Thanks to "psisan" for reporting.
@@ -176,7 +179,7 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
@@ -278,7 +281,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -295,16 +298,17 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_bThirdView[client] = false;
 	g_bMountedGun[client] = false;
 
+	SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	delete g_hTimerGun;
 
@@ -315,12 +319,12 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	delete g_hTimerGun;
 }
 
-public void Event_ChargerImpact(Event event, const char[] name, bool dontBroadcast)
+void Event_ChargerImpact(Event event, const char[] name, bool dontBroadcast)
 {
 	int userid = event.GetInt("victim");
 	int client = GetClientOfUserId(userid);
@@ -338,7 +342,7 @@ public void OnClientDisconnect(int client)
 	delete g_hTimerReset[client];
 }
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( g_bThirdView[victim] && damagetype == DMG_CLUB && victim > 0 && victim <= MaxClients && attacker > 0 && attacker <= MaxClients && GetClientTeam(victim) == 2 && GetClientTeam(attacker) == 3 )
 	{
@@ -346,9 +350,11 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 		g_hTimerReset[victim] = CreateTimer(1.0, TimerReset, GetClientUserId(victim), TIMER_REPEAT);
 		SetEntPropFloat(victim, Prop_Send, "m_TimeForceExternalView", 99999.3);
 	}
+
+	return Plugin_Continue;
 }
 
-public Action TimerReset(Handle timer, any client)
+Action TimerReset(Handle timer, any client)
 {
 	client = GetClientOfUserId(client);
 	if( client && g_bThirdView[client] )
@@ -402,7 +408,7 @@ public Action TimerReset(Handle timer, any client)
 	return Plugin_Stop;
 }
 
-public void Event_MountedGun(Event event, const char[] name, bool dontBroadcast)
+void Event_MountedGun(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( g_bThirdView[client] )
@@ -417,7 +423,7 @@ public void Event_MountedGun(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public Action TimerCheck(Handle timer)
+Action TimerCheck(Handle timer)
 {
 	int count;
 	for( int i = 1; i <= MaxClients; i++ )
@@ -448,25 +454,29 @@ public Action TimerCheck(Handle timer)
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdTP_Off(int client, int args)
+Action CmdTP_Off(int client, int args)
 {
 	if( g_bCvarAllow && client && IsPlayerAlive(client) )
 	{
 		SetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView", 0.0);
 		PrintToChat(client, "%s%t", CHAT_TAG, "Off");
 	}
+
+	return Plugin_Handled;
 }
 
-public Action CmdTP_On(int client, int args)
+Action CmdTP_On(int client, int args)
 {
 	if( g_bCvarAllow && client && IsPlayerAlive(client) )
 	{
 		SetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView", 99999.3);
 		PrintToChat(client, "%s%t", CHAT_TAG, "On");
 	}
+
+	return Plugin_Handled;
 }
 
-public Action CmdThird(int client, int args)
+Action CmdThird(int client, int args)
 {
 	// if( g_bCvarAllow && client && GetClientTeam(client) == 2 && IsPlayerAlive(client) )
 	if( g_bCvarAllow && client && IsPlayerAlive(client) )

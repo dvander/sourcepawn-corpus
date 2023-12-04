@@ -1,193 +1,168 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * =============================================================================
  * Copyright https://steamcommunity.com/id/dr_lex/
  *
-
  * =============================================================================
  *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License, version 3.0, as published by the
- * Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <www.gnu.org/licenses/>.
- *
- * As a special exception, AlliedModders LLC gives you permission to link the
- * code of this program (as well as its derivative works) to "Half-Life 2," the
- * "Source Engine," the "SourcePawn JIT," and any Game MODs that run on software
- * by the Valve Corporation.  You must obey the GNU General Public License in
- * all respects for all other code used.  Additionally, AlliedModders LLC grants
- * this exception to all derivative works.  AlliedModders LLC defines further
- * exceptions, found in LICENSE.txt (as of this writing, version JULY-31-2007),
- * or <www.sourcemod.net/license.php>.
- *
 */
-
 #pragma semicolon 1
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
 #pragma newdecls required
 
-char sg_Map[55];
+#define PROP0 0
+#define PROP1 1
+#define PROP2 2
+#define PROP3 3
+#define PROP4 4
 
 char sg_slot0[MAXPLAYERS+1][64];
-int ig_prop0[MAXPLAYERS+1]; /* m_iClip1 */
-int ig_prop1[MAXPLAYERS+1]; /* m_upgradeBitVec */
-int ig_prop2[MAXPLAYERS+1]; /* m_nUpgradedPrimaryAmmoLoaded */
-int ig_prop3[MAXPLAYERS+1]; /* m_iAmmo */
-int ig_prop4[MAXPLAYERS+1]; /* m_nSkin */
+int ig_prop[10][MAXPLAYERS+1];
 
 char sg_slot0m[MAXPLAYERS+1][64];
-int ig_prop0m[MAXPLAYERS+1]; /* m_iClip1 */
-int ig_prop1m[MAXPLAYERS+1]; /* m_upgradeBitVec */
-int ig_prop2m[MAXPLAYERS+1]; /* m_nUpgradedPrimaryAmmoLoaded */
-int ig_prop3m[MAXPLAYERS+1]; /* m_iAmmo */
-int ig_prop4m[MAXPLAYERS+1]; /* m_nSkin */
+int ig_prop_m[10][MAXPLAYERS+1];
 
 int ig_entity[MAXPLAYERS+1];
-int BackpackOwner[2048+1];
-int BackpackIndex[MAXPLAYERS+1];
-
 int ig_time[MAXPLAYERS+1];
+int BackpackOwner[4096];
+
+bool ig_third_person[MAXPLAYERS+1];
+
+#define DEBUG 0
+#if DEBUG
+native int HxAmmoGrenadeLauncher(int client, int iAmmo);
+#define OFFSET 6260
+#endif
+
+native bool L4D_IsFirstMapInScenario();
 
 public Plugin myinfo =
 {
 	name = "[L4D2] Backpack (!bk)",
 	author = "dr lex",
 	description = "",
-	version = "1.5.0a",
+	version = "1.6.3",
 	url = ""
 };
 
 public void OnPluginStart()
 {
 	RegConsoleCmd("sm_bk", CMD_backpack, "", 0);
-	
 	LoadTranslations("bk.phrases");
-	
 	HookEvent("round_start", Event_RoundStart, EventHookMode_PostNoCopy);
 	HookEvent("player_death", Event_PlayerDeath);
 	HookEvent("player_team", Event_PlayerTeam);
 	HookEvent("map_transition", Event_MapTransition);
+
+	CreateTimer(3.0, HxTimerInfinite, _, TIMER_REPEAT);
 }
 
-/* --------------------------------- */
-
-stock void HxCleaning(int &i)
+/**
+ * Удаляем энтити рюкзака
+ * @param client     Номер игрока от 0 до 32
+ * @return           void
+ */
+stock void Hx_kill_ent_visual_backpack(int &client)
 {
-	sg_slot0[i][0] = '\0';
-	ig_prop0[i] = 0;
-	ig_prop1[i] = 0;
-	ig_prop2[i] = 0;
-	ig_prop3[i] = 0;
-	ig_prop4[i] = 0;
-}
-
-stock void HxCleaningMaps(int &i)
-{
-	sg_slot0m[i][0] = '\0';
-	ig_prop0m[i] = 0;
-	ig_prop1m[i] = 0;
-	ig_prop2m[i] = 0;
-	ig_prop3m[i] = 0;
-	ig_prop4m[i] = 0;
-}
-
-stock void HxUpdate(int &i)
-{
-	Format(sg_slot0[i], 40-1, "%s", sg_slot0m[i]);
-	ig_prop0[i] = ig_prop0m[i];
-	ig_prop1[i] = ig_prop1m[i];
-	ig_prop2[i] = ig_prop2m[i];
-	ig_prop3[i] = ig_prop3m[i];
-	ig_prop4[i] = ig_prop4m[i];
-	HxAddBackpack(i);
-}
-
-stock int HxSpawnSlot0(int &i)
-{		/* Спавним содержимое рюкзака рядом с игроком */
-	float fxyz[3];	
-	if (sg_slot0[i][0])
-	{
-		int iEnt = CreateEntityByName(sg_slot0[i]);		
-		if (iEnt > 0)
-		{			
-			DispatchSpawn(iEnt);
-			
-			SetEntProp(iEnt, Prop_Send, "m_iClip1", ig_prop0[i]);
-			SetEntProp(iEnt, Prop_Send, "m_upgradeBitVec", ig_prop1[i]); /*	лазер, осколочные, зажигательные	*/
-			SetEntProp(iEnt, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded", ig_prop2[i]);
-			SetEntProp(iEnt, Prop_Send, "m_iExtraPrimaryAmmo", ig_prop3[i]);
-			SetEntProp(iEnt, Prop_Send, "m_nSkin", ig_prop4[i]);
-
-			GetEntPropVector(i, Prop_Send, "m_vecOrigin", fxyz);
-			fxyz[2] += 50;
-			TeleportEntity(iEnt, fxyz, NULL_VECTOR, NULL_VECTOR);			
-			HxCleaning(i);
-			return 1;
-		}
-	}
-	return 0;
-}
-
-stock void HxFakeCHEAT(int &client, const char[] sCmd, const char[] sArg)
-{
-	int iFlags = GetCommandFlags(sCmd);
-	SetCommandFlags(sCmd, iFlags & ~FCVAR_CHEAT);
-	FakeClientCommand(client, "%s %s", sCmd, sArg);
-	SetCommandFlags(sCmd, iFlags);
-}
-
-stock int HxGiveSlot0(int &i)
-{		/* Игрок взял с рюкзака */
-	if (sg_slot0[i][0])
-	{
-		HxFakeCHEAT(i, "give", sg_slot0[i]);
-		int iEnt = GetPlayerWeaponSlot(i, 0);
-		if (iEnt > 0)
-		{
-			SetEntProp(iEnt, Prop_Send, "m_iClip1", ig_prop0[i]);
-			SetEntProp(iEnt, Prop_Send, "m_upgradeBitVec", ig_prop1[i]); /*	лазер, осколочные, зажигательные	*/
-			SetEntProp(iEnt, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded", ig_prop2[i]);
-			SetPlayerReserveAmmo(i, iEnt, ig_prop3[i]);
-			SetEntProp(iEnt, Prop_Send, "m_iExtraPrimaryAmmo", ig_prop3[i]);
-			SetEntProp(iEnt, Prop_Send, "m_nSkin", ig_prop4[i]);
-		}
-
-		HxCleaning(i);
-		return 1;
-	}
-	return 0;
-}
-
-stock void HxSaveSlot0(int &i, int &iEnt)
-{
+	int iEnt = ig_entity[client];
 	if (iEnt > 0)
 	{
-		GetEdictClassname(iEnt, sg_slot0[i], 39);
-		ig_prop0[i] = GetEntProp(iEnt, Prop_Send, "m_iClip1");
-		ig_prop1[i] = GetEntProp(iEnt, Prop_Send, "m_upgradeBitVec");
-		ig_prop2[i] = GetEntProp(iEnt, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded");
-		ig_prop3[i] = GetPlayerReserveAmmo(i, iEnt);
-		ig_prop4[i] = GetEntProp(iEnt, Prop_Send, "m_nSkin");
-		
-		RemovePlayerItem(i, iEnt);
-		AcceptEntityInput(iEnt, "Kill");
+		if (IsValidEntity(iEnt))
+		{
+			AcceptEntityInput(iEnt, "Kill");
+		}
+	}
+	ig_entity[client] = 0;
+}
+
+/**
+ * Очистка сохраненного в течении карты рюкзака
+ * 
+ * @param client     Номер игрока от 0 до 32
+ * @return           void
+ */
+stock void HxCleaning(int &client)
+{
+	sg_slot0[client][0] = '\0';
+	ig_prop[PROP0][client] = 0;
+	ig_prop[PROP1][client] = 0;
+	ig_prop[PROP2][client] = 0;
+	ig_prop[PROP3][client] = 0;
+	ig_prop[PROP4][client] = 0;
+
+	Hx_kill_ent_visual_backpack(client);
+}
+
+/**
+ * Очистка сохраненного в конце карты рюкзака
+ * 
+ * @param client     Номер игрока от 0 до 32
+ * @return           void
+ */
+stock void HxCleaningMaps(int &client)
+{
+	sg_slot0m[client][0] = '\0';
+	ig_prop_m[PROP0][client] = 0;
+	ig_prop_m[PROP1][client] = 0;
+	ig_prop_m[PROP2][client] = 0;
+	ig_prop_m[PROP3][client] = 0;
+	ig_prop_m[PROP4][client] = 0;
+
+	Hx_kill_ent_visual_backpack(client);
+}
+
+/**
+ * Копирование слота рюкзака сохраненного на прошлой карте в временный слот текущего рюкзака
+ * 
+ * @param client     Номер игрока от 0 до 32
+ * @return           void
+ */
+stock void Hx_copy_temp_slot0(int &client)
+{
+	if (sg_slot0m[client][0])
+	{
+		Format(sg_slot0[client], 39, "%s", sg_slot0m[client]);
+		ig_prop[PROP0][client] = ig_prop_m[PROP0][client];
+		ig_prop[PROP1][client] = ig_prop_m[PROP1][client];
+		ig_prop[PROP2][client] = ig_prop_m[PROP2][client];
+		ig_prop[PROP3][client] = ig_prop_m[PROP3][client];
+		ig_prop[PROP4][client] = ig_prop_m[PROP4][client];
+
+		Hx_add_visual_backpack(client);
 	}
 }
 
-stock int GetPlayerReserveAmmo(int client, int weapon)
+/**
+ * Спавним содержимое рюкзака рядом с игроком
+ * 
+ * @param client     Номер игрока от 0 до 32
+ * @return           1 взял из слота. 0 ничего нет в слоте
+ */
+stock int HxSpawnSlot0(int client)
 {
-	int ammotype = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
-	if (ammotype >= 0)
+	float fxyz[3];
+	if (sg_slot0[client][0])
 	{
-		return GetEntProp(client, Prop_Send, "m_iAmmo", _, ammotype);
+		int iEnt = CreateEntityByName(sg_slot0[client]);
+		if (iEnt > 0)
+		{
+			GetEntPropVector(client, Prop_Send, "m_vecOrigin", fxyz);
+			fxyz[2] += 50;
+			
+			DispatchSpawn(iEnt);
+			
+			SetEntProp(iEnt, Prop_Send, "m_iClip1", ig_prop[PROP0][client]);
+			SetEntProp(iEnt, Prop_Send, "m_upgradeBitVec", ig_prop[PROP1][client]); /*	лазер, осколочные, зажигательные	*/
+			SetEntProp(iEnt, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded", ig_prop[PROP2][client]);
+			SetEntProp(iEnt, Prop_Send, "m_iExtraPrimaryAmmo", ig_prop[PROP3][client]);
+			SetEntProp(iEnt, Prop_Send, "m_nSkin", ig_prop[PROP4][client]);
+
+			TeleportEntity(iEnt, fxyz, NULL_VECTOR, NULL_VECTOR);			
+			HxCleaning(client);
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -202,7 +177,125 @@ stock void SetPlayerReserveAmmo(int client, int weapon, int ammo)
 	}
 }
 
-/* --------------------------------- */
+/**
+ * Игрок берет сохраненный предмет из рюкзака
+ * 
+ * @param client     Номер игрока от 0 до 32
+ * @return           1 взял из слота. 0 ничего нет в слоте
+ */
+stock int HxGiveSlot0(int client)
+{
+	if (sg_slot0[client][0])
+	{
+		int weapon = GivePlayerItem(client, sg_slot0[client]);
+		if (weapon != -1)
+		{
+			SetEntProp(weapon, Prop_Send, "m_iClip1", ig_prop[PROP0][client]);
+			SetEntProp(weapon, Prop_Send, "m_upgradeBitVec", ig_prop[PROP1][client]);
+			SetEntProp(weapon, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded", ig_prop[PROP2][client]);
+			SetPlayerReserveAmmo(client, weapon, ig_prop[PROP3][client]);
+			SetEntProp(weapon, Prop_Send, "m_iExtraPrimaryAmmo", ig_prop[PROP3][client]);
+			SetEntProp(weapon, Prop_Send, "m_nSkin", ig_prop[PROP4][client]);
+			
+		#if DEBUG
+			if (StrEqual(sg_slot0[client], "weapon_grenade_launcher"))
+			{
+				HxAmmoGrenadeLauncher(client, ig_prop[PROP0][client]);
+				SetEntData(client, OFFSET + 68, 0);
+			}
+		#endif
+		}
+
+		HxCleaning(client);
+		return 1;
+	}
+	return 0;
+}
+
+/**
+ * Перекладываем оружие 0 слота в рюкзак
+ * 
+ * @param client     Номер игрока от 0 до 32
+ * @return           void
+ */
+stock void HxSaveSlot0(int client, int iSlot0)
+{
+	if (iSlot0 > 0)
+	{
+		GetEdictClassname(iSlot0, sg_slot0[client], 39);
+		ig_prop[PROP0][client] = GetEntProp(iSlot0, Prop_Send, "m_iClip1");
+		ig_prop[PROP1][client] = GetEntProp(iSlot0, Prop_Send, "m_upgradeBitVec");
+		ig_prop[PROP2][client] = GetEntProp(iSlot0, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded");
+		ig_prop[PROP3][client] = GetPlayerReserveAmmo(client, iSlot0);
+		ig_prop[PROP4][client] = GetEntProp(iSlot0, Prop_Send, "m_nSkin");
+
+		RemovePlayerItem(client, iSlot0);
+		AcceptEntityInput(iSlot0, "Kill");
+
+		Hx_add_visual_backpack(client);
+	}
+}
+
+stock int GetPlayerReserveAmmo(int client, int weapon)
+{
+	int ammotype = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+	if (ammotype >= 0)
+	{
+		return GetEntProp(client, Prop_Send, "m_iAmmo", _, ammotype);
+	}
+	return 0;
+}
+
+stock int HxValidClient(int &client)
+{
+	if (IsClientInGame(client))
+	{
+		if (!IsFakeClient(client))
+		{
+			if (GetClientTeam(client) == 2)
+			{
+				if (IsPlayerAlive(client))
+				{
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+stock bool IsPlayerIncapped(int client)
+{
+	if (GetEntProp(client, Prop_Send, "m_isIncapacitated", 1))
+	{
+		return true;
+	}
+	return false;
+}
+
+stock Action TimerClientPost(Handle timer, any client)
+{
+	if (IsClientInGame(client))
+	{
+		if (GetClientTeam(client) != 3)
+		{
+			Hx_copy_temp_slot0(client);
+		}
+	}
+	return Plugin_Stop;
+}
+
+stock Action TimerClientInfo(Handle timer, any client)
+{
+	if (IsClientInGame(client))
+	{
+		if (GetClientTeam(client) == 2)
+		{
+			PrintToChat(client, "\x04[\x03!bk\x04] \x05%t", "You can put additional weapons in your backpack");
+		}
+	}
+	return Plugin_Stop;
+}
 
 public void OnClientPutInServer(int client)
 {		/* При заходе игрока чистим рюкзак */
@@ -221,8 +314,7 @@ public void OnMapStart()
 	GetConVarString(g_Mode, mode, sizeof(mode));
 	if (strcmp(mode, "coop") == 0)
 	{
-		GetCurrentMap(sg_Map, sizeof(sg_Map)-1);
-		if (StrContains(sg_Map, "m1_", true) > 1)
+		if (L4D_IsFirstMapInScenario())
 		{
 			int i = 1;
 			while (i <= MaxClients)
@@ -243,8 +335,25 @@ public void OnMapStart()
 			i += 1;
 		}
 	}
-	
+
 	PrecacheModel("models/props_collectables/backpack.mdl", true);
+}
+
+stock Action HxTimerRS(Handle timer)
+{
+	int i = 1;
+	while (i <= MaxClients)
+	{
+		if (IsClientInGame(i))
+		{
+			if (GetClientTeam(i) != 3)
+			{
+				Hx_copy_temp_slot0(i);
+			}
+		}
+		i += 1;
+	}
+	return Plugin_Stop;
 }
 
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
@@ -258,50 +367,9 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	CreateTimer(1.2, HxTimerRS, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action HxTimerRS(Handle timer)
+public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
-	int i = 1;
-	while (i <= MaxClients)
-	{
-		if (IsClientInGame(i))
-		{
-			if (GetClientTeam(i) == 1 || GetClientTeam(i) == 2)
-			{
-				HxUpdate(i);
-			}
-		}
-		i += 1;
-	}
-	return Plugin_Stop;
-}
-
-public Action TimerClientPost(Handle timer, any client)
-{
-	if (IsClientInGame(client))
-	{
-		if (GetClientTeam(client) == 1 || GetClientTeam(client) == 2)
-		{
-			HxUpdate(client);
-		}
-	}
-	return Plugin_Stop;
-}
-
-public Action TimerClientInfo(Handle timer, any client)
-{
-	if (IsClientInGame(client))
-	{
-		if (GetClientTeam(client) == 2)
-		{
-			PrintToChat(client, "\x04[\x03!bk\x04] \x05%t", "You can put additional weapons in your backpack");
-		}
-	}
-	return Plugin_Stop;
-}
-
-public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
-{
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (client)
 	{
 		if (!IsFakeClient(client))
@@ -309,7 +377,6 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 			if (GetClientTeam(client) == 2)
 			{
 				HxSpawnSlot0(client);
-				HxUnBackpack(client);
 			}
 		}
 	}
@@ -323,22 +390,22 @@ public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 		if (!IsFakeClient(client))
 		{
 			int iTeam = event.GetInt("team");
-			if (iTeam == 1)
+			switch (iTeam)
 			{
-				if (event.GetInt("oldteam") == 2)
-				{	/*	Игрок уходит в афк	*/
-					HxUnBackpack(client);
+				case 1:
+				{
+					if (event.GetInt("oldteam") == 2)
+					{	/*	Игрок уходит в афк	*/
+						Hx_kill_ent_visual_backpack(client);
+					}
 				}
-			}
-			if (iTeam == 2)
-			{	/*	Игрок играет	*/
-				CreateTimer(1.0, HxTimerTeam2, client, TIMER_FLAG_NO_MAPCHANGE);
+				case 2: CreateTimer(1.0, HxTimerTeam2, client, TIMER_FLAG_NO_MAPCHANGE);
 			}
 		}
 	}
 }
 
-public Action HxTimerTeam2(Handle timer, any client)
+stock Action HxTimerTeam2(Handle timer, any client)
 {
 	if (IsClientInGame(client))
 	{
@@ -346,7 +413,7 @@ public Action HxTimerTeam2(Handle timer, any client)
 		{
 			if (IsPlayerAlive(client))
 			{
-				HxAddBackpack(client);
+				Hx_add_visual_backpack(client);
 			}
 			else
 			{
@@ -367,35 +434,20 @@ public void Event_MapTransition(Event event, const char[] name, bool dontBroadca
 		{
 			if (!IsFakeClient(i))
 			{
-				if (GetClientTeam(i) == 1)
+				if (sg_slot0[i][0])
 				{
-					HxSaveKey(i);
-				}
-				if (GetClientTeam(i) == 2)
-				{
-					if (IsPlayerAlive(i))
-					{
-						HxSaveKey(i);
-						HxUnBackpack(i);
-					}
+					Format(sg_slot0m[i], 39, "%s", sg_slot0[i]);
+					ig_prop_m[PROP0][i] = ig_prop[PROP0][i];
+					ig_prop_m[PROP1][i] = ig_prop[PROP1][i];
+					ig_prop_m[PROP2][i] = ig_prop[PROP2][i];
+					ig_prop_m[PROP3][i] = ig_prop[PROP3][i];
+					ig_prop_m[PROP4][i] = ig_prop[PROP4][i];
 				}
 			}
 		}
-		i += 1;
-	}
-}
 
-stock void HxSaveKey(int i)
-{
-	if (i)
-	{
-		sg_slot0m[i][0] = '\0';
-		Format(sg_slot0m[i], 40-1, "%s", sg_slot0[i]);
-		ig_prop0m[i] = ig_prop0[i];
-		ig_prop1m[i] = ig_prop1[i];
-		ig_prop2m[i] = ig_prop2[i];
-		ig_prop3m[i] = ig_prop3[i];
-		ig_prop4m[i] = ig_prop4[i];
+		HxCleaning(i);
+		i += 1;
 	}
 }
 
@@ -415,13 +467,11 @@ public Action CMD_backpack(int client, int args)
 					{
 						if (HxSpawnSlot0(client))
 						{
-							HxUnBackpack(client);
 							PrintToChat(client, "\x04[\x03!bk\x04] \x05%t.", "An item taken from backpack");
 						}
 						else
 						{
 							HxSaveSlot0(client, iSlot0);
-							HxAddBackpack(client);
 							PrintToChat(client, "\x04[\x03!bk\x04] \x05%t.", "An item was put in backpack");
 						}
 					}
@@ -429,7 +479,6 @@ public Action CMD_backpack(int client, int args)
 					{
 						if (HxGiveSlot0(client))
 						{
-							HxUnBackpack(client);
 							PrintToChat(client, "\x04[\x03!bk\x04] \x05%t.", "An item taken from backpack");
 						}
 						else
@@ -449,10 +498,10 @@ public Action CMD_backpack(int client, int args)
 	return Plugin_Handled;
 }
 
-stock void HxAddBackpack(int &client)
+stock void Hx_add_visual_backpack(int &client)
 {
-	HxUnBackpack(client);
-	
+	Hx_kill_ent_visual_backpack(client);
+
 	if (sg_slot0[client][0])
 	{
 		int entity = CreateEntityByName("prop_dynamic_ornament");
@@ -464,7 +513,7 @@ stock void HxAddBackpack(int &client)
 			SetEntityRenderColor(entity, 0, 0, 0, 255);
 
 			DispatchSpawn(entity); // спавнит энтити
-			ActivateEntity(entity); // Activates an entity (CBaseAnimating::Activate) похоже на анимацию и скорей всего не обезателен
+			ActivateEntity(entity); // Activates an entity (CBaseAnimating::Activate)
 
 			AcceptEntityInput(entity, "TurnOn");	// показывает предмет
 			SetEntPropFloat(entity, Prop_Send,"m_flModelScale", 0.67);	// размер модели 0.67
@@ -486,12 +535,9 @@ stock void HxAddBackpack(int &client)
 			Ang[2] = -75.0;
 
 			TeleportEntity(entity, Pos, Ang, NULL_VECTOR); // расположение на обьекте
-
 			SetEntProp(entity, Prop_Data, "m_CollisionGroup", 0);	// 
-			
-			BackpackIndex[client] = EntIndexToEntRef(entity);
 			BackpackOwner[entity] = GetClientUserId(client);
-			
+
 			SDKHook(entity, SDKHook_SetTransmit, SetTransmit);
 			ig_entity[client] = entity;
 		}
@@ -528,7 +574,7 @@ stock Action SetTransmit(int entity, int client)
 		{
 			return Plugin_Continue;
 		}
-		if(!IsSurvivorThirdPerson(client))
+		if (!ig_third_person[client])
 		{
 			return Plugin_Handled;
 		}
@@ -688,41 +734,17 @@ static bool IsSurvivorThirdPerson(int iClient)
 	return false;
 }
 
-stock void HxUnBackpack(int &client)
+stock Action HxTimerInfinite(Handle timer)
 {
-	if (ig_entity[client] > 0)
+	int i = 1;
+	while (i <= MaxClients)
 	{
-		if (IsValidEntity(ig_entity[client]))
+		ig_third_person[i] = false;
+		if (IsClientInGame(i))
 		{
-			AcceptEntityInput(ig_entity[client], "Kill");
+			ig_third_person[i] = IsSurvivorThirdPerson(i);
 		}
-		ig_entity[client] = 0;
+		i += 1;
 	}
-}
-
-stock int HxValidClient(int &client)
-{
-	if (IsClientInGame(client))
-	{
-		if (!IsFakeClient(client))
-		{
-			if (GetClientTeam(client) == 2)
-			{
-				if (IsPlayerAlive(client))
-				{
-					return 1;
-				}
-			}
-		}
-	}
-	return 0;
-}
-
-stock bool IsPlayerIncapped(int client)
-{
-	if (GetEntProp(client, Prop_Send, "m_isIncapacitated", 1))
-	{
-		return true;
-	}
-	return false;
+	return Plugin_Continue;
 }

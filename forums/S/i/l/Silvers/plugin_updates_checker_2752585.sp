@@ -1,6 +1,6 @@
 /*
 *	Plugin Updates Checker
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1"
+#define PLUGIN_VERSION 		"1.6"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,23 @@
 
 ========================================================================================
 	Change Log:
+
+1.6 (14-Jul-2022)
+	- Fixed plugin version not being set.
+	- Fixed "Invalid memory access" error. Thanks to "Psyk0tik" for reporting and testing.
+
+1.5 (18-Apr-2022)
+	- Fixed some servers not displaying the updates and throwing an error. Thanks to "Psyk0tik" for reporting and testing.
+
+1.4 (07-Nov-2021)
+	- No longer checks for updates every map change.
+
+1.3 (06-Nov-2021)
+	- Removed timeout restriction for checking on updates.
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+
+1.2 (20-Jul-2021)
+	- Made the error message clearer about missing extensions.
 
 1.1 (13-Jul-2021)
 	- Fixed "Native "HTTPClient.HTTPClient" was not found" error.
@@ -85,13 +102,13 @@
 #define STEAMTOOLS_AVAILABLE()	(GetFeatureStatus(FeatureType_Native, "Steam_CreateHTTPRequest") == FeatureStatus_Available)
 #define STEAMWORKS_AVAILABLE()	(GetFeatureStatus(FeatureType_Native, "SteamWorks_CreateHTTPRequest") == FeatureStatus_Available)
 #define RESTINPAWN_AVAILABLE()	(GetFeatureStatus(FeatureType_Native, "HTTPClient.DownloadFile") == FeatureStatus_Available)
-#define EXTENSION_ERROR			"This plugin requires one of the SteamTools, SteamWorks or REST in Pawn extensions to function."
 
 ConVar g_hCvarAuto, g_hCvarIgnore, g_hCvarLogs;
 int g_iLastChecked;
-bool g_bLoaded, g_bMainList;
+bool g_bMainList;
+bool g_bLoaded;
 
-Database g_hDB;
+// Database g_hDB;
 ArrayList g_AlWebsites;
 ArrayList g_AlIgnore;
 int g_iIndex;
@@ -106,7 +123,7 @@ public Plugin myinfo =
 	name = "[ANY] Plugin Updates Checker",
 	author = "SilverShot",
 	description = "Checks version cvars against a list of known latest plugin versions.",
-	version = "1.0",
+	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=333430"
 }
 
@@ -130,6 +147,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	MarkNativeAsOptional("HTTPClient.HTTPClient");
 	MarkNativeAsOptional("HTTPClient.DownloadFile");
 	MarkNativeAsOptional("HTTPClient.SetHeader");
+
+	return APLRes_Success;
 }
 
 public void OnPluginStart()
@@ -153,23 +172,28 @@ public void OnPluginStart()
 
 public void OnConfigsExecuted()
 {
-	// Validate extensions
-	if( !STEAMTOOLS_AVAILABLE() && !STEAMWORKS_AVAILABLE() && !RESTINPAWN_AVAILABLE() )
+	if( !g_bLoaded )
 	{
-		SetFailState(EXTENSION_ERROR);
+		// Validate extensions
+		if( !STEAMTOOLS_AVAILABLE() && !STEAMWORKS_AVAILABLE() && !RESTINPAWN_AVAILABLE() )
+		{
+			SetFailState("\n==========\nThis plugin requires one of the \"SteamTools\", \"SteamWorks\" or \"REST in Pawn\" Extensions to function.\nRead installation instructions and requirements again.\n==========");
+		}
+
+		// Database
+		// MySQL_Connect();
+
+		// Auto update
+		if( g_hCvarAuto.IntValue == 2 )
+			CreateTimer(60.0, TimerUpdate, _, TIMER_REPEAT);
+
+		CheckForUpdates(0);
+
+		g_bLoaded = true;
 	}
-
-	// Database
-	MySQL_Connect();
-
-	// Auto update
-	if( g_hCvarAuto.IntValue == 2 )
-		CreateTimer(60.0, TimerUpdate, _, TIMER_REPEAT);
-
-	g_bLoaded = true;
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -177,7 +201,7 @@ public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char
 void GetCvars()
 {
 	delete g_AlIgnore;
-	g_AlIgnore = CreateArray(MAX_LEN_CVARS);
+	g_AlIgnore = new ArrayList(MAX_LEN_CVARS);
 
 	char sTemp[512], sCvar[MAX_LEN_CVARS];
 
@@ -202,7 +226,7 @@ void GetCvars()
 // ====================================================================================================
 //					UPDATES CHECK
 // ====================================================================================================
-public Action CmdUpdates(int client, int args)
+Action CmdUpdates(int client, int args)
 {
 	CheckForUpdates(client);
 
@@ -211,7 +235,10 @@ public Action CmdUpdates(int client, int args)
 
 void CheckForUpdates(int client)
 {
+	ReplyToCommand(client, "[SM] Plugin Updates Checker: Checking for updates...");
+
 	// Timeout
+	/*
 	if( !g_iLastChecked )
 	{
 		ReplyToCommand(client, "[SM] Plugin Updates Checker: Cannot determine last check.");
@@ -239,6 +266,8 @@ void CheckForUpdates(int client)
 
 		g_hDB.Query(Database_OnSaveData, szBuffer);
 	}
+	// */
+	g_iLastChecked = GetTime();
 
 
 
@@ -408,7 +437,7 @@ void ProcessLists()
 // ====================================================================================================
 //					REST IN PAWN
 // ====================================================================================================
-public void OnFileDownloaded(HTTPStatus status, any value, const char[] error)
+void OnFileDownloaded(HTTPStatus status, any value, const char[] error)
 {
 	if( status == HTTPStatus_OK )
 	{
@@ -447,7 +476,7 @@ public void OnFileDownloaded(HTTPStatus status, any value, const char[] error)
 // ====================================================================================================
 //					STEAMTOOLS
 // ====================================================================================================
-public void OnSteamHTTPComplete(HTTPRequestHandle HTTPRequest, bool requestSuccessful, HTTPStatusCode statusCode, int main)
+void OnSteamHTTPComplete(HTTPRequestHandle HTTPRequest, bool requestSuccessful, HTTPStatusCode statusCode, int main)
 {
 	int length = Steam_GetHTTPResponseBodySize(HTTPRequest);
 	char[] body = new char[length];
@@ -479,7 +508,7 @@ public void OnSteamHTTPComplete(HTTPRequestHandle HTTPRequest, bool requestSucce
 // ====================================================================================================
 //					STEAMWORKS
 // ====================================================================================================
-public int OnRequestComplete(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, int main)
+void OnRequestComplete(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, int main)
 {
 	if( bRequestSuccessful && eStatusCode == k_EHTTPStatusCode200OK )
 	{
@@ -567,7 +596,10 @@ void GetMainList(char[] response)
 	{
 		end = StrContains(response[pos], "\n");
 		if( end == -1 ) end = (len - pos) + 1;
-		response[pos + end] = 0;
+		if( pos + end < len )
+			response[pos + end] = 0;
+		else
+			response[len] = 0;
 
 		strcopy(sLine, sizeof(sLine), response[pos]);
 		TrimString(sLine);
@@ -597,6 +629,7 @@ void CheckVersions(char[] response)
 
 	// Windows/Linux compatibility
 	ReplaceString(response, len, "\r\n", "\n");
+	len = strlen(response);
 
 	// Loop returned list
 	for( ;; )
@@ -749,7 +782,7 @@ void CheckVersions(char[] response)
 // ====================================================================================================
 //					UPDATE CONFIG
 // ====================================================================================================
-public Action CmdConfig(int client, int args)
+Action CmdConfig(int client, int args)
 {
 	char sPath[PLATFORM_MAX_PATH] = DATA_CONFIG_READ;
 	BuildPath(Path_SM, sPath, sizeof(sPath), sPath);
@@ -767,7 +800,7 @@ public Action CmdConfig(int client, int args)
 		File hFile = OpenFile(sPath, "r");
 		File hNew = OpenFile(sNew, "w");
 
-		while( ReadFileLine(hFile, sLine, sizeof(sLine)) )
+		while( hFile.ReadLine(sLine, sizeof(sLine)) )
 		{
 			ExplodeString(sLine, ",", sRead, sizeof(sRead), sizeof(sRead[]));
 			TrimString(sRead[0]);
@@ -808,6 +841,7 @@ public Action CmdConfig(int client, int args)
 // ====================================================================================================
 //					DATABASE
 // ====================================================================================================
+/*
 void MySQL_Connect()
 {
 	if( !SQL_CheckConfig(DATABASE_NAME) )
@@ -818,7 +852,7 @@ void MySQL_Connect()
 	Database.Connect(OnMySQLConnect, DATABASE_NAME);
 }
 
-public void OnMySQLConnect(Database db, const char[] szError, any data)
+void OnMySQLConnect(Database db, const char[] szError, any data)
 {
 	if( db == null || szError[0] )
 	{
@@ -840,7 +874,7 @@ public void OnMySQLConnect(Database db, const char[] szError, any data)
 	g_hDB.Query(Database_OnConnect, szBuffer);
 }
 
-public void Database_OnConnect(Database db, DBResultSet results, const char[] error, any data)
+void Database_OnConnect(Database db, DBResultSet results, const char[] error, any data)
 {
 	if( results == null )
 	{
@@ -852,7 +886,7 @@ public void Database_OnConnect(Database db, DBResultSet results, const char[] er
 	g_hDB.Query(Database_OnLoadData, szBuffer);
 }
 
-public void Database_OnLoadData(Database db, DBResultSet results, const char[] error, any data)
+void Database_OnLoadData(Database db, DBResultSet results, const char[] error, any data)
 {
 	if( results != null )
 	{
@@ -883,7 +917,7 @@ public void Database_OnLoadData(Database db, DBResultSet results, const char[] e
 	}
 }
 
-public void Database_OnSaveData(Database db, DBResultSet results, const char[] error, any data)
+void Database_OnSaveData(Database db, DBResultSet results, const char[] error, any data)
 {
 	if( results == null )
 	{
@@ -894,19 +928,23 @@ public void Database_OnSaveData(Database db, DBResultSet results, const char[] e
 		delete results;
 	}
 }
+// */
 
 
 
 // ====================================================================================================
 //					AUTO UPDATE + LOG
 // ====================================================================================================
-public Action TimerUpdate(Handle timer)
+Action TimerUpdate(Handle timer)
 {
+	// if( g_iLastChecked && GetTime() - g_iLastChecked > MAX_LEN_TIMEOUT )
 	if( g_iLastChecked && GetTime() - g_iLastChecked > MAX_LEN_TIMEOUT )
 	{
 		CheckForUpdates(0);
 		g_iLastChecked = GetTime();
 	}
+
+	return Plugin_Continue;
 }
 
 void LogCustom(const char[] format, any ...)

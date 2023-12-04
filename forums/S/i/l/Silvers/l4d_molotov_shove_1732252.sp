@@ -1,6 +1,6 @@
 /*
 *	Molotov Shove
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.10"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.10 (01-Nov-2022)
+	- Added cvar "l4d_molotov_shove_keys" to optionally require holding "R" before shoving. Requested by "Iciaria".
+	- Fixed breaking when shoving objects and not infected or players. Thanks to "Iciaria" for reporting.
+
+1.9 (28-Sep-2021)
+	- Changed method of creating an explosive to prevent it being visible (still sometimes shows, but probably less).
 
 1.8 (05-Aug-2020)
 	- Fixed not resetting when the Molotov breaks sometimes causing new Molotovs to instantly break.
@@ -86,8 +93,8 @@
 #define	SOUND_BREAK			"weapons/molotov/molotov_detonate_3.wav"
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarInfected, g_hCvarLimited, g_hCvarLimit, g_hCvarRemove, g_hCvarTimed, g_hCvarTimeout;
-int g_iCvarInfected, g_iCvarLimited, g_iCvarLimit, g_iCvarTimed, g_iCvarRemove, g_iLimiter[MAXPLAYERS+1], g_iLimited[2048], g_iClassTank;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarInfected, g_hCvarKeys, g_hCvarLimited, g_hCvarLimit, g_hCvarRemove, g_hCvarTimed, g_hCvarTimeout;
+int g_iCvarInfected, g_iCvarKeys, g_iCvarLimited, g_iCvarLimit, g_iCvarTimed, g_iCvarRemove, g_iLimiter[MAXPLAYERS+1], g_iLimited[2048], g_iClassTank;
 bool g_bCvarAllow, g_bLeft4Dead2;
 float g_fCvarTimeout;
 
@@ -125,6 +132,7 @@ public void OnPluginStart()
 	g_hCvarModesOff = CreateConVar(		"l4d_molotov_shove_modes_off",		"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog = CreateConVar(		"l4d_molotov_shove_modes_tog",		"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarInfected = CreateConVar(		"l4d_molotov_shove_infected",		"511",			"Which infected to affect: 1=Common, 2=Witch, 4=Smoker, 8=Boomer, 16=Hunter, 32=Spitter, 64=Jockey, 128=Charger, 256=Tank, 511=All.", CVAR_FLAGS );
+	g_hCvarKeys = CreateConVar(			"l4d_molotov_shove_keys",			"1",			"Which key combination to use when shoving: 1=Shove key. 2=Reload + Shove keys.", CVAR_FLAGS );
 	g_hCvarLimited = CreateConVar(		"l4d_molotov_shove_limited",		"2",			"0=Infinite. How many times someone can use a molotov to ignite infected before it's removed by the remove cvar option.", CVAR_FLAGS );
 	g_hCvarLimit = CreateConVar(		"l4d_molotov_shove_limit",			"0",			"0=Infinite. How many times per round can someone use their molotov to ignite infected.", CVAR_FLAGS );
 	g_hCvarRemove = CreateConVar(		"l4d_molotov_shove_remove",			"2",			"0=Off. 1=Delete the entity when limit reached. 2=Explode on the ground when limit is reached.", CVAR_FLAGS );
@@ -140,6 +148,7 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarInfected.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarKeys.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarLimited.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarLimit.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRemove.AddChangeHook(ConVarChanged_Cvars);
@@ -159,12 +168,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -172,6 +181,7 @@ public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char
 void GetCvars()
 {
 	g_iCvarInfected = g_hCvarInfected.IntValue;
+	g_iCvarKeys = g_hCvarKeys.IntValue;
 	g_iCvarLimited = g_hCvarLimited.IntValue;
 	g_iCvarLimit = g_hCvarLimit.IntValue;
 	g_iCvarRemove = g_hCvarRemove.IntValue;
@@ -257,7 +267,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -293,12 +303,12 @@ void ResetPlugin()
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
 {
 	int infected = g_iCvarInfected & (1<<0);
 	int witch = g_iCvarInfected & (1<<1);
@@ -309,47 +319,55 @@ public void Event_EntityShoved(Event event, const char[] name, bool dontBroadcas
 		if( g_iCvarLimit && g_iLimiter[client] >= g_iCvarLimit )
 			return;
 
-		if( CheckWeapon(client) )
+		if( g_iCvarKeys == 1 || GetClientButtons(client) & IN_RELOAD )
 		{
-			int target = event.GetInt("entityid");
-
-			char sTemp[32];
-			GetEntityClassname(target, sTemp, sizeof(sTemp));
-
-			if( infected && strcmp(sTemp, "infected") == 0 )
+			if( CheckWeapon(client) )
 			{
-				HurtPlayer(target, client, 0);
-				g_iLimiter[client]++;
-			}
-			else if( witch && strcmp(sTemp, "witch") == 0 )
-			{
-				HurtPlayer(target, client, g_iCvarTimed == 1 || g_iCvarTimed & (1<<1));
-				g_iLimiter[client]++;
-			}
+				int target = event.GetInt("entityid");
 
-			LimitedFunc(client);
+				char sTemp[32];
+				GetEntityClassname(target, sTemp, sizeof(sTemp));
+
+				if( infected && strcmp(sTemp, "infected") == 0 )
+				{
+					HurtPlayer(target, client, 0);
+					g_iLimiter[client]++;
+
+					LimitedFunc(client);
+				}
+				else if( witch && strcmp(sTemp, "witch") == 0 )
+				{
+					HurtPlayer(target, client, g_iCvarTimed == 1 || g_iCvarTimed & (1<<1));
+					g_iLimiter[client]++;
+
+					LimitedFunc(client);
+				}
+			}
 		}
 	}
 }
 
-public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("attacker"));
 
 	if( g_iCvarLimit && g_iLimiter[client] >= g_iCvarLimit )
 		return;
 
-	int target = GetClientOfUserId(event.GetInt("userid"));
-	if( GetClientTeam(target) == 3 && CheckWeapon(client) )
+	if( g_iCvarKeys == 1 || GetClientButtons(client) & IN_RELOAD )
 	{
-		int class = GetEntProp(target, Prop_Send, "m_zombieClass") + 1;
-		if( class == g_iClassTank ) class = 8;
-		if( g_iCvarInfected & (1 << class) )
+		int target = GetClientOfUserId(event.GetInt("userid"));
+		if( GetClientTeam(target) == 3 && CheckWeapon(client) )
 		{
-			HurtPlayer(target, client, class);
-			g_iLimiter[client]++;
+			int class = GetEntProp(target, Prop_Send, "m_zombieClass") + 1;
+			if( class == g_iClassTank ) class = 8;
+			if( g_iCvarInfected & (1 << class) )
+			{
+				HurtPlayer(target, client, class);
+				g_iLimiter[client]++;
 
-			LimitedFunc(client);
+				LimitedFunc(client);
+			}
 		}
 	}
 }
@@ -364,7 +382,7 @@ void LimitedFunc(int client)
 		EmitSoundToAll(SOUND_BREAK, client);
 
 		RemovePlayerItem(client, weapon);
-		AcceptEntityInput(weapon, "Kill");
+		RemoveEntity(weapon);
 		g_iLimited[weapon] = 0;
 
 		if( g_iCvarRemove == 2 )
@@ -379,17 +397,46 @@ void CreateFires(int client)
 	int entity = CreateEntityByName("prop_physics");
 	if( entity != -1 )
 	{
-		SetEntityModel(entity, MODEL_GASCAN);
+		DispatchKeyValue(entity, "model", MODEL_GASCAN);
 
+		// Hide from view (multiple hides still show the gascan for a split second sometimes, but works better than only using 1 of them)
+		SDKHook(entity, SDKHook_SetTransmit, OnTransmitExplosive);
+
+		// Hide from view
+		int flags = GetEntityFlags(entity);
+		SetEntityFlags(entity, flags|FL_EDICT_DONTSEND);
+
+		// Make invisible
+		SetEntityRenderMode(entity, RENDER_TRANSALPHAADD);
+		SetEntityRenderColor(entity, 0, 0, 0, 0);
+
+		// Prevent collision and movement
+		SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1, 1);
+		SetEntityMoveType(entity, MOVETYPE_NONE);
+
+		// Teleport
 		float vPos[3];
 		GetEntPropVector(client, Prop_Data, "m_vecOrigin", vPos);
 		vPos[2] += 10.0;
 		TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+		SetEntityRenderMode(entity, RENDER_TRANSALPHAADD);
+		SetEntityRenderColor(entity, 0, 0, 0, 0);
+
+		// Spawn
 		DispatchSpawn(entity);
+
+		// Set attacker
 		SetEntPropEnt(entity, Prop_Data, "m_hPhysicsAttacker", client);
 		SetEntPropFloat(entity, Prop_Data, "m_flLastPhysicsInfluenceTime", GetGameTime());
+
+		// Explode
 		AcceptEntityInput(entity, "Break");
 	}
+}
+
+Action OnTransmitExplosive(int entity, int client)
+{
+	return Plugin_Handled;
 }
 
 void HurtPlayer(int target, int client, int class)

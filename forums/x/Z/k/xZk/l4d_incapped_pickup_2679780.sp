@@ -2,19 +2,21 @@
 #pragma newdecls required
 //#define DEBUG
 
-#define PLUGIN_NAME			  "[L4D/2] Incapped Pickup Items"
-#define PLUGIN_AUTHOR		  "xZk"
-#define PLUGIN_DESCRIPTION	  "incapped survivors can pickup items and weapons"
-#define PLUGIN_VERSION		  "1.3.0"
-#define PLUGIN_URL			  "https://forums.alliedmods.net/showthread.php?t=320828"
-
 #include <sourcemod>
 #include <sdktools>
 
-ConVar g_cvarEnable;
-ConVar g_cvarDistance;
-ConVar g_cvarScavengeItem;
+#define PLUGIN_NAME			  "[L4D/2] Incapped Pickup Items"
+#define PLUGIN_AUTHOR		  "xZk"
+#define PLUGIN_DESCRIPTION	  "incapped survivors can pickup items and weapons"
+#define PLUGIN_VERSION		  "1.4.0"
+#define PLUGIN_URL			  "https://forums.alliedmods.net/showthread.php?t=320828"
 
+#define GAMEDATA			"l4d2_incapped_pickup"
+
+ConVar g_cvarEnable,g_cvarDistance, g_cvarScavengeItem, g_cvarScavengeCarry;
+bool g_bCvarEnable; float g_fCvarDistance; int g_iCvarScavengeItem; bool g_bCvarScavengeCarry;
+
+Handle g_hSDK_Call_FindUseEntity;
 bool g_bIsOnUse[MAXPLAYERS+1];
 
 public Plugin myinfo =
@@ -28,20 +30,31 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	g_cvarEnable = CreateConVar("incapped_pickup", "1", "0:Disable, 1:Enable plugin");
-	g_cvarDistance = CreateConVar("incapped_pickup_distance", "101.8", "Use pickup distance limit");
-	g_cvarScavengeItem = CreateConVar("incapped_pickup_scavenge", "0", "0:Disable pickup scavenge items, 1:Allow pickup gascans, 2: Allow pickup colas, 3:All");
+	g_cvarEnable = CreateConVar("l4d_incapped_pickup", "1", "0:Disable, 1:Enable plugin", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cvarDistance = CreateConVar("l4d_incapped_pickup_distance", "96.0", "Use pickup distance limit (player_use_radius = 96) ", FCVAR_NONE, true, 1.0);
+	g_cvarScavengeItem = CreateConVar("l4d_incapped_pickup_scavenge", "0", "0:Disable pickup scavenge items, 1:Allow pickup gascans, 2: Allow pickup colas, 3:All", FCVAR_NONE, true, 0.0, true, 3.0);
+	g_cvarScavengeCarry = CreateConVar("l4d_incapped_pickup_carryable", "0", "0:Disable, 1:Allow pickup carryable items (gnome, propanetank, etc)", FCVAR_NONE, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "l4d_incapped_pickup");
+
+	g_cvarEnable.AddChangeHook(CvarsChanged);
+	g_cvarDistance.AddChangeHook(CvarsChanged);
+	g_cvarScavengeItem.AddChangeHook(CvarsChanged);
+	g_cvarScavengeCarry.AddChangeHook(CvarsChanged);
+	CvarsChanged(null, "", "");
+	vLoadGameData();
 }
 
-public void OnClientDisconnect_Post(int client)
+public void CvarsChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	g_bIsOnUse[client] = false;
+	g_bCvarEnable = g_cvarEnable.BoolValue;
+	g_fCvarDistance = g_cvarDistance.FloatValue;
+	g_iCvarScavengeItem = g_cvarScavengeItem.IntValue;
+	g_bCvarScavengeCarry = g_cvarScavengeCarry.BoolValue;
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-	if(!g_cvarEnable.BoolValue)
+	if(!g_bCvarEnable)
 		return Plugin_Continue;
 	
 	if(!IsValidSurvivor(client))
@@ -56,22 +69,22 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if ((buttons & IN_USE) && !g_bIsOnUse[client]) 
 	{
 		g_bIsOnUse[client] = true;
-		float vecOrigin[3],item_pos[3];
-		GetClientEyePosition(client, vecOrigin);
-		int itemtarget = GetClientAimTarget(client, false);
-		float distance = g_cvarDistance.FloatValue;
-		if (!IsValidItemPickup(itemtarget))
-			itemtarget = GetItemOnFloor(client, "weapon_*", distance);
-		if (IsValidItemPickup(itemtarget))
+		int itemtarget = iFindUseEntity(client, g_fCvarDistance);
+		if(IsValidItemPickup(itemtarget)){
+			AcceptEntityInput(itemtarget, "Use", client, itemtarget);
+			return Plugin_Continue;
+		}else{//find object blocked for invisible entities
+			itemtarget = GetItemOnFloor(client, "weapon_*", g_fCvarDistance);
+		}
+		if (IsValidItemPickup(itemtarget) && IsVisibleTo(client, itemtarget))
 		{
 			int owneritem = GetEntPropEnt(itemtarget, Prop_Data, "m_hOwnerEntity");
-			GetEntPropVector(itemtarget, Prop_Data, "m_vecAbsOrigin", item_pos);
-			if ((owneritem == client || owneritem == -1) && GetVectorDistance(vecOrigin, item_pos) <= distance && IsVisibleTo(vecOrigin, item_pos)) {
+			if ((owneritem == client || owneritem == -1)) {
 				AcceptEntityInput(itemtarget, "Use", client, itemtarget);
 			}
 		}
 	}
-	else if(!(buttons & IN_USE) && g_bIsOnUse[client])
+	else if(!(buttons & IN_USE))
 	{
 		g_bIsOnUse[client] = false;
 	}
@@ -81,22 +94,50 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 bool IsValidItemPickup(int item){
 		
 	if(IsValidWeapon(item)){
-		if(IsWeaponGascan(item) && (g_cvarScavengeItem.IntValue & 1)){
-			return true;
-		}else if(IsWeaponColaBottles(item) && (g_cvarScavengeItem.IntValue & 2)){
-			return true;
-		}else if(IsWeaponGascan(item) || IsWeaponColaBottles(item)){
+		if(IsWeaponGascan(item) && !(g_iCvarScavengeItem & 1)){
+			return false;
+		}else if(IsWeaponColaBottles(item) && !(g_iCvarScavengeItem & 2)){
 			return false;
 		}
 		return true;
-		
+	}else if(IsValidEnt(item) && HasEntProp(item, Prop_Send, "m_isCarryable") && g_bCvarScavengeCarry){
+		return true;
 	}
 	return false;
 }
 
+void vLoadGameData(){
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
+	if(FileExists(sPath) == false)
+		SetFailState("\n==========\nMissing required file: \"%s\".\n==========", sPath);
+
+	GameData hGameData = new GameData(GAMEDATA);
+	if(hGameData == null)
+		SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
+
+	StartPrepSDKCall(SDKCall_Player);
+	if(PrepSDKCall_SetFromConf(hGameData, SDKConf_Virtual, "CTerrorPlayer::FindUseEntity") == false)
+		SetFailState("Failed to find offset: CTerrorPlayer::FindUseEntity");
+	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
+	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
+	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
+	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain);
+	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain);
+	PrepSDKCall_SetReturnInfo(SDKType_CBaseEntity, SDKPass_Pointer);
+	g_hSDK_Call_FindUseEntity = EndPrepSDKCall();
+	if(g_hSDK_Call_FindUseEntity == null)
+		SetFailState("Failed to create SDKCall: CTerrorPlayer::FindUseEntity");
+
+	delete hGameData;
+}
+
+int iFindUseEntity(int client, float fUseRadius){
+	return SDKCall(g_hSDK_Call_FindUseEntity, client, fUseRadius, 0.0, 0.0, false, false);
+}
+
 //https://forums.alliedmods.net/showthread.php?t=318185
-int GetItemOnFloor(int client, char[] sClassname, float fDistance=101.8, float fRadius=25.0)
-{
+int GetItemOnFloor(int client, char[] sClassname, float fDistance=101.8, float fRadius=25.0){
 	float vecEye[3], vecTarget[3], vecDir1[3], vecDir2[3], ang[3];
 	float dist, MAX_ANG_DELTA, ang_delta, ang_min = 0.0;
 	int ent=-1, entity = -1;
@@ -136,47 +177,61 @@ int GetItemOnFloor(int client, char[] sClassname, float fDistance=101.8, float f
 	}
 	return entity;
 }
-
-float GetAngle(float x1[3], float x2[3]) // by Pan XiaoHai
-{
+// by Pan XiaoHai
+float GetAngle(float x1[3], float x2[3]) {
 	return ArcCosine(GetVectorDotProduct(x1, x2)/(GetVectorLength(x1)*GetVectorLength(x2)));
 }
 
-// credits = "AtomicStryker"
-bool IsVisibleTo(float position[3], float targetposition[3])
-{
-	static float vAngles[3], vLookAt[3];
+//credits Mart
+stock bool IsVisibleTo(int client, int target){
+	float vClientPos[3];
+	float vTargetPos[3];
+	//float vLookAt[3];
+	float vAng[3];
+	float vMins[3];
+	float vMaxs[3];
 
-	MakeVectorFromPoints(position, targetposition, vLookAt); // compute vector from start to target
-	GetVectorAngles(vLookAt, vAngles); // get angles from vector for trace
+	GetClientEyePosition(client, vClientPos);
+	//GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vClientPos);
+	//GetClientEyePosition(target, vTargetPos);
+	GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vTargetPos);
+	//MakeVectorFromPoints(vClientPos, vTargetPos, vLookAt);
+	//GetVectorAngles(vLookAt, vAng);
+	GetClientEyeAngles(client, vAng);
 
-	// execute Trace
-	static Handle trace;
-	trace = TR_TraceRayFilterEx(position, vAngles, MASK_ALL, RayType_Infinite, _TraceFilter);
-	
-	static bool isVisible;
-	isVisible = false;
+	Handle trace = TR_TraceRayFilterEx(vClientPos, vAng, MASK_VISIBLE, RayType_Infinite, TraceFilter, target);
 
-	if( TR_DidHit(trace) )
+	bool isVisible;
+
+	if (TR_DidHit(trace))
 	{
-		static float vStart[3];
-		TR_GetEndPosition(vStart, trace); // retrieve our trace endpoint
+		isVisible = (TR_GetEntityIndex(trace) == target);
 
-		if( (GetVectorDistance(position, vStart, false) + 25.0 ) >= GetVectorDistance(position, targetposition))
+		if (!isVisible)
 		{
-			isVisible = true; // if trace ray length plus tolerance equal or bigger absolute distance, you hit the target
+			//vTargetPos[2] -= 62.0; // results the same as GetClientAbsOrigin
+			delete trace;
+			GetEntPropVector(target, Prop_Data, "m_vecMins", vMins);
+			GetEntPropVector(target, Prop_Data, "m_vecMaxs", vMaxs);
+			
+			trace = TR_TraceHullFilterEx(vClientPos, vTargetPos, vMins, vMaxs, MASK_VISIBLE, TraceFilter, target);
+
+			if (TR_DidHit(trace))
+				isVisible = (TR_GetEntityIndex(trace) == target);
 		}
 	}
 	delete trace;
-
 	return isVisible;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
-{
-	if( entity <= MaxClients || !IsValidEntity(entity) )
-		return false;
-	return true;
+bool TraceFilter(int entity, int contentsMask, int client){
+    if (entity == client)
+        return true;
+
+    if (IsValidClient(entity))
+        return false;
+
+    return false;
 }
 
 stock bool IsWeaponSpawner(int weapon){

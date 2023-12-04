@@ -62,26 +62,20 @@ public Plugin myinfo =
 #define CONFIG_FILENAME               "l4d_hold_shove_n_switch_fix"
 
 // ====================================================================================================
-// Defines
-// ====================================================================================================
-#define TEAM_SURVIVOR                 2
-#define TEAM_HOLDOUT                  4
-
-// ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Enabled;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static bool   gc_bWeaponSwitched[MAXPLAYERS+1];
+bool gc_bWeaponSwitchPostHooked[MAXPLAYERS+1];
+bool gc_bWeaponSwitched[MAXPLAYERS+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -122,28 +116,28 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
+    LateLoad();
+}
+
+/****************************************************************************************************/
+
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+    GetCvars();
 
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
-{
-    GetCvars();
-}
-
-/****************************************************************************************************/
-
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -151,9 +145,6 @@ public void LateLoad()
             continue;
 
         OnClientPutInServer(client);
-
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-        OnWeaponSwitchPost(client, weapon);
     }
 }
 
@@ -161,30 +152,31 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     if (IsFakeClient(client))
         return;
 
+    if (gc_bWeaponSwitchPostHooked[client])
+        return;
+
+    gc_bWeaponSwitchPostHooked[client] = true;
     SDKHook(client, SDKHook_WeaponSwitchPost, OnWeaponSwitchPost);
+
+    OnWeaponSwitchPost(client, -1);
 }
 
 /****************************************************************************************************/
 
 public void OnClientDisconnect(int client)
 {
+    gc_bWeaponSwitchPostHooked[client] = false;
     gc_bWeaponSwitched[client] = false;
 }
 
 /****************************************************************************************************/
 
-public void OnWeaponSwitchPost(int client, int weapon)
+void OnWeaponSwitchPost(int client, int weapon)
 {
     if (!g_bCvar_Enabled)
-        return;
-
-    if (!(GetClientButtons(client) & IN_ATTACK2))
         return;
 
     gc_bWeaponSwitched[client] = true;
@@ -192,9 +184,9 @@ public void OnWeaponSwitchPost(int client, int weapon)
 
 /****************************************************************************************************/
 
-public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
+public Action OnPlayerRunCmd(int client, int &buttons)
 {
-    if (!IsValidClientIndex(client))
+    if (client < 0)
         return Plugin_Continue;
 
     if (!gc_bWeaponSwitched[client])
@@ -209,7 +201,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -223,18 +215,4 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid client index.
- *
- * @param client          Client index.
- * @return                True if client index is valid, false otherwise.
- */
-bool IsValidClientIndex(int client)
-{
-    return (1 <= client <= MaxClients);
 }

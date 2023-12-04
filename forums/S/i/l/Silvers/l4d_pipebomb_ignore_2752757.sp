@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1"
+#define PLUGIN_VERSION 		"2.0"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,10 +32,15 @@
 ========================================================================================
 	Change Log:
 
-1.1 (14-Jul-2020)
+2.0 (28-Sep-2021)
+	- New method of patching the game.
+	- Now requires DHooks.
+	- Fixed common ignoring the pipebomb when Survivors are vomited on. Thanks to "Maur0" for reporting.
+
+1.1 (14-Jul-2021)
 	- Compatibility update for "Common Infected - Damage Received" and "PipeBomb Damage Modifier" plugins.
 
-1.0 (13-Jul-2020)
+1.0 (13-Jul-2021)
 	- Initial release.
 
 ======================================================================================*/
@@ -44,14 +49,16 @@
 #pragma newdecls required
 
 #include <sourcemod>
-#include <sdktools>
-#include <sdkhooks>
+#include <dhooks>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
+#define GAMEDATA			"l4d_pipebomb_ignore"
 
 
 ConVar g_hCvarAllow, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarMPGameMode;
 bool g_bCvarAllow, g_bMapStarted;
+
+Handle g_hDetour;
 
 
 
@@ -97,6 +104,24 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
+
+
+
+	// ====================================================================================================
+	// Detours
+	// ====================================================================================================
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
+	if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
+
+	Handle hGameData = LoadGameConfigFile(GAMEDATA);
+	if( hGameData == null ) SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
+
+	g_hDetour = DHookCreateFromConf(hGameData, "CDirector::AuditActivePipeBombs");
+	if( !g_hDetour )
+		SetFailState("Failed to find \"CDirector::AuditActivePipeBombs\" signature.");
+
+	delete hGameData;
 }
 
 
@@ -132,11 +157,17 @@ void IsAllowed()
 	if( g_bCvarAllow == false && bCvarAllow == true && bAllowMode == true )
 	{
 		g_bCvarAllow = true;
+
+		if( !DHookEnableDetour(g_hDetour, false, AuditActivePipeBombs) )
+			SetFailState("Failed to detour \"CDirector::AuditActivePipeBombs\" function.");
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
 	{
 		g_bCvarAllow = false;
+
+		if( !DHookDisableDetour(g_hDetour, false, AuditActivePipeBombs) )
+			SetFailState("Failed to disable detour \"CDirector::AuditActivePipeBombs\" function.");
 	}
 }
 
@@ -213,22 +244,10 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 
 
 // ====================================================================================================
-//					EVENTS
+//					DETOURS
 // ====================================================================================================
-public void OnEntityCreated(int entity, const char[] classname)
+public MRESReturn AuditActivePipeBombs(Handle hReturn)
 {
-	if( g_bCvarAllow && strcmp(classname, "pipe_bomb_projectile") == 0 )
-	{
-		CreateTimer(0.2, TimerDelay, EntIndexToEntRef(entity)); // Delay to support Grenades plugin and others that rely on detecting this entity
-	}
-}
-
-public Action TimerDelay(Handle timer, int entity)
-{
-	entity = EntRefToEntIndex(entity);
-	if( entity != INVALID_ENT_REFERENCE )
-	{
-		SetEntProp(entity, Prop_Data, "m_iHammerID", 19712806);
-		DispatchKeyValue(entity, "classname", "prop_physics");
-	}
+	DHookSetReturn(hReturn, 0);
+	return MRES_Supercede;
 }

@@ -63,8 +63,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_INFECTED            "infected"
-
 #define HITGROUP_HEAD                 1
 
 #define GENDER_FEMALE_L4D1            22
@@ -92,60 +90,57 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Headless;
-static ConVar g_hCvar_BeheadHeadshot;
-static ConVar g_hCvar_Wound1Chance;
-static ConVar g_hCvar_Wound2Chance;
-static ConVar g_hCvar_FemaleInvalid;
-static ConVar g_hCvar_MaleInvalid;
-static ConVar g_hCvar_CedaInvalid;
-static ConVar g_hCvar_RiotInvalid;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Headless;
+ConVar g_hCvar_BeheadHeadshot;
+ConVar g_hCvar_Wound1Chance;
+ConVar g_hCvar_Wound2Chance;
+ConVar g_hCvar_FemaleInvalid;
+ConVar g_hCvar_MaleInvalid;
+ConVar g_hCvar_CedaInvalid;
+ConVar g_hCvar_RiotInvalid;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Headless;
-static bool   g_bCvar_HeadlessHeadshot;
-static bool   g_bCvar_Wound1Chance;
-static bool   g_bCvar_Wound2Chance;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_Headless;
+bool g_bCvar_HeadlessHeadshot;
 
 // ====================================================================================================
-// float - Plugin Variables
+// int - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_Wound1Chance;
-static float  g_fCvar_Wound2Chance;
+int g_iCvar_Wound1Chance;
+int g_iCvar_Wound2Chance;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_FemaleInvalid[134];
-static char   g_sCvar_MaleInvalid[134];
-static char   g_sCvar_CedaInvalid[134];
-static char   g_sCvar_RiotInvalid[134];
+char g_sCvar_FemaleInvalid[134];
+char g_sCvar_MaleInvalid[134];
+char g_sCvar_CedaInvalid[134];
+char g_sCvar_RiotInvalid[134];
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iLastEntityEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
-static int    gc_iWound1[MAXPLAYERS+1];
-static int    gc_iWound2[MAXPLAYERS+1];
+int gc_iLastEntityEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+int gc_iWound1[MAXPLAYERS+1];
+int gc_iWound2[MAXPLAYERS+1];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static bool   ge_bIsValidCommon[MAXENTITIES+1];
+bool ge_bIsValidCommon[MAXENTITIES+1];
 
 // ====================================================================================================
 // ArrayList - Plugin Variables
 // ====================================================================================================
-static ArrayList g_alFemaleInvalid;
-static ArrayList g_alMaleInvalid;
-static ArrayList g_alCedaInvalid;
-static ArrayList g_alRiotInvalid;
+ArrayList g_alFemaleInvalid;
+ArrayList g_alMaleInvalid;
+ArrayList g_alCedaInvalid;
+ArrayList g_alRiotInvalid;
 
 // ====================================================================================================
 // Plugin Start
@@ -160,11 +155,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         return APLRes_SilentFailure;
     }
 
-    g_alFemaleInvalid = new ArrayList();
-    g_alMaleInvalid = new ArrayList();
-    g_alCedaInvalid = new ArrayList();
-    g_alRiotInvalid = new ArrayList();
-
     return APLRes_Success;
 }
 
@@ -172,12 +162,17 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    g_alFemaleInvalid = new ArrayList();
+    g_alMaleInvalid = new ArrayList();
+    g_alCedaInvalid = new ArrayList();
+    g_alRiotInvalid = new ArrayList();
+
     CreateConVar("l4d2_wounded_commons_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled        = CreateConVar("l4d2_wounded_commons_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Headless       = CreateConVar("l4d2_wounded_commons_headless", "0", "Spawn headless common infected.\nNote: CEDA and RIOT models can't be beheaded so a head wound is applied instead.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_BeheadHeadshot = CreateConVar("l4d2_wounded_commons_behead_headshot", "0", "Behead a common infected every time it is hit on the head.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Wound1Chance   = CreateConVar("l4d2_wounded_commons_wound1_chance", "100.0", "Chance to apply a random wound on common infected spawn.\nUse the first wound slot.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
-    g_hCvar_Wound2Chance   = CreateConVar("l4d2_wounded_commons_wound2_chance", "100.0", "Chance to apply a random wound on common infected spawn.\nUse the second wound slot.\nDoesn't repeat the first wound slot.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_Wound1Chance   = CreateConVar("l4d2_wounded_commons_wound1_chance", "100", "Chance to apply a random wound on common infected spawn.\nUse the first wound slot.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_Wound2Chance   = CreateConVar("l4d2_wounded_commons_wound2_chance", "100", "Chance to apply a random wound on common infected spawn.\nUse the second wound slot.\nDoesn't repeat the first wound slot.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_FemaleInvalid  = CreateConVar("l4d2_wounded_commons_female_invalid", "8,13,14,15,16,19,20,21,22,23,24", "Invalid wounds to apply on common infected spawn for FEMALE models.\nUse values between 0-46 separated by comma.\n\"-1\" = OFF.", CVAR_FLAGS);
     g_hCvar_MaleInvalid    = CreateConVar("l4d2_wounded_commons_male_invalid", "8,14,15,16,17,20,21,22,23,24,25", "Invalid wounds to apply on common infected spawn for MALE models.\nUse values between 0-47 separated by comma.\n\"-1\" = OFF.", CVAR_FLAGS);
     g_hCvar_CedaInvalid    = CreateConVar("l4d2_wounded_commons_ceda_invalid", "4,5,8,9", "Invalid wounds to apply on common infected spawn for CEDa models.\nUse values between 0-9 separated by comma.\n\"-1\" = OFF.", CVAR_FLAGS);
@@ -210,35 +205,31 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_Headless = g_hCvar_Headless.BoolValue;
     g_bCvar_HeadlessHeadshot = g_hCvar_BeheadHeadshot.BoolValue;
-    g_fCvar_Wound1Chance = g_hCvar_Wound1Chance.FloatValue;
-    g_bCvar_Wound1Chance = (g_fCvar_Wound1Chance > 0.0);
-    g_fCvar_Wound2Chance = g_hCvar_Wound2Chance.FloatValue;
-    g_bCvar_Wound2Chance = (g_fCvar_Wound2Chance > 0.0);
+    g_iCvar_Wound1Chance = g_hCvar_Wound1Chance.IntValue;
+    g_iCvar_Wound2Chance = g_hCvar_Wound2Chance.IntValue;
     g_hCvar_FemaleInvalid.GetString(g_sCvar_FemaleInvalid, sizeof(g_sCvar_FemaleInvalid));
     g_hCvar_MaleInvalid.GetString(g_sCvar_MaleInvalid, sizeof(g_sCvar_MaleInvalid));
     g_hCvar_CedaInvalid.GetString(g_sCvar_CedaInvalid, sizeof(g_sCvar_CedaInvalid));
@@ -270,12 +261,12 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_INFECTED)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "infected")) != INVALID_ENT_REFERENCE)
     {
         OnSpawnPost(entity);
     }
@@ -292,37 +283,30 @@ public void OnClientDisconnect(int client)
 
 /****************************************************************************************************/
 
-public void OnEntityDestroyed(int entity)
-{
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-}
-
-/****************************************************************************************************/
-
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 'i')
-        return;
-
-    if (StrEqual(classname, CLASSNAME_INFECTED))
+    if (StrEqual(classname, "infected"))
         SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
 }
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+public void OnEntityDestroyed(int entity)
 {
-    if (hook && !g_bEventsHooked)
+    if (entity < 0)
+        return;
+
+    ge_bIsValidCommon[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void HookEvents()
+{
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -331,7 +315,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -343,17 +327,16 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_InfectedHurt(Event event, const char[] name, bool dontBroadcast)
+void Event_InfectedHurt(Event event, const char[] name, bool dontBroadcast)
 {
     if (!g_bCvar_HeadlessHeadshot)
         return;
 
     int hitgroup = event.GetInt("hitgroup");
+    int entity = event.GetInt("entityid");
 
     if (hitgroup != HITGROUP_HEAD)
         return;
-
-    int entity = event.GetInt("entityid");
 
     if (!ge_bIsValidCommon[entity])
         return;
@@ -373,7 +356,7 @@ public void Event_InfectedHurt(Event event, const char[] name, bool dontBroadcas
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
 {
     ge_bIsValidCommon[entity] = true;
 
@@ -382,7 +365,7 @@ public void OnSpawnPost(int entity)
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+void OnNextFrame(int entityRef)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -397,7 +380,7 @@ public void OnNextFrame(int entityRef)
 
 /****************************************************************************************************/
 
-public void GenerateRandomWound(int entity)
+void GenerateRandomWound(int entity)
 {
     int gender = GetEntProp(entity, Prop_Send, "m_Gender");
 
@@ -406,13 +389,13 @@ public void GenerateRandomWound(int entity)
 
     int wound1 = NO_WOUND;
 
-    if (g_bCvar_Wound1Chance && g_fCvar_Wound1Chance >= GetRandomFloat(0.0, 100.0))
+    if (g_iCvar_Wound1Chance >= GetRandomInt(1, 100))
     {
         wound1 = GetRandomWound(gender);
         SetEntProp(entity, Prop_Send, "m_iRequestedWound1", wound1);
     }
 
-    if (g_bCvar_Wound2Chance  && g_fCvar_Wound2Chance >= GetRandomFloat(0.0, 100.0))
+    if (g_iCvar_Wound2Chance >= GetRandomInt(1, 100))
     {
         SetEntProp(entity, Prop_Send, "m_iRequestedWound2", GetRandomWound(gender, wound1));
     }
@@ -422,7 +405,7 @@ public void GenerateRandomWound(int entity)
 
 int GetRandomWound(int gender, int wound1 = NO_WOUND)
 {
-    switch(gender)
+    switch (gender)
     {
         case GENDER_JIMMY_GIBS: // There are no wounds for Jimmy Gibs
         {
@@ -492,7 +475,7 @@ int GetRandomWound(int gender, int wound1 = NO_WOUND)
 
 int GetHeadshot(int gender)
 {
-    switch(gender)
+    switch (gender)
     {
         case GENDER_JIMMY_GIBS: // There are no wounds for Jimmy Gibs
         {
@@ -521,14 +504,20 @@ int GetHeadshot(int gender)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdWound1(int client, int args)
+Action CmdWound1(int client, int args)
 {
     if (!IsValidClient(client))
         return Plugin_Handled;
 
     int entity = GetClientAimTarget(client, false);
 
-    if (!IsValidEntityIndex(entity) || !ge_bIsValidCommon[entity])
+    if (entity == -1)
+    {
+        PrintToChat(client, "\x05Invalid target.");
+        return Plugin_Handled;
+    }
+
+    if (!ge_bIsValidCommon[entity])
     {
         PrintToChat(client, "\x05Invalid target. \x03Usable only on entities with \x04infected \x03classname.");
         return Plugin_Handled;
@@ -555,20 +544,28 @@ public Action CmdWound1(int client, int args)
     PrintToChat(client, "\x05Wound 1 \x01(\x03m_iRequestedWound1\x01) = \x04%i", gc_iWound1[client]);
 
     gc_iWound1[client]++;
+    if (gc_iWound1[client] < 0) // int.MaxValue fix
+        gc_iWound1[client] = 0;
 
     return Plugin_Handled;
 }
 
 /****************************************************************************************************/
 
-public Action CmdWound2(int client, int args)
+Action CmdWound2(int client, int args)
 {
     if (!IsValidClient(client))
         return Plugin_Handled;
 
     int entity = GetClientAimTarget(client, false);
 
-    if (!IsValidEntityIndex(entity) || !ge_bIsValidCommon[entity])
+    if (entity == -1)
+    {
+        PrintToChat(client, "\x05Invalid target.");
+        return Plugin_Handled;
+    }
+
+    if (!ge_bIsValidCommon[entity])
     {
         PrintToChat(client, "\x05Invalid target. \x03Usable only on entities with \x04infected \x03classname.");
         return Plugin_Handled;
@@ -595,20 +592,28 @@ public Action CmdWound2(int client, int args)
     PrintToChat(client, "\x05Wound 2 \x01(\x03m_iRequestedWound2\x01) = \x04%i", gc_iWound2[client]);
 
     gc_iWound2[client]++;
+    if (gc_iWound2[client] < 0) // int.MaxValue fix
+        gc_iWound2[client] = 0;
 
     return Plugin_Handled;
 }
 
 /****************************************************************************************************/
 
-public Action CmdWoundInfo(int client, int args)
+Action CmdWoundInfo(int client, int args)
 {
     if (!IsValidClient(client))
         return Plugin_Handled;
 
     int entity = GetClientAimTarget(client, false);
 
-    if (!IsValidEntityIndex(entity) || !ge_bIsValidCommon[entity])
+    if (entity == -1)
+    {
+        PrintToChat(client, "\x05Invalid target.");
+        return Plugin_Handled;
+    }
+
+    if (!ge_bIsValidCommon[entity])
     {
         PrintToChat(client, "\x05Invalid target. \x03Usable only on entities with \x04infected \x03classname.");
         return Plugin_Handled;
@@ -625,7 +630,7 @@ public Action CmdWoundInfo(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -634,10 +639,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_wounded_commons_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_wounded_commons_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_wounded_commons_behead : %b (%s)", g_bCvar_Headless, g_bCvar_Headless ? "true" : "false");
+    PrintToConsole(client, "l4d2_wounded_commons_headless : %b (%s)", g_bCvar_Headless, g_bCvar_Headless ? "true" : "false");
     PrintToConsole(client, "l4d2_wounded_commons_behead_headshot : %b (%s)", g_bCvar_HeadlessHeadshot, g_bCvar_HeadlessHeadshot ? "true" : "false");
-    PrintToConsole(client, "l4d2_wounded_commons_wound1_chance : %.2f%% (%s)", g_fCvar_Wound1Chance, g_bCvar_Wound1Chance ? "true" : "false");
-    PrintToConsole(client, "l4d2_wounded_commons_wound2_chance : %.2f%% (%s)", g_fCvar_Wound2Chance, g_bCvar_Wound2Chance ? "true" : "false");
+    PrintToConsole(client, "l4d2_wounded_commons_wound1_chance : %i%%", g_iCvar_Wound1Chance);
+    PrintToConsole(client, "l4d2_wounded_commons_wound2_chance : %i%%", g_iCvar_Wound2Chance);
     PrintToConsole(client, "l4d2_wounded_commons_female_invalid : %s", g_sCvar_FemaleInvalid);
     PrintToConsole(client, "l4d2_wounded_commons_male_invalid : %s", g_sCvar_MaleInvalid);
     PrintToConsole(client, "l4d2_wounded_commons_ceda_invalid : %s", g_sCvar_CedaInvalid);
@@ -674,17 +679,4 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

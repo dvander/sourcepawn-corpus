@@ -29,7 +29,7 @@ Free Software Foundation, Inc.
 #undef REQUIRE_EXTENSIONS
 #include <left4dhooks>
 
-#define PLUGIN_VERSION "0.1.96 Shadowysn"
+#define PLUGIN_VERSION "0.1.99 Shadowysn"
 #define LOGFILE "addons/sourcemod/logs/abm.log"  // TODO change this to DATE/SERVER FORMAT?
 
 // This controls the edits needed for my own use. Usually set to 0 for public releases
@@ -43,7 +43,7 @@ ArrayList g_iQueue;
 #define menuArgs g_menuItems[client]	 // Global argument tracking for the menu system
 #define menuArg0 g_menuItems[client][0]  // GetItem(1...)
 #define menuArg1 g_menuItems[client][1]  // GetItem(2...)
-g_menuItems[MAXPLAYERS + 1][2];
+int g_menuItems[MAXPLAYERS + 1][2];
 
 // menu tracking
 #define g_callBacks g_menuStack[client]
@@ -175,27 +175,30 @@ public void OnPluginStart() {
 	
 	if (g_isSequel)
 	{
-		g_InfectedNames.PushString("Spitter");
-		g_InfectedNames.PushString("Jockey");
-		g_InfectedNames.PushString("Charger");
+		g_InfectedNames.Resize(6);
+		g_InfectedNames.SetString(3, "Spitter");
+		g_InfectedNames.SetString(4, "Jockey");
+		g_InfectedNames.SetString(5, "Charger");
 		
-		g_SurvivorNames.SetString(0, "Bill");
-		g_SurvivorNames.SetString(1, "Zoey");
-		g_SurvivorNames.SetString(2, "Francis");
-		g_SurvivorNames.SetString(3, "Louis");
-		g_SurvivorNames.PushString("Bill");
-		g_SurvivorNames.PushString("Zoey");
-		g_SurvivorNames.PushString("Francis");
-		g_SurvivorNames.PushString("Louis");
+		g_SurvivorNames.SetString(0, "Nick");
+		g_SurvivorNames.SetString(1, "Rochelle");
+		g_SurvivorNames.SetString(2, "Coach");
+		g_SurvivorNames.SetString(3, "Ellis");
+		g_SurvivorNames.Resize(8);
+		g_SurvivorNames.SetString(4, "Bill");
+		g_SurvivorNames.SetString(5, "Zoey");
+		g_SurvivorNames.SetString(6, "Francis");
+		g_SurvivorNames.SetString(7, "Louis");
 		
 		g_SurvivorPaths.SetString(0, "models/survivors/survivor_gambler.mdl");
 		g_SurvivorPaths.SetString(1, "models/survivors/survivor_producer.mdl");
 		g_SurvivorPaths.SetString(2, "models/survivors/survivor_coach.mdl");
 		g_SurvivorPaths.SetString(3, "models/survivors/survivor_mechanic.mdl");
-		g_SurvivorPaths.PushString(MODEL_BILL);
-		g_SurvivorPaths.PushString(MODEL_ZOEY);
-		g_SurvivorPaths.PushString(MODEL_FRANCIS);
-		g_SurvivorPaths.PushString(MODEL_LOUIS);
+		g_SurvivorPaths.Resize(8);
+		g_SurvivorPaths.SetString(4, MODEL_BILL);
+		g_SurvivorPaths.SetString(5, MODEL_ZOEY);
+		g_SurvivorPaths.SetString(6, MODEL_FRANCIS);
+		g_SurvivorPaths.SetString(7, MODEL_LOUIS);
 	}
 	else
 	{
@@ -209,46 +212,6 @@ public void OnPluginStart() {
 		g_SurvivorPaths.SetString(2, MODEL_FRANCIS);
 		g_SurvivorPaths.SetString(3, MODEL_LOUIS);
 	}
-	
-	/*strcopy(g_InfectedNames[0], 6, "Boomer");
-	strcopy(g_InfectedNames[1], 6, "Smoker");
-	strcopy(g_InfectedNames[2], 6, "Hunter");
-	if (!g_isSequel)
-	{
-		strcopy(g_SurvivorNames[0], 4, "Bill");
-		strcopy(g_SurvivorNames[1], 4, "Zoey");
-		strcopy(g_SurvivorNames[2], 7, "Francis");
-		strcopy(g_SurvivorNames[3], 5, "Louis");
-		
-		strcopy(g_SurvivorPaths[0], 64, MODEL_BILL);
-		strcopy(g_SurvivorPaths[1], 64, MODEL_ZOEY);
-		strcopy(g_SurvivorPaths[2], 64, MODEL_FRANCIS);
-		strcopy(g_SurvivorPaths[3], 64, MODEL_LOUIS);
-	}
-	else
-	{
-		strcopy(g_InfectedNames[3], 7, "Spitter");
-		strcopy(g_InfectedNames[4], 6, "Jockey");
-		strcopy(g_InfectedNames[5], 7, "Charger");
-		
-		strcopy(g_SurvivorNames[0], 4, "Nick");
-		strcopy(g_SurvivorNames[1], 8, "Rochelle");
-		strcopy(g_SurvivorNames[2], 5, "Coach");
-		strcopy(g_SurvivorNames[3], 5, "Ellis");
-		strcopy(g_SurvivorNames[4], 4, "Bill");
-		strcopy(g_SurvivorNames[5], 4, "Zoey");
-		strcopy(g_SurvivorNames[6], 7, "Francis");
-		strcopy(g_SurvivorNames[7], 5, "Louis");
-		
-		strcopy(g_SurvivorPaths[0], 64, "models/survivors/survivor_gambler.mdl");
-		strcopy(g_SurvivorPaths[1], 64, "models/survivors/survivor_producer.mdl");
-		strcopy(g_SurvivorPaths[2], 64, "models/survivors/survivor_coach.mdl");
-		strcopy(g_SurvivorPaths[3], 64, "models/survivors/survivor_mechanic.mdl");
-		strcopy(g_SurvivorPaths[4], 64, MODEL_BILL);
-		strcopy(g_SurvivorPaths[5], 64, MODEL_ZOEY);
-		strcopy(g_SurvivorPaths[6], 64, MODEL_FRANCIS);
-		strcopy(g_SurvivorPaths[7], 64, MODEL_LOUIS);
-	}*/
 
 	HookEvent("player_first_spawn", OnSpawnHook);
 	HookEvent("player_spawn", OnAllSpawnHook);
@@ -305,33 +268,32 @@ public void OnPluginStart() {
 	SetConVarBounds(g_cvMaxSI, ConVarBound_Lower, true, 1.0);
 	SetConVarBounds(g_cvMaxSI, ConVarBound_Upper, true, 24.0);
 
-	SetupCvar(g_cvVersion, "abm_version", PLUGIN_VERSION, "ABM plugin version");
-	SetupCvar(g_cvLogLevel, "abm_loglevel", "0", "Development logging level 0: Off, 4: Max");
+	SetupCvar(g_cvVersion, "abm_version", PLUGIN_VERSION, "ABM plugin version", FCVAR_NOTIFY|FCVAR_SPONLY|FCVAR_DONTRECORD);
+	SetupCvar(g_cvLogLevel, "abm_loglevel", "0", "Development logging level\n0: Off\n4: Max");
 	SetupCvar(g_cvMinPlayers, "abm_minplayers", "4", "Pruning extra survivors stops at this size");
 	SetupCvar(g_cvExtraPlayers, "abm_extraplayers", "0", "Extra survivors to start the round with");
 	SetupCvar(g_cvTankChunkHp, "abm_tankchunkhp", "2500", "Health chunk per survivor on 5+ missions");
 	SetupCvar(g_cvSpawnInterval, "abm_spawninterval", "36", "SI full team spawn in (5 x N)");
-	SetupCvar(g_cvAutoHard, "abm_autohard", "1", "0: Off 1: Non-Vs > 4 2: Non-Vs >= 1");
-	SetupCvar(g_cvUnlockSI, "abm_unlocksi", "0", "0: Off 1: Use Left 4 DHooks 2 2: Use VScript Director Options Unlocker");
-	SetupCvar(g_cvJoinMenu, "abm_joinmenu", "1", "0: Off 1: Admins only 2: Everyone");
+	SetupCvar(g_cvAutoHard, "abm_autohard", "1", "0: Off\n1: Non-Vs > 4\n2: Non-Vs >= 1");
+	SetupCvar(g_cvUnlockSI, "abm_unlocksi", "0", "0: Off\n1: Use Left 4 DHooks\n2: Use VScript Director Options Unlocker");
+	SetupCvar(g_cvJoinMenu, "abm_joinmenu", "1", "0: Off\n1: Admins only\n2: Everyone");
 	SetupCvar(g_cvTeamLimit, "abm_teamlimit", "16", "Humans on team limit");
-	SetupCvar(g_cvOfferTakeover, "abm_offertakeover", "1", "0: Off 1: Survivors 2: Infected 3: All");
-	SetupCvar(g_cvStripKick, "abm_stripkick", "0", "0: Don't strip removed bots 1: Strip removed bots");
-	SetupCvar(g_cvKeepDead, "abm_keepdead", "0", "0: The dead return alive 1: the dead return dead");
-	SetupCvar(g_cvIdentityFix, "abm_identityfix", "1", "0: Do not assign identities 1: Assign identities");
+	SetupCvar(g_cvOfferTakeover, "abm_offertakeover", "1", "0: Off\n1: Survivors\n2: Infected\n3: All");
+	SetupCvar(g_cvStripKick, "abm_stripkick", "0", "0: Don't strip removed bots\n1: Strip removed bots");
+	SetupCvar(g_cvKeepDead, "abm_keepdead", "0", "0: The dead return alive\n1: the dead return dead");
+	SetupCvar(g_cvIdentityFix, "abm_identityfix", "1", "-1: Never alter characters, complete vanilla system\n0: Do not assign identities\n1: Assign identities");
 
 	switch (g_isSequel)
 	{
 		case true:
 		{
 			SetupCvar(g_cvPrimaryWeapon, "abm_primaryweapon", "shotgun_chrome", "5+ survivor primary weapon");
-			SetupCvar(g_cvSecondaryWeapon,"abm_secondaryweapon", "baseball_bat", "5+ survivor secondary weapon, leave empty for default pistol or put in \'pistol\' for duals");
+			SetupCvar(g_cvSecondaryWeapon,"abm_secondaryweapon", "baseball_bat", "5+ survivor secondary weapon\nLeave empty for default pistol or put in \'pistol\' for duals");
 			SetupCvar(g_cvThrowable, "abm_throwable", "", "5+ survivor throwable item");
 			SetupCvar(g_cvHealItem, "abm_healitem", "", "5+ survivor healing item");
 			SetupCvar(g_cvConsumable, "abm_consumable", "adrenaline", "5+ survivor consumable item");
 			
-			SetupCvar(g_cvAutoModel, "abm_automodel", "1", "1: Full set of survivors 0: Map set of survivors");
-			g_AutoModel = 0;
+			SetupCvar(g_cvAutoModel, "abm_automodel", "1", "1: Full set of survivors\n0: Map set of survivors");
 			
 			char zoeyId[2];
 			switch (g_OS)
@@ -340,12 +302,12 @@ public void OnPluginStart() {
 				case 1: zoeyId = "1";  // Zoey crashes Windows servers, 1 is Rochelle
 			}
 	
-			SetupCvar(g_cvZoey, "abm_zoey", zoeyId, "0:Nick 1:Rochelle 2:Coach 3:Ellis 4:Bill 5:Zoey 6:Francis 7:Louis");
+			SetupCvar(g_cvZoey, "abm_zoey", zoeyId, "0:Nick 1:Rochelle 2:Coach 3:Ellis\n4:Bill 5:Zoey 6:Francis 7:Louis");
 		}
 		case false:
 		{
 			SetupCvar(g_cvPrimaryWeapon, "abm_primaryweapon", "pumpshotgun", "5+ survivor primary weapon");
-			SetupCvar(g_cvSecondaryWeapon,"abm_secondaryweapon", "", "5+ survivor secondary weapon, leave empty for default pistol or put in \'pistol\' for duals");
+			SetupCvar(g_cvSecondaryWeapon,"abm_secondaryweapon", "", "5+ survivor secondary weapon\nLeave empty for default pistol or put in \'pistol\' for duals");
 			SetupCvar(g_cvThrowable, "abm_throwable", "", "5+ survivor throwable item");
 			SetupCvar(g_cvHealItem, "abm_healitem", "", "5+ survivor healing item");
 			SetupCvar(g_cvConsumable, "abm_consumable", "pain_pills", "5+ survivor consumable item");
@@ -380,33 +342,56 @@ Action TempJoinGame(int client, int args)
 	
 	if (onteam < 2 || onteam > 4)
 	{
-		if (AddSurvivor())
+		int newBot = LookForTakeoverSurv();
+		if (newBot == -1) // if not found...
 		{
+			AddSurvivor();
 			CreateTimer(0.5, TempJoinGameTimer, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
+		else
+		{ SwitchToBot(client, newBot); }
 	}
 	
 	return Plugin_Handled;
 }
 
+int LookForTakeoverSurv()
+{
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientValid(i, 2, 0)) continue; // Check if they're a valid bot
+		
+		if (!HasEntProp(i, Prop_Send, "m_humanSpectatorUserID")) continue; // Make sure they're REAL SurvivorBot
+		// and not FakeClients
+		//PrintToServer("spectatorID: %i", GetEntProp(i, Prop_Send, "m_humanSpectatorUserID"));
+		if (GetClientOfUserId(GetEntProp(i, Prop_Send, "m_humanSpectatorUserID")) != 0) continue;
+		// And make sure they're not taken by another player
+		
+		return i;
+	}
+	return -1;
+}
+
 Action TempJoinGameTimer(Handle timer, int userid)
 {
 	int client = GetClientOfUserId(userid);
-	if (!IsClientValid(client)) return;
+	if (!IsClientValid(client)) return Plugin_Continue;
 	
-	SwitchTeam(client, 2);
+	int newBot = LookForTakeoverSurv();
+	if (newBot != -1)
+	{ SwitchToBot(client, newBot); }
+	return Plugin_Continue;
 }
 #endif
 
-void SetupCvar(Handle &cvHandle, char[] name, char[] value, char[] details) {
+void SetupCvar(Handle &cvHandle, char[] name, char[] value, char[] details, int flags = FCVAR_NONE) {
 	Echo(2, "SetupCvar: %s %s %s", name, value, details);
 
-	cvHandle = CreateConVar(name, value, details);
+	cvHandle = CreateConVar(name, value, details, flags);
 	HookConVarChange(cvHandle, UpdateConVarsHook);
 	UpdateConVarsHook(cvHandle, value, value);
 }
 
-public Action CmdIntercept(int client, const char[] cmd, int args) {
+Action CmdIntercept(int client, const char[] cmd, int args) {
 	Echo(2, "CmdIntercept: %d %s %d", client, cmd, args);
 
 	if (g_AssistedSpawning) {
@@ -461,20 +446,20 @@ public void OnEntityCreated(int ent, const char[] clsName) {
 	Echo(2, "OnEntityCreated: %d %s", ent, clsName);
 
 	if (clsName[0] == 'f') {
-		bool gClip = !StrEqual(clsName, "func_playerghostinfected_clip", false);
-		bool iClip = !StrEqual(clsName, "func_playerinfected_clip", false);
+		bool gClip = strncmp(clsName, "func_playerghostinfected_clip", 29, false) != 0;
+		bool iClip = strncmp(clsName, "func_playerinfected_clip", 24, false) != 0;
 
 		if (!(gClip && iClip)) {
 			CreateTimer(2.0, KillEntTimer, EntIndexToEntRef(ent));
 		}
 	}
 
-	else if (clsName[0] == 's' && StrEqual(clsName, "survivor_bot", false)) {
+	else if (clsName[0] == 's' && strncmp(clsName, "survivor_bot", 12, false) == 0) {
 		SDKHook(ent, SDKHook_SpawnPost, AutoModel);
 	}
 }
 
-public Action KillEntTimer(Handle timer, any ref) {
+Action KillEntTimer(Handle timer, any ref) {
 	Echo(2, "KillEntTimer: %d", ref);
 
 	int ent = EntRefToEntIndex(ref);
@@ -485,6 +470,10 @@ public Action KillEntTimer(Handle timer, any ref) {
 	return Plugin_Stop;
 }
 
+bool checkScrVal = true;
+void UpdateScriptValueCheck()
+{ checkScrVal = true; }
+
 public Action L4D_OnGetScriptValueInt(const char[] key, int &retVal) {
 	Echo(5, "L4D_OnGetScriptValueInt: %s, %d", key, retVal);
 
@@ -492,14 +481,51 @@ public Action L4D_OnGetScriptValueInt(const char[] key, int &retVal) {
 
 	if (g_UnlockSI == 1) {
 		int val = retVal;
+		
+		static int pinners = 1, supporters = 1;
+		int surv_count = 0;
+		if (checkScrVal)
+		{
+			checkScrVal = false;
+			surv_count = CountTeamMates(2, 2, true);
+			
+			if (surv_count > 4)
+			{
+				supporters = RoundToFloor((surv_count/2.5)+0.0);
+				pinners = RoundToFloor((surv_count/3)+0.0);
+				/*if (surv_count % 2 != 0) 
+				{
+					pinners--;
+				}*/
+			}
+			else
+			{ surv_count = 0; pinners = 1; supporters = 1; }
+		}
 
-		if (StrEqual(key, "MaxSpecials")) val = g_MaxSI;
-		else if (StrEqual(key, "BoomerLimit")) val = 4;
-		else if (StrEqual(key, "SmokerLimit")) val = 4;
-		else if (StrEqual(key, "HunterLimit")) val = 4;
-		else if (StrEqual(key, "ChargerLimit")) val = 4;
-		else if (StrEqual(key, "SpitterLimit")) val = 4;
-		else if (StrEqual(key, "JockeyLimit")) val = 4;
+		if (strncmp(key, "MaxSpecials", 11) == 0) val = g_MaxSI;
+		/*#if SHADOWYSN_EDIT
+		else if (strncmp(key, "BoomerLimit", 11) == 0) val = 2;
+		else if (strncmp(key, "SmokerLimit", 11) == 0) val = 2;
+		else if (strncmp(key, "HunterLimit", 11) == 0) val = 2;
+		else if (strncmp(key, "ChargerLimit", 12) == 0) val = 2;
+		else if (strncmp(key, "SpitterLimit", 12) == 0) val = 2;
+		else if (strncmp(key, "JockeyLimit", 11) == 0) val = 2;
+		#else
+		else if (strncmp(key, "BoomerLimit", 11) == 0) val = 4;
+		else if (strncmp(key, "SmokerLimit", 11) == 0) val = 4;
+		else if (strncmp(key, "HunterLimit", 11) == 0) val = 4;
+		else if (strncmp(key, "ChargerLimit", 12) == 0) val = 4;
+		else if (strncmp(key, "SpitterLimit", 12) == 0) val = 4;
+		else if (strncmp(key, "JockeyLimit", 11) == 0) val = 4;
+		#endif*/
+		else if (strncmp(key, "BoomerLimit", 11) == 0) val = supporters;
+		else if (strncmp(key, "SmokerLimit", 11) == 0) val = pinners;
+		else if (strncmp(key, "HunterLimit", 11) == 0) val = pinners;
+		else if (strncmp(key, "ChargerLimit", 12) == 0) val = pinners;
+		else if (strncmp(key, "SpitterLimit", 12) == 0) val = supporters;
+		else if (strncmp(key, "JockeyLimit", 11) == 0) val = pinners;
+
+		//PrintToServer("surv_count: %i\nsupporters: %i\npinners: %i", surv_count, supporters, pinners);
 
 		if (val != retVal) {
 			retVal = val;
@@ -510,15 +536,15 @@ public Action L4D_OnGetScriptValueInt(const char[] key, int &retVal) {
 	return Plugin_Continue;
 }
 
-public void RoundFreezeEndHook(Handle event, const char[] name, bool dontBroadcast) {
+void RoundFreezeEndHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "RoundFreezeEndHook: %s", name);
 	OnMapEnd();
 }
 
-public void PlayerActivateHook(Handle event, const char[] name, bool dontBroadcast) {
+void PlayerActivateHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "PlayerActivateHook: %s", name);
 
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
 	PlayerActivate(client);
 }
@@ -566,15 +592,15 @@ int GetRealClient(int client) {
 	return client;
 }
 
-public Action LifeCheckTimer(Handle timer, int target) {
+Action LifeCheckTimer(Handle timer, int target) {
 	Echo(2, "LifeCheckTimer: %d", target);
 
 	if (GetQRecord(GetRealClient(target))) {
 		int status = IsPlayerAlive(target);
 
 		switch (g_model[0] != EOS) {
-			case 1: AssignModel(target, g_model, g_IdentityFix);
-			case 0: {
+			case true: AssignModel(target, g_model, g_IdentityFix);
+			case false: {
 				GetBotCharacter(target, g_model);
 				g_QRecord.SetString("model", g_model, true);
 				Echo(1, "--0: %N is model '%s'", g_client, g_model);
@@ -584,20 +610,22 @@ public Action LifeCheckTimer(Handle timer, int target) {
 		g_QRecord.SetValue("status", status, true);
 		AssignModel(g_client, g_model, g_IdentityFix);
 	}
+	return Plugin_Continue;
 }
 
-public void OnAllSpawnHook(Handle event, const char[] name, bool dontBroadcast) {
+void OnAllSpawnHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "OnAllSpawnHook: %s", name);
 
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
 
+	UpdateScriptValueCheck();
 	if (IsClientValid(client)) {
 		CreateTimer(0.5, LifeCheckTimer, client);
 	}
 }
 
-public void RoundStartHook(Handle event, const char[] name, bool dontBroadcast) {
+void RoundStartHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "RoundStartHook: %s", name);
 	StartAD();
 	//CreateTimer(5.0, TempADTimer, _, TIMER_FLAG_NO_MAPCHANGE);
@@ -647,7 +675,7 @@ bool StartAD(float interval=0.5) {
 	return g_AD != null;
 }
 
-public Action StartADTimer(Handle timer) {
+Action StartADTimer(Handle timer) {
 	Echo(6, "StartADTimer");
 
 	if (g_AD == null) {
@@ -671,7 +699,7 @@ bool AllClientsLoadedIn() {
 	return true;
 }
 
-public Action ADTimer(Handle timer) {
+Action ADTimer(Handle timer) {
 	Echo(6, "ADTimer");
 
 	static int survivors, playQuota;
@@ -747,8 +775,8 @@ public Action ADTimer(Handle timer) {
 	// SI are unlocked (without spawn) see L4D_OnGetScriptValueInt.
 
 	switch (g_IsVs) {
-		case 1: autoWave = false;
-		case 0: autoWave = g_AutoHard == 2 || survivors > 4 && g_AutoHard == 1;
+		case true: autoWave = false;
+		case false: autoWave = g_AutoHard == 2 || survivors > 4 && g_AutoHard == 1;
 	}
 
 	if (autoWave || g_AssistedSpawning) {
@@ -771,7 +799,7 @@ public Action ADTimer(Handle timer) {
 	return Plugin_Continue;
 }
 
-public void UpdateConVarsHook(Handle convar, const char[] oldCv, const char[] newCv) {
+void UpdateConVarsHook(Handle convar, const char[] oldCv, const char[] newCv) {
 	GetConVarName(convar, g_sB, sizeof(g_sB));
 	Echo(2, "UpdateConVarsHook: %s %s %s", g_sB, oldCv, newCv);
 
@@ -795,103 +823,103 @@ public void UpdateConVarsHook(Handle convar, const char[] oldCv, const char[] ne
 	}
 
 	g_Cvars.GetString(name, value, sizeof(value));
-	if (!StrEqual(newCv, value)) {
+	if (strcmp(newCv, value) != 0) {
 		SetConVarString(convar, value);
 		return;
 	}
 
 	if (name[0] == 'a') {
 		if (name[4] == 'a') {
-			if (name[8] == 'h' && StrEqual(name, "abm_autohard")) {
+			if (name[8] == 'h' && strcmp(name, "abm_autohard") == 0) {
 				g_AutoHard = GetConVarInt(g_cvAutoHard);
 				AutoSetTankHp();
 			}
 
-			else if (g_isSequel && name[8] == 'm' && StrEqual(name, "abm_automodel")) {
+			else if (g_isSequel && name[8] == 'm' && strcmp(name, "abm_automodel") == 0) {
 				g_AutoModel = GetConVarInt(g_cvAutoModel);
 			}
 		}
 
-		else if (name[4] == 'c' && StrEqual(name, "abm_consumable")) {
+		else if (name[4] == 'c' && strcmp(name, "abm_consumable") == 0) {
 			GetConVarString(g_cvConsumable, g_Consumable, sizeof(g_Consumable));
 		}
 
-		else if (name[4] == 'e' && StrEqual(name, "abm_extraplayers")) {
+		else if (name[4] == 'e' && strcmp(name, "abm_extraplayers") == 0) {
 			g_ExtraPlayers = GetConVarInt(g_cvExtraPlayers);
 		}
 
-		else if (name[4] == 'h' && StrEqual(name, "abm_healitem")) {
+		else if (name[4] == 'h' && strcmp(name, "abm_healitem") == 0) {
 			GetConVarString(g_cvHealItem, g_HealItem, sizeof(g_HealItem));
 		}
 
-		else if (name[4] == 'i' && StrEqual(name, "abm_identityfix")) {
+		else if (name[4] == 'i' && strcmp(name, "abm_identityfix") == 0) {
 			g_IdentityFix = GetConVarInt(g_cvIdentityFix);
 		}
 
-		else if (name[4] == 'j' && StrEqual(name, "abm_joinmenu")) {
+		else if (name[4] == 'j' && strcmp(name, "abm_joinmenu") == 0) {
 			g_JoinMenu = GetConVarInt(g_cvJoinMenu);
 		}
 
-		else if (name[4] == 'k' && StrEqual(name, "abm_keepdead")) {
+		else if (name[4] == 'k' && strcmp(name, "abm_keepdead") == 0) {
 			g_KeepDead = GetConVarInt(g_cvKeepDead);
 		}
 
-		else if (name[4] == 'l' && StrEqual(name, "abm_loglevel")) {
+		else if (name[4] == 'l' && strcmp(name, "abm_loglevel") == 0) {
 			g_LogLevel = GetConVarInt(g_cvLogLevel);
 		}
 
-		else if (name[4] == 'm' && StrEqual(name, "abm_minplayers")) {
+		else if (name[4] == 'm' && strcmp(name, "abm_minplayers") == 0) {
 			g_MinPlayers = GetConVarInt(g_cvMinPlayers);
 		}
 
-		else if (name[4] == 'o' && StrEqual(name, "abm_offertakeover")) {
+		else if (name[4] == 'o' && strcmp(name, "abm_offertakeover") == 0) {
 			g_OfferTakeover = GetConVarInt(g_cvOfferTakeover);
 		}
 
-		else if (name[4] == 'p' && StrEqual(name, "abm_primaryweapon")) {
+		else if (name[4] == 'p' && strcmp(name, "abm_primaryweapon") == 0) {
 			GetConVarString(g_cvPrimaryWeapon, g_PrimaryWeapon, sizeof(g_PrimaryWeapon));
 		}
 
 		else if (name[4] == 's') {
-			if (name[5] == 'e' && StrEqual(name, "abm_secondaryweapon")) {
+			if (name[5] == 'e' && strcmp(name, "abm_secondaryweapon") == 0) {
 				GetConVarString(g_cvSecondaryWeapon, g_SecondaryWeapon, sizeof(g_SecondaryWeapon));
 			}
 
-			else if (name[5] == 'p' && StrEqual(name, "abm_spawninterval")) {
+			else if (name[5] == 'p' && strcmp(name, "abm_spawninterval") == 0) {
 				g_SpawnInterval = GetConVarInt(g_cvSpawnInterval);
 			}
 
-			else if (name[5] == 't' && StrEqual(name, "abm_stripkick")) {
+			else if (name[5] == 't' && strcmp(name, "abm_stripkick") == 0) {
 				g_StripKick = GetConVarInt(g_cvStripKick);
 			}
 		}
 
 		else if (name[4] == 't') {
-			if (name[5] == 'a' && StrEqual(name, "abm_tankchunkhp")) {
+			if (name[5] == 'a' && strcmp(name, "abm_tankchunkhp") == 0) {
 				g_TankChunkHp = GetConVarInt(g_cvTankChunkHp);
 				AutoSetTankHp();
 			}
 
-			else if (name[5] == 'e' && StrEqual(name, "abm_teamlimit")) {
+			else if (name[5] == 'e' && strcmp(name, "abm_teamlimit") == 0) {
 				g_TeamLimit = GetConVarInt(g_cvTeamLimit);
 			}
 
-			else if (name[5] == 'h' && StrEqual(name, "abm_throwable")) {
+			else if (name[5] == 'h' && strcmp(name, "abm_throwable") == 0) {
 				GetConVarString(g_cvThrowable, g_Throwable, sizeof(g_Throwable));
 			}
 		}
 
-		else if (name[4] == 'u' && StrEqual(name, "abm_unlocksi")) {
+		else if (name[4] == 'u' && strcmp(name, "abm_unlocksi") == 0) {
 			g_UnlockSI = GetConVarInt(g_cvUnlockSI);
 			RegulateSI();
 		}
 
-		else if (g_isSequel && name[4] == 'z' && StrEqual(name, "abm_zoey")) {
+		else if (g_isSequel && name[4] == 'z' && strcmp(name, "abm_zoey") == 0) {
 			g_Zoey = GetConVarInt(g_cvZoey);
 		}
 	}
 
-	else if (name[0] == 'm' && StrEqual(name, "mp_gamemode")) {
+	else if (name[0] == 'm' && strcmp(name, "mp_gamemode") == 0) {
 		UpdateGameMode();
 	}
 }
@@ -904,52 +932,52 @@ int GetGameType() {
 
 	switch (g_sB[0]) {
 		case 'c': {
-			if (StrEqual(g_sB, "coop")) return 0;
-			else if (StrEqual(g_sB, "community1")) return 0;  // Special Delivery
-			else if (StrEqual(g_sB, "community2")) return 0;  // Flu Season
-			else if (StrEqual(g_sB, "community3")) return 1;  // Riding My Survivor
-			else if (StrEqual(g_sB, "community4")) return 3;  // Nightmare
-			else if (StrEqual(g_sB, "community5")) return 0;  // Death's Door
+			if (strcmp(g_sB, "coop") == 0) return 0;
+			else if (strcmp(g_sB, "community1") == 0) return 0;  // Special Delivery
+			else if (strcmp(g_sB, "community2") == 0) return 0;  // Flu Season
+			else if (strcmp(g_sB, "community3") == 0) return 1;  // Riding My Survivor
+			else if (strcmp(g_sB, "community4") == 0) return 3;  // Nightmare
+			else if (strcmp(g_sB, "community5") == 0) return 0;  // Death's Door
 		}
 
 		case 'm': {
-			if (StrEqual(g_sB, "mutation1")) return 0;		// Last Man on Earth
-			else if (StrEqual(g_sB, "mutation2")) return 0;   // Headshot!
-			else if (StrEqual(g_sB, "mutation3")) return 0;   // Bleed Out
-			else if (StrEqual(g_sB, "mutation4")) return 0;   // Hard Eight
-			else if (StrEqual(g_sB, "mutation5")) return 0;   // Four Swordsmen
-			else if (StrEqual(g_sB, "mutation7")) return 0;   // Chainsaw Massacre
-			else if (StrEqual(g_sB, "mutation8")) return 0;   // Ironman
-			else if (StrEqual(g_sB, "mutation9")) return 0;   // Last Gnome on Earth
-			else if (StrEqual(g_sB, "mutation10")) return 0;  // Room for One
-			else if (StrEqual(g_sB, "mutation11")) return 1;  // Healthpackalypse
-			else if (StrEqual(g_sB, "mutation12")) return 1;  // Realism Versus
-			else if (StrEqual(g_sB, "mutation13")) return 2;  // Follow the Liter
-			else if (StrEqual(g_sB, "mutation14")) return 0;  // Gib Fest
-			else if (StrEqual(g_sB, "mutation15")) return 3;  // Versus Survival
-			else if (StrEqual(g_sB, "mutation16")) return 0;  // Hunting Party
-			else if (StrEqual(g_sB, "mutation17")) return 0;  // Lone Gunman
-			else if (StrEqual(g_sB, "mutation18")) return 1;  // Bleed Out Versus
-			else if (StrEqual(g_sB, "mutation19")) return 1;  // Taaannnkk!
-			else if (StrEqual(g_sB, "mutation20")) return 0;  // Healing Gnome
+			if (strcmp(g_sB, "mutation1") == 0) return 0;		// Last Man on Earth
+			else if (strcmp(g_sB, "mutation2") == 0) return 0;   // Headshot!
+			else if (strcmp(g_sB, "mutation3") == 0) return 0;   // Bleed Out
+			else if (strcmp(g_sB, "mutation4") == 0) return 0;   // Hard Eight
+			else if (strcmp(g_sB, "mutation5") == 0) return 0;   // Four Swordsmen
+			else if (strcmp(g_sB, "mutation7") == 0) return 0;   // Chainsaw Massacre
+			else if (strcmp(g_sB, "mutation8") == 0) return 0;   // Ironman
+			else if (strcmp(g_sB, "mutation9") == 0) return 0;   // Last Gnome on Earth
+			else if (strcmp(g_sB, "mutation10") == 0) return 0;  // Room for One
+			else if (strcmp(g_sB, "mutation11") == 0) return 1;  // Healthpackalypse
+			else if (strcmp(g_sB, "mutation12") == 0) return 1;  // Realism Versus
+			else if (strcmp(g_sB, "mutation13") == 0) return 2;  // Follow the Liter
+			else if (strcmp(g_sB, "mutation14") == 0) return 0;  // Gib Fest
+			else if (strcmp(g_sB, "mutation15") == 0) return 3;  // Versus Survival
+			else if (strcmp(g_sB, "mutation16") == 0) return 0;  // Hunting Party
+			else if (strcmp(g_sB, "mutation17") == 0) return 0;  // Lone Gunman
+			else if (strcmp(g_sB, "mutation18") == 0) return 1;  // Bleed Out Versus
+			else if (strcmp(g_sB, "mutation19") == 0) return 1;  // Taaannnkk!
+			else if (strcmp(g_sB, "mutation20") == 0) return 0;  // Healing Gnome
 		}
 
 		case 'r': {
-			if (StrEqual(g_sB, "realism")) return 0;
+			if (strcmp(g_sB, "realism") == 0) return 0;
 		}
 
 		case 's': {
-			if (StrEqual(g_sB, "scavenge")) return 2;
-			else if (StrEqual(g_sB, "survival")) return 3;
+			if (strcmp(g_sB, "scavenge") == 0) return 2;
+			else if (strcmp(g_sB, "survival") == 0) return 3;
 		}
 
 		case 't': {
-			if (StrEqual(g_sB, "teamscavenge")) return 2;
-			else if (StrEqual(g_sB, "teamversus")) return 1;
+			if (strcmp(g_sB, "teamscavenge") == 0) return 2;
+			else if (strcmp(g_sB, "teamversus") == 0) return 1;
 		}
 
 		case 'v': {
-			if (StrEqual(g_sB, "versus")) return 1;
+			if (strcmp(g_sB, "versus") == 0) return 1;
 		}
 	}
 
@@ -1099,7 +1127,7 @@ public void OnClientPostAdminCheck(int client) {
 	}
 }
 
-public Action AutoIdleTimer(Handle timer, int client) {
+Action AutoIdleTimer(Handle timer, int client) {
 	Echo(2, "AutoIdleTimer: %d", client);
 
 	if (g_IsVs || !IsClientValid(client)) {
@@ -1120,9 +1148,9 @@ public Action AutoIdleTimer(Handle timer, int client) {
 	return Plugin_Continue;
 }
 
-public void GoIdleHook(Handle event, const char[] name, bool dontBroadcast) {
+void GoIdleHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "GoIdleHook: %s", name);
-	int player = GetEventInt(event, "player");
+	int player = event.GetInt("player", 0);
 	int client = GetClientOfUserId(player);
 
 	if (GetQRecord(client)) {
@@ -1160,8 +1188,8 @@ void GoIdle(int client, int onteam=0) {
 		}
 
 		switch (IsClientValid(g_target, 0, 0)) {
-			case 1: spec_target = g_target;
-			case 0: spec_target = GetSafeSurvivor(client);
+			case true: spec_target = g_target;
+			case false: spec_target = GetSafeSurvivor(client);
 		}
 
 		if (IsClientValid(spec_target)) {
@@ -1171,12 +1199,14 @@ void GoIdle(int client, int onteam=0) {
 	}
 }
 
-public void CleanQDBHook(Handle event, const char[] name, bool dontBroadcast) {
+void CleanQDBHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "CleanQDBHook: %s", name);
 
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
 	RemoveQDBKey(client);
+	
+	UpdateScriptValueCheck();
 }
 
 void RemoveQDBKey(int client) {
@@ -1195,12 +1225,13 @@ void RemoveQDBKey(int client) {
 	}
 }
 
-public Action RmBotsTimer(Handle timer, any asmany) {
+Action RmBotsTimer(Handle timer, int asmany) {
 	Echo(4, "RmBotsTimer: %d", asmany);
 
 	if (!g_IsVs) {
 		RmBots(asmany, 2);
 	}
+	return Plugin_Continue;
 }
 
 bool IsAdmin(int client) {
@@ -1478,14 +1509,14 @@ void Unqueue(int client) {
 	}
 }
 
-public void OnSpawnHook(Handle event, const char[] name, bool dontBroadcast) {
+void OnSpawnHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "OnSpawnHook: %s", name);
 
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int target = GetClientOfUserId(userid);
 
 	GetClientName(target, g_pN, sizeof(g_pN));
-	if (g_pN[0] == 'A' && StrContains(g_pN, "ABMclient") >= 0) {
+	if (g_pN[0] == 'A' && strncmp(g_pN, "ABMclient", 9) == 0) {
 		return;
 	}
 
@@ -1519,8 +1550,8 @@ public void OnSpawnHook(Handle event, const char[] name, bool dontBroadcast) {
 					}
 
 					switch (IsClientValid(client)) {
-						case 1: SwitchToBot(client, target);
-						case 0: CreateTimer(1.0, TankAssistTimer, target, TIMER_REPEAT);
+						case true: SwitchToBot(client, target);
+						case false: CreateTimer(1.0, TankAssistTimer, target, TIMER_REPEAT);
 					}
 				}
 			}
@@ -1531,14 +1562,14 @@ public void OnSpawnHook(Handle event, const char[] name, bool dontBroadcast) {
 			}
 		}
 	}
-
-	if (onteam == 2) {
+	else if (onteam == 2) {
 		// AutoModeling now takes place in OnEntityCreated
 		CreateTimer(0.4, OnSpawnHookTimer, target);
+		UpdateScriptValueCheck();
 	}
 }
 
-public Action TankAssistTimer(Handle timer, any client) {
+Action TankAssistTimer(Handle timer, int client) {
 	Echo(4, "TankAssistTimer: %d", client);
 
 	/*
@@ -1550,7 +1581,7 @@ public Action TankAssistTimer(Handle timer, any client) {
 
 	float origin[3];
 	static const float nullOrigin[3];
-	static times[MAXPLAYERS + 1] = {11, ...};
+	static int times[MAXPLAYERS + 1] = {11, ...};
 	static float origins[MAXPLAYERS + 1][3];
 	static int i;
 
@@ -1581,10 +1612,10 @@ public Action TankAssistTimer(Handle timer, any client) {
 	return Plugin_Stop;
 }
 
-public Action ForceSpawnTimer(Handle timer, any client) {
+Action ForceSpawnTimer(Handle timer, int client) {
 	Echo(4, "ForceSpawnTimer: %d", client);
 
-	static times[MAXPLAYERS + 1] = {20, ...};
+	static int times[MAXPLAYERS + 1] = {20, ...};
 	static int i;
 
 	if (IsClientValid(client)) {
@@ -1621,20 +1652,22 @@ public Action ForceSpawnTimer(Handle timer, any client) {
 	return Plugin_Stop;
 }
 
-public Action OnSpawnHookTimer(Handle timer, any target) {
+Action OnSpawnHookTimer(Handle timer, any target) {
 	Echo(2, "OnSpawnHookTimer: %d", target);
 
 	if (g_sQueue.Length > 0) {
 		SwitchToBot(g_sQueue.Get(0), target);
-		return;
 	}
+	return Plugin_Continue;
 }
 
-public void OnDeathHook(Handle event, const char[] name, bool dontBroadcast) {
+void OnDeathHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(4, "OnDeathHook: %s", name);
 
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
+	
+	UpdateScriptValueCheck();
 
 	if (GetQRecord(client) && !IsPlayerAlive(client)) {
 		GetClientAbsOrigin(client, g_origin);
@@ -1680,12 +1713,12 @@ public void OnDeathHook(Handle event, const char[] name, bool dontBroadcast) {
 	}
 }
 
-public void QTeamHook(Handle event, const char[] name, bool dontBroadcast) {
+void QTeamHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "QTeamHook: %s", name);
 
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
-	int onteam = GetEventInt(event, "team");
+	int onteam = event.GetInt("team", 0);
 
 	if (GetQRecord(client)) {
 		if (onteam >= 2) {
@@ -1707,7 +1740,7 @@ public void QTeamHook(Handle event, const char[] name, bool dontBroadcast) {
 	}
 }
 
-public Action QTeamHookTimer(Handle timer, any client) {
+Action QTeamHookTimer(Handle timer, int client) {
 	Echo(2, "QTeamHookTimer: %d", client);
 
 	if (GetQRecord(client) && !g_inspec) {
@@ -1717,13 +1750,14 @@ public Action QTeamHookTimer(Handle timer, any client) {
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
-public void QAfkHook(Handle event, const char[] name, bool dontBroadcast) {
+void QAfkHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "QAfkHook: %s", name);
 
-	int client = GetClientOfUserId(GetEventInt(event, "player"));
-	int target = GetClientOfUserId(GetEventInt(event, "bot"));
+	int client = GetClientOfUserId(event.GetInt("player", 0));
+	int target = GetClientOfUserId(event.GetInt("bot", 0));
 	int clientTeam = GetClientTeam(client);
 	int targetTeam = GetClientTeam(target);
 
@@ -1746,11 +1780,11 @@ public void QAfkHook(Handle event, const char[] name, bool dontBroadcast) {
 	}
 }
 
-public void QBakHook(Handle event, const char[] name, bool dontBroadcast) {
+void QBakHook(Event event, const char[] name, bool dontBroadcast) {
 	Echo(2, "QBakHook: %s", name);
 
-	int client = GetClientOfUserId(GetEventInt(event, "player"));
-	int target = GetClientOfUserId(GetEventInt(event, "bot"));
+	int client = GetClientOfUserId(event.GetInt("player", 0));
+	int target = GetClientOfUserId(event.GetInt("bot", 0));
 
 	if (GetQRecord(client)) {
 		if (g_target != target) {
@@ -1844,7 +1878,7 @@ void RespawnClient(int client, int target=0) {
 			if (g_SecondaryWeapon[0] != '\0')
 			{
 				int slot2 = GetPlayerWeaponSlot(client, 1);
-				GiveWep(client, g_SecondaryWeapon, false, slot2);
+				GiveWep(client, g_SecondaryWeapon,/* false, */slot2);
 			}
 			if (g_Throwable[0] != '\0')
 			{
@@ -2044,18 +2078,14 @@ void QuickCheat(int client, const char[] cmd, const char[] arg) {
 	SetCommandFlags(cmd, flags);
 }
 
-int GiveWep(int client, const char[] wep, bool quick = false, int remove_wep = -1)
+int GiveWep(int client, const char[] wep, /*bool quick = false, */int remove_wep = -1)
 {
-	char wep_str[128];
+	char wep_str[64];
 	strcopy(wep_str, sizeof(wep_str), wep);
-	if (StrContains(wep_str, "weapon_", false) < 0)
-	{
-		Format(wep_str, sizeof(wep_str), "weapon_%s", wep_str);
-	}
+	if (strncmp(wep_str, "weapon_", 7, false) != 0)
+	{ Format(wep_str, sizeof(wep_str), "weapon_%s", wep_str); }
 	if (StrContains(wep_str, "_spawn", false) < 0)
-	{
-		Format(wep_str, sizeof(wep_str), "%s_spawn", wep_str);
-	}
+	{ Format(wep_str, sizeof(wep_str), "%s_spawn", wep_str); }
 	
 	int new_wep = CreateEntityByName(wep_str);
 	if (!RealValidEntity(new_wep))
@@ -2070,7 +2100,7 @@ int GiveWep(int client, const char[] wep, bool quick = false, int remove_wep = -
 	DispatchKeyValue(new_wep, "spawnflags", "2");
 	DispatchKeyValue(new_wep, "count", "1");
 	
-	SetVariantString("OnUser1 !self:Kill::1.0:1");
+	SetVariantString("OnUser1 !self:Kill::0.02:1");
 	AcceptEntityInput(new_wep, "AddOutput");
 	AcceptEntityInput(new_wep, "FireUser1");
 	
@@ -2081,72 +2111,59 @@ int GiveWep(int client, const char[] wep, bool quick = false, int remove_wep = -
 	DispatchSpawn(new_wep);
 	ActivateEntity(new_wep);
 	
-	if (!quick)
+	//int userid = GetClientUserId(client);
+	/*if (!quick)
 	{
 		DataPack data = CreateDataPack();
-		data.WriteCell(client);
+		CreateDataTimer(0.01, NewWep_RequestFrame, data, TIMER_FLAG_NO_MAPCHANGE);
+		data.WriteCell(userid);
 		data.WriteCell(new_wep);
-		RequestFrame(NewWep_RequestFrame, data);
 	}
-	else
-	{ AcceptEntityInput(new_wep, "Use", client, new_wep); }
+	else*/
+	AcceptEntityInput(new_wep, "Use", client, new_wep);
 	
 	if (RealValidEntity(remove_wep))
 	{
 		DataPack data2 = CreateDataPack();
+		CreateDataTimer(0.02, RequestFrame_CheckForSecWep, data2, TIMER_FLAG_NO_MAPCHANGE);
+		//data2.WriteCell(userid);
 		data2.WriteCell(client);
 		data2.WriteCell(remove_wep);
-		CreateTimer(0.01, RequestFrame_CheckForSecWep, data2, TIMER_FLAG_NO_MAPCHANGE);
 	}
 	
 	return new_wep;
 }
 
-void NewWep_RequestFrame(DataPack data)
+/*Action NewWep_RequestFrame(Handle timer, DataPack data)
 {
 	data.Reset();
-	int client = data.ReadCell();
+	int client = GetClientOfUserId(data.ReadCell());
 	int new_wep = data.ReadCell();
-	if (data != null)
-	{ CloseHandle(data); }
 	
-	if (!IsValidClient(client) || !RealValidEntity(new_wep)) return;
+	if (client == 0 || !RealValidEntity(new_wep)) return Plugin_Continue;
 	
 	AcceptEntityInput(new_wep, "Use", client, new_wep);
-}
+	return Plugin_Continue;
+}*/
 
 Action RequestFrame_CheckForSecWep(Handle timer, DataPack data)
 {
 	data.Reset();
-	int client = data.ReadCell();
+	int client = /*GetClientOfUserId(*/data.ReadCell()/*)*/;
 	int remove_wep = data.ReadCell();
-	if (data != null)
-	{ CloseHandle(data); }
 	
-	if (!IsValidClient(client)) return;
+	if (!IsClientValid(client)) return Plugin_Continue;
 	
 	int slot2 = GetPlayerWeaponSlot(client, 1);
 	
 	if (RealValidEntity(remove_wep) && slot2 != remove_wep)
 	{ AcceptEntityInput(remove_wep, "Kill"); }
+	
+	return Plugin_Continue;
 }
 
-bool RealValidEntity(int entity)
-{
-	if (entity <= 0 || !IsValidEntity(entity)) return false;
-	return true;
-}
-
-bool IsValidClient(int client, bool replaycheck = true)
-{
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	if (replaycheck)
-	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
-	}
-	return true;
-}
+stock bool RealValidEntity(int entity)
+{ return (entity > 0 && IsValidEntity(entity)); }
 
 void SwitchToBot(int client, int target, bool si_ghost=true) {
 	Echo(2, "SwitchToBot: %d %d %d", client, target, si_ghost);
@@ -2201,7 +2218,7 @@ void Takeover(int client, int onteam) {
 	}
 }
 
-public Action TakeoverTimer(Handle timer, any client) {
+Action TakeoverTimer(Handle timer, int client) {
 	Echo(4, "TakeoverTimer: %d", client);
 
 	if (CountTeamMates(2) <= 0) {
@@ -2239,7 +2256,7 @@ public Action TakeoverTimer(Handle timer, any client) {
 	return Plugin_Handled;
 }
 
-int CountTeamMates(int onteam, int mtype=2) {
+int CountTeamMates(int onteam, int mtype=2, bool aliveonly=false) {
 	Echo(2, "CountTeamMates: %d %d", onteam, mtype);
 
 	// mtype 0: counts only bots
@@ -2250,12 +2267,12 @@ int CountTeamMates(int onteam, int mtype=2) {
 	clients = bots = humans = 0;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientValid(i, onteam)) {
+		if (IsClientValid(i, onteam) && (!aliveonly || IsPlayerAlive(i))) {
 			clients++;
 
 			switch (IsFakeClient(GetRealClient(i))) {
-				case 1: bots++;
-				case 0: humans++;
+				case true: bots++;
+				case false: humans++;
 			}
 		}
 	}
@@ -2281,8 +2298,8 @@ int GetClientManager(int target) {
 
 	if (IsClientValid(target)) {
 		switch (IsFakeClient(target)) {
-			case 0: result = target;
-			case 1: result = 0;
+			case false: result = target;
+			case true: result = 0;
 		}
 	}
 
@@ -2382,8 +2399,8 @@ void SwitchTeam(int client, int onteam, char model[32]="") {
 						}
 
 						switch (g_model[0] != EOS) {
-							case 1: Format(model, sizeof(model), "%s", g_model);
-							case 0: CleanSIName(model);
+							case true: Format(model, sizeof(model), "%s", g_model);
+							case false: CleanSIName(model);
 						}
 
 						QueueUp(client, 3);
@@ -2398,7 +2415,7 @@ void SwitchTeam(int client, int onteam, char model[32]="") {
 	}
 }
 
-public Action MkBotsCmd(int client, int args) {
+Action MkBotsCmd(int client, int args) {
 	Echo(2, "MkBotsCmd: %d", client);
 
 	switch (args) {
@@ -2437,7 +2454,7 @@ void MkBots(int asmany, int onteam) {
 	pack.WriteCell(onteam);
 }
 
-public Action MkBotsTimer(Handle timer, Handle pack) {
+Action MkBotsTimer(Handle timer, Handle pack) {
 	Echo(2, "MkBotsTimer");
 
 	static int i;
@@ -2459,7 +2476,7 @@ public Action MkBotsTimer(Handle timer, Handle pack) {
 	return Plugin_Stop;
 }
 
-public Action RmBotsCmd(int client, int args) {
+Action RmBotsCmd(int client, int args) {
 	Echo(2, "RmBotsCmd: %d", client);
 
 	int asmany;
@@ -2535,7 +2552,7 @@ void AutoModel(int client) {
 	RequestFrame(_AutoModel, client);
 }
 
-public void _AutoModel(int client) {
+void _AutoModel(int client) {
 	Echo(5, "_AutoModel: %d", client);
 
 	if (IsClientValid(client, 2)) {
@@ -2565,7 +2582,7 @@ public void _AutoModel(int client) {
 				if (g_models[index] <= i) {
 					g_models[index]++;
 					g_SurvivorNames.GetString(index, temp_str, MAX_SURV_NAMESIZE);
-					AssignModel(client, temp_str, g_IdentityFix);
+					AssignModel(client, temp_str, (g_IdentityFix >= 0) ? 1 : 0); // g_IdentityFix
 					i = 4;  // we want to fall through
 					break;
 				}
@@ -2588,8 +2605,8 @@ int GetSurvivorSet(int client) {
 			g_survivorSet = GetClientModelIndex(client);
 	
 			switch (g_survivorSet >= 0 && g_survivorSet <= 3) {
-				case 1: g_survivorSet = 0;  // l4d2 survivor set
-				case 0: g_survivorSet = 4;  // l4d1 survivor set
+				case true: g_survivorSet = 0;  // l4d2 survivor set
+				case false: g_survivorSet = 4;  // l4d1 survivor set
 			}
 		}
 	}
@@ -2654,8 +2671,8 @@ void AssignModel(int client, char [] model, int identityFix) {
 			{
 				switch (i == 5)
 				{
-					case 1: SetEntProp(client, Prop_Send, "m_survivorCharacter", g_Zoey);
-					case 0: SetEntProp(client, Prop_Send, "m_survivorCharacter", i);
+					case true: SetEntProp(client, Prop_Send, "m_survivorCharacter", g_Zoey);
+					case false: SetEntProp(client, Prop_Send, "m_survivorCharacter", i);
 				}
 			}
 			else
@@ -2695,7 +2712,7 @@ int GetClientModelIndex(int client) {
 	for (int i = 0; i < g_SurvivorPaths.Length; i++) {
 		g_SurvivorPaths.GetString(i, temp_str, MAX_SURV_MDLSIZE);
 		
-		if (StrEqual(modelName, temp_str, false)) {
+		if (strcmp(modelName, temp_str, false) == 0) {
 			return i;
 		}
 	}
@@ -2737,7 +2754,7 @@ bool IsClientsModel(int client, char [] name) {
 	char temp_str[MAX_SURV_NAMESIZE];
 	g_SurvivorNames.GetString(modelIndex, temp_str, MAX_SURV_NAMESIZE);
 	Format(g_sB, sizeof(g_sB), "%s", temp_str);
-	return StrEqual(name, g_sB);
+	return (strcmp(name, g_sB) == 0);
 }
 
 void GetBotCharacter(int client, char strBuffer[64]) {
@@ -2760,7 +2777,7 @@ void GetSurvivorCharacter(int client, char strBuffer[64]) {
 	for (int i = 0; i < g_SurvivorPaths.Length; i++) {
 		char temp_str_2[MAX_SURV_MDLSIZE];
 		g_SurvivorPaths.GetString(i, temp_str_2, MAX_SURV_MDLSIZE);
-		if (StrEqual(temp_str_2, g_sB, false)) {
+		if (strcmp(temp_str_2, g_sB, false) == 0) {
 			char temp_str[MAX_SURV_NAMESIZE];
 			g_SurvivorNames.GetString(i, temp_str, MAX_SURV_NAMESIZE);
 			Format(strBuffer, sizeof(strBuffer), temp_str);
@@ -2992,7 +3009,7 @@ bool TakeoverZombieBotSig(int client, int target, bool si_ghost) {
 // PUBLIC INTERFACE AND MENU HANDLERS
 // ================================================================== //
 
-public Action TeleportClientCmd(int client, int args) {
+Action TeleportClientCmd(int client, int args) {
 	Echo(2, "TeleportClientCmd: %d", client);
 
 	int level;
@@ -3019,6 +3036,7 @@ public Action TeleportClientCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// TeleportClientHandler needs public otherwise it won't pass RegMenuHandler
 public void TeleportClientHandler(int client, int level) {
 	Echo(2, "TeleportClientHandler: %d %d", client, level);
 
@@ -3048,7 +3066,7 @@ public void TeleportClientHandler(int client, int level) {
 	}
 }
 
-public Action SwitchTeamCmd(int client, int args) {
+Action SwitchTeamCmd(int client, int args) {
 	Echo(2, "SwitchTeamCmd: %d", client);
 
 	int level;
@@ -3090,6 +3108,7 @@ public Action SwitchTeamCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// SwitchTeamHandler needs public otherwise it won't pass RegMenuHandler
 public void SwitchTeamHandler(int client, int level) {
 	Echo(2, "SwitchTeamHandler: %d %d", client, level);
 
@@ -3120,7 +3139,7 @@ public void SwitchTeamHandler(int client, int level) {
 	}
 }
 
-public Action AssignModelCmd(int client, int args) {
+Action AssignModelCmd(int client, int args) {
 	Echo(2, "AssignModelCmd: %d", client);
 
 	int level;
@@ -3148,6 +3167,7 @@ public Action AssignModelCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// AssignModelHandler needs public otherwise it won't pass RegMenuHandler
 public void AssignModelHandler(int client, int level) {
 	Echo(2, "AssignModelHandler: %d %d", client, level);
 
@@ -3179,7 +3199,7 @@ public void AssignModelHandler(int client, int level) {
 	}
 }
 
-public Action SwitchToBotCmd(int client, int args) {
+Action SwitchToBotCmd(int client, int args) {
 	Echo(2, "SwitchToBotCmd: %d", client);
 
 	int level;
@@ -3212,6 +3232,7 @@ public Action SwitchToBotCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// SwitchToBotHandler needs public otherwise it won't pass RegMenuHandler
 public void SwitchToBotHandler(int client, int level) {
 	Echo(2, "SwitchToBotHandler: %d %d", client, level);
 
@@ -3249,7 +3270,7 @@ public void SwitchToBotHandler(int client, int level) {
 	}
 }
 
-public Action RespawnClientCmd(int client, int args) {
+Action RespawnClientCmd(int client, int args) {
 	Echo(2, "RespawnClientCmd: %d", client);
 
 	int level;
@@ -3277,6 +3298,7 @@ public Action RespawnClientCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// RespawnClientHandler needs public otherwise it won't pass RegMenuHandler
 public void RespawnClientHandler(int client, int level) {
 	Echo(2, "RespawnClientHandler: %d %d", client, level);
 
@@ -3306,7 +3328,7 @@ public void RespawnClientHandler(int client, int level) {
 	}
 }
 
-public Action CycleBotsCmd(int client, int args) {
+Action CycleBotsCmd(int client, int args) {
 	Echo(2, "CycleBotsCmd: %d", client);
 
 	int level;
@@ -3338,6 +3360,7 @@ public Action CycleBotsCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// CycleBotsHandler needs public otherwise it won't pass RegMenuHandler
 public void CycleBotsHandler(int client, int level) {
 	Echo(2, "CycleBotsHandler: %d %d", client, level);
 
@@ -3369,7 +3392,7 @@ public void CycleBotsHandler(int client, int level) {
 	}
 }
 
-public Action StripClientCmd(int client, int args) {
+Action StripClientCmd(int client, int args) {
 	Echo(2, "StripClientCmd: %d", client);
 
 	int target;
@@ -3404,6 +3427,7 @@ public Action StripClientCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// StripClientHandler needs public otherwise it won't pass RegMenuHandler
 public void StripClientHandler(int client, int level) {
 	Echo(2, "StripClientHandler: %d %d", client, level);
 
@@ -3433,7 +3457,7 @@ public void StripClientHandler(int client, int level) {
 	}
 }
 
-public Action ResetCmd(int client, int args) {
+Action ResetCmd(int client, int args) {
 	Echo(2, "ResetCmd: %d", client);
 
 	for (int i = 1; i <= MaxClients; i++) {
@@ -3458,7 +3482,7 @@ bool RegMenuHandler(int client, char [] handler, int level, int clearance=0) {
 	return true;
 }
 
-public Action MainMenuCmd(int client, int args) {
+Action MainMenuCmd(int client, int args) {
 	Echo(2, "MainMenuCmd: %d", client);
 
 	GenericMenuCleaner(client);
@@ -3466,6 +3490,7 @@ public Action MainMenuCmd(int client, int args) {
 	return Plugin_Handled;
 }
 
+// MainMenuHandler needs public otherwise it won't pass RegMenuHandler
 public void MainMenuHandler(int client, int level) {
 	Echo(2, "MainMenuHandler: %d %d", client, level);
 
@@ -3515,7 +3540,7 @@ void GenericMenuCleaner(int client, bool clearStack=true) {
 	}
 }
 
-public int GenericMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
+int GenericMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
 	Echo(2, "GenericMenuHandler: %d %d", param1, param2);
 
 	int client = param1;
@@ -3548,7 +3573,7 @@ public int GenericMenuHandler(Menu menu, MenuAction action, int param1, int para
 
 					if (g_callBacks.Empty) {
 						GenericMenuCleaner(param1);
-						return;
+						return 0;
 					}
 
 					g_callBacks.PopString(g_sB, sizeof(g_sB));
@@ -3557,7 +3582,7 @@ public int GenericMenuHandler(Menu menu, MenuAction action, int param1, int para
 					while (!g_callBacks.Empty) {
 						g_callBacks.PopString(sB, sizeof(sB));
 
-						if (!StrEqual(g_sB, sB)) {
+						if (strcmp(g_sB, sB) != 0) {
 							g_callBacks.PushString(sB);
 							break;
 						}
@@ -3565,25 +3590,25 @@ public int GenericMenuHandler(Menu menu, MenuAction action, int param1, int para
 
 					if (g_callBacks.Empty) {
 						GenericMenuCleaner(param1);
-						return;
+						return 0;
 					}
 				}
 			}
 
 			else {
-				return;
+				return 0;
 			}
 		}
 
 		case MenuAction_End: {
 			delete menu;
-			return;
+			return 0;
 		}
 	}
 
 	if (g_callBacks == null || g_callBacks.Empty) {
 		GenericMenuCleaner(param1);
-		return;
+		return 0;
 	}
 
 	g_callBacks.PopString(g_sB, sizeof(g_sB));
@@ -3593,6 +3618,7 @@ public int GenericMenuHandler(Menu menu, MenuAction action, int param1, int para
 	Call_PushCell(param1);
 	Call_PushCell(i);
 	Call_Finish();
+	return 0;
 }
 
 // ================================================================== //
@@ -3777,8 +3803,8 @@ void TeamMatesMenu(int client, char [] title, int mtype=2, int target=0, bool in
 			IntToString(targetClient, g_sB, sizeof(g_sB));
 
 			switch (bossClient == client && menu.ItemCount > 0) {
-				case 0: menu.AddItem(g_sB, g_pN);
-				case 1: menu.InsertItem(0, g_sB, g_pN);
+				case false: menu.AddItem(g_sB, g_pN);
+				case true: menu.InsertItem(0, g_sB, g_pN);
 			}
 		}
 	}
@@ -3832,7 +3858,7 @@ void QDBCheckCmd(int client) {
 	}
 }
 
-public Action QuickClientPrintCmd(int client, int args) {
+Action QuickClientPrintCmd(int client, int args) {
 	Echo(2, "QuickClientPrintCmd: %d", client);
 
 	int onteam;

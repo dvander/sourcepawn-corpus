@@ -16,13 +16,13 @@ public Plugin myinfo =
 	name = "[L4D2] Ricochet",
 	author = "BHaType",
 	description = "Add ricochet system for weapons",
-	version = "0.0",
+	version = "0.1",
 	url = "Diary"
 };
 
 int g_iTracerType, g_iChance, g_iDamage, g_iDamageType;
 float g_flAngle;
-ConVar g_hTracerType, g_hAngle, g_hChance, g_hDamage, g_hDamageType;
+ConVar g_hTracerType, g_hAngle, g_hChance, g_hDamage, g_hDamageType, g_hUpgradedAmmoOnly;
 
 public void OnPluginStart()
 {
@@ -31,6 +31,7 @@ public void OnPluginStart()
 	g_hChance = CreateConVar("sm_ricochet_chance", "100", "Chance of ricochet", FCVAR_NONE, true, 0.0, true, 100.0);
 	g_hDamage = CreateConVar("sm_ricochet_damage", "5", "Damage of ricochet", FCVAR_NONE);
 	g_hDamageType = CreateConVar("sm_ricochet_damage_type", "8", "Damage type of ricochet", FCVAR_NONE);
+	g_hUpgradedAmmoOnly = CreateConVar("sm_ricochet_upgraded_ammo_only", "1", "Upgraded ammo only", FCVAR_NONE);
 	
 	AutoExecConfig(true, "l4d2_ricohet");
 	
@@ -73,7 +74,17 @@ public void eEvent (Event event, const char[] name, bool dontbroadcast)
 	
 	if (!client || GetClientTeam(client) != 2)
 		return;
-		
+	
+	if (g_hUpgradedAmmoOnly.BoolValue)
+	{
+		int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		if (weapon != -1)
+		{
+			if (!L4D2_HasWeaponUpgradeAmmoCount(weapon))
+				return;
+		}
+	}
+
 	float vAngles[3], vOrigin[3], vEnd[3], vDir[3], vResult[3], vPlane[3];
 	
 	vEnd[0] = event.GetFloat("x");
@@ -87,14 +98,13 @@ public void eEvent (Event event, const char[] name, bool dontbroadcast)
 	
 	Handle TraceRay = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SOLID, RayType_Infinite, TraceFilter, client);
 	
-	if (!TR_DidHit(TraceRay))
+	if (!TR_DidHit(TraceRay) || ShouldSkip(TR_GetEntityIndex(TraceRay)))
 	{
 		delete TraceRay;
 		return;
 	}
-
-	TR_GetPlaneNormal(TraceRay, vPlane);
 	
+	TR_GetPlaneNormal(TraceRay, vPlane);
 	delete TraceRay;
 	
 	if (RadToDeg(ArcCosine(GetVectorDotProduct(vDir, vPlane))) > g_flAngle || GetRandomInt(1, 100) > g_iChance)
@@ -110,7 +120,6 @@ public void eEvent (Event event, const char[] name, bool dontbroadcast)
 	ScaleVector(vPlane, GetVectorLength(vDir));
 	
 	SubtractVectors(vDir, vPlane, vResult);
-	
 	GetVectorAngles(vResult, vAngles);
 	
 	vAngles[0] += GetRandomFloat(-5.0, 5.0);
@@ -204,4 +213,29 @@ public bool TraceFilter(int entity, int mask, int client)
 	if (entity == client)
 		return false;
 	return true;
+}
+
+bool ShouldSkip(int entity)
+{
+	if (!entity || !IsValidEntity(entity))
+		return false;
+
+	if (entity > 0 && entity <= MaxClients)
+		return true;
+
+	return !ClassMatchesComplex(entity, "infected");
+}
+
+bool ClassMatchesComplex(int entity, const char[] match)
+{
+	char name[36];
+	if (!GetEntityClassname(entity, name, sizeof name))
+		return false;
+
+	return strcmp(match, name) == 0;
+}
+
+stock bool L4D2_HasWeaponUpgradeAmmoCount(int weapon)
+{
+	return GetEntProp(weapon, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded") > 0;
 }

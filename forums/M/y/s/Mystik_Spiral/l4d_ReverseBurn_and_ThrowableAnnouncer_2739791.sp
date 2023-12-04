@@ -17,7 +17,7 @@ Features:
 - Burn damage is reversed only if victim(s) are burned instantly (within 0.75 second of ignition) and continuously (takes burn damage more than once per second).  
 - If player runs into fire more than 0.75 seconds after ignition, burn damage is treated normally.  
 - When burn damage is reversed, during each burn cycle (approximately 6x per second):  
-- Attacker takes 70% damage for each instantly/continuously burned victim  
+  - Attacker takes 70% damage for each instantly/continuously burned victim  
   - Standing burn victims lose 1PermHP which is converted to 2TempHP as incentive to move out of the fire quickly.  
   - Before ignition, any players already incapped or with only 1TotalHP do not take any burn damage.  
 - Bots do not take burn damage but do move out of the fire as quickly as possible.  
@@ -73,7 +73,7 @@ The phrases file (l4d_ReverseBurn_and_ThrowableAnnouncer.phrases.txt ) is REQUIR
 #define PLUGIN_NAME                   "[L4D & L4D2] ReverseBurn and ThrowableAnnouncer"
 #define PLUGIN_AUTHOR                 "Mystik Spiral"
 #define PLUGIN_DESCRIPTION            "Reverses damage when victim burned instantly and continuously"
-#define PLUGIN_VERSION                "1.2.1"
+#define PLUGIN_VERSION                "1.2.2a"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=331166"
 
 // ====================================================================================================
@@ -339,7 +339,7 @@ public void GetCvars()
 
 public void OnClientDisconnect(int client)
 {
-	if (g_bReverseBurnAtk[client] && g_bCvar_BanBurnDisconnect)										//MS
+	if (g_bReverseBurnAtk[client] && g_bCvar_BanBurnDisconnect && !IsFakeClient(client))			//MS
 	{																								//MS
 		//ban attacker for disconnecting during reverse burn										//MS
 		char BanMsg[50];																			//MS
@@ -950,6 +950,8 @@ public void OnAllPluginsLoaded()
 public void OnClientPutInServer(int client)
 {
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage_Player);
+	//in case new player joins in the middle of existing reverse burn
+	g_bReverseBurnAtk[client] = false;
 }
 
 public Action OnTakeDamage_Player(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
@@ -1007,7 +1009,7 @@ public Action OnTakeDamage_Player(int victim, int &attacker, int &inflictor, flo
 					g_fLastRevBurnTime[victim] = GetGameTime();
 					return Plugin_Handled;
 				}
-				//probably not needed, but if human attacker disconnects, do not burn bot that takes over
+				//if human attacker disconnects, do not burn bot that takes over
 				if  (IsFakeClient(attacker))
 				{
 					return Plugin_Handled;
@@ -1104,6 +1106,8 @@ public Action BeginBurnTimer(Handle timer, int client)
 	g_bFirstBurn[client] = false;
 	//clear handle for this timer
 	g_hBeginBurn[client] = null;
+	
+	return Plugin_Continue;
 }
 
 public Action FinishBurnTimer(Handle timer, DataPack pack)
@@ -1147,6 +1151,8 @@ public Action FinishBurnTimer(Handle timer, DataPack pack)
 	g_bReverseBurnAtk[iAttacker] = false;
 	g_bReverseBurnVic[iVictim] = false;
 	g_hFinishBurn[iAttacker] = null;
+	
+	return Plugin_Continue;
 }
 
 stock bool IsValidClientAndInGameAndSurvivor(int client)
@@ -1187,6 +1193,7 @@ public Action AnnouncePlugin(Handle timer, int client)
 			CPrintToChat(client, "%t", "Announce");
 		}
 	}
+	return Plugin_Continue;
 }
 
 stock bool IsClientAdmin(int client)

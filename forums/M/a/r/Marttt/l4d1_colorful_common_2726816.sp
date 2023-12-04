@@ -59,32 +59,26 @@ public Plugin myinfo =
 #define CONFIG_FILENAME               "l4d1_colorful_common"
 
 // ====================================================================================================
-// Defines
-// ====================================================================================================
-#define CLASSNAME_INFECTED            "infected"
-
-// ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Color;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Color;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_RandomColor;
+bool g_bCvar_Enabled;
+bool g_bCvar_RandomColor;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Color[3];
+int g_iCvar_Color[3];
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_Color[12];
+char g_sCvar_Color[12];
 
 // ====================================================================================================
 // Plugin Start
@@ -128,14 +122,12 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
@@ -144,26 +136,25 @@ public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_hCvar_Color.GetString(g_sCvar_Color, sizeof(g_sCvar_Color));
     TrimString(g_sCvar_Color);
-    StringToLowerCase(g_sCvar_Color);
-    g_bCvar_RandomColor = StrEqual(g_sCvar_Color, "random");
+    g_bCvar_RandomColor = StrEqual(g_sCvar_Color, "random", false);
     g_iCvar_Color = ConvertRGBToIntArray(g_sCvar_Color);
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_INFECTED)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "infected")) != INVALID_ENT_REFERENCE)
     {
-       OnSpawnPost(entity);
+        SetCommonColor(entity);
     }
 }
 
@@ -171,48 +162,37 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 'i')
-        return;
-
-    if (StrEqual(classname, CLASSNAME_INFECTED))
+    if (StrEqual(classname, "infected"))
         SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
 {
-    RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
+    SetCommonColor(entity);
 }
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+void SetCommonColor(int entity)
 {
     if (!g_bCvar_Enabled)
-        return;
-
-    int entity = EntRefToEntIndex(entityRef);
-
-    if (entity == INVALID_ENT_REFERENCE)
         return;
 
     if (g_bCvar_RandomColor)
         SetEntityRenderColor(entity, GetRandomInt(0, 255), GetRandomInt(0, 255), GetRandomInt(0, 255), 255);
     else
-        SetEntityRenderColor(entity, g_iCvar_Color[0], g_iCvar_Color[1], g_iCvar_Color[2], 200);
+        SetEntityRenderColor(entity, g_iCvar_Color[0], g_iCvar_Color[1], g_iCvar_Color[2], 255);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdColorRefresh(int client, int args)
+Action CmdColorRefresh(int client, int args)
 {
     LateLoad();
 
@@ -221,7 +201,7 @@ public Action CmdColorRefresh(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -241,34 +221,6 @@ public Action CmdPrintCvars(int client, int args)
 // ====================================================================================================
 // Helpers
 // ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
-/**
- * Converts the string to lower case.
- *
- * @param input         Input string.
- */
-void StringToLowerCase(char[] input)
-{
-    for (int i = 0; i < strlen(input); i++)
-    {
-        input[i] = CharToLower(input[i]);
-    }
-}
-
-/****************************************************************************************************/
-
 /**
  * Returns the integer array value of a RGB string.
  * Format: Three values between 0-255 separated by spaces. "<0-255> <0-255> <0-255>"

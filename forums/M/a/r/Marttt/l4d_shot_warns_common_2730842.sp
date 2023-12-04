@@ -2,6 +2,10 @@
 // ====================================================================================================
 Change Log:
 
+1.0.8 (08-September-2021)
+    - Added cvar to enable chase on vocalize command.
+    - Added support for both miniguns on L4D1.
+
 1.0.7 (01-May-2021)
     - Added cvar to enable chase on every valid survivor instead only the shooter. (thanks "MasterMind420" for the idea)
     - Added some checks to prevent zombies chasing players in death, team change or disconnect events.
@@ -81,11 +85,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_INFO_GOAL_INFECTED_CHASE     "info_goal_infected_chase"
-
-#define CLASSNAME_PROP_MINIGUN        "prop_minigun"
-#define CLASSNAME_PROP_MINIGUN_L4D1   "prop_minigun_l4d1"
-
 #define SOUND_HEGRENADE_BEEP          "weapons/hegrenade/beep.wav"
 
 #define TEAM_SURVIVOR                 2
@@ -118,7 +117,7 @@ public Plugin myinfo =
 #define L4D2_WEPID_CHAINSAW                 20
 #define L4D2_WEPID_GRENADE_LAUNCHER         21
 #define L4D2_WEPID_ADRENALINE               23
-#define L4D2_WEPID_VOMIT_JAR                25
+#define L4D2_WEPID_VOMITJAR                25
 #define L4D2_WEPID_RIFLE_AK47               26
 #define L4D2_WEPID_GNOME                    27
 #define L4D2_WEPID_COLA_BOTTLES             28
@@ -158,167 +157,175 @@ public Plugin myinfo =
 #define L4D1_WEPID_PAIN_PILLS              12
 #define L4D1_WEPID_MACHINE_GUN             29
 
+#define MAXENTITIES                   2048
+
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_pipe_bomb_initial_beep_interval;
+ConVar g_hCvar_pipe_bomb_initial_beep_interval;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Bots;
-static ConVar g_hCvar_SafeArea;
-static ConVar g_hCvar_Everyone;
-static ConVar g_hCvar_PipeBombBeep;
-static ConVar g_hCvar_ExternalChase;
-static ConVar g_hCvar_TankAlive;
-static ConVar g_hCvar_Duration;
-static ConVar g_hCvar_Chance;
-static ConVar g_hCvar_Pistol;
-static ConVar g_hCvar_Pistol_Magnum;
-static ConVar g_hCvar_PumpShotgun;
-static ConVar g_hCvar_Shotgun_Chrome;
-static ConVar g_hCvar_AutoShotgun;
-static ConVar g_hCvar_Shotgun_Spas;
-static ConVar g_hCvar_SMG_Uzi;
-static ConVar g_hCvar_SMG_Silenced;
-static ConVar g_hCvar_SMG_MP5;
-static ConVar g_hCvar_Rifle_M16;
-static ConVar g_hCvar_Rifle_Desert;
-static ConVar g_hCvar_Rifle_AK47;
-static ConVar g_hCvar_Rifle_SG552;
-static ConVar g_hCvar_Rifle_M60;
-static ConVar g_hCvar_Hunting_Rifle;
-static ConVar g_hCvar_Sniper_Military;
-static ConVar g_hCvar_Sniper_Scout;
-static ConVar g_hCvar_Sniper_AWP;
-static ConVar g_hCvar_Grenade_Launcher;
-static ConVar g_hCvar_Chainsaw;
-static ConVar g_hCvar_Minigun;
-static ConVar g_hCvar_50Cal;
-static ConVar g_hCvar_Melee_Baseball_Bat;
-static ConVar g_hCvar_Melee_Cricket_Bat;
-static ConVar g_hCvar_Melee_Crowbar;
-static ConVar g_hCvar_Melee_Electric_Guitar;
-static ConVar g_hCvar_Melee_Fireaxe;
-static ConVar g_hCvar_Melee_Frying_Pan;
-static ConVar g_hCvar_Melee_Golfclub;
-static ConVar g_hCvar_Melee_Katana;
-static ConVar g_hCvar_Melee_Knife;
-static ConVar g_hCvar_Melee_Machete;
-static ConVar g_hCvar_Melee_Tonfa;
-static ConVar g_hCvar_Melee_Pitchfork;
-static ConVar g_hCvar_Melee_Shovel;
-static ConVar g_hCvar_Melee_RiotShield;
-static ConVar g_hCvar_Melee_Custom;
-static ConVar g_hCvar_Molotov;
-static ConVar g_hCvar_PipeBomb;
-static ConVar g_hCvar_VomitJar;
-static ConVar g_hCvar_PainPills;
-static ConVar g_hCvar_Adrenaline;
-static ConVar g_hCvar_Gascan;
-static ConVar g_hCvar_PropaneTank;
-static ConVar g_hCvar_OxygenTank;
-static ConVar g_hCvar_FireworksCrate;
-static ConVar g_hCvar_Gnome;
-static ConVar g_hCvar_ColaBottles;
-static ConVar g_hCvar_UpgradeSilencer;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Bots;
+ConVar g_hCvar_SafeArea;
+ConVar g_hCvar_Everyone;
+ConVar g_hCvar_PipeBombBeep;
+ConVar g_hCvar_ExternalChase;
+ConVar g_hCvar_TankAlive;
+ConVar g_hCvar_Duration;
+ConVar g_hCvar_Chance;
+ConVar g_hCvar_Vocalize;
+ConVar g_hCvar_Pistol;
+ConVar g_hCvar_Pistol_Magnum;
+ConVar g_hCvar_PumpShotgun;
+ConVar g_hCvar_Shotgun_Chrome;
+ConVar g_hCvar_AutoShotgun;
+ConVar g_hCvar_Shotgun_Spas;
+ConVar g_hCvar_SMG_Uzi;
+ConVar g_hCvar_SMG_Silenced;
+ConVar g_hCvar_SMG_MP5;
+ConVar g_hCvar_Rifle_M16;
+ConVar g_hCvar_Rifle_Desert;
+ConVar g_hCvar_Rifle_AK47;
+ConVar g_hCvar_Rifle_SG552;
+ConVar g_hCvar_Rifle_M60;
+ConVar g_hCvar_Hunting_Rifle;
+ConVar g_hCvar_Sniper_Military;
+ConVar g_hCvar_Sniper_Scout;
+ConVar g_hCvar_Sniper_AWP;
+ConVar g_hCvar_Grenade_Launcher;
+ConVar g_hCvar_Chainsaw;
+ConVar g_hCvar_Minigun;
+ConVar g_hCvar_50Cal;
+ConVar g_hCvar_Melee_Baseball_Bat;
+ConVar g_hCvar_Melee_Cricket_Bat;
+ConVar g_hCvar_Melee_Crowbar;
+ConVar g_hCvar_Melee_Electric_Guitar;
+ConVar g_hCvar_Melee_Fireaxe;
+ConVar g_hCvar_Melee_Frying_Pan;
+ConVar g_hCvar_Melee_Golfclub;
+ConVar g_hCvar_Melee_Katana;
+ConVar g_hCvar_Melee_Knife;
+ConVar g_hCvar_Melee_Machete;
+ConVar g_hCvar_Melee_Tonfa;
+ConVar g_hCvar_Melee_Pitchfork;
+ConVar g_hCvar_Melee_Shovel;
+ConVar g_hCvar_Melee_RiotShield;
+ConVar g_hCvar_Melee_Custom;
+ConVar g_hCvar_Molotov;
+ConVar g_hCvar_PipeBomb;
+ConVar g_hCvar_VomitJar;
+ConVar g_hCvar_PainPills;
+ConVar g_hCvar_Adrenaline;
+ConVar g_hCvar_Gascan;
+ConVar g_hCvar_PropaneTank;
+ConVar g_hCvar_OxygenTank;
+ConVar g_hCvar_FireworksCrate;
+ConVar g_hCvar_Gnome;
+ConVar g_hCvar_ColaBottles;
+ConVar g_hCvar_UpgradeSilencer;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bAliveTank;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Bots;
-static bool   g_bCvar_SafeArea;
-static bool   g_bCvar_Everyone;
-static bool   g_bCvar_PipeBombBeep;
-static bool   g_bCvar_ExternalChase;
-static bool   g_bCvar_TankAlive;
-static bool   g_bCvar_Chance;
-static bool   g_bCvar_Pistol;
-static bool   g_bCvar_Pistol_Magnum;
-static bool   g_bCvar_PumpShotgun;
-static bool   g_bCvar_Shotgun_Chrome;
-static bool   g_bCvar_AutoShotgun;
-static bool   g_bCvar_Shotgun_Spas;
-static bool   g_bCvar_SMG_Uzi;
-static bool   g_bCvar_SMG_Silenced;
-static bool   g_bCvar_SMG_MP5;
-static bool   g_bCvar_Rifle_M16;
-static bool   g_bCvar_Rifle_Desert;
-static bool   g_bCvar_Rifle_AK47;
-static bool   g_bCvar_Rifle_SG552;
-static bool   g_bCvar_Rifle_M60;
-static bool   g_bCvar_Hunting_Rifle;
-static bool   g_bCvar_Sniper_Military;
-static bool   g_bCvar_Sniper_Scout;
-static bool   g_bCvar_Sniper_AWP;
-static bool   g_bCvar_Grenade_Launcher;
-static bool   g_bCvar_Chainsaw;
-static bool   g_bCvar_Minigun;
-static bool   g_bCvar_50Cal;
-static bool   g_bCvar_Melee_Baseball_Bat;
-static bool   g_bCvar_Melee_Cricket_Bat;
-static bool   g_bCvar_Melee_Crowbar;
-static bool   g_bCvar_Melee_Electric_Guitar;
-static bool   g_bCvar_Melee_Fireaxe;
-static bool   g_bCvar_Melee_Frying_Pan;
-static bool   g_bCvar_Melee_Golfclub;
-static bool   g_bCvar_Melee_Katana;
-static bool   g_bCvar_Melee_Knife;
-static bool   g_bCvar_Melee_Machete;
-static bool   g_bCvar_Melee_Tonfa;
-static bool   g_bCvar_Melee_Pitchfork;
-static bool   g_bCvar_Melee_Shovel;
-static bool   g_bCvar_Melee_RiotShield;
-static bool   g_bCvar_Melee_Custom;
-static bool   g_bCvar_Molotov;
-static bool   g_bCvar_PipeBomb;
-static bool   g_bCvar_VomitJar;
-static bool   g_bCvar_PainPills;
-static bool   g_bCvar_Adrenaline;
-static bool   g_bCvar_Gascan;
-static bool   g_bCvar_PropaneTank;
-static bool   g_bCvar_OxygenTank;
-static bool   g_bCvar_FireworksCrate;
-static bool   g_bCvar_Gnome;
-static bool   g_bCvar_ColaBottles;
-static bool   g_bCvar_UpgradeSilencer;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bAliveTank;
+bool g_bCvar_Enabled;
+bool g_bCvar_Bots;
+bool g_bCvar_SafeArea;
+bool g_bCvar_Everyone;
+bool g_bCvar_PipeBombBeep;
+bool g_bCvar_ExternalChase;
+bool g_bCvar_TankAlive;
+bool g_bCvar_Chance;
+bool g_bCvar_Vocalize;
+bool g_bCvar_Pistol;
+bool g_bCvar_Pistol_Magnum;
+bool g_bCvar_PumpShotgun;
+bool g_bCvar_Shotgun_Chrome;
+bool g_bCvar_AutoShotgun;
+bool g_bCvar_Shotgun_Spas;
+bool g_bCvar_SMG_Uzi;
+bool g_bCvar_SMG_Silenced;
+bool g_bCvar_SMG_MP5;
+bool g_bCvar_Rifle_M16;
+bool g_bCvar_Rifle_Desert;
+bool g_bCvar_Rifle_AK47;
+bool g_bCvar_Rifle_SG552;
+bool g_bCvar_Rifle_M60;
+bool g_bCvar_Hunting_Rifle;
+bool g_bCvar_Sniper_Military;
+bool g_bCvar_Sniper_Scout;
+bool g_bCvar_Sniper_AWP;
+bool g_bCvar_Grenade_Launcher;
+bool g_bCvar_Chainsaw;
+bool g_bCvar_Minigun;
+bool g_bCvar_50Cal;
+bool g_bCvar_Melee_Baseball_Bat;
+bool g_bCvar_Melee_Cricket_Bat;
+bool g_bCvar_Melee_Crowbar;
+bool g_bCvar_Melee_Electric_Guitar;
+bool g_bCvar_Melee_Fireaxe;
+bool g_bCvar_Melee_Frying_Pan;
+bool g_bCvar_Melee_Golfclub;
+bool g_bCvar_Melee_Katana;
+bool g_bCvar_Melee_Knife;
+bool g_bCvar_Melee_Machete;
+bool g_bCvar_Melee_Tonfa;
+bool g_bCvar_Melee_Pitchfork;
+bool g_bCvar_Melee_Shovel;
+bool g_bCvar_Melee_RiotShield;
+bool g_bCvar_Melee_Custom;
+bool g_bCvar_Molotov;
+bool g_bCvar_PipeBomb;
+bool g_bCvar_VomitJar;
+bool g_bCvar_PainPills;
+bool g_bCvar_Adrenaline;
+bool g_bCvar_Gascan;
+bool g_bCvar_PropaneTank;
+bool g_bCvar_OxygenTank;
+bool g_bCvar_FireworksCrate;
+bool g_bCvar_Gnome;
+bool g_bCvar_ColaBottles;
+bool g_bCvar_UpgradeSilencer;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iTankClass;
+int g_iTankClass;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_pipe_bomb_initial_beep_interval;
-static float  g_fLastPipeBombBeep;
-static float  g_fCvar_Duration;
-static float  g_fCvar_Chance;
-
-// ====================================================================================================
-// StringMap - Plugin Variables
-// ====================================================================================================
-static StringMap g_smMeleeIDs;
-
-// ====================================================================================================
-// ArrayList - Plugin Variables
-// ====================================================================================================
-static ArrayList g_alChaseEntities;
+float g_fCvar_pipe_bomb_initial_beep_interval;
+float g_fLastPipeBombBeep;
+float g_fCvar_Duration;
+float g_fCvar_Chance;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static bool   gc_bGoalEnable[MAXPLAYERS+1];
-static int    gc_iGoalEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE , ... };
-static float  gc_fGoalLastShot[MAXPLAYERS+1];
+bool gc_bGoalEnable[MAXPLAYERS+1];
+int gc_iGoalEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+float gc_fGoalLastShot[MAXPLAYERS+1];
+
+// ====================================================================================================
+// entity - Plugin Variables
+// ====================================================================================================
+bool ge_bIsPipeBombProjecitle[MAXENTITIES+1];
+
+// ====================================================================================================
+// ArrayList - Plugin Variables
+// ====================================================================================================
+ArrayList g_alPluginEntities;
+
+// ====================================================================================================
+// StringMap - Plugin Variables
+// ====================================================================================================
+StringMap g_smMeleeIDs;
 
 // ====================================================================================================
 // Plugin Start
@@ -336,9 +343,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
     g_bL4D2 = (engine == Engine_Left4Dead2);
     g_iTankClass = (g_bL4D2 ? L4D2_ZOMBIECLASS_TANK : L4D1_ZOMBIECLASS_TANK);
 
-    g_smMeleeIDs = new StringMap();
-    g_alChaseEntities = new ArrayList();
-
     return APLRes_Success;
 }
 
@@ -346,6 +350,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    LoadTranslations("common.phrases");
+
+    g_alPluginEntities = new ArrayList();
+    g_smMeleeIDs = new StringMap();
+
     BuildMaps();
 
     g_hCvar_pipe_bomb_initial_beep_interval = FindConVar("pipe_bomb_initial_beep_interval");
@@ -360,6 +369,7 @@ public void OnPluginStart()
     g_hCvar_TankAlive                 = CreateConVar("l4d_shot_warns_common_tank_alive", "1", "Allow trigger common zombies while a tank is alive.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Duration                  = CreateConVar("l4d_shot_warns_common_duration", "1.0", "Duration (seconds) that common zombies can be warned after shooting.", CVAR_FLAGS, true, 0.0);
     g_hCvar_Chance                    = CreateConVar("l4d_shot_warns_common_chance", "100.0", "Chance to trigger common zombies while firing.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_Vocalize                  = CreateConVar("l4d_shot_warns_common_vocalize", "1", "Trigger common zombies while using vocalize command.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Pistol                    = CreateConVar("l4d_shot_warns_common_pistol", "1", "Trigger common zombies while firing with a Pistol.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PumpShotgun               = CreateConVar("l4d_shot_warns_common_pump_shotgun", "1", "Trigger common zombies while firing with a Pump Shotgun.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_AutoShotgun               = CreateConVar("l4d_shot_warns_common_auto_shotgun", "1", "Trigger common zombies while firing with a Auto Shotgun.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -367,6 +377,7 @@ public void OnPluginStart()
     g_hCvar_Rifle_M16                 = CreateConVar("l4d_shot_warns_common_rifle_m16", "1", "Trigger common zombies while firing with a M16 Rifle.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Hunting_Rifle             = CreateConVar("l4d_shot_warns_common_hunting_rifle", "1", "Trigger common zombies while firing with a Hunting Rifle.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Minigun                   = CreateConVar("l4d_shot_warns_common_machine_gun_minigun", "1", "Trigger common zombies while firing with a Minigun.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_50Cal                     = CreateConVar("l4d_shot_warns_common_machine_gun_50cal", "1", "Trigger common zombies while firing with a 50cal.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Molotov                   = CreateConVar("l4d_shot_warns_common_molotov", "0", "Trigger common zombies while throwing a Molotov.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PipeBomb                  = CreateConVar("l4d_shot_warns_common_pipe_bomb", "0", "Trigger common zombies while throwing a Pipe Bomb.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PainPills                 = CreateConVar("l4d_shot_warns_common_pain_pills", "0", "Trigger common zombies while using a Pain Pills.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -387,7 +398,6 @@ public void OnPluginStart()
         g_hCvar_Sniper_AWP            = CreateConVar("l4d_shot_warns_common_sniper_awp", "1", "Trigger common zombies while firing with a AWP Sniper.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_Grenade_Launcher      = CreateConVar("l4d_shot_warns_common_grenade_launcher", "1", "Trigger common zombies while firing with a Grenade Launcher.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_Chainsaw              = CreateConVar("l4d_shot_warns_common_chainsaw", "1", "Trigger common zombies while firing with a Chainsaw.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-        g_hCvar_50Cal                 = CreateConVar("l4d_shot_warns_common_machine_gun_50cal", "1", "Trigger common zombies while firing with a 50cal.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_Melee_Baseball_Bat    = CreateConVar("l4d_shot_warns_common_melee_baseball_bat", "0", "Trigger common zombies while attacking with a Baseball Bat.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_Melee_Cricket_Bat     = CreateConVar("l4d_shot_warns_common_melee_cricket_bat", "0", "Trigger common zombies while attacking with a Cricket Bat.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_Melee_Crowbar         = CreateConVar("l4d_shot_warns_common_melee_crowbar", "0", "Trigger common zombies while attacking with a Crowbar.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -427,6 +437,7 @@ public void OnPluginStart()
     g_hCvar_TankAlive.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Duration.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Chance.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_Vocalize.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Pistol.AddChangeHook(Event_ConVarChanged);
     g_hCvar_PumpShotgun.AddChangeHook(Event_ConVarChanged);
     g_hCvar_AutoShotgun.AddChangeHook(Event_ConVarChanged);
@@ -434,6 +445,7 @@ public void OnPluginStart()
     g_hCvar_Rifle_M16.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Hunting_Rifle.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Minigun.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_50Cal.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Molotov.AddChangeHook(Event_ConVarChanged);
     g_hCvar_PipeBomb.AddChangeHook(Event_ConVarChanged);
     g_hCvar_PainPills.AddChangeHook(Event_ConVarChanged);
@@ -454,7 +466,6 @@ public void OnPluginStart()
         g_hCvar_Sniper_AWP.AddChangeHook(Event_ConVarChanged);
         g_hCvar_Grenade_Launcher.AddChangeHook(Event_ConVarChanged);
         g_hCvar_Chainsaw.AddChangeHook(Event_ConVarChanged);
-        g_hCvar_50Cal.AddChangeHook(Event_ConVarChanged);
         g_hCvar_Melee_Baseball_Bat.AddChangeHook(Event_ConVarChanged);
         g_hCvar_Melee_Cricket_Bat.AddChangeHook(Event_ConVarChanged);
         g_hCvar_Melee_Crowbar.AddChangeHook(Event_ConVarChanged);
@@ -517,7 +528,7 @@ public void OnPluginEnd()
 
 /****************************************************************************************************/
 
-public void BuildMaps()
+void BuildMaps()
 {
     // Melees
     g_smMeleeIDs.Clear();
@@ -544,25 +555,23 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_fCvar_pipe_bomb_initial_beep_interval = g_hCvar_pipe_bomb_initial_beep_interval.FloatValue;
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
@@ -575,6 +584,7 @@ public void GetCvars()
     g_bCvar_TankAlive = g_hCvar_TankAlive.BoolValue;
     g_fCvar_Chance = g_hCvar_Chance.FloatValue;
     g_bCvar_Chance = (g_fCvar_Chance > 0.0);
+    g_bCvar_Vocalize = g_hCvar_Vocalize.BoolValue;
     g_bCvar_Pistol = g_hCvar_Pistol.BoolValue;
     g_bCvar_PumpShotgun = g_hCvar_PumpShotgun.BoolValue;
     g_bCvar_AutoShotgun = g_hCvar_AutoShotgun.BoolValue;
@@ -582,6 +592,7 @@ public void GetCvars()
     g_bCvar_Rifle_M16 = g_hCvar_Rifle_M16.BoolValue;
     g_bCvar_Hunting_Rifle = g_hCvar_Hunting_Rifle.BoolValue;
     g_bCvar_Minigun = g_hCvar_Minigun.BoolValue;
+    g_bCvar_50Cal = g_hCvar_50Cal.BoolValue;
     g_bCvar_Molotov = g_hCvar_Molotov.BoolValue;
     g_bCvar_PipeBomb = g_hCvar_PipeBomb.BoolValue;
     g_bCvar_PipeBombBeep = g_hCvar_PipeBomb.BoolValue;
@@ -603,7 +614,6 @@ public void GetCvars()
         g_bCvar_Sniper_AWP = g_hCvar_Sniper_AWP.BoolValue;
         g_bCvar_Grenade_Launcher = g_hCvar_Grenade_Launcher.BoolValue;
         g_bCvar_Chainsaw = g_hCvar_Chainsaw.BoolValue;
-        g_bCvar_50Cal = g_hCvar_50Cal.BoolValue;
         g_bCvar_Melee_Baseball_Bat = g_hCvar_Melee_Baseball_Bat.BoolValue;
         g_bCvar_Melee_Cricket_Bat = g_hCvar_Melee_Cricket_Bat.BoolValue;
         g_bCvar_Melee_Crowbar = g_hCvar_Melee_Crowbar.BoolValue;
@@ -636,7 +646,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     if (g_bCvar_TankAlive)
         g_bAliveTank = HasAnyTankAlive();
@@ -644,7 +654,7 @@ public void LateLoad()
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_INFO_GOAL_INFECTED_CHASE)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "info_goal_infected_chase")) != INVALID_ENT_REFERENCE)
     {
         RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
     }
@@ -660,9 +670,9 @@ public void OnClientDisconnect(int client)
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -671,11 +681,12 @@ public void HookEvents(bool hook)
         HookEvent("player_team", Event_PlayerTeam);
         HookEvent("weapon_fire", Event_WeaponFire);
         AddNormalSoundHook(SoundHook);
+        AddCommandListener(VocalizeCommand, "vocalize");
 
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -684,6 +695,7 @@ public void HookEvents(bool hook)
         UnhookEvent("player_team", Event_PlayerTeam);
         UnhookEvent("weapon_fire", Event_WeaponFire);
         RemoveNormalSoundHook(SoundHook);
+        RemoveCommandListener(VocalizeCommand, "vocalize");
 
         return;
     }
@@ -691,42 +703,49 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void OnEntityDestroyed(int entity)
-{
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    int find = g_alChaseEntities.FindValue(entity);
-    if (find != -1)
-        g_alChaseEntities.Erase(find);
-}
-
-/****************************************************************************************************/
-
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
-    if (classname[0] != 'i')
-       return;
-
-    if (StrEqual(classname, CLASSNAME_INFO_GOAL_INFECTED_CHASE))
-        SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
+    switch (classname[0])
+    {
+        case 'i':
+        {
+            if (StrEqual(classname, "info_goal_infected_chase"))
+                SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
+        }
+        case 'p':
+        {
+            if (StrEqual(classname, "pipe_bomb_projectile"))
+                ge_bIsPipeBombProjecitle[entity] = true;
+        }
+    }
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+public void OnEntityDestroyed(int entity)
 {
-    if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
+    if (entity < 0)
         return;
 
-    if (g_alChaseEntities.FindValue(entity) == -1)
-        g_alChaseEntities.Push(entity);
+    ge_bIsPipeBombProjecitle[entity] = false;
+
+    int find = g_alPluginEntities.FindValue(EntIndexToEntRef(entity));
+    if (find != -1)
+        g_alPluginEntities.Erase(find);
+}
+
+/****************************************************************************************************/
+
+void OnSpawnPost(int entity)
+{
+    if (GetEntProp(entity, Prop_Data, "m_iHammerID") != 0) // Ignore entities with hammerid -1 and map entities
+        return;
+
+    if (g_alPluginEntities.FindValue(EntIndexToEntRef(entity)) == -1)
+        g_alPluginEntities.Push(EntIndexToEntRef(entity));
 
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -737,7 +756,7 @@ public void OnSpawnPost(int entity)
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+void OnNextFrame(int entityRef)
 {
     int entity = EntRefToEntIndex(entityRef);
 
@@ -749,18 +768,18 @@ public void OnNextFrame(int entityRef)
 
 /****************************************************************************************************/
 
-public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
+Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
 {
     if (g_bCvar_PipeBombBeep)
         return Plugin_Continue;
 
-    if (!IsValidEntityIndex(entity))
+    if (channel != SNDCHAN_STATIC)
+        return Plugin_Continue;
+
+    if (!ge_bIsPipeBombProjecitle[entity])
         return Plugin_Continue;
 
     if (sample[0] != 'w')
-        return Plugin_Continue;
-
-    if (!HasEntProp(entity, Prop_Send, "m_bIsLive")) // *_projectile
         return Plugin_Continue;
 
     if (!StrEqual(sample, SOUND_HEGRENADE_BEEP))
@@ -779,7 +798,7 @@ public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_M
 
 /****************************************************************************************************/
 
-public void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 {
     if (g_bCvar_TankAlive)
         g_bAliveTank = true;
@@ -787,7 +806,7 @@ public void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public Action TimerAliveTankCheck(Handle timer)
+Action TimerAliveTankCheck(Handle timer)
 {
     if (g_bAliveTank)
         g_bAliveTank = HasAnyTankAlive();
@@ -797,11 +816,11 @@ public Action TimerAliveTankCheck(Handle timer)
 
 /****************************************************************************************************/
 
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (gc_bGoalEnable[client])
@@ -810,11 +829,11 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 
 /****************************************************************************************************/
 
-public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (gc_bGoalEnable[client])
@@ -823,15 +842,46 @@ public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
+{
+    int client = GetClientOfUserId(event.GetInt("userid"));
+    int weaponid = event.GetInt("weaponid");
+
+    if (client == 0)
+        return;
+
+    if (!IsValidWeapon(client, weaponid))
+        return;
+
+    ValidateChase(client);
+}
+
+/****************************************************************************************************/
+
+Action VocalizeCommand(int client, const char[] command, int argc)
+{
+    if (!g_bCvar_Vocalize)
+        return Plugin_Continue;
+
+    if (!IsValidClient(client))
+        return Plugin_Continue;
+
+    ValidateChase(client);
+
+    return Plugin_Continue;
+}
+
+/****************************************************************************************************/
+
+void ValidateChase(int client)
 {
     if (!g_bCvar_SafeArea && !HasAnySurvivorLeftSafeArea())
         return;
 
-    if (!g_bCvar_PipeBombBeep && GetGameTime() - g_fLastPipeBombBeep < g_fCvar_pipe_bomb_initial_beep_interval)
+    if (!g_bCvar_PipeBombBeep && g_fLastPipeBombBeep != 0.0 && (GetGameTime() - g_fLastPipeBombBeep < g_fCvar_pipe_bomb_initial_beep_interval))
         return;
 
-    if (!g_bCvar_ExternalChase && g_alChaseEntities.Length > 0)
+    if (!g_bCvar_ExternalChase && g_alPluginEntities.Length > 0)
         return;
 
     if (!g_bCvar_TankAlive && g_bAliveTank)
@@ -840,20 +890,11 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
     if (g_bCvar_Chance && g_fCvar_Chance < GetRandomFloat(0.0, 100.0))
         return;
 
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    int weaponid = event.GetInt("weaponid");
-
     if (!g_bL4D2)
     {
         if (g_bCvar_UpgradeSilencer && (GetEntProp(client, Prop_Send, "m_upgradeBitVec") & L4D1_UPGRADE_SILENCER))
             return;
     }
-
-    if (!IsValidWeapon(client, weaponid))
-        return;
-
-    if (!IsValidClient(client))
-        return;
 
     int team = GetClientTeam(client);
 
@@ -899,7 +940,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public void PerformChase(int client)
+void PerformChase(int client)
 {
     int entity = EntRefToEntIndex(gc_iGoalEntRef[client]);
 
@@ -908,14 +949,12 @@ public void PerformChase(int client)
         float vPos[3];
         GetClientEyePosition(client, vPos);
 
-        entity = CreateEntityByName(CLASSNAME_INFO_GOAL_INFECTED_CHASE);
+        entity = CreateEntityByName("info_goal_infected_chase");
         gc_iGoalEntRef[client] = EntIndexToEntRef(entity);
         DispatchKeyValue(entity, "targetname", "l4d_shot_warns_common");
         SetEntProp(entity, Prop_Data, "m_iHammerID", -1);
-
-        TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+        DispatchKeyValueVector(entity, "origin", vPos);
         DispatchSpawn(entity);
-        ActivateEntity(entity);
 
         SetVariantString("!activator");
         AcceptEntityInput(entity, "SetParent", client);
@@ -932,7 +971,7 @@ public void PerformChase(int client)
 
 /****************************************************************************************************/
 
-public bool IsValidWeapon(int client, int weaponid)
+bool IsValidWeapon(int client, int weaponid)
 {
     if (g_bL4D2)
     {
@@ -1027,10 +1066,10 @@ public bool IsValidWeapon(int client, int weaponid)
             {
                 int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-                if (!IsValidEntity(activeWeapon))
+                if (activeWeapon == -1)
                     return false;
 
-                if (!HasEntProp(activeWeapon, Prop_Data, "m_strMapSetScriptName")) // CTerrorMeleeWeapon
+                if (!HasEntProp(activeWeapon, Prop_Send, "m_bInMeleeSwing")) // CTerrorMeleeWeapon
                     return false;
 
                 int meleeid;
@@ -1134,7 +1173,7 @@ public bool IsValidWeapon(int client, int weaponid)
                 if (!g_bCvar_Adrenaline)
                     return false;
             }
-            case L4D2_WEPID_VOMIT_JAR:
+            case L4D2_WEPID_VOMITJAR:
             {
                 if (!g_bCvar_VomitJar)
                     return false;
@@ -1199,21 +1238,18 @@ public bool IsValidWeapon(int client, int weaponid)
 
                 int machineGun = GetEntPropEnt(client, Prop_Data, "m_hUseEntity");
 
-                if (!IsValidEntity(machineGun))
+                if (machineGun == -1)
                     return false;
 
-                if (!HasEntProp(machineGun, Prop_Send, "m_heat")) // CPropMinigun / CPropMountedGun
-                    return false;
-
-                char classname[18];
+                char classname[36];
                 GetEntityClassname(machineGun, classname, sizeof(classname));
 
-                if (StrEqual(classname, CLASSNAME_PROP_MINIGUN))
+                if (StrEqual(classname, "prop_minigun"))
                 {
                     if (!g_bCvar_50Cal)
                         return false;
                 }
-                else if (StrEqual(classname, CLASSNAME_PROP_MINIGUN_L4D1))
+                else if (StrEqual(classname, "prop_minigun_l4d1"))
                 {
                     if (!g_bCvar_Minigun)
                         return false;
@@ -1276,8 +1312,30 @@ public bool IsValidWeapon(int client, int weaponid)
             }
             case L4D1_WEPID_MACHINE_GUN:
             {
-                if (!g_bCvar_Minigun)
+                if (g_bCvar_Minigun && g_bCvar_50Cal)
+                    return true;
+
+                if (!g_bCvar_Minigun && !g_bCvar_50Cal)
                     return false;
+
+                int machineGun = GetEntPropEnt(client, Prop_Data, "m_hUseEntity");
+
+                if (machineGun == -1)
+                    return false;
+
+                char classname[36];
+                GetEntityClassname(machineGun, classname, sizeof(classname));
+
+                if (StrEqual(classname, "prop_mounted_machine_gun"))
+                {
+                    if (!g_bCvar_50Cal)
+                        return false;
+                }
+                else if (StrEqual(classname, "prop_minigun"))
+                {
+                    if (!g_bCvar_Minigun)
+                        return false;
+                }
             }
             default:
             {
@@ -1291,17 +1349,14 @@ public bool IsValidWeapon(int client, int weaponid)
 
 /****************************************************************************************************/
 
-public Action TimerDisable(Handle timer)
+Action TimerDisable(Handle timer)
 {
-    if (!g_bConfigLoaded)
-        return Plugin_Continue;
-
     for (int client = 1; client <= MaxClients; client++)
     {
         if (!gc_bGoalEnable[client])
             continue;
 
-        if (GetGameTime() - gc_fGoalLastShot[client] < g_fCvar_Duration)
+        if (gc_fGoalLastShot[client] != 0.0 && GetGameTime() - gc_fGoalLastShot[client] < g_fCvar_Duration)
             continue;
 
         DisableChase(client, false);
@@ -1340,28 +1395,29 @@ void DisableChase(int client, bool kill)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdForceChase(int client, int args)
+Action CmdForceChase(int client, int args)
 {
-    if (!IsValidClient(client))
-        return Plugin_Handled;
+    int target_count;
+    int target_list[MAXPLAYERS];
 
     if (args == 0) // self
     {
-        PerformChase(client);
-        return Plugin_Handled;
+        if (IsValidClient(client))
+        {
+            target_count = 1;
+            target_list[0] = client;
+        }
     }
     else // specified target
     {
-        char sArg[64];
-        GetCmdArg(1, sArg, sizeof(sArg));
+        char arg1[MAX_TARGET_LENGTH];
+        GetCmdArg(1, arg1, sizeof(arg1));
 
         char target_name[MAX_TARGET_LENGTH];
-        int target_list[MAXPLAYERS];
-        int target_count;
         bool tn_is_ml;
 
         if ((target_count = ProcessTargetString(
-            sArg,
+            arg1,
             client,
             target_list,
             sizeof(target_list),
@@ -1370,13 +1426,13 @@ public Action CmdForceChase(int client, int args)
             sizeof(target_name),
             tn_is_ml)) <= 0)
         {
-            return Plugin_Handled;
+            ReplyToTargetError(client, target_count);
         }
+    }
 
-        for (int i = 0; i < target_count; i++)
-        {
-            PerformChase(target_list[i]);
-        }
+    for (int i = 0; i < target_count; i++)
+    {
+        PerformChase(target_list[i]);
     }
 
     return Plugin_Handled;
@@ -1384,7 +1440,7 @@ public Action CmdForceChase(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1399,8 +1455,9 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_shot_warns_common_pipe_bomb_beep : %b (%s)", g_bCvar_PipeBombBeep, g_bCvar_PipeBombBeep ? "true" : "false");
     PrintToConsole(client, "l4d_shot_warns_common_external_chase : %b (%s)", g_bCvar_ExternalChase, g_bCvar_ExternalChase ? "true" : "false");
     PrintToConsole(client, "l4d_shot_warns_common_tank_alive : %b (%s)", g_bCvar_TankAlive, g_bCvar_TankAlive ? "true" : "false");
-    PrintToConsole(client, "l4d_shot_warns_common_duration : %.2f", g_fCvar_Duration);
-    PrintToConsole(client, "l4d_shot_warns_common_chance : %.2f%% (%s)", g_fCvar_Chance, g_bCvar_Chance ? "true" : "false");
+    PrintToConsole(client, "l4d_shot_warns_common_duration : %.1f", g_fCvar_Duration);
+    PrintToConsole(client, "l4d_shot_warns_common_chance : %.1f%% (%s)", g_fCvar_Chance, g_bCvar_Chance ? "true" : "false");
+    PrintToConsole(client, "l4d_shot_warns_common_vocalize : %b (%s)", g_bCvar_Vocalize, g_bCvar_Vocalize ? "true" : "false");
     PrintToConsole(client, "l4d_shot_warns_common_pistol : %b (%s)", g_bCvar_Pistol, g_bCvar_Pistol ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_pistol_magnum : %b (%s)", g_bCvar_Pistol_Magnum, g_bCvar_Pistol_Magnum ? "true" : "false");
     PrintToConsole(client, "l4d_shot_warns_common_pump_shotgun : %b (%s)", g_bCvar_PumpShotgun, g_bCvar_PumpShotgun ? "true" : "false");
@@ -1422,7 +1479,7 @@ public Action CmdPrintCvars(int client, int args)
     if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_grenade_launcher : %b (%s)", g_bCvar_Grenade_Launcher, g_bCvar_Grenade_Launcher ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_chainsaw : %b (%s)", g_bCvar_Chainsaw, g_bCvar_Chainsaw ? "true" : "false");
     PrintToConsole(client, "l4d_shot_warns_common_machine_gun_minigun : %b (%s)", g_bCvar_Minigun, g_bCvar_Minigun ? "true" : "false");
-    if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_machine_gun_50cal : %b (%s)", g_bCvar_50Cal, g_bCvar_50Cal ? "true" : "false");
+    PrintToConsole(client, "l4d_shot_warns_common_machine_gun_50cal : %b (%s)", g_bCvar_50Cal, g_bCvar_50Cal ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_melee_baseball_bat : %b (%s)", g_bCvar_Melee_Baseball_Bat, g_bCvar_Melee_Baseball_Bat ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_melee_cricket_bat : %b (%s)", g_bCvar_Melee_Cricket_Bat, g_bCvar_Melee_Cricket_Bat ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_shot_warns_common_melee_crowbar : %b (%s)", g_bCvar_Melee_Crowbar, g_bCvar_Melee_Crowbar ? "true" : "false");
@@ -1453,7 +1510,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
     PrintToConsole(client, "");
-    PrintToConsole(client, "pipe_bomb_initial_beep_interval : %.2f", g_fCvar_pipe_bomb_initial_beep_interval);
+    PrintToConsole(client, "pipe_bomb_initial_beep_interval : %.1f", g_fCvar_pipe_bomb_initial_beep_interval);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -1486,19 +1543,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/
@@ -1554,13 +1598,13 @@ bool IsPlayerTank(int client)
     if (GetClientTeam(client) != TEAM_INFECTED)
         return false;
 
+    if (GetZombieClass(client) != g_iTankClass)
+        return false;
+
     if (!IsPlayerAlive(client))
         return false;
 
     if (IsPlayerGhost(client))
-        return false;
-
-    if (GetZombieClass(client) != g_iTankClass)
         return false;
 
     return true;
@@ -1599,7 +1643,7 @@ bool HasAnyTankAlive()
  *
  * @return              True if any survivor have left safe area, false otherwise.
  */
-static int g_iEntTerrorPlayerManager = INVALID_ENT_REFERENCE;
+int g_iEntTerrorPlayerManager = INVALID_ENT_REFERENCE;
 bool HasAnySurvivorLeftSafeArea()
 {
     int entity = EntRefToEntIndex(g_iEntTerrorPlayerManager);

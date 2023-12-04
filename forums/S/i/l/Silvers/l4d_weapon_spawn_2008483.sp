@@ -1,6 +1,6 @@
 /*
 *	Weapon Spawn
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.7"
+#define PLUGIN_VERSION 		"1.14"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,30 @@
 
 ========================================================================================
 	Change Log:
+
+1.14 (25-May-2023)
+	- Fixed the M60, Grenade Launcher and Chainsaw not following the count cvar limit. Thanks to "gamer_kanelita" for reporting.
+
+1.13 (20-Sep-2022)
+	- Fixed incorrect model list. Thanks to "HarryPotter" for reporting.
+
+1.12 (10-Aug-2022)
+	- Fixed the plugin attempting to back up the data file even after converting to version 2 format. Thanks to "HarryPotter" for reporting.
+
+1.11 (04-Jun-2022)
+	- Fixed not updating the full data config if an index was missing. Now throws errors to warn about missing indexes.
+	- Plugin will auto backs up the previous data config before updating it.
+
+1.10 (04-Jun-2022)
+	- L4D2: Plugin now automatically converts old /data/ configs to use the new index values. Previous version was spawning the wrong types.
+	- Thanks to "KoMiKoZa" for reporting.
+
+1.9 (26-May-2022)
+	- Changed the menu order of items to group similar types together.
+	- Menu now displays the last page that was selected instead of returning to the first page.
+
+1.8 (23-Apr-2022)
+	- Changes to allow "CSS" weapons to spawn multiple copies with the "l4d_weapon_spawn_count" cvar. Thanks to "vikingo12" for reporting.
 
 1.7 (15-Feb-2021)
 	- Added new command "sm_weapon_spawn_mov" for direct console control of position. Thanks to "eyeonus" for scripting.
@@ -99,7 +123,7 @@
 
 
 ConVar g_hCvarAllow, g_hCvarCount, g_hCvarGlow, g_hCvarGlowCol, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRandom, g_hCvarRandomise;
-int g_iCvarCount, g_iCvarGlow, g_iCvarGlowCol, g_iCvarRandom, g_iCvarRandomise, g_iPlayerSpawn, g_iRoundStart, g_iSave[MAXPLAYERS+1], g_iSpawnCount, g_iSpawns[MAX_SPAWNS][2];
+int g_iCvarCount, g_iCvarGlow, g_iCvarGlowCol, g_iCvarRandom, g_iCvarRandomise, g_iPlayerSpawn, g_iRoundStart, g_iSave[MAXPLAYERS+1], g_iSpawnCount, g_iSpawns[MAX_SPAWNS][3];
 bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2, g_bLoaded;
 Menu g_hMenuAng, g_hMenuList, g_hMenuPos;
 
@@ -138,8 +162,8 @@ static char g_sWeaponModels[MAX_WEAPONS][] =
 	"models/w_models/weapons/w_autoshot_m4super.mdl",
 	"models/w_models/weapons/w_sniper_mini14.mdl",
 	"models/w_models/weapons/w_smg_uzi.mdl",
-	"models/w_models/weapons/w_pumpshotgun_A.mdl",
-	"models/w_models/weapons/w_pistol_a.mdl",
+	"models/w_models/weapons/w_shotgun.mdl",
+	"models/w_models/weapons/w_pistol_1911.mdl",
 	"models/w_models/weapons/w_eq_molotov.mdl",
 	"models/w_models/weapons/w_eq_pipebomb.mdl",
 	"models/w_models/weapons/w_eq_medkit.mdl",
@@ -147,102 +171,99 @@ static char g_sWeaponModels[MAX_WEAPONS][] =
 };
 static char g_sWeaponNames2[MAX_WEAPONS2][] =
 {
-	"Rifle",
-	"Auto Shotgun",
-	"Hunting Rifle",
-	"SMG",
-	"Pump Shotgun",
 	"Pistol",
-	"Molotov",
-	"Pipe Bomb",
-	"First Aid Kit",
-	"Pain Pills",
-
-	"Shotgun Chrome",
-	"Rifle Desert",
-	"Grenade Launcher",
-	"M60",
+	"Pistol Magnum",
+	"Rifle",
 	"AK47",
 	"SG552",
+	"Rifle Desert",
+	"Auto Shotgun",
 	"Shotgun Spas",
+	"Pump Shotgun",
+	"Shotgun Chrome",
+	"SMG",
 	"SMG Silenced",
 	"SMG MP5",
+	"Hunting Rifle",
 	"Sniper AWP",
 	"Sniper Military",
 	"Sniper Scout",
+	"M60",
+	"Grenade Launcher",
 	"Chainsaw",
-	"Pistol Magnum",
+	"Molotov",
+	"Pipe Bomb",
 	"VomitJar",
+	"Pain Pills",
+	"Adrenaline",
+	"First Aid Kit",
 	"Defibrillator",
 	"Upgradepack Explosive",
-	"Upgradepack Incendiary",
-	"Adrenaline"
+	"Upgradepack Incendiary"
 };
 static char g_sWeapons2[MAX_WEAPONS2][] =
 {
-	"weapon_rifle",
-	"weapon_autoshotgun",
-	"weapon_hunting_rifle",
-	"weapon_smg",
-	"weapon_pumpshotgun",
 	"weapon_pistol",
-	"weapon_molotov",
-	"weapon_pipe_bomb",
-	"weapon_first_aid_kit",
-	"weapon_pain_pills",
-
-	"weapon_shotgun_chrome",
-	"weapon_rifle_desert",
-	"weapon_grenade_launcher",
-	"weapon_rifle_m60",
+	"weapon_pistol_magnum",
+	"weapon_rifle",
 	"weapon_rifle_ak47",
 	"weapon_rifle_sg552",
+	"weapon_rifle_desert",
+	"weapon_autoshotgun",
 	"weapon_shotgun_spas",
+	"weapon_pumpshotgun",
+	"weapon_shotgun_chrome",
+	"weapon_smg",
 	"weapon_smg_silenced",
 	"weapon_smg_mp5",
+	"weapon_hunting_rifle",
 	"weapon_sniper_awp",
 	"weapon_sniper_military",
 	"weapon_sniper_scout",
+	"weapon_rifle_m60",
+	"weapon_grenade_launcher",
 	"weapon_chainsaw",
-	"weapon_pistol_magnum",
+	"weapon_molotov",
+	"weapon_pipe_bomb",
 	"weapon_vomitjar",
+	"weapon_pain_pills",
+	"weapon_adrenaline",
+	"weapon_first_aid_kit",
 	"weapon_defibrillator",
 	"weapon_upgradepack_explosive",
-	"weapon_upgradepack_incendiary",
-	"weapon_adrenaline"
+	"weapon_upgradepack_incendiary"
 };
 static char g_sWeaponModels2[MAX_WEAPONS2][] =
 {
+	"models/w_models/weapons/w_pistol_b.mdl",
+	"models/w_models/weapons/w_desert_eagle.mdl",
 	"models/w_models/weapons/w_rifle_m16a2.mdl",
-	"models/w_models/weapons/w_autoshot_m4super.mdl",
-	"models/w_models/weapons/w_sniper_mini14.mdl",
-	"models/w_models/weapons/w_smg_uzi.mdl",
-	"models/w_models/weapons/w_pumpshotgun_A.mdl",
-	"models/w_models/weapons/w_pistol_a.mdl",
-	"models/w_models/weapons/w_eq_molotov.mdl",
-	"models/w_models/weapons/w_eq_pipebomb.mdl",
-	"models/w_models/weapons/w_eq_medkit.mdl",
-	"models/w_models/weapons/w_eq_painpills.mdl",
-
-	"models/w_models/weapons/w_shotgun.mdl",
-	"models/w_models/weapons/w_desert_rifle.mdl",
-	"models/w_models/weapons/w_grenade_launcher.mdl",
-	"models/w_models/weapons/w_m60.mdl",
 	"models/w_models/weapons/w_rifle_ak47.mdl",
 	"models/w_models/weapons/w_rifle_sg552.mdl",
+	"models/w_models/weapons/w_desert_rifle.mdl",
+	"models/w_models/weapons/w_autoshot_m4super.mdl",
 	"models/w_models/weapons/w_shotgun_spas.mdl",
+	"models/w_models/weapons/w_shotgun.mdl",
+	"models/w_models/weapons/w_pumpshotgun_a.mdl",
+	"models/w_models/weapons/w_smg_uzi.mdl",
 	"models/w_models/weapons/w_smg_a.mdl",
 	"models/w_models/weapons/w_smg_mp5.mdl",
+	"models/w_models/weapons/w_sniper_mini14.mdl",
 	"models/w_models/weapons/w_sniper_awp.mdl",
 	"models/w_models/weapons/w_sniper_military.mdl",
 	"models/w_models/weapons/w_sniper_scout.mdl",
+	"models/w_models/weapons/w_m60.mdl",
+	"models/w_models/weapons/w_grenade_launcher.mdl",
 	"models/weapons/melee/w_chainsaw.mdl",
-	"models/w_models/weapons/w_desert_eagle.mdl",
+	"models/w_models/weapons/w_eq_molotov.mdl",
+	"models/w_models/weapons/w_eq_pipebomb.mdl",
 	"models/w_models/weapons/w_eq_bile_flask.mdl",
+	"models/w_models/weapons/w_eq_painpills.mdl",
+	"models/w_models/weapons/w_eq_adrenaline.mdl",
+	"models/w_models/weapons/w_eq_medkit.mdl",
 	"models/w_models/weapons/w_eq_defibrillator.mdl",
 	"models/w_models/weapons/w_eq_explosive_ammopack.mdl",
-	"models/w_models/weapons/w_eq_incendiary_ammopack.mdl",
-	"models/w_models/weapons/w_eq_adrenaline.mdl"
+	"models/w_models/weapons/w_eq_incendiary_ammopack.mdl"
 };
 
 
@@ -274,6 +295,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+	// Cvars
 	g_hCvarAllow =		CreateConVar(	"l4d_weapon_spawn_allow",			"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
 	if( g_bLeft4Dead2 )
 	{
@@ -334,6 +356,9 @@ public void OnPluginStart()
 
 	g_hAmmoShotgun.AddChangeHook(ConVarChanged_Cvars);
 
+
+
+	// Commands
 	RegAdminCmd("sm_weapon_spawn",			CmdSpawnerTemp,		ADMFLAG_ROOT, 	"Opens a menu of weapons/items to spawn. Spawns a temporary weapon at your crosshair.");
 	RegAdminCmd("sm_weapon_spawn_save",		CmdSpawnerSave,		ADMFLAG_ROOT, 	"Opens a menu of weapons/items to spawn. Spawns a weapon at your crosshair and saves to config.");
 	RegAdminCmd("sm_weapon_spawn_del",		CmdSpawnerDel,		ADMFLAG_ROOT, 	"Removes the weapon you are pointing at and deletes from the config if saved.");
@@ -350,6 +375,7 @@ public void OnPluginStart()
 
 
 
+	// Menu
 	g_hMenuList = new Menu(ListMenuHandler);
 	int max = MAX_WEAPONS;
 	if( g_bLeft4Dead2 ) max = MAX_WEAPONS2;
@@ -359,6 +385,81 @@ public void OnPluginStart()
 	}
 	g_hMenuList.SetTitle("Spawn Weapon");
 	g_hMenuList.ExitBackButton = true;
+
+
+
+	// Config version
+	if( g_bLeft4Dead2 )
+	{
+		int iMod, iNum, iIndex;
+		bool process;
+		char sKey[128];
+		char sPath[PLATFORM_MAX_PATH];
+		BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_SPAWNS);
+		if( FileExists(sPath) )
+		{
+			// Load config
+			KeyValues hFile = new KeyValues("spawns");
+			if( hFile.ImportFromFile(sPath) )
+			{
+				// Version check
+				if( hFile.GetNum("version", 1) != 2 )
+				{
+					char sNew[PLATFORM_MAX_PATH];
+					BuildPath(Path_SM, sNew, sizeof(sNew), "%s.backup", CONFIG_SPAWNS);
+					RenameFile(sNew, sPath);
+
+					int iNew[] = { 2, 6, 13, 10, 8, 0, 20, 21, 25, 23, 9, 5, 18, 17, 3, 4, 7, 11, 12, 14, 15, 16, 19, 1, 22, 26, 27, 28, 24 };
+
+					hFile.GotoFirstSubKey(false);
+					process = true;
+
+					while( process )
+					{
+						// hFile.GetSectionName(sKey, sizeof(sKey));
+						// PrintToServer("Section: %s", sKey);
+
+						iNum = hFile.GetNum("num", 0);
+						iIndex = 0;
+						while( iIndex < iNum )
+						{
+							iIndex++;
+							IntToString(iIndex, sKey, sizeof(sKey));
+
+							if( hFile.JumpToKey(sKey) )
+							{
+								iMod = hFile.GetNum("mod", -1);
+								if( iMod != -1 )
+								{
+									// PrintToServer("New: %s (%d > %d)", sKey, iMod, iNew[iMod]);
+									iMod = iNew[iMod];
+									hFile.SetNum("mod", iMod);
+								}
+
+								hFile.GoBack();
+							} else {
+								hFile.GetSectionName(sKey, sizeof(sKey));
+								LogError("Update warning: missing index detected: \"%d\" from \"%s\" in \"%s\". Suggest manually fixing, this could break some functionality.", iIndex, sKey, CONFIG_SPAWNS);
+							}
+						}
+
+						if( !hFile.GotoNextKey(false) )
+						{
+							process = false;
+						}
+					}
+
+					// Save cfg
+					hFile.GoBack();
+					hFile.SetNum("version", 2);
+					hFile.Rewind();
+					hFile.ExportToFile(sPath);
+				}
+			}
+
+			delete hFile;
+		}
+	}
 }
 
 public void OnPluginEnd()
@@ -393,17 +494,17 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
-public void ConVarChanged_Glow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Glow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	g_iCvarGlow = g_hCvarGlow.IntValue;
 	g_iCvarGlowCol = GetColor(g_hCvarGlowCol);
@@ -462,6 +563,8 @@ void IsAllowed()
 	{
 		g_bCvarAllow = true;
 		LoadSpawns();
+		if( g_bLeft4Dead2 )
+			HookEvent("player_use",		Event_PlayerUse);
 		HookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 		HookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
 		HookEvent("round_end",			Event_RoundEnd,		EventHookMode_PostNoCopy);
@@ -471,6 +574,8 @@ void IsAllowed()
 	{
 		g_bCvarAllow = false;
 		ResetPlugin();
+		if( g_bLeft4Dead2 )
+			UnhookEvent("player_use",	Event_PlayerUse);
 		UnhookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 		UnhookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
 		UnhookEvent("round_end",		Event_RoundEnd,		EventHookMode_PostNoCopy);
@@ -535,7 +640,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -552,29 +657,76 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+// Re-create M60, Grenade Launcher and Chainsaw on pickup when set to inifinite/increased spawn count
+void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
+{
+	int entity = event.GetInt("targetid");
+	if( entity > MaxClients && IsValidEntity(entity) )
+	{
+		static char classname[32];
+		GetEntityClassname(entity, classname, sizeof(classname));
+
+		int type;
+
+		if( strncmp(classname, "weapon_rifle_m60", 16) == 0 )				type = 16;
+		else if( strncmp(classname, "weapon_grenade_launcher", 23) == 0 )	type = 18;
+		else if( strncmp(classname, "weapon_chainsaw", 15) == 0 )			type = 19;
+
+		if( type )
+		{
+			entity = EntIndexToEntRef(entity);
+
+			for( int i = 0; i < MAX_SPAWNS; i++ )
+			{
+				if( g_iSpawns[i][0] == entity )
+				{
+					g_iSpawns[i][2]--;
+
+					if( g_iSpawns[i][2] > 0 )
+					{
+						float vAng[3], vPos[3];
+						GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
+						GetEntPropVector(entity, Prop_Data, "m_angRotation", vAng);
+
+						int count = g_iSpawnCount; // Lazy hack
+						g_iSpawnCount = 0;
+
+						CreateSpawn(vPos, vAng, g_iSpawns[i][1], type, false, g_iSpawns[i][2]);
+
+						g_iSpawnCount = count;
+					}
+
+					break;
+				}
+			}
+		}
+	}
+}
+
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(false);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadSpawns();
+	return Plugin_Continue;
 }
 
 
@@ -659,6 +811,8 @@ void LoadSpawns()
 			else
 				CreateSpawn(vPos, vAng, index, iMod, true);
 			hFile.GoBack();
+		} else {
+			LogError("Error: missing index detected: \"%d\" from \"%s\" in \"%s\"", index, sMap, CONFIG_SPAWNS);
 		}
 	}
 
@@ -670,7 +824,7 @@ void LoadSpawns()
 // ====================================================================================================
 //					CREATE SPAWN
 // ====================================================================================================
-void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, int model = 0, int autospawn = false)
+void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, int model = 0, int autospawn = false, int respawn_count = -1)
 {
 	if( g_iSpawnCount >= MAX_SPAWNS )
 		return;
@@ -678,7 +832,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 	int iSpawnIndex = -1;
 	for( int i = 0; i < MAX_SPAWNS; i++ )
 	{
-		if( g_iSpawns[i][0] == 0 )
+		if( !IsValidEntRef(g_iSpawns[i][0]) )
 		{
 			iSpawnIndex = i;
 			break;
@@ -695,8 +849,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 		{
 			model = GetRandomInt(0, MAX_WEAPONS2-1);
 
-			if( model == 15 || model == 18 )		model = GetRandomInt(0, 14);
-			else if( model == 19 || model == 21 )	model = GetRandomInt(22, 28);
+			// if( model == 15 || model == 18 )		model = GetRandomInt(0, 14);
+			// else if( model == 19 || model == 21 )	model = GetRandomInt(22, 28);
 		} else {
 			model = GetRandomInt(0, MAX_WEAPONS-1);
 		}
@@ -708,12 +862,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 	int iCount = g_iCvarCount;
 	if( iCount != 1 )
 	{
-		if( model != 15 && model != 18 && model != 19 && model != 21 )
-			StrCat(classname, sizeof(classname), "_spawn");
-		else
-			iCount = 1;
+		StrCat(classname, sizeof(classname), "_spawn");
 	}
-
 
 	int entity_weapon = -1;
 	entity_weapon = CreateEntityByName(classname);
@@ -740,23 +890,23 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 	float vAng[3], vPos[3];
 	vPos = vOrigin;
 	vAng = vAngles;
-	if( model == 8 ) // First aid
+	if( model == (g_bLeft4Dead2 ? 25 : 8) ) // First aid
 	{
 		vAng[0] += 90.0;
 		vPos[2] += 1.0;
 	}
-	else if( g_bLeft4Dead2 && model == 28 ) // Adrenaline
+	else if( g_bLeft4Dead2 && model == 24 ) // Adrenaline
 	{
 		vAng[1] -= 90.0;
 		vAng[2] -= 90.0;
 		vPos[2] += 1.0;
 	}
-	else if( g_bLeft4Dead2 && (model == 25 || model == 26 || model == 27 )) // Defib + Upgrades
+	else if( g_bLeft4Dead2 && (model == 26 || model == 27 || model == 28 )) // Defib + Upgrades
 	{
 		vAng[1] -= 90.0;
 		vAng[2] += 90.0;
 	}
-	else if( g_bLeft4Dead2 && model == 22 ) // Chainsaw
+	else if( g_bLeft4Dead2 && model == 19 ) // Chainsaw
 	{
 		vPos[2] += 3.0;
 	}
@@ -768,26 +918,27 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 	{
 		int ammo;
 
-		switch( model )
-		{
-			case 0:						ammo = g_iAmmoRifle;
-			case 1:						ammo = g_iAmmoAutoShot;
-			case 2:						ammo = g_iAmmoHunting;
-			case 3:						ammo = g_iAmmoSmg;
-			case 4:						ammo = g_iAmmoShotgun;
-		}
 		if( g_bLeft4Dead2 )
 		{
 			switch( model )
 			{
-				case 17, 18:			ammo = g_iAmmoSmg;
-				case 11, 14, 15:		ammo = g_iAmmoRifle;
-				case 10:				ammo = g_iAmmoShotgun;
-				case 16:				ammo = g_iAmmoAutoShot;
-				case 22:				ammo = g_iAmmoChainsaw;
-				case 13:				ammo = g_iAmmoM60;
-				case 12:				ammo = g_iAmmoGL;
-				case 19, 20, 21:		ammo = g_iAmmoSniper;
+				case 10, 11, 12:		ammo = g_iAmmoSmg;
+				case 2, 3, 4, 5:		ammo = g_iAmmoRifle;
+				case 8, 9:				ammo = g_iAmmoShotgun;
+				case 6, 7:				ammo = g_iAmmoAutoShot;
+				case 19:				ammo = g_iAmmoChainsaw;
+				case 17:				ammo = g_iAmmoM60;
+				case 18:				ammo = g_iAmmoGL;
+				case 13, 14, 15, 16:	ammo = g_iAmmoSniper;
+			}
+		} else {
+			switch( model )
+			{
+				case 0:						ammo = g_iAmmoRifle;
+				case 1:						ammo = g_iAmmoAutoShot;
+				case 2:						ammo = g_iAmmoHunting;
+				case 3:						ammo = g_iAmmoSmg;
+				case 4:						ammo = g_iAmmoShotgun;
 			}
 		}
 
@@ -796,6 +947,12 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 		SetEntProp(entity_weapon, Prop_Send, "m_iExtraPrimaryAmmo", ammo, 4);
 	}
 	SetEntityMoveType(entity_weapon, MOVETYPE_NONE);
+
+	// Save M60, Grenade Launcher and Chainsaw spawn counts
+	if( g_bLeft4Dead2 && iCount != 1 && (model == 17 || model == 18 || model == 19) )
+	{
+		g_iSpawns[iSpawnIndex][2] = respawn_count != -1 ? respawn_count : iCount;
+	}
 
 	g_iSpawns[iSpawnIndex][0] = EntIndexToEntRef(entity_weapon);
 	g_iSpawns[iSpawnIndex][1] = index;
@@ -810,7 +967,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 // ====================================================================================================
 //					sm_weapon_spawn
 // ====================================================================================================
-public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
+int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -821,11 +978,13 @@ public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 			CmdSpawnerSaveMenu(client, index);
 		}
 
-		g_hMenuList.Display(client, MENU_TIME_FOREVER);
+		g_hMenuList.DisplayAt(client, g_hMenuList.Selection, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
-public Action CmdSpawnerTemp(int client, int args)
+Action CmdSpawnerTemp(int client, int args)
 {
 	if( !client )
 	{
@@ -871,7 +1030,7 @@ void CmdSpawnerTempMenu(int client, int weapon)
 // ====================================================================================================
 //					sm_weapon_spawn_save
 // ====================================================================================================
-public Action CmdSpawnerSave(int client, int args)
+Action CmdSpawnerSave(int client, int args)
 {
 	if( !client )
 	{
@@ -892,10 +1051,12 @@ public Action CmdSpawnerSave(int client, int args)
 
 void CmdSpawnerSaveMenu(int client, int weapon)
 {
+	bool isNew;
 	char sPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_SPAWNS);
 	if( !FileExists(sPath) )
 	{
+		isNew = true;
 		File hCfg = OpenFile(sPath, "w");
 		hCfg.WriteLine("");
 		delete hCfg;
@@ -905,7 +1066,13 @@ void CmdSpawnerSaveMenu(int client, int weapon)
 	KeyValues hFile = new KeyValues("spawns");
 	if( !hFile.ImportFromFile(sPath) )
 	{
+		isNew = true;
 		PrintToChat(client, "%sError: Cannot read the weapon config, assuming empty file. (\x05%s\x01).", CHAT_TAG, sPath);
+	}
+
+	if( isNew )
+	{
+		hFile.SetNum("version", 2);
 	}
 
 	// Check for current map in the config
@@ -967,7 +1134,7 @@ void CmdSpawnerSaveMenu(int client, int weapon)
 // ====================================================================================================
 //					sm_weapon_spawn_del
 // ====================================================================================================
-public Action CmdSpawnerDel(int client, int args)
+Action CmdSpawnerDel(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1097,7 +1264,7 @@ public Action CmdSpawnerDel(int client, int args)
 // ====================================================================================================
 //					sm_weapon_spawn_clear
 // ====================================================================================================
-public Action CmdSpawnerClear(int client, int args)
+Action CmdSpawnerClear(int client, int args)
 {
 	if( !client )
 	{
@@ -1114,7 +1281,7 @@ public Action CmdSpawnerClear(int client, int args)
 // ====================================================================================================
 //					sm_weapon_spawn_wipe
 // ====================================================================================================
-public Action CmdSpawnerWipe(int client, int args)
+Action CmdSpawnerWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -1165,7 +1332,7 @@ public Action CmdSpawnerWipe(int client, int args)
 // ====================================================================================================
 //					sm_weapon_spawn_glow
 // ====================================================================================================
-public Action CmdSpawnerGlow(int client, int args)
+Action CmdSpawnerGlow(int client, int args)
 {
 	static bool glow;
 	glow = !glow;
@@ -1197,7 +1364,7 @@ void VendorGlow(int glow)
 // ====================================================================================================
 //					sm_weapon_spawn_list
 // ====================================================================================================
-public Action CmdSpawnerList(int client, int args)
+Action CmdSpawnerList(int client, int args)
 {
 	float vPos[3];
 	int count;
@@ -1217,7 +1384,7 @@ public Action CmdSpawnerList(int client, int args)
 // ====================================================================================================
 //					sm_weapon_spawn_tele
 // ====================================================================================================
-public Action CmdSpawnerTele(int client, int args)
+Action CmdSpawnerTele(int client, int args)
 {
 	if( args == 1 )
 	{
@@ -1244,7 +1411,7 @@ public Action CmdSpawnerTele(int client, int args)
 // ====================================================================================================
 //					MENU ANGLE
 // ====================================================================================================
-public Action CmdSpawnerAng(int client, int args)
+Action CmdSpawnerAng(int client, int args)
 {
 	ShowMenuAng(client);
 	return Plugin_Handled;
@@ -1256,7 +1423,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1266,6 +1433,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1304,7 +1473,7 @@ void SetAngle(int client, int index)
 	}
 }
 
-public Action CmdSpawnerRot(int client, int args)
+Action CmdSpawnerRot(int client, int args)
 {
 	if( args < 2 )
 	{
@@ -1360,7 +1529,7 @@ public Action CmdSpawnerRot(int client, int args)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdSpawnerPos(int client, int args)
+Action CmdSpawnerPos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -1372,7 +1541,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1382,6 +1551,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -1420,7 +1591,7 @@ void SetOrigin(int client, int index)
 	}
 }
 
-public Action CmdSpawnerMov(int client, int args)
+Action CmdSpawnerMov(int client, int args)
 {
 	if( args < 2 )
 	{
@@ -1613,7 +1784,7 @@ void RemoveSpawn(int index)
 		client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 		if( client < 0 || client > MaxClients || !IsClientInGame(client) )
 		{
-			AcceptEntityInput(entity, "kill");
+			RemoveEntity(entity);
 		}
 	}
 }
@@ -1626,6 +1797,7 @@ void RemoveSpawn(int index)
 float GetGroundHeight(float vPos[3])
 {
 	float vAng[3];
+
 	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, _TraceFilter);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
@@ -1679,7 +1851,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }

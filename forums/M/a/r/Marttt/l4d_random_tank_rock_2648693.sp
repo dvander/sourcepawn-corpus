@@ -59,29 +59,27 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_TANK_ROCK           "tank_rock"
-
 #define MODEL_CONCRETE_CHUNK          "models/props_debris/concrete_chunk01a.mdl"
 #define MODEL_TREE_TRUNK              "models/props_foliage/tree_trunk.mdl"
 
 // ====================================================================================================
 // Plugin Cvar
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_RockChance;
-static ConVar g_hCvar_TrunkChance;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_RockChance;
+ConVar g_hCvar_TrunkChance;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_RockChance;
-static int    g_iCvar_TrunkChance;
+int g_iCvar_RockChance;
+int g_iCvar_TrunkChance;
+int g_iRandomMax;
 
 // ====================================================================================================
 // Plugin Start
@@ -105,8 +103,8 @@ public void OnPluginStart()
 {
     CreateConVar("l4d_random_tank_rock_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled     = CreateConVar("l4d_random_tank_rock_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_RockChance  = CreateConVar("l4d_random_tank_rock_rock_chance", "1", "Chance for the rock model.\nExample:\nrock_chance = \"1\" and trunk_chance = \"1\", means Rock [50%] / Trunk [50%].\nrock_chance = \"2\" and trunk_chance = \"3\", means Rock [40%] / Trunk [60%].\n0 = OFF.", CVAR_FLAGS, true, 0.0);
-    g_hCvar_TrunkChance = CreateConVar("l4d_random_tank_rock_trunk_chance", "1", "Chance for the trunk model.\nExample:\nrock_chance = \"1\" and trunk_chance = \"1\", means Rock [50%] / Trunk [50%].\nrock_chance = \"2\" and trunk_chance = \"3\", means Rock [40%] / Trunk [60%].\n0 = OFF.", CVAR_FLAGS, true, 0.0);
+    g_hCvar_RockChance  = CreateConVar("l4d_random_tank_rock_rock_chance", "1", "Chance for the rock model.\nExample:\nrock_chance = \"1\" and trunk_chance = \"1\", means Rock [50%] / Trunk [50%].\nrock_chance = \"2\" and trunk_chance = \"3\", means Rock [40%] / Trunk [60%].\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_TrunkChance = CreateConVar("l4d_random_tank_rock_trunk_chance", "1", "Chance for the trunk model.\nExample:\nrock_chance = \"1\" and trunk_chance = \"1\", means Rock [50%] / Trunk [50%].\nrock_chance = \"2\" and trunk_chance = \"3\", means Rock [40%] / Trunk [60%].\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
 
     // Hook Plugin ConVars Change
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
@@ -126,41 +124,42 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_iCvar_RockChance = g_hCvar_RockChance.IntValue;
     g_iCvar_TrunkChance = g_hCvar_TrunkChance.IntValue;
+    g_iRandomMax = g_iCvar_RockChance + g_iCvar_TrunkChance;
+
     if (g_iCvar_RockChance > 0)
         PrecacheModel(MODEL_CONCRETE_CHUNK, true);
+
     if (g_iCvar_TrunkChance > 0)
         PrecacheModel(MODEL_TREE_TRUNK, true);
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_TANK_ROCK)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "tank_rock")) != INVALID_ENT_REFERENCE)
     {
-        OnSpawnPost(entity);
+        SetTankRockModel(entity);
     }
 }
 
@@ -168,35 +167,31 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    switch (classname[0])
-    {
-        case 't':
-        {
-            if (StrEqual(classname, CLASSNAME_TANK_ROCK))
-                SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
-        }
-    }
+    if (StrEqual(classname, "tank_rock"))
+        SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
+{
+    SetTankRockModel(entity);
+}
+
+/****************************************************************************************************/
+
+void SetTankRockModel(int entity)
 {
     if (!g_bCvar_Enabled)
         return;
 
-    int randomMax = g_iCvar_RockChance + g_iCvar_TrunkChance;
-
-    if (randomMax == 0)
+    if (g_iRandomMax == 0)
         return;
 
-    int random = GetRandomInt(1, randomMax);
+    int random = GetRandomInt(1, g_iRandomMax);
 
     if (random <= g_iCvar_RockChance)
         SetEntityModel(entity, MODEL_CONCRETE_CHUNK);
@@ -207,7 +202,7 @@ public void OnSpawnPost(int entity)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -216,25 +211,11 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_random_tank_rock_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_random_tank_rock_enabled : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_random_tank_rock_rock_chance : %i (%.1f%%)", g_iCvar_RockChance, (g_iCvar_RockChance / float(g_iCvar_RockChance + g_iCvar_TrunkChance)) * 100.0);
-    PrintToConsole(client, "l4d_random_tank_rock_trunk_chance : %i (%.1f%%)", g_iCvar_TrunkChance, (g_iCvar_TrunkChance / float(g_iCvar_RockChance + g_iCvar_TrunkChance)) * 100.0);
+    PrintToConsole(client, "l4d_random_tank_rock_rock_chance : %i (%.1f%%)", g_iCvar_RockChance, g_iRandomMax == 0 ? 0.0 : (g_iCvar_RockChance / float(g_iRandomMax)) * 100.0);
+    PrintToConsole(client, "l4d_random_tank_rock_trunk_chance : %i (%.1f%%)", g_iCvar_TrunkChance, g_iRandomMax == 0 ? 0.0 : (g_iCvar_TrunkChance / float(g_iRandomMax)) * 100.0);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

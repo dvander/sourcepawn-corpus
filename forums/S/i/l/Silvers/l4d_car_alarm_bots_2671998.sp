@@ -1,6 +1,6 @@
 /*
 *	Car Alarm - Bots Block
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.3"
+#define PLUGIN_VERSION 		"1.6"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,22 @@
 
 ========================================================================================
 	Change Log:
+
+1.6 (07-Nov-2023)
+	- Fixed not deleting 1 handle on plugin start.
+
+1.5 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
+1.4 (28-Jul-2021)
+	- Fixed errors on Linux. Thanks to "ReCreator" for reporting.
+	- Removed DHooks requirement. Plugin will use some more processing resources.
+	- Thanks to "Lux", "nosoop", "Crasher_3637" and "asherkin" for help trying to fix the detour method.
+	- Would prefer to use detour method if that worked.
+	- GameData file and plugin updated.
+
+1.3a (23-Jul-2021)
+	- Fixed the signature being broken on Linux. Thanks to "ReCreator" for reporting.
 
 1.3 (30-Sep-2020)
 	- Fixed compile errors on SM 1.11.
@@ -55,7 +71,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
-#include <dhooks>
+// #include <dhooks> // DETOUR METHOD
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define GAMEDATA			"l4d_car_alarm_bots"
@@ -63,8 +79,8 @@
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarType;
 bool g_bCvarAllow, g_bMapStarted;
-int g_iCvarType;
-float g_fLastDmg;
+int g_iCvarType, g_iOffset;
+// float g_fLastDmg; // DETOUR METHOD
 
 enum
 {
@@ -102,6 +118,7 @@ public void OnPluginStart()
 	// ====================================================================================================
 	// DETOUR
 	// ====================================================================================================
+	/*
 	char sPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
 	if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
@@ -119,6 +136,24 @@ public void OnPluginStart()
 		SetFailState("Failed to detour \"CCarProp::InputSurvivorStandingOnCar\".");
 
 	delete hDetour;
+	*/
+
+
+
+	// ====================================================================================================
+	// OFFSET
+	// ====================================================================================================
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
+	if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
+
+	Handle hGameData = LoadGameConfigFile(GAMEDATA);
+	if( hGameData == null ) SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
+
+	g_iOffset = GameConfGetOffset(hGameData, "Alarm_Patch_Offset");
+	if( g_iOffset == -1 ) SetFailState("\n==========\nMissing required offset: \"Alarm_Patch_Offset\".\nPlease update your GameData file for this plugin.\n==========");
+
+	delete hGameData;
 
 
 
@@ -164,12 +199,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -256,7 +291,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -285,6 +320,8 @@ void HookEntities(bool hook)
 		while( (entity = FindEntityByClassname(entity, "prop_car_alarm")) != INVALID_ENT_REFERENCE )
 		{
 			SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+			SDKHook(entity, SDKHook_Touch, OnTouch);
+			SetEntData(entity, g_iOffset, 1, 1, false);
 		}
 	}
 	else if( hooked && !hook )
@@ -295,6 +332,8 @@ void HookEntities(bool hook)
 		while( (entity = FindEntityByClassname(entity, "prop_car_alarm")) != INVALID_ENT_REFERENCE )
 		{
 			SDKUnhook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+			SDKUnhook(entity, SDKHook_Touch, OnTouch);
+			SetEntData(entity, g_iOffset, 0, 1, false);
 		}
 	}
 }
@@ -306,21 +345,59 @@ void HookEntities(bool hook)
 // ====================================================================================================
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if( g_bCvarAllow && g_iCvarType & TYPE_SHOOT && strcmp(classname, "prop_car_alarm") == 0 )
+	if( g_bCvarAllow && strcmp(classname, "prop_car_alarm") == 0 )
 	{
 		SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+		SDKHook(entity, SDKHook_Touch, OnTouch);
+		SetEntData(entity, g_iOffset, 1, 1, false);
 	}
 }
 
-public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+// Nothing worked to return the client index who triggered the detour on Linux, so using OnTouch method to block bots
+void OnTouch(int entity, int client)
 {
+	if( client >= 1 && client <= MaxClients && GetClientTeam(client) == 2 )
+	{
+		if( !(g_iCvarType & TYPE_STAND) || (!IsFakeClient(client) && GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") == entity) )
+		{
+			TriggerAlarm(entity, client);
+		}
+	}
+}
+
+// Real survivor clients can trigger when shooting
+Action OnTakeDamage(int entity, int &client, int &inflictor, float &damage, int &damagetype)
+{
+	if( client >= 1 && client <= MaxClients && GetClientTeam(client) == 2 )
+	{
+		if( !(g_iCvarType & TYPE_SHOOT) || !IsFakeClient(client) )
+		{
+			TriggerAlarm(entity, client);
+		}
+	}
+
+	/* DETOUR METHOD:
 	if( attacker >= 1 && attacker <= MaxClients && IsFakeClient(attacker) )
 	{
 		g_fLastDmg = GetGameTime();
 	}
+	*/
+
+	return Plugin_Continue;
 }
 
-public MRESReturn InputSurvivorStandingOnCar(Handle hReturn, Handle hParams)
+void TriggerAlarm(int entity, int client)
+{
+	SetEntData(entity, g_iOffset, 0, 1, false);
+
+	SDKUnhook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKUnhook(entity, SDKHook_Touch, OnTouch);
+
+	AcceptEntityInput(entity, "SurvivorStandingOnCar", client, client);
+}
+
+/* DETOUR METHOD:
+MRESReturn InputSurvivorStandingOnCar(Handle hReturn, Handle hParams)
 {
 	if( g_bCvarAllow )
 	{
@@ -332,3 +409,4 @@ public MRESReturn InputSurvivorStandingOnCar(Handle hReturn, Handle hParams)
 
 	return MRES_Ignored;
 }
+*/

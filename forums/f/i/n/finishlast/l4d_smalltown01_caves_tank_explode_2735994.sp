@@ -10,6 +10,8 @@ int ent_plate_trigger;
 
 public void OnPluginStart()
 {
+	PrecacheModel("models/props_street/traffic_plate_01.mdl");
+	PrecacheSound("ambient/explosions/explode_1.wav");
 	HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
 }
 
@@ -20,7 +22,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 	GetCurrentMap(sMap, sizeof(sMap));
 	if (StrEqual(sMap, "l4d_smalltown01_caves", false) || StrEqual(sMap, "l4d_vs_smalltown01_caves", false))
 	{
-	PrecacheModel("models/props_street/traffic_plate_01.mdl",true);	
+
 
 	float pos[3], ang[3];
 
@@ -48,15 +50,15 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 
 public void OnTouch(int client, int other)
 {
-if(other>=0){
+if(other>=0 && other <= MaxClients){
 
-if(GetClientTeam(other) == 2)
+if(IsClientInGame(other) && GetClientTeam(other) == 2)
 {
 CreateTimer(2.0, boom);
 //PrintToChatAll ("touched");
 SDKUnhook(ent_plate_trigger, SDKHook_Touch, OnTouch);
-}
 
+}
 }
 }
 

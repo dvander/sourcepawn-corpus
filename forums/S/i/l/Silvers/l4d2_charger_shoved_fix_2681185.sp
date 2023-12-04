@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.2"
+/*
+*	Charger Shoved Fix
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.3"
 
 /*=======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.3 (09-Jun-2022)
+	- Fixed throwing errors when plugins give different abilities than expected to Chargers. Thanks to "Voevoda" for reporting.
 
 1.2 (10-May-2020)
 	- Various changes to tidy up code.
@@ -62,13 +85,13 @@ public void OnPluginStart()
 	CreateConVar("l4d2_charger_shoved_fix_version", PLUGIN_VERSION, "Charger Shoved Fix plugin version.", FCVAR_NOTIFY);
 }
 
-public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( GetClientTeam(client) == 3 && GetEntProp(client, Prop_Send, "m_zombieClass") == 6 )
 	{
 		int ability = GetEntPropEnt(client, Prop_Send, "m_customAbility"); // ability_charge
-		if( ability > 0 && IsValidEdict(ability) && GetEntProp(ability, Prop_Send, "m_isCharging") )
+		if( ability > 0 && IsValidEdict(ability) && HasEntProp(ability, Prop_Send, "m_isCharging") && GetEntProp(ability, Prop_Send, "m_isCharging") )
 		{
 			GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVel[client]);
 			SDKHook(client, SDKHook_PreThink, PreThink);
@@ -76,7 +99,7 @@ public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcas
 	}
 }
 
-public void PreThink(int client)
+void PreThink(int client)
 {
 	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vVel[client]);
 	SDKUnhook(client, SDKHook_PreThink, PreThink);

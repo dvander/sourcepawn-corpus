@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.1 (08-July-2023)
+    - Refactored code.
+
 1.0.0 (12-October-2020)
     - Initial release.
 
@@ -14,7 +17,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Grenade Launcher World Hit Fix"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Makes the grenade launcher projectile explode when hit the world min/max instead of vanishing"
-#define PLUGIN_VERSION                "1.0.0"
+#define PLUGIN_VERSION                "1.0.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=327835"
 
 // ====================================================================================================
@@ -56,22 +59,65 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_GL_PROJECTILE       "grenade_launcher_projectile"
-
 #define ENTITY_WORLDSPAWN             0
 
 #define DAMAGE_YES                    2
 
-// ====================================================================================================
-// Plugin Cvars
-// ====================================================================================================
-static ConVar g_hCvar_Enabled;
+#define MAXENTITIES                   2048
 
 // ====================================================================================================
-// bool - Plugin Variables
+// entity - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
+bool ge_bOnStartTouchPostHooked[MAXENTITIES+1];
+
+// ====================================================================================================
+// enum structs - Plugin Variables
+// ====================================================================================================
+PluginData plugin;
+
+// ====================================================================================================
+// enums / enum structs
+// ====================================================================================================
+enum struct PluginCvars
+{
+    ConVar l4d2_gl_world_hit_fix_version;
+    ConVar l4d2_gl_world_hit_fix_enable;
+
+    void Init()
+    {
+        this.l4d2_gl_world_hit_fix_version = CreateConVar("l4d2_gl_world_hit_fix_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.l4d2_gl_world_hit_fix_enable  = CreateConVar("l4d2_gl_world_hit_fix_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+
+        this.l4d2_gl_world_hit_fix_enable.AddChangeHook(Event_ConVarChanged);
+
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
+
+/****************************************************************************************************/
+
+enum struct PluginData
+{
+    PluginCvars cvars;
+
+    bool enabled;
+
+    void Init()
+    {
+        this.cvars.Init();
+        this.RegisterCmds();
+    }
+
+    void GetCvarValues()
+    {
+        this.enabled = this.cvars.l4d2_gl_world_hit_fix_enable.BoolValue;
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_print_cvars_l4d2_gl_world_hit_fix", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
@@ -93,54 +139,35 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-    CreateConVar("l4d2_gl_world_hit_fix_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled = CreateConVar("l4d2_gl_world_hit_fix_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    plugin.Init();
+}
 
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
+/****************************************************************************************************/
 
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_print_cvars_l4d2_gl_world_hit_fix", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
 public void OnConfigsExecuted()
 {
-    GetCvars();
-
-    g_bConfigLoaded = true;
+    plugin.GetCvarValues();
 
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
-{
-    GetCvars();
-}
-
-/****************************************************************************************************/
-
-public void GetCvars()
-{
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-}
-
-/****************************************************************************************************/
-
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_GL_PROJECTILE)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "grenade_launcher_projectile")) != INVALID_ENT_REFERENCE)
     {
-        SDKHook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
+        plugin.enabled ? HookEntity(entity) : UnhookEntity(entity);
     }
 }
 
@@ -148,37 +175,66 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (!plugin.enabled)
         return;
 
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
-    if (classname[0] != 'g')
-        return;
-
-    if (StrEqual(classname, CLASSNAME_GL_PROJECTILE))
-        SDKHook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
+    if (StrEqual(classname, "grenade_launcher_projectile"))
+        HookEntity(entity);
 }
 
 /****************************************************************************************************/
 
-public void OnStartTouchPost(int entity, int other)
+public void OnEntityDestroyed(int entity)
 {
-    if (!g_bCvar_Enabled)
+    if (entity < 0)
+        return;
+
+    ge_bOnStartTouchPostHooked[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void HookEntity(int entity)
+{
+    if (ge_bOnStartTouchPostHooked[entity])
+        return;
+
+    ge_bOnStartTouchPostHooked[entity] = true;
+    SDKHook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
+}
+
+/****************************************************************************************************/
+
+void UnhookEntity(int entity)
+{
+    if (!ge_bOnStartTouchPostHooked[entity])
+        return;
+
+    ge_bOnStartTouchPostHooked[entity] = false;
+    SDKUnhook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
+}
+
+/****************************************************************************************************/
+
+void OnStartTouchPost(int entity, int other)
+{
+    if (!plugin.enabled)
         return;
 
     if (other != ENTITY_WORLDSPAWN)
         return;
 
     SetEntProp(entity, Prop_Data, "m_takedamage", DAMAGE_YES);
-    SDKHooks_TakeDamage(entity, ENTITY_WORLDSPAWN, ENTITY_WORLDSPAWN, 0.0, DMG_GENERIC, -1, NULL_VECTOR, NULL_VECTOR);
+    SDKHooks_TakeDamage(entity, ENTITY_WORLDSPAWN, ENTITY_WORLDSPAWN, 0.0);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -186,24 +242,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "---------------- Plugin Cvars (l4d2_gl_world_hit_fix) ----------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_gl_world_hit_fix_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d2_gl_world_hit_fix_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
+    PrintToConsole(client, "l4d2_gl_world_hit_fix_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

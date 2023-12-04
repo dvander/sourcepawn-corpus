@@ -1,7 +1,7 @@
 #define PLUGIN_NAME "[CS:S ZR] Bots Don't Attack Humans"
 #define PLUGIN_AUTHOR "Shadowysn"
 #define PLUGIN_DESC "Stops bots from attacking humans."
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.0.1"
 #define PLUGIN_URL ""
 #define PLUGIN_NAME_SHORT "Bots Don't Attack Humans"
 #define PLUGIN_NAME_TECH "bots_stop_attack_humans"
@@ -73,8 +73,6 @@ static Handle hDHookOnAudibleEvent = null;
 #define SIG_CSGOOnPlayerDeath_LINUX "\\x55\\x89\\xE5\\x83\\xEC\\x78\\x89\\x5D\\xF4\\x8B\\x5D\\x08\\x89\\x7D\\xFC\\x8B\\x7D\\x0C"
 #define SIG_CSGOOnPlayerDeath_WINDOWS "\\x55\\x8B\\xEC\\x83\\xE4\\xF8\\x83\\xEC\\x20\\x56\\x57\\x8B\\xF9\\x8B\\x07\\x8B"
 
-ConVar version_cvar;
-
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	if (GetEngineVersion() == Engine_CSGO)
@@ -100,20 +98,45 @@ public Plugin myinfo =
 	url = PLUGIN_URL
 }
 
+bool isDHooksToggled = false;
+
 public void OnPluginStart()
 {
-	char version_str[128];
+	char version_str[64];
 	Format(version_str, sizeof(version_str), "%s version.", PLUGIN_NAME_SHORT);
 	char cmd_str[64];
 	Format(cmd_str, sizeof(cmd_str), "sm_%s_version", PLUGIN_NAME_TECH);
-	version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, version_str, 0|FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	ConVar version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, version_str, 0|FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
 	if (version_cvar != null)
-		SetConVarString(version_cvar, PLUGIN_VERSION);
+		version_cvar.SetString(PLUGIN_VERSION);
+	
+	HookEvent("round_start", round_start, EventHookMode_PostNoCopy);
+	//HookEvent("round_end", round_start, EventHookMode_PostNoCopy);
 	
 	if (gameVar != GAME_CSGO)
 	{ CloseHandle(hDHookIsOtherEnemy); }
 	
 	GetGamedata();
+}
+
+void round_start(Event event, const char[] name, bool dontBroadcast)
+{
+	if (!isDHooksToggled)
+	{
+		PrintToServer("[ZR Bots Don't Attack Humans] Bots are no longer attacking.");
+		isDHooksToggled = true;
+		ToggleDHooks(true);
+	}
+}
+
+public int ZR_OnClientInfected(int client, int attacker, bool motherInfect, bool respawnOverride, bool respawn)
+{
+	if (isDHooksToggled)
+	{
+		PrintToServer("[ZR Bots Don't Attack Humans] Bots are now attacking.");
+		isDHooksToggled = false;
+		ToggleDHooks(false);
+	}
 }
 
 /*public void OnAllPluginsLoaded()
@@ -126,43 +149,45 @@ public void OnPluginStart()
 
 public MRESReturn InSameTeam_Pre(int client, Handle hReturn, Handle hParams)
 {
-	if (DHookGetParam(hParams, 0) < 1) return MRES_Ignored;
-	int other_cl = DHookGetParam(hParams, 1);
-	if (IsValidClient(other_cl) && IsPlayerAlive(other_cl) && ZR_IsClientHuman(other_cl))
-	{
+	//if (DHookGetParam(hParams, 0) < 1) return MRES_Ignored;
+	//int other_cl = DHookGetParam(hParams, 1);
+	//if (!hasRoundStarted)
+	//{
 		DHookSetReturn(hReturn, true);
-		return MRES_Override;
-	}
-	return MRES_Ignored;
+		return MRES_Supercede;
+	//}
+	//return MRES_Ignored;
 }
 
 public MRESReturn IsOtherEnemy_Pre(int client, Handle hReturn, Handle hParams)
 {
-	if (DHookGetParam(hParams, 0) < 1) return MRES_Ignored;
-	int other_cl = DHookGetParam(hParams, 1);
-	if (IsValidClient(other_cl) && IsPlayerAlive(other_cl) && ZR_IsClientHuman(other_cl))
-	{
-		DHookSetReturn(hReturn, true);
-		return MRES_Override;
-	}
-	return MRES_Ignored;
+	//if (DHookGetParam(hParams, 0) < 1) return MRES_Ignored;
+	//int other_cl = DHookGetParam(hParams, 1);
+	//if (!hasRoundStarted)
+	//{
+		DHookSetReturn(hReturn, false);
+		return MRES_Supercede;
+	//}
+	//return MRES_Ignored;
 }
 
 public MRESReturn OnAudibleEvent_Pre(int client, Handle hParams)
 {
-	if (DHookGetParam(hParams, 0) < 2) return MRES_Ignored;
-	int other_cl = DHookGetParam(hParams, 2);
-	if (IsValidClient(other_cl) && IsPlayerAlive(other_cl) && ZR_IsClientHuman(other_cl))
-	{
+	//if (DHookGetParam(hParams, 0) < 2) return MRES_Ignored;
+	//int other_cl = DHookGetParam(hParams, 2);
+	//if (!hasRoundStarted)
+	//{
 		return MRES_Supercede;
-	}
-	return MRES_Ignored;
+	//}
+	//return MRES_Ignored;
 }
 
 /*public MRESReturn OnPlayerRadio_Pre(int client, Handle hParams)
 {
 	int other_cl = GetClientOfUserId(DHookGetParam(hParams, 1));
-	if (IsValidClient(other_cl) && IsPlayerAlive(other_cl) && ZR_IsClientHuman(other_cl))
+	if (other_cl != 0 && IsPlayerAlive(other_cl) && 
+	client != 0 && IsPlayerAlive(client) && 
+	(ZR_IsClientHuman(client) && ZR_IsClientHuman(other_cl)))
 	{
 		return MRES_Supercede;
 	}
@@ -172,29 +197,31 @@ public MRESReturn OnAudibleEvent_Pre(int client, Handle hParams)
 public MRESReturn OnPlayerDeath_Pre(int client, Handle hParams)
 {
 	int other_cl = GetClientOfUserId(DHookGetParam(hParams, 1));
-	if (IsValidClient(other_cl) && IsPlayerAlive(other_cl) && ZR_IsClientHuman(other_cl))
+	if (other_cl != 0 && IsPlayerAlive(other_cl) && 
+	client != 0 && IsPlayerAlive(client) && 
+	(ZR_IsClientHuman(client) && ZR_IsClientHuman(other_cl)))
 	{
 		return MRES_Supercede;
 	}
 	return MRES_Ignored;
 }*/
 
-bool RealValidEntity(int entity)
-{
-	if (entity <= 0 || !IsValidEntity(entity)) return false;
-	return true;
-}
+stock bool RealValidEntity(int entity)
+{ return (entity > 0 && IsValidEntity(entity)); }
 
-bool IsValidClient(int client, bool replaycheck = true)
+stock bool IsValidClient(int client, bool replaycheck = true, bool isLoop = false)
 {
-	if (!RealValidEntity(client) || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	//if (GetEntProp(client, Prop_Send, "m_bIsCoaching")) return false;
-	if (replaycheck)
+	if ((isLoop || client > 0 && client <= MaxClients) && IsClientInGame(client))
 	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		if (HasEntProp(client, Prop_Send, "m_bIsCoaching")) // TF2, CSGO?
+			if (view_as<bool>(GetEntProp(client, Prop_Send, "m_bIsCoaching"))) return false;
+		if (replaycheck)
+		{
+			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		}
+		return true;
 	}
-	return true;
+	return false;
 }
 
 void GetGamedata()
@@ -338,6 +365,22 @@ void GetGamedata()
 	PrepDHooks();
 }
 
+void ToggleDHooks(bool toggle)
+{
+	if (toggle == true)
+	{
+		DHookEnableDetour(hDHookInSameTeam, false, InSameTeam_Pre);
+		if (gameVar == GAME_CSGO) DHookEnableDetour(hDHookIsOtherEnemy, false, IsOtherEnemy_Pre);
+		DHookEnableDetour(hDHookOnAudibleEvent, false, OnAudibleEvent_Pre);
+	}
+	else
+	{
+		DHookDisableDetour(hDHookInSameTeam, false, InSameTeam_Pre);
+		if (gameVar == GAME_CSGO) DHookDisableDetour(hDHookIsOtherEnemy, false, IsOtherEnemy_Pre);
+		DHookDisableDetour(hDHookOnAudibleEvent, false, OnAudibleEvent_Pre);
+	}
+}
+
 void PrepDHooks()
 {
 	if (hConf == null)
@@ -348,14 +391,12 @@ void PrepDHooks()
 	hDHookInSameTeam = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Bool, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hDHookInSameTeam, hConf, SDKConf_Signature, NAME_InSameTeam);
 	DHookAddParam(hDHookInSameTeam, HookParamType_CBaseEntity);
-	DHookEnableDetour(hDHookInSameTeam, false, InSameTeam_Pre);
 	
 	if (gameVar == GAME_CSGO)
 	{
 		hDHookIsOtherEnemy = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Bool, ThisPointer_CBaseEntity);
 		DHookSetFromConf(hDHookIsOtherEnemy, hConf, SDKConf_Signature, NAME_IsOtherEnemy);
 		DHookAddParam(hDHookIsOtherEnemy, HookParamType_CBaseEntity);
-		DHookEnableDetour(hDHookIsOtherEnemy, false, IsOtherEnemy_Pre);
 	}
 	
 	hDHookOnAudibleEvent = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Void, ThisPointer_CBaseEntity);
@@ -367,7 +408,6 @@ void PrepDHooks()
 	DHookAddParam(hDHookOnAudibleEvent, HookParamType_Int);
 	DHookAddParam(hDHookOnAudibleEvent, HookParamType_Int);
 	DHookAddParam(hDHookOnAudibleEvent, HookParamType_Int);
-	DHookEnableDetour(hDHookOnAudibleEvent, false, OnAudibleEvent_Pre);
 	
 	/*hDHookOnPlayerRadio = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Void, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hDHookOnPlayerRadio, hConf, SDKConf_Signature, NAME_OnPlayerRadio);

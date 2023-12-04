@@ -113,70 +113,71 @@ public Plugin myinfo =
 #define MAX_BURN_PERCENT_JOCKEY       0.40
 #define MAX_BURN_PERCENT_CHARGER      0.40
 #define MAX_BURN_PERCENT_TANK         1.00
+#define MAX_BURN_PERCENT_L4D1         1.00
 
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_z_burn_max;
-static ConVar g_hCvar_z_burn_rate;
+ConVar g_hCvar_z_burn_max;
+ConVar g_hCvar_z_burn_rate;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_BurnMax;
-static ConVar g_hCvar_BurnRate;
-static ConVar g_hCvar_RestoreBurn;
-static ConVar g_hCvar_Chance;
-static ConVar g_hCvar_MinPercent;
-static ConVar g_hCvar_MaxPercent;
-static ConVar g_hCvar_DmgMultiplier;
-static ConVar g_hCvar_SI;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_BurnMax;
+ConVar g_hCvar_BurnRate;
+ConVar g_hCvar_RestoreBurn;
+ConVar g_hCvar_Chance;
+ConVar g_hCvar_MinPercent;
+ConVar g_hCvar_MaxPercent;
+ConVar g_hCvar_DmgMultiplier;
+ConVar g_hCvar_SI;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bTankFrustrated;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_z_burn_max;
-static bool   g_bCvar_z_burn_rate;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_BurnMax;
-static bool   g_bCvar_RestoreBurn;
-static bool   g_bCvar_Chance;
-static bool   g_bCvar_DmgMultiplier;
+bool g_bL4D2;
+bool g_bTankFrustrated;
+bool g_bEventsHooked;
+bool g_bCvar_z_burn_max;
+bool g_bCvar_z_burn_rate;
+bool g_bCvar_Enabled;
+bool g_bCvar_BurnMax;
+bool g_bCvar_RestoreBurn;
+bool g_bCvar_Chance;
+bool g_bCvar_DmgMultiplier;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iTankClass;
-static int    g_iCvar_SI;
+int g_iTankClass;
+int g_iCvar_SI;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_burnPercent_TankFrustrated;
-static float  g_fCvar_z_burn_max;
-static float  g_fCvar_z_burn_rate;
-static float  g_fCvar_BurnRate;
-static float  g_fCvar_Chance;
-static float  g_fCvar_MinPercent;
-static float  g_fCvar_MaxPercent;
-static float  g_fCvar_DmgMultiplier;
+float g_burnPercent_TankFrustrated;
+float g_fCvar_z_burn_max;
+float g_fCvar_z_burn_rate;
+float g_fCvar_BurnRate;
+float g_fCvar_Chance;
+float g_fCvar_MinPercent;
+float g_fCvar_MaxPercent;
+float g_fCvar_DmgMultiplier;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iMenu[MAXPLAYERS+1];
-static int    gc_iMenuUserId[MAXPLAYERS+1];
-static int    gc_iMenuPageIndex[MAXPLAYERS+1][2];
+bool gc_bTakeDamageHooked[MAXPLAYERS+1];
+int gc_iMenu[MAXPLAYERS+1];
+int gc_iMenuUserId[MAXPLAYERS+1];
+int gc_iMenuPageIndex[MAXPLAYERS+1][2];
 
 // ====================================================================================================
 // Menu - Plugin Variables
 // ====================================================================================================
-static Menu   g_mMenuBurnPercent;
+Menu g_mMenuBurnPercent;
 
 // ====================================================================================================
 // Plugin Start
@@ -215,9 +216,9 @@ public void OnPluginStart()
     g_hCvar_DmgMultiplier = CreateConVar("l4d_si_burnt_skin_dmg_multiplier", "10.0", "Damage bonus % multiplied by the percentage of the special infected burnt skin.\nFormula: Damage + (Damage * Bonus / 100 * Burn Percentage).\n0 = OFF.", CVAR_FLAGS, true, -100.0);
 
     if (g_bL4D2)
-        g_hCvar_SI        = CreateConVar("l4d_si_burnt_skin_si", "127", "Which special infected should have burnt skin.\n1 = SMOKER, 2 = BOOMER, 4 = HUNTER, 8 = SPITTER, 16 = JOCKEY, 32 = CHARGER, 64 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"127\", enables command chase for all SI.", CVAR_FLAGS, true, 0.0, true, 127.0);
+        g_hCvar_SI        = CreateConVar("l4d_si_burnt_skin_si", "127", "Which special infected should have burnt skin.\n1 = SMOKER, 2 = BOOMER, 4 = HUNTER, 8 = SPITTER, 16 = JOCKEY, 32 = CHARGER, 64 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"127\", enables burnt skin for all SI.", CVAR_FLAGS, true, 0.0, true, 127.0);
     else
-        g_hCvar_SI        = CreateConVar("l4d_si_burnt_skin_si", "8", "Which special infected should have burnt skin.\n1 = SMOKER, 2  = BOOMER, 4 = HUNTER, 8 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"15\", enables command chase for all SI.", CVAR_FLAGS, true, 0.0, true, 15.0);
+        g_hCvar_SI        = CreateConVar("l4d_si_burnt_skin_si", "15", "Which special infected should have burnt skin.\n1 = SMOKER, 2  = BOOMER, 4 = HUNTER, 8 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"15\", enables burnt skin for all SI.", CVAR_FLAGS, true, 0.0, true, 15.0);
 
     // Hook plugin ConVars change
     g_hCvar_z_burn_max.AddChangeHook(Event_ConVarChanged);
@@ -251,20 +252,18 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
@@ -293,12 +292,12 @@ void GetCvars()
     g_bCvar_DmgMultiplier = g_fCvar_DmgMultiplier != 0.0;
     g_iCvar_SI = g_hCvar_SI.IntValue;
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -313,9 +312,10 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
+    if (gc_bTakeDamageHooked[client])
         return;
 
+    gc_bTakeDamageHooked[client] = true;
     SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
@@ -323,6 +323,7 @@ public void OnClientPutInServer(int client)
 
 public void OnClientDisconnect(int client)
 {
+    gc_bTakeDamageHooked[client] = false;
     gc_iMenu[client] = 0;
     gc_iMenuUserId[client] = 0;
     gc_iMenuPageIndex[client][0] = 0;
@@ -332,9 +333,9 @@ public void OnClientDisconnect(int client)
 // ====================================================================================================
 // Events
 // ====================================================================================================
-void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
         HookEvent("player_spawn", Event_PlayerSpawn);
@@ -343,7 +344,7 @@ void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
         UnhookEvent("player_spawn", Event_PlayerSpawn);
@@ -355,7 +356,7 @@ void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
     if (!g_bCvar_Chance)
         return;
@@ -365,7 +366,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (GetClientTeam(client) != TEAM_INFECTED)
@@ -389,14 +390,14 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 
 /****************************************************************************************************/
 
-public void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 {
     bool bTankFrustrated = g_bTankFrustrated;
     g_bTankFrustrated = false;
 
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (GetClientTeam(client) != TEAM_INFECTED)
@@ -422,7 +423,7 @@ public void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public void Event_TankFrustrated(Event event, const char[] name, bool dontBroadcast)
+void Event_TankFrustrated(Event event, const char[] name, bool dontBroadcast)
 {
     if (!g_bCvar_RestoreBurn)
         return;
@@ -431,12 +432,15 @@ public void Event_TankFrustrated(Event event, const char[] name, bool dontBroadc
 
     int client = GetClientOfUserId(event.GetInt("userid"));
 
+    if (client == 0)
+        return;
+
     g_burnPercent_TankFrustrated = GetBurnPercent(client);
 }
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
@@ -487,8 +491,8 @@ float GetMaxBurnPercent(int client, int zombieClassFlag)
             }
             case L4D2_FLAG_ZOMBIECLASS_HUNTER:
             {
-                maxBurnPercent = MAX_BURN_PERCENT_HUNTER;
                 SetEntProp(client, Prop_Send, "m_nSkin", 1);
+                maxBurnPercent = MAX_BURN_PERCENT_HUNTER;
             }
             case L4D2_FLAG_ZOMBIECLASS_SPITTER:
             {
@@ -510,26 +514,7 @@ float GetMaxBurnPercent(int client, int zombieClassFlag)
     }
     else
     {
-        switch (zombieClassFlag)
-        {
-            case L4D1_FLAG_ZOMBIECLASS_SMOKER:
-            {
-                maxBurnPercent = MAX_BURN_PERCENT_SMOKER;
-            }
-            case L4D1_FLAG_ZOMBIECLASS_BOOMER:
-            {
-                maxBurnPercent = MAX_BURN_PERCENT_BOOMER;
-            }
-            case L4D1_FLAG_ZOMBIECLASS_HUNTER:
-            {
-                maxBurnPercent = MAX_BURN_PERCENT_HUNTER;
-                SetEntProp(client, Prop_Send, "m_nSkin", 1);
-            }
-            case L4D1_FLAG_ZOMBIECLASS_TANK:
-            {
-                maxBurnPercent = MAX_BURN_PERCENT_TANK;
-            }
-        }
+        maxBurnPercent = MAX_BURN_PERCENT_L4D1;
     }
 
     return maxBurnPercent;
@@ -561,17 +546,19 @@ void CreateMenuSetBurnPercent()
 
 /****************************************************************************************************/
 
-public int MenuHandleSetBurnPercent(Menu menu, MenuAction action, int activator, int args)
+int MenuHandleSetBurnPercent(Menu menu, MenuAction action, int param1, int param2)
 {
     switch (action)
     {
         case MenuAction_Select:
         {
+            int activator = param1;
+
             gc_iMenuPageIndex[activator][gc_iMenu[activator]] = GetMenuSelectionPosition();
 
             int client = GetClientOfUserId(gc_iMenuUserId[activator]);
 
-            if (!IsValidClient(client))
+            if (client == 0)
                 return 0;
 
             if (GetClientTeam(client) != TEAM_INFECTED)
@@ -579,11 +566,8 @@ public int MenuHandleSetBurnPercent(Menu menu, MenuAction action, int activator,
 
             int zombieClassFlag = GetZombieClassFlag(client);
 
-            if (!(zombieClassFlag & g_iCvar_SI))
-                return 0;
-
             char sBurnPercent[4];
-            menu.GetItem(args, sBurnPercent, sizeof(sBurnPercent));
+            menu.GetItem(param2, sBurnPercent, sizeof(sBurnPercent));
 
             float burnPercentOld = GetBurnPercent(client);
             float maxBurnPercent = GetMaxBurnPercent(client, zombieClassFlag);
@@ -603,13 +587,15 @@ public int MenuHandleSetBurnPercent(Menu menu, MenuAction action, int activator,
                 burnPercent = MIN_BURN_PERCENT;
 
             SetBurnPercent(client, burnPercent);
-            PrintToChat(activator, "\x04%N\x01 had \x05m_burnPercent\x01 changed:\nfrom \x03%.3f\x01 (\x03%.1f%%\x01) to \x03%.3f\x01 (\x03%.1f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100, burnPercent, burnPercent / maxBurnPercent * 100);
+            PrintToChat(activator, "\x04%N\x01 had \x05m_burnPercent\x01 changed:\nfrom \x03%.2f\x01 (\x03%.2f%%\x01) to \x03%.2f\x01 (\x03%.2f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100, burnPercent, burnPercent / maxBurnPercent * 100);
 
             DisplayMenuAtItem(g_mMenuBurnPercent, activator, gc_iMenuPageIndex[activator][gc_iMenu[activator]], MENU_TIME_FOREVER);
         }
         case MenuAction_Cancel:
         {
-            if (args == MenuCancel_ExitBack)
+            int activator = param1;
+
+            if (param2 == MenuCancel_ExitBack)
                 CreateBurnPercentClientMenu(activator);
         }
     }
@@ -642,13 +628,8 @@ void CreateBurnPercentClientMenu(int activator)
         if (GetClientTeam(client) != TEAM_INFECTED)
             continue;
 
-        int zombieClassFlag = GetZombieClassFlag(client);
-
-        if (!(zombieClassFlag & g_iCvar_SI))
-            continue;
-
         GetClientName(client, clientName, sizeof(clientName));
-        FormatEx(userid, sizeof(userid), "%i", GetClientUserId(client));
+        IntToString(GetClientUserId(client), userid, sizeof(userid));
         menu.AddItem(userid, clientName);
 
         count++;
@@ -665,16 +646,18 @@ void CreateBurnPercentClientMenu(int activator)
 
 /****************************************************************************************************/
 
-public int MenuHandleBurnPercentClient(Menu menu, MenuAction action, int activator, int args)
+int MenuHandleBurnPercentClient(Menu menu, MenuAction action, int param1, int param2)
 {
     switch (action)
     {
         case MenuAction_Select:
         {
+            int activator = param1;
+
             gc_iMenuPageIndex[activator][gc_iMenu[activator]] = GetMenuSelectionPosition();
 
             char sArg[10];
-            menu.GetItem(args, sArg, sizeof(sArg));
+            menu.GetItem(param2, sArg, sizeof(sArg));
 
             int userid = StringToInt(sArg);
             int client = GetClientOfUserId(userid);
@@ -685,14 +668,14 @@ public int MenuHandleBurnPercentClient(Menu menu, MenuAction action, int activat
             {
                 case 0:
                 {
-                    if (IsValidClient(client) && GetClientTeam(client) == TEAM_INFECTED)
+                    if (client != 0 && GetClientTeam(client) == TEAM_INFECTED)
                     {
                         int zombieClassFlag = GetZombieClassFlag(client);
 
                         float burnPercentOld = GetBurnPercent(client);
                         float maxBurnPercent = GetMaxBurnPercent(client, zombieClassFlag);
 
-                        PrintToChat(activator, "\x04%N\x01: \x05m_burnPercent\x01 = \x03%.3f\x01 (\x03%.1f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100);
+                        PrintToChat(activator, "\x04%N\x01: \x05m_burnPercent\x01 = \x03%.2f\x01 (\x03%.2f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100);
                     }
 
                     CreateBurnPercentClientMenu(activator);
@@ -715,7 +698,7 @@ public int MenuHandleBurnPercentClient(Menu menu, MenuAction action, int activat
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdGetBurnPercent(int activator, int args)
+Action CmdGetBurnPercent(int activator, int args)
 {
     if (!activator)
         return Plugin_Handled;
@@ -732,7 +715,7 @@ public Action CmdGetBurnPercent(int activator, int args)
         float burnPercentOld = GetBurnPercent(client);
         float maxBurnPercent = GetMaxBurnPercent(client, zombieClassFlag);
 
-        PrintToChat(activator, "\x04%N\x01: \x05m_burnPercent\x01 = \x03%.3f\x01 (\x03%.1f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100);
+        PrintToChat(activator, "\x04%N\x01: \x05m_burnPercent\x01 = \x03%.2f\x01 (\x03%.2f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100);
     }
 
     CreateBurnPercentClientMenu(activator);
@@ -742,7 +725,7 @@ public Action CmdGetBurnPercent(int activator, int args)
 
 /****************************************************************************************************/
 
-public Action CmdSetBurnPercent(int activator, int args)
+Action CmdSetBurnPercent(int activator, int args)
 {
     if (!activator)
         return Plugin_Handled;
@@ -774,14 +757,14 @@ public Action CmdSetBurnPercent(int activator, int args)
     float burnPercent = StringToFloat(sBurnPercent);
 
     SetBurnPercent(client, burnPercent);
-    PrintToChat(activator, "\x04%N\x01 had \x05m_burnPercent\x01 changed:\nfrom \x03%.3f\x01 (\x03%.1f%%\x01) to \x03%.3f\x01 (\x03%.1f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100, burnPercent, burnPercent/maxBurnPercent * 100);
+    PrintToChat(activator, "\x04%N\x01 had \x05m_burnPercent\x01 changed:\nfrom \x03%.2f\x01 (\x03%.2f%%\x01) to \x03%.2f\x01 (\x03%.2f%%\x01)", client, burnPercentOld, burnPercentOld / maxBurnPercent * 100, burnPercent, burnPercent/maxBurnPercent * 100);
 
     return Plugin_Handled;
 }
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -791,21 +774,34 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_si_burnt_skin_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_si_burnt_skin_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d_si_burnt_skin_burn_max  : %b (%s)", g_bCvar_BurnMax, g_bCvar_BurnMax ? "true" : "false");
-    PrintToConsole(client, "l4d_si_burnt_skin_burn_rate : %.3f (%s)", g_fCvar_BurnRate, g_bCvar_DmgMultiplier ? "true" : "false");
+    PrintToConsole(client, "l4d_si_burnt_skin_burn_rate : %.2f (%s)", g_fCvar_BurnRate, g_bCvar_DmgMultiplier ? "true" : "false");
     PrintToConsole(client, "l4d_si_burnt_skin_restore_burn  : %b (%s)", g_bCvar_RestoreBurn, g_bCvar_RestoreBurn ? "true" : "false");
-    PrintToConsole(client, "l4d_si_burnt_skin_chance : %.2f%% (%s)", g_fCvar_Chance, g_bCvar_Chance ? "true" : "false");
+    PrintToConsole(client, "l4d_si_burnt_skin_chance : %.1f%% (%s)", g_fCvar_Chance, g_bCvar_Chance ? "true" : "false");
     PrintToConsole(client, "l4d_si_burnt_skin_min_percent : %.2f%%", g_fCvar_MinPercent);
     PrintToConsole(client, "l4d_si_burnt_skin_max_percent : %.2f%%", g_fCvar_MaxPercent);
     PrintToConsole(client, "l4d_si_burnt_skin_dmg_multiplier : %.2f%% (%s)", g_fCvar_DmgMultiplier, g_bCvar_DmgMultiplier ? "true" : "false");
-    PrintToConsole(client, "l4d_si_burnt_skin_si : %i", g_iCvar_SI);
+    if (g_bL4D2)
+    {
+        PrintToConsole(client, "l4d_si_burnt_skin_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
+    else
+    {
+        PrintToConsole(client, "l4d_si_burnt_skin_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "z_burn_max : %.2f (%s)", g_fCvar_z_burn_max, g_bCvar_z_burn_max ? "true" : "false");
-    PrintToConsole(client, "z_burn_rate : %.3f (%s)", g_fCvar_z_burn_rate, g_bCvar_z_burn_rate ? "true" : "false");
+    PrintToConsole(client, "z_burn_rate : %.2f (%s)", g_fCvar_z_burn_rate, g_bCvar_z_burn_rate ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
+
+    return Plugin_Handled;
+
 }
 
 // ====================================================================================================

@@ -1,6 +1,6 @@
 /*
 *	Explosive Barrel
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.8"
+#define PLUGIN_VERSION		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,7 +31,10 @@
 
 ========================================================================================
 	Change Log:
-	
+
+1.9 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
 1.8 (15-Feb-2021) - by Marttt
 	- Added precache for the "barrel_fly" particle to prevent lag on first spawn in some maps.
 
@@ -181,7 +184,7 @@ void DeleteEntity(int index)
 {
 	int entity = g_iEntities[index];
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 }
 
 
@@ -194,12 +197,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -288,7 +291,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -319,29 +322,30 @@ void UnhookEvents()
 	UnhookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadBarrels();
+	return Plugin_Continue;
 }
 
 void LoadBarrels()
@@ -450,7 +454,7 @@ void SetupBarrel(int client, float vPos[3] = NULL_VECTOR)
 	delete trace;
 }
 
-public bool TraceFilter(int entity, int contentsMask, any client)
+bool TraceFilter(int entity, int contentsMask, any client)
 {
 	if( entity == client )
 		return false;
@@ -495,7 +499,7 @@ void SpawnBarrel(float vPos[3], float vAng[3])
 // ====================================================================================================
 //					sm_barrel
 // ====================================================================================================
-public Action CmdBarrel(int client, int args)
+Action CmdBarrel(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -517,7 +521,7 @@ public Action CmdBarrel(int client, int args)
 // ====================================================================================================
 //					sm_barrelsave
 // ====================================================================================================
-public Action CmdBarrelSave(int client, int args)
+Action CmdBarrelSave(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -572,7 +576,7 @@ public Action CmdBarrelSave(int client, int args)
 	// Save count
 	iCount++;
 	hFile.SetNum("num", iCount);
-	
+
 	// Save angle / origin
 	char sTemp[10];
 	Format(sTemp, sizeof(sTemp), "origin_%d", iCount);
@@ -592,7 +596,7 @@ public Action CmdBarrelSave(int client, int args)
 // ====================================================================================================
 //					sm_barrellist
 // ====================================================================================================
-public Action CmdBarrelList(int client, int args)
+Action CmdBarrelList(int client, int args)
 {
 	float vPos[3];
 	int i, ent, count;
@@ -622,7 +626,7 @@ public Action CmdBarrelList(int client, int args)
 // ====================================================================================================
 //					sm_barreldel
 // ====================================================================================================
-public Action CmdBarrelDelete(int client, int args)
+Action CmdBarrelDelete(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -754,7 +758,7 @@ public Action CmdBarrelDelete(int client, int args)
 // ====================================================================================================
 //					sm_barrelclear
 // ====================================================================================================
-public Action CmdBarrelClear(int client, int args)
+Action CmdBarrelClear(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -770,7 +774,7 @@ public Action CmdBarrelClear(int client, int args)
 // ====================================================================================================
 //					sm_barrelwipe
 // ====================================================================================================
-public Action CmdBarrelWipe(int client, int args)
+Action CmdBarrelWipe(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{

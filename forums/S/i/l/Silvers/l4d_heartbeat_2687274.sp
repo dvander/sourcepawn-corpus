@@ -1,6 +1,6 @@
 /*
 *	Heartbeat (Revive Fix - Post Revive Options)
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.7"
+#define PLUGIN_VERSION 		"1.13"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,27 @@
 
 ========================================================================================
 	Change Log:
+
+1.13 (10-Mar-2023)
+	- Delayed revive logic by 1 frame to fix settings sometimes not being applied due to self revive plugins. Thanks to "Shao" for reporting.
+
+1.12 (19-Feb-2023)
+	- Added cvar "l4d_heartbeat_incap" to set black and white status when someone is incapped, not after revive. Requested by "Jestery".
+	- Fixed heartbeat sound being stopped when other players respawn.
+
+1.11 (03-Dec-2022)
+	- Plugin now resets the heartbeat sound for spectators.
+
+1.10 (15-Nov-2022)
+	- Fixed the revive count not carrying over when switching to/from idle state. Thanks to "NoroHime" for reporting.
+
+1.9 (02-Nov-2022)
+	- Fixed screen turning black and white when they're not read to die. Thanks to "Iciaria" for reporting and lots of help testing.
+	- Various changes to simplify the code.
+
+1.8 (25-Aug-2022)
+	- Changes to fix warnings when compiling on SM 1.11.
+	- Fixed native "Heartbeat_GetRevives" return type wrongfully set as void instead of int.
 
 1.7 (31-Mar-2021)
 	- Added command "sm_heartbeat" to toggle or specify someone as black and white health status.
@@ -72,28 +93,27 @@
 #define SOUND_HEART			"player/heartbeatloop.wav"
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRevives, g_hCvarScreen, g_hCvarSound, g_hCvarVocal, g_hCvarMaxIncap, g_hCvarDecay;
-bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarIncap, g_hCvarRevives, g_hCvarScreen, g_hCvarSound, g_hCvarVocal, g_hCvarMaxIncap, g_hCvarDecay;
+bool g_bCvarAllow, g_bCvarIncap, g_bMapStarted, g_bLeft4Dead2;
 float g_fDecayDecay;
 int g_iCvarRevives, g_iCvarScreen, g_iCvarSound, g_iCvarVocal;
 int g_iReviveCount[MAXPLAYERS+1];
-bool g_bHookedDamageMain[MAXPLAYERS+1];
-bool g_bHookedDamagePost[MAXPLAYERS+1];
+bool g_bHookedDamage[MAXPLAYERS+1];
 
 
 /**
- * Gets the revive count of a client.
- * @remarks:				Because this plugin overwrites "m_currentReviveCount" netprop in L4D1, this native allows you to get the actual revive value for clients.
+ * @brief Gets the revive count of a client.
+ * @remarks Because this plugin overwrites "m_currentReviveCount" netprop in L4D1, this native allows you to get the actual revive value for clients.
  *
  * @param client			Client index to affect.
  *
- * @noreturn
+ * @return					Number or revives
  */
-native void Heartbeat_GetRevives(int client);
+native int Heartbeat_GetRevives(int client);
 
 /**
- * Sets the revive count on a client.
- * @remarks:				Because this plugin overwrites "m_currentReviveCount" netprop in L4D1, this native allows you to set the actual revive value for clients.
+ * @brief Sets the revive count on a client.
+ * @remarks Because this plugin overwrites "m_currentReviveCount" netprop in L4D1, this native allows you to set the actual revive value for clients.
  *
  * @param client			Client index to affect.
  * @param reviveCount		The Survivors revive count.
@@ -165,10 +185,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_SilentFailure;
 	}
 
-	RegPluginLibrary("l4d_heartbeat");
-
 	CreateNative("Heartbeat_GetRevives", Native_GetRevives);
 	CreateNative("Heartbeat_SetRevives", Native_SetRevives);
+
+	RegPluginLibrary("l4d_heartbeat");
 
 	return APLRes_Success;
 }
@@ -184,6 +204,7 @@ public void OnPluginStart()
 	g_hCvarModes =			CreateConVar(	"l4d_heartbeat_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff =		CreateConVar(	"l4d_heartbeat_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =		CreateConVar(	"l4d_heartbeat_modes_tog",		"0",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
+	g_hCvarIncap =			CreateConVar(	"l4d_heartbeat_incap",			"0",				"0=Off. 1=Set black and white status when someone is incapped, not after revive.", CVAR_FLAGS );
 	g_hCvarRevives =		CreateConVar(	"l4d_heartbeat_revives",		"2",				"How many revives are allowed before a player is killed (wrapper to overwrite survivor_max_incapacitated_count cvar).", CVAR_FLAGS );
 	g_hCvarScreen =			CreateConVar(	"l4d_heartbeat_screen",			"2",				"How many revives until the black and white screen overlay starts.", CVAR_FLAGS );
 	g_hCvarSound =			CreateConVar(	"l4d_heartbeat_sound",			"2",				"How many revives until the heartbeat sound starts playing.", CVAR_FLAGS );
@@ -199,6 +220,7 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarIncap.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRevives.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarScreen.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSound.AddChangeHook(ConVarChanged_Cvars);
@@ -214,9 +236,17 @@ public void OnPluginStart()
 	AddCommandListener(CommandListener, "give");
 
 	RegAdminCmd("sm_heartbeat", CmdHeatbeat, ADMFLAG_ROOT, "Set someone as black and white health status or toggle their state. Usage: sm_heartbeat [#userid|name] [state: 0=Healed. 1=Black and white.]");
+
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
+		{
+			g_iReviveCount[i] = GetEntProp(i, Prop_Send, "m_currentReviveCount");
+		}
+	}
 }
 
-public Action CmdHeatbeat(int client, int args)
+Action CmdHeatbeat(int client, int args)
 {
 	int state;
 
@@ -263,7 +293,7 @@ public Action CmdHeatbeat(int client, int args)
 					// SetEntPropFloat(target_list[i], Prop_Send, "m_healthBufferTime", GetGameTime());
 
 					ResetCount(target_list[i]);
-					ReviveLogic(target_list[i], GetClientUserId(target_list[i]));
+					ReviveLogic(target_list[i]);
 				}
 				else if( state != 1 && g_iReviveCount[target_list[i]] < g_iCvarScreen )
 				{
@@ -273,11 +303,17 @@ public Action CmdHeatbeat(int client, int args)
 					// SetEntityHealth(target_list[i], 1);
 
 					g_iReviveCount[target_list[i]] = g_iCvarScreen;
-					ReviveLogic(target_list[i], GetClientUserId(target_list[i]));
+					ReviveLogic(target_list[i]);
 				}
 			}
 		}
 	} else {
+		if( !client )
+		{
+			ReplyToCommand(client, "Command can only be used %s", IsDedicatedServer() ? "in game on a dedicated server." : "in chat on a Listen server.");
+			return Plugin_Handled;
+		}
+
 		// Heal
 		if( g_iReviveCount[client] >= g_iCvarScreen )
 		{
@@ -287,7 +323,7 @@ public Action CmdHeatbeat(int client, int args)
 			// SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", GetGameTime());
 
 			ResetCount(client);
-			ReviveLogic(client, GetClientUserId(client));
+			ReviveLogic(client);
 		}
 		else
 		{
@@ -297,14 +333,14 @@ public Action CmdHeatbeat(int client, int args)
 			// SetEntityHealth(client, 1);
 
 			g_iReviveCount[client] = g_iCvarScreen;
-			ReviveLogic(client, GetClientUserId(client));
+			ReviveLogic(client);
 		}
 	}
 
 	return Plugin_Handled;
 }
 
-public Action CommandListener(int client, const char[] command, int args)
+Action CommandListener(int client, const char[] command, int args)
 {
 	if( args > 0 )
 	{
@@ -316,22 +352,26 @@ public Action CommandListener(int client, const char[] command, int args)
 			ResetCount(client);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public int Native_GetRevives(Handle plugin, int numParams)
+int Native_GetRevives(Handle plugin, int numParams)
 {
 	return g_iReviveCount[GetNativeCell(1)];
 }
 
-public int Native_SetRevives(Handle plugin, int numParams)
+int Native_SetRevives(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
 	g_iReviveCount[client] = GetNativeCell(2);
 
 	if( numParams != 3 || GetNativeCell(3) )
 	{
-		ReviveLogic(client, GetClientUserId(client));
+		ReviveLogic(client);
 	}
+
+	return 0;
 }
 
 
@@ -344,18 +384,19 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
 void GetCvars()
 {
+	g_bCvarIncap = g_hCvarIncap.BoolValue;
 	g_iCvarRevives = g_hCvarRevives.IntValue;
 	g_iCvarScreen = g_hCvarScreen.IntValue;
 	g_iCvarSound = g_hCvarSound.IntValue;
@@ -376,20 +417,24 @@ void IsAllowed()
 	{
 		g_bCvarAllow = true;
 		HookEvent("bot_player_replace",		Event_BotReplace);
-		HookEvent("player_death",		Event_Spawned);
-		HookEvent("player_spawn",		Event_Spawned);
-		HookEvent("heal_success",		Event_Healed);
-		HookEvent("revive_success",		Event_Revive);
+		HookEvent("player_bot_replace",		Event_ReplaceBot);
+		HookEvent("player_death",			Event_Spawned);
+		HookEvent("player_spawn",			Event_Spawned);
+		HookEvent("player_incapacitated",	Event_Incapped);
+		HookEvent("heal_success",			Event_Healed);
+		HookEvent("revive_success",			Event_Revive);
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
 	{
 		g_bCvarAllow = false;
 		UnhookEvent("bot_player_replace",	Event_BotReplace);
-		UnhookEvent("player_death",		Event_Spawned);
-		UnhookEvent("player_spawn",		Event_Spawned);
-		UnhookEvent("heal_success",		Event_Healed);
-		UnhookEvent("revive_success",	Event_Revive);
+		UnhookEvent("player_bot_replace",	Event_ReplaceBot);
+		UnhookEvent("player_death",			Event_Spawned);
+		UnhookEvent("player_spawn",			Event_Spawned);
+		UnhookEvent("player_incapacitated",	Event_Incapped);
+		UnhookEvent("heal_success",			Event_Healed);
+		UnhookEvent("revive_success",		Event_Revive);
 	}
 }
 
@@ -448,7 +493,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -479,13 +524,12 @@ public void OnMapEnd()
 void ResetCount(int client)
 {
 	g_iReviveCount[client] = 0;
+	ResetSoundObs(client);
 	ResetSound(client);
 
-	if( g_bHookedDamageMain[client] )	SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamageMain);
-	if( g_bHookedDamagePost[client] )	SDKUnhook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
+	if( g_bHookedDamage[client] )	SDKUnhook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
 
-	g_bHookedDamageMain[client] = false;
-	g_bHookedDamagePost[client] = false;
+	g_bHookedDamage[client] = false;
 }
 
 float GetTempHealth(int client)
@@ -495,26 +539,24 @@ float GetTempHealth(int client)
 	return fHealth < 0.0 ? 0.0 : fHealth;
 }
 
-public Action OnTakeDamagePost(int client, int &attacker, int &inflictor, float &damage, int &damagetype)
+// void OnTakeDamage(int client, int attacker, int inflictor, float damage, int damagetype)
+Action OnTakeDamage(int client, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
+	// Prevent yelling
 	if( g_iReviveCount[client] < g_iCvarVocal )
 	{
 		SetEntProp(client, Prop_Send, "m_isGoingToDie", 0);
-	} else {
-		SDKUnhook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
-		g_bHookedDamagePost[client] = false;
 	}
-}
 
-public Action OnTakeDamageMain(int client, int &attacker, int &inflictor, float &damage, int &damagetype)
-{
-	int health = GetClientHealth(client) + RoundToFloor(GetTempHealth(client));
-
-	if( damage >= health )
+	// Allow to die
+	if( g_iReviveCount[client] >= g_iCvarRevives )
 	{
-		if( g_iReviveCount[client] >= g_iCvarRevives )
+		int health = GetClientHealth(client) + RoundToFloor(GetTempHealth(client));
+
+		if( health <= 0.0 || (!g_bLeft4Dead2 && health - damage < 0.0) )
 		{
 			// PrintToServer("Heartbeat: Allow die %N (%d/%d)", client, g_iReviveCount[client], g_iCvarRevives);
+			ResetSoundObs(client);
 			ResetSound(client);
 
 			// Allow to die
@@ -524,16 +566,15 @@ public Action OnTakeDamageMain(int client, int &attacker, int &inflictor, float 
 				SetEntProp(client, Prop_Send, "m_currentReviveCount", g_iCvarRevives);
 
 			// Unhook
-			SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamageMain);
-			g_bHookedDamageMain[client] = false;
-
-			if( g_bHookedDamagePost[client] )
+			if( g_bHookedDamage[client] )
 			{
-				SDKUnhook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
-				g_bHookedDamagePost[client] = false;
+				SDKUnhook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
+				g_bHookedDamage[client] = false;
 			}
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 
@@ -541,18 +582,30 @@ public Action OnTakeDamageMain(int client, int &attacker, int &inflictor, float 
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_BotReplace(Event event, const char[] name, bool dontBroadcast)
+void Event_BotReplace(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(event.GetInt("userid"));
+	int client = GetClientOfUserId(event.GetInt("player"));
+	int bot = GetClientOfUserId(event.GetInt("bot"));
 	if( client )
 	{
 		ResetSound(client);
 		ResetSound(client);
 		ResetSound(client);
+		ResetSoundObs(client);
 	}
+
+	g_iReviveCount[client] = g_iReviveCount[bot];
 }
 
-public void Event_Spawned(Event event, const char[] name, bool dontBroadcast)
+void Event_ReplaceBot(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("player"));
+	int bot = GetClientOfUserId(event.GetInt("bot"));
+
+	g_iReviveCount[bot] = g_iReviveCount[client];
+}
+
+void Event_Spawned(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -561,16 +614,29 @@ public void Event_Spawned(Event event, const char[] name, bool dontBroadcast)
 		ResetSound(client);
 		ResetSound(client);
 		ResetSound(client);
+		ResetSoundObs(client);
 	}
 }
 
-public void Event_Healed(Event event, const char[] name, bool dontBroadcast)
+void Event_Incapped(Event event, const char[] name, bool dontBroadcast)
+{
+	if( g_bCvarIncap )
+	{
+		int client = GetClientOfUserId(event.GetInt("userid"));
+
+		g_iReviveCount[client]++;
+		ReviveLogic(client);
+		g_iReviveCount[client]--;
+	}
+}
+
+void Event_Healed(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
 	ResetCount(client);
 }
 
-public void Event_Revive(Event event, const char[] name, bool dontBroadcast)
+void Event_Revive(Event event, const char[] name, bool dontBroadcast)
 {
 	int userid;
 	if( (userid = event.GetInt("subject")) && event.GetInt("ledge_hang") == 0 )
@@ -578,23 +644,30 @@ public void Event_Revive(Event event, const char[] name, bool dontBroadcast)
 		int client = GetClientOfUserId(userid);
 		if( client )
 		{
-			g_iReviveCount[client]++;
-			// ReviveLogic(client, userid, true);
-			ReviveLogic(client, userid);
+			RequestFrame(OnFrameRevive, userid);
 		}
 	}
 }
 
-// void ReviveLogic(int client, int userid, bool fromEvent = false)
-void ReviveLogic(int client, int userid)
+void OnFrameRevive(int client)
+{
+	client = GetClientOfUserId(client);
+	if( client && IsClientInGame(client) )
+	{
+		g_iReviveCount[client]++;
+		ReviveLogic(client);
+	}
+}
+
+void ReviveLogic(int client)
 {
 	// PrintToServer("Revives: %N (%d)", client, g_iReviveCount[client]);
 
 	// Monitor for death
-	if( g_iReviveCount[client] == g_iCvarRevives && !g_bHookedDamageMain[client] )
+	if( g_iReviveCount[client] >= g_iCvarRevives && !g_bHookedDamage[client] )
 	{
-		g_bHookedDamageMain[client] = true;
-		SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamageMain);
+		g_bHookedDamage[client] = true;
+		SDKHook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
 	}
 
 	// Set black and white or not
@@ -614,31 +687,43 @@ void ReviveLogic(int client, int userid)
 	// Vocalize death
 	if( g_iReviveCount[client] < g_iCvarVocal )
 	{
-		if( !g_bHookedDamagePost[client] )
+		if( !g_bHookedDamage[client] )
 		{
-			g_bHookedDamagePost[client] = true;
-			SDKHook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
+			g_bHookedDamage[client] = true;
+			SDKHook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
 		}
 
 		SetEntProp(client, Prop_Send, "m_isGoingToDie", 0);
 	}
 
 	// Heartbeat sound, stop dupe sound bug, only way.
+	RequestFrame(OnFrameSound, GetClientUserId(client));
 	ResetSound(client);
 	ResetSound(client);
 	ResetSound(client);
 	ResetSound(client);
+	ResetSoundObs(client);
 
 	if( g_iReviveCount[client] >= g_iCvarSound )
 	{
 		// if( g_bLeft4Dead2 && fromEvent && g_iReviveCount[client] == g_iCvarRevives ) return; // Game emits itself, would duplicate sound even with stop... Seems to work fine now with multiple resets..?
-		RequestFrame(OnFrameSound, userid);
+		CreateTimer(0.1, TimerSound, GetClientUserId(client));
 	}
 }
 
-void ResetSound(int client)
+void ResetSoundObs(int client)
 {
-	StopSound(client, SNDCHAN_STATIC, SOUND_HEART);
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientInGame(i) && !IsPlayerAlive(i) && GetEntPropEnt(i, Prop_Send, "m_hObserverTarget") == client )
+		{
+			RequestFrame(OnFrameSound, GetClientUserId(i));
+			ResetSound(i);
+			ResetSound(i);
+			ResetSound(i);
+			ResetSound(i);
+		}
+	}
 }
 
 void OnFrameSound(int client)
@@ -646,6 +731,23 @@ void OnFrameSound(int client)
 	client = GetClientOfUserId(client);
 	if( client )
 	{
+		ResetSound(client);
+	}
+}
+
+void ResetSound(int client)
+{
+	StopSound(client, SNDCHAN_AUTO, SOUND_HEART);
+	StopSound(client, SNDCHAN_STATIC, SOUND_HEART);
+}
+
+Action TimerSound(Handle timer, int client)
+{
+	client = GetClientOfUserId(client);
+	if( client )
+	{
 		EmitSoundToClient(client, SOUND_HEART, SOUND_FROM_PLAYER, SNDCHAN_STATIC);
 	}
+
+	return Plugin_Continue;
 }

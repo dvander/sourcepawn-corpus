@@ -1,6 +1,6 @@
 /*
 *	Survivor Bot Holdout
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,19 +18,29 @@
 
 
 
-#define PLUGIN_VERSION 		"1.7"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
 
 *	Name	:	[L4D2] Survivor Bot Holdout
 *	Author	:	SilverShot
-*	Descrp	:	Create up to 4 bots (Bill, Francis, Louis and Zoey) to holdout their surrounding area, c6m3_port style.
+*	Descrp	:	Create up to 8 bots (Bill, Francis, Louis, Zoey, Nick, Rochelle, Coach, Ellis) to holdout their surrounding area, c6m3_port style.
 *	Link	:	https://forums.alliedmods.net/showthread.php?t=188966
 *	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
 
 ========================================================================================
 	Change Log:
+
+1.9 (29-Apr-2022)
+	- Changed commands "sm_holdout" and "sm_holdout_temp" to accept the parameter "0" to spawn bots with random weapons.
+	- Thanks to "kot4404" for the idea and some code.
+
+1.8 (21-Sep-2021)
+	- Now spawns L4D2 Survivors as holdout Survivors!
+	- L4D2 Survivors may use some new voice lines when throwing items.
+	- Changed from using hard coded offsets for weapon ammo. Thanks to "Root" for the method.
+	- Replaced input "Kill" with "RemoveEntity". Now requires SourceMod 1.10 or newer.
 
 1.7 (10-Oct-2020)
 	- Added plugin enabled check when using commands to prevent usage if turned off.
@@ -91,19 +101,112 @@
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define	CONFIG_SPAWNS		"data/l4d2_holdout.cfg"
 #define CHAT_TAG			"\x05[SurvivorHoldout] \x01"
-#define	MAX_SURVIVORS		4
+#define	MAX_SURVIVORS		8
 
 #define MODEL_MINIGUN		"models/w_models/weapons/w_minigun.mdl"
 #define MODEL_FRANCIS		"models/survivors/survivor_biker.mdl"
 #define MODEL_LOUIS			"models/survivors/survivor_manager.mdl"
 #define MODEL_ZOEY			"models/survivors/survivor_teenangst.mdl"
 #define MODEL_BILL			"models/survivors/survivor_namvet.mdl"
+#define MODEL_NICK 			"models/survivors/survivor_gambler.mdl"
+#define MODEL_ROCHELLE		"models/survivors/survivor_producer.mdl"
+#define MODEL_COACH			"models/survivors/survivor_coach.mdl"
+#define MODEL_ELLIS			"models/survivors/survivor_mechanic.mdl"
 
 
 ConVar g_hCvarAllow, g_hCvarFreeze, g_hCvarLasers, g_hCvarMPGameMode, g_hCvarMiniGun, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarPile, g_hCvarThrow, g_hCvarTimeMax, g_hCvarTimeMin;
-int g_iAmmoPile[MAX_SURVIVORS], g_iCvarFreeze, g_iCvarLasers, g_iCvarMiniGun, g_iCvarPile, g_iCvarThrow, g_iCvarTimeMax, g_iCvarTimeMin, g_iDeathModel[MAXPLAYERS+1], g_iLogicTimer, g_iMiniGun, g_iOffsetAmmo, g_iPlayerSpawn, g_iRoundStart, g_iSurvivors[MAX_SURVIVORS], g_iType, g_iWeapons[MAX_SURVIVORS];
+int g_iAmmoPile[MAX_SURVIVORS], g_iCvarFreeze, g_iCvarLasers, g_iCvarMiniGun, g_iCvarPile, g_iCvarThrow, g_iCvarTimeMax, g_iCvarTimeMin, g_iDeathModel[MAXPLAYERS+1], g_iLogicTimer, g_iMiniGun, g_iOffsetAmmo, g_iPrimaryAmmoType, g_iPlayerSpawn, g_iRoundStart, g_iSurvivors[MAX_SURVIVORS], g_iType, g_iWeapons[MAX_SURVIVORS];
 bool g_bCvarAllow, g_bMapStarted, g_bLoaded;
 bool g_bBlocked;
+
+char g_sWeaponNames[15][23] = {"autoshotgun", "shotgun_chrome", "pumpshotgun", "shotgun_spas", "smg", "smg_mp5", "smg_silenced", "rifle_ak47", "rifle_sg552", "rifle", "rifle_desert", "hunting_rifle", "sniper_military", "sniper_awp", "sniper_scout"};
+
+char g_sLines_Nick[17][] =
+{
+	"AlertGiveItem01",			// It is more blessed to give than to receive.
+	"AlertGiveItem02",			// Have this.
+	"AlertGiveItem03",			// Just take this.
+	"AlertGiveItem04",			// This is for you.
+	"AlertGiveItem05",			// Here, I don't need this.
+	"AlertGiveItem06",			// Take it, just take it.
+	"AlertGiveItemC101",		// Hey you, take this.
+	"AlertGiveItemC102",		// What's your name, here you go.
+	"AlertGiveItemCombat01",	// Take this.
+	"AlertGiveItemCombat02",	// Grab this.
+	"AlertGiveItemCombat03",	// Take it.
+	"AlertGiveItemStop01",		// Stop, I have something for you.
+	"AlertGiveItemStop02",		// Hang on, you need this more than me.
+	"AlertGiveItemStop03",		// Hold up, you can have this.
+	"AlertGiveItemStop04",		// Hold up, you can have this.
+	"AlertGiveItemStop05",		// Hang on, you need this more than me.
+	"AlertGiveItemStop06"		// Stop, I have something for you.
+};
+
+char g_sLines_Rochelle[16][] =
+{
+	"AlertGiveItem01",			// You can have this.
+	"AlertGiveItem02",			// Got this just for you.
+	"AlertGiveItem03",			// Here, you can have this.
+	"AlertGiveItem04",			// A little something for you.
+	"AlertGiveItem05",			// I picked this up just for you.
+	"AlertGiveItemC101",		// You're gonna need this.
+	"AlertGiveItemCombat01",	// Here!
+	"AlertGiveItemCombat02",	// Take this!
+	"AlertGiveItemCombat03",	// Have this!
+	"AlertGiveItemCombat04",	// Here, use this.
+	"AlertGiveItemCombat05",	// You need this, take this!
+	"AlertGiveItemCombat06",	// Here, I'm giving this to you.
+	"AlertGiveItemStop01",		// Wait, I have something for you.
+	"AlertGiveItemStop02",		// STOP, take this.
+	"AlertGiveItemStop03",		// Can you stop for a sec? I got something for you.
+	"AlertGiveItemStopC101"		// Hey! Hey, uh, you!  I got something for you.
+};
+
+char g_sLines_Coach[18][] =
+{
+	"AlertGiveItem01",			// Take it. Hell, I don't need it.
+	"AlertGiveItem02",			// You make sure you use this now.
+	"AlertGiveItem03",			// Ain't no shame in gettin' some help.
+	"AlertGiveItem04",			// Take this.
+	"AlertGiveItem05",			// Here ya go.
+	"AlertGiveItemC101",		// You can have this.
+	"AlertGiveItemC102",		// Excuse me, here ya go.
+	"AlertGiveItemC103",		// Hey, you can have this.
+	"AlertGiveItemCombat01",	// Take it.
+	"AlertGiveItemCombat02",	// Here.
+	"AlertGiveItemCombat03",	// Have it.
+	"AlertGiveItemCombat04",	// Take it.
+	"AlertGiveItemCombat05",	// Here.
+	"AlertGiveItemStop01",		// Hold on, I got something for you.
+	"AlertGiveItemStop02",		// Hold up now, I got something for you.
+	"AlertGiveItemStop03",		// Hold up, I got something for you.
+	"AlertGiveItemStopC101",	// Yo! I got somethin' for ya.
+	"AlertGiveItemStopC102"		// Hey! Hey! Hold up.
+};
+
+char g_sLines_Ellis[20][] =
+{
+	"AlertGiveItem01",			// I got this for ya, man.
+	"AlertGiveItem02",			// I want you to have this.
+	"AlertGiveItem03",			// Here ya go, I got this for ya.
+	"AlertGiveItem04",			// Here ya go, man.
+	"AlertGiveItem05",			// Here ya go, man, I want ya to have this.
+	"AlertGiveItem06",			// You can have this.
+	"AlertGiveItem07",			// Hey, I want you to have this.
+	"AlertGiveItem08",			// Hold on now, hold on now, here ya go.
+	"AlertGiveItemCombat01",	// Take this!
+	"AlertGiveItemCombat02",	// Just take this!
+	"AlertGiveItemCombat03",	// Here!, here!
+	"AlertGiveItemCombat04",	// Grab this here!
+	"AlertGiveItemStop01",		// Wait up, now! I got somethin' for ya.
+	"AlertGiveItemStop02",		// Hey! Hey! Got something for ya.
+	"AlertGiveItemStop03",		// Hey, stop movin', now! I got somethin' for you right here.
+	"AlertGiveItemStop04",		// Wait up! I got somethin' for ya.
+	"AlertGiveItemStop05",		// Hey! Hey! Got something for ya.
+	"AlertGiveItemStop06",		// Hey, stop movin' I got somethin' for ya
+	"AlertGiveItemStopC101",	// Dude, dude, hold up.
+	"AlertGiveItemStopC102"		// Hey umm...  you! Hold up!
+};
 
 
 
@@ -114,7 +217,7 @@ public Plugin myinfo =
 {
 	name = "[L4D2] Survivor Bot Holdout",
 	author = "SilverShot",
-	description = "Create up to 4 bots (Bill, Francis, Louis and Zoey) to holdout their surrounding area, c6m3_port style.",
+	description = "Create up to 8 bots (Bill, Francis, Louis, Zoey, Nick, Rochelle, Coach, Ellis) to holdout their surrounding area, c6m3_port style.",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=188966"
 }
@@ -132,8 +235,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-	RegAdminCmd("sm_holdout",		CmdHoldoutSave,		ADMFLAG_ROOT,	"Saves to the config for auto spawning or Deletes if already saved. Usage: sm_holdout <1=Francis, 2=Louis, 3=Zoey, 4=Bill> [weapon name, eg: rifle_ak47].");
-	RegAdminCmd("sm_holdout_temp",	CmdHoldoutTemp,		ADMFLAG_ROOT,	"Spawn a temporary survivor (not saved). Usage: sm_holdout_temp <1=Francis, 2=Louis, 3=Zoey, 4=Bill> [weapon name, eg: rifle_ak47].");
+	RegAdminCmd("sm_holdout",		CmdHoldoutSave,		ADMFLAG_ROOT,	"Saves to the config for auto spawning or Deletes if already saved. Usage: sm_holdout <1=Francis, 2=Louis, 3=Zoey, 4=Bill, 5=Nick, 6=Rochelle, 7=Coach, 8=Ellis> [weapon name, eg: rifle_ak47 or 0 for random weapon].");
+	RegAdminCmd("sm_holdout_temp",	CmdHoldoutTemp,		ADMFLAG_ROOT,	"Spawn a temporary survivor (not saved). Usage: sm_holdout_temp <1=Francis, 2=Louis, 3=Zoey, 4=Bill, 5=Nick, 6=Rochelle, 7=Coach, 8=Ellis> [weapon name, eg: rifle_ak47 or 0 for random weapon].");
 	RegAdminCmd("sm_holdout_give",	CmdHoldoutGive,		ADMFLAG_ROOT,	"Makes one of the survivors give an item.");
 
 	g_hCvarAllow = CreateConVar(	"l4d2_holdout_allow",			"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
@@ -166,6 +269,7 @@ public void OnPluginStart()
 	g_hCvarTimeMin.AddChangeHook(ConVarChanged_Cvars);
 
 	g_iOffsetAmmo = FindSendPropInfo("CTerrorPlayer", "m_iAmmo");
+	g_iPrimaryAmmoType = FindSendPropInfo("CBaseCombatWeapon", "m_iPrimaryAmmoType");
 }
 
 public void OnPluginEnd()
@@ -177,12 +281,40 @@ public void OnMapStart()
 {
 	g_bMapStarted = true;
 
+	// Models
 	PrecacheModel(MODEL_MINIGUN);
 	PrecacheModel(MODEL_FRANCIS);
 	PrecacheModel(MODEL_LOUIS);
 	PrecacheModel(MODEL_ZOEY);
 	PrecacheModel(MODEL_BILL);
+	PrecacheModel(MODEL_NICK);
+	PrecacheModel(MODEL_ROCHELLE);
+	PrecacheModel(MODEL_COACH);
+	PrecacheModel(MODEL_ELLIS);
 
+	// Sounds
+	char sTemp[64];
+	for( int i = 0; i < sizeof(g_sLines_Nick); i++ )
+	{
+		Format(sTemp, sizeof(sTemp), "player/survivor/voice/gambler/%s.wav", g_sLines_Nick[GetRandomInt(0, sizeof(g_sLines_Nick) - 1)]);
+	}
+
+	for( int i = 0; i < sizeof(g_sLines_Rochelle); i++ )
+	{
+		Format(sTemp, sizeof(sTemp), "player/survivor/voice/producer/%s.wav", g_sLines_Rochelle[GetRandomInt(0, sizeof(g_sLines_Rochelle) - 1)]);
+	}
+
+	for( int i = 0; i < sizeof(g_sLines_Coach); i++ )
+	{
+		Format(sTemp, sizeof(sTemp), "player/survivor/voice/coach/%s.wav", g_sLines_Coach[GetRandomInt(0, sizeof(g_sLines_Coach) - 1)]);
+	}
+
+	for( int i = 0; i < sizeof(g_sLines_Ellis); i++ )
+	{
+		Format(sTemp, sizeof(sTemp), "player/survivor/voice/mechanic/%s.wav", g_sLines_Ellis[GetRandomInt(0, sizeof(g_sLines_Ellis) - 1)]);
+	}
+
+	// Blocked maps
 	char sMap[16];
 	GetCurrentMap(sMap, sizeof(sMap));
 	if( strcmp(sMap, "c6m1_riverbank") == 0 || strcmp(sMap, "c6m3_port") == 0 )
@@ -204,10 +336,10 @@ void ResetPlugin()
 	g_iPlayerSpawn = 0;
 
 	if( IsValidEntRef(g_iLogicTimer) )
-		AcceptEntityInput(g_iLogicTimer, "Kill");
+		RemoveEntity(g_iLogicTimer);
 
 	if( IsValidEntRef(g_iMiniGun) )
-		AcceptEntityInput(g_iMiniGun, "Kill");
+		RemoveEntity(g_iMiniGun);
 
 	int client, entity;
 	for( int i = 0; i < MAX_SURVIVORS; i++ )
@@ -215,12 +347,12 @@ void ResetPlugin()
 		entity = g_iWeapons[i];
 		g_iWeapons[i] = 0;
 		if( IsValidEntRef(entity) )
-			AcceptEntityInput(entity, "Kill");
+			RemoveEntity(entity);
 
 		entity = g_iAmmoPile[i];
 		g_iAmmoPile[i] = 0;
 		if( IsValidEntRef(entity) )
-			AcceptEntityInput(entity, "Kill");
+			RemoveEntity(entity);
 
 		client = g_iSurvivors[i];
 		g_iSurvivors[i] = 0;
@@ -243,18 +375,18 @@ void RemoveWeapons(int client, int type)
 {
 	if( type == 2 && IsValidEntRef(g_iMiniGun))
 	{
-		AcceptEntityInput(g_iMiniGun, "Kill");
+		RemoveEntity(g_iMiniGun);
 		g_iMiniGun = 0;
 	}
 
 	type--;
 
 	if( IsValidEntRef(g_iWeapons[type]) )
-		AcceptEntityInput(g_iWeapons[type], "Kill");
+		RemoveEntity(g_iWeapons[type]);
 	g_iWeapons[type] = 0;
 
 	if( IsValidEntRef(g_iAmmoPile[type]) )
-		AcceptEntityInput(g_iAmmoPile[type], "Kill");
+		RemoveEntity(g_iAmmoPile[type]);
 	g_iAmmoPile[type] = 0;
 
 	int entity;
@@ -264,7 +396,7 @@ void RemoveWeapons(int client, int type)
 		if( entity != -1 )
 		{
 			RemovePlayerItem(client, entity);
-			AcceptEntityInput(entity, "Kill");
+			RemoveEntity(entity);
 		}
 	}
 }
@@ -313,6 +445,7 @@ void IsAllowed()
 		HookEvent("round_start",	Event_RoundStart,	EventHookMode_PostNoCopy);
 		HookEvent("player_spawn",	Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 		HookEvent("player_death",	Event_PlayerDeath,	EventHookMode_Pre);
+		HookEvent("weapon_drop",	Event_WeaponDrop,	EventHookMode_Pre);
 
 		char sMap[16];
 		GetCurrentMap(sMap, sizeof(sMap));
@@ -329,6 +462,7 @@ void IsAllowed()
 		UnhookEvent("round_start",	Event_RoundStart,	EventHookMode_PostNoCopy);
 		UnhookEvent("player_spawn",	Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 		UnhookEvent("player_death",	Event_PlayerDeath,	EventHookMode_Pre);
+		UnhookEvent("weapon_drop",	Event_WeaponDrop,	EventHookMode_Pre);
 		ResetPlugin();
 	}
 }
@@ -406,8 +540,79 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 
 
 // ====================================================================================================
-//					EVENTS - LOAD
+//					EVENTS - GIVE ITEM
 // ====================================================================================================
+public void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
+{
+	int userid = event.GetInt("userid");
+	int client = GetClientOfUserId(userid);
+	if( client )
+	{
+		for( int i = 0; i < MAX_SURVIVORS; i++ )
+		{
+			if( g_iSurvivors[i] == userid )
+			{
+				static char sTemp[64];
+
+				int character = GetEntProp(client, Prop_Send, "m_survivorCharacter");
+				switch( character )
+				{
+					case 0:		// Nick
+					{
+						// Sound
+						int random = GetRandomInt(0, sizeof(g_sLines_Nick) - 1);
+
+						Format(sTemp, sizeof(sTemp), "player/survivor/voice/gambler/%s.wav", g_sLines_Nick[random]);
+						PlaySound(client, sTemp);
+
+						// Captions - (no sound plays from L4D2 Holdout Survivors) - They also don't move their mouth
+						Format(sTemp, sizeof(sTemp), "scenes/gambler/%s.vcd", g_sLines_Nick[random]);
+						VocalizeScene(client, sTemp);
+					}
+					case 1:		// Rochelle
+					{
+						int random = GetRandomInt(0, sizeof(g_sLines_Rochelle) - 1);
+
+						Format(sTemp, sizeof(sTemp), "player/survivor/voice/producer/%s.wav", g_sLines_Rochelle[random]);
+						PlaySound(client, sTemp);
+
+						Format(sTemp, sizeof(sTemp), "scenes/producer/%s.vcd", g_sLines_Rochelle[random]);
+						VocalizeScene(client, sTemp);
+					}
+					case 2:		// Coach
+					{
+						int random = GetRandomInt(0, sizeof(g_sLines_Coach) - 1);
+
+						Format(sTemp, sizeof(sTemp), "player/survivor/voice/coach/%s.wav", g_sLines_Coach[random]);
+						PlaySound(client, sTemp);
+
+						Format(sTemp, sizeof(sTemp), "scenes/coach/%s.vcd", g_sLines_Coach[random]);
+						VocalizeScene(client, sTemp);
+					}
+					case 3:		// Ellis
+					{
+						int random = GetRandomInt(0, sizeof(g_sLines_Ellis) - 1);
+
+						Format(sTemp, sizeof(sTemp), "player/survivor/voice/mechanic/%s.wav", g_sLines_Ellis[random]);
+						PlaySound(client, sTemp);
+
+						Format(sTemp, sizeof(sTemp), "scenes/mechanic/%s.vcd", g_sLines_Ellis[random]);
+						VocalizeScene(client, sTemp);
+					}
+				}
+
+				break;
+			}
+		}
+	}
+}
+
+
+
+// ====================================================================================================
+//					EVENTS - DEATH
+// ====================================================================================================
+// I guess this was written to prevent death models from Holdout bots when slayed.
 public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_bBlocked == true )
@@ -444,7 +649,7 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 
 				if( IsValidEntRef(g_iDeathModel[client]) )
 				{
-					AcceptEntityInput(g_iDeathModel[client], "Kill");
+					RemoveEntity(g_iDeathModel[client]);
 					g_iDeathModel[client] = 0;
 				}
 				KickClient(client, "SurvivorHoldout::KickClientD");
@@ -453,6 +658,11 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
+
+
+// ====================================================================================================
+//					EVENTS - LOAD
+// ====================================================================================================
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
@@ -476,6 +686,8 @@ public Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadSurvivors();
+
+	return Plugin_Continue;
 }
 
 void LoadSurvivors()
@@ -509,44 +721,22 @@ void LoadSurvivors()
 	float vAng[3];
 	int spawned;
 
-	if( hFile.JumpToKey("1") )
+	for( int i = 1; i <= 8; i++ )
 	{
-		vAng[1] = hFile.GetFloat("ang");
-		hFile.GetVector("pos", vPos);
-		hFile.GetString("wep", sTemp, sizeof(sTemp));
-		SpawnSurvivor(1, vPos, vAng, sTemp);
-		hFile.GoBack();
-		spawned++;
+		IntToString(i, sTemp, sizeof(sTemp));
+
+		if( hFile.JumpToKey(sTemp) )
+		{
+			vAng[1] = hFile.GetFloat("ang");
+			hFile.GetVector("pos", vPos);
+			hFile.GetString("wep", sTemp, sizeof(sTemp));
+			SpawnSurvivor(i, vPos, vAng, sTemp);
+			hFile.GoBack();
+			spawned++;
+		}
 	}
 
-	if( hFile.JumpToKey("2") )
-	{
-		vAng[1] = hFile.GetFloat("ang");
-		hFile.GetVector("pos", vPos);
-		hFile.GetString("wep", sTemp, sizeof(sTemp));
-		SpawnSurvivor(2, vPos, vAng, sTemp);
-		hFile.GoBack();
-		spawned++;
-	}
 
-	if( hFile.JumpToKey("3") )
-	{
-		vAng[1] = hFile.GetFloat("ang");
-		hFile.GetVector("pos", vPos);
-		hFile.GetString("wep", sTemp, sizeof(sTemp));
-		SpawnSurvivor(3, vPos, vAng, sTemp);
-		hFile.GoBack();
-		spawned++;
-	}
-
-	if( hFile.JumpToKey("4") )
-	{
-		vAng[1] = hFile.GetFloat("ang");
-		hFile.GetVector("pos", vPos);
-		hFile.GetString("wep", sTemp, sizeof(sTemp));
-		SpawnSurvivor(4, vPos, vAng, sTemp);
-		spawned++;
-	}
 
 	if( spawned && g_iCvarThrow && g_iCvarTimeMin && g_iCvarTimeMax )
 	{
@@ -653,7 +843,7 @@ public Action CmdHoldoutSave(int client, int args)
 
 	if( args != 1 && args != 2 )
 	{
-		PrintToChat(client, "%sUsage: sm_holdout <1=Francis, 2=Louis, 3=Zoey, 4=Bill> [weapon name, eg: rifle_ak47]", CHAT_TAG);
+		PrintToChat(client, "%sUsage: sm_holdout <1=Francis, 2=Louis, 3=Zoey, 4=Bill, 5=Nick, 6=Rochelle, 7=Coach, 8=Ellis> [weapon name, eg: rifle_ak47]", CHAT_TAG);
 		return Plugin_Handled;
 	}
 
@@ -661,9 +851,9 @@ public Action CmdHoldoutSave(int client, int args)
 	GetCmdArg(1, sTemp, sizeof(sTemp));
 	int type = StringToInt(sTemp);
 
-	if( type < 1 || type > 4 )
+	if( type < 1 || type > 8 )
 	{
-		PrintToChat(client, "%sUsage: sm_holdout <1=Francis, 2=Louis, 3=Zoey, 4=Bill> [weapon name, eg: rifle_ak47]", CHAT_TAG);
+		PrintToChat(client, "%sUsage: sm_holdout <1=Francis, 2=Louis, 3=Zoey, 4=Bill, 5=Nick, 6=Rochelle, 7=Coach, 8=Ellis> [weapon name, eg: rifle_ak47]", CHAT_TAG);
 		return Plugin_Handled;
 	}
 
@@ -802,7 +992,7 @@ public Action CmdHoldoutTemp(int client, int args)
 
 	if( args != 1 && args != 2 )
 	{
-		PrintToChat(client, "%sUsage: sm_holdout_temp <1=Francis, 2=Louis, 3=Zoey, 4=Bill> [weapon name, eg: rifle_ak47]", CHAT_TAG);
+		PrintToChat(client, "%sUsage: sm_holdout_temp <1=Francis, 2=Louis, 3=Zoey, 4=Bill, 5=Nick, 6=Rochelle, 7=Coach, 8=Ellis> [weapon name, eg: rifle_ak47]", CHAT_TAG);
 		return Plugin_Handled;
 	}
 
@@ -810,9 +1000,9 @@ public Action CmdHoldoutTemp(int client, int args)
 	GetCmdArg(1, sTemp, sizeof(sTemp));
 	int type = StringToInt(sTemp);
 
-	if( type < 1 || type > 4 )
+	if( type < 1 || type > 8 )
 	{
-		PrintToChat(client, "%sUsage: sm_holdout_temp <1=Francis, 2=Louis, 3=Zoey, 4=Bill> [weapon name, eg: rifle_ak47]", CHAT_TAG);
+		PrintToChat(client, "%sUsage: sm_holdout_temp <1=Francis, 2=Louis, 3=Zoey, 4=Bill, 5=Nick, 6=Rochelle, 7=Coach, 8=Ellis> [weapon name, eg: rifle_ak47]", CHAT_TAG);
 		return Plugin_Handled;
 	}
 
@@ -925,11 +1115,35 @@ void SpawnSurvivor(int type, float vPos[3], float vAng[3], char sWeapon[64])
 			DispatchKeyValue(entity, "character", "4");
 			SetVariantString("OnUser4 silver_bill:SetGlowEnabled:0:1:-1");
 		}
+		case 5:		// Nick
+		{
+			character = 4;
+			DispatchKeyValue(entity, "character", "4");
+			SetVariantString("OnUser4 silver_nick:SetGlowEnabled:0:1:-1");
+		}
+		case 6:		// Rochelle
+		{
+			character = 5;
+			DispatchKeyValue(entity, "character", "5");
+			SetVariantString("OnUser4 silver_rochelle:SetGlowEnabled:0:1:-1");
+		}
+		case 7:		// Coach
+		{
+			character = 6;
+			DispatchKeyValue(entity, "character", "6");
+			SetVariantString("OnUser4 silver_coach:SetGlowEnabled:0:1:-1");
+		}
+		case 8:		// Ellis
+		{
+			character = 7;
+			DispatchKeyValue(entity, "character", "7");
+			SetVariantString("OnUser4 silver_ellis:SetGlowEnabled:0:1:-1");
+		}
 	}
 
 	AcceptEntityInput(entity, "AddOutput");
 	AcceptEntityInput(entity, "FireUser4");
-	AcceptEntityInput(entity, "Kill");
+	RemoveEntity(entity);
 
 	vPos[2] += 1.0;
 	TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
@@ -951,10 +1165,42 @@ void SpawnSurvivor(int type, float vPos[3], float vAng[3], char sWeapon[64])
 
 	switch( type )
 	{
+		case 5:		// Nick
+		{
+			SetEntProp(client, Prop_Send, "m_survivorCharacter", 0);
+			SetEntityModel(client, MODEL_NICK);
+			SetClientName(client, "Nick_Holdout");
+		}
+		case 6:		// Rochelle
+		{
+			SetEntProp(client, Prop_Send, "m_survivorCharacter", 1);
+			SetEntityModel(client, MODEL_ROCHELLE);
+			SetClientName(client, "Rochelle_Holdout");
+		}
+		case 7:		// Coach
+		{
+			SetEntProp(client, Prop_Send, "m_survivorCharacter", 2);
+			SetEntityModel(client, MODEL_COACH);
+			SetClientName(client, "Coach_Holdout");
+		}
+		case 8:		// Ellis
+		{
+			SetEntProp(client, Prop_Send, "m_survivorCharacter", 3);
+			SetEntityModel(client, MODEL_ELLIS);
+			SetClientName(client, "Ellis_Holdout");
+		}
+	}
+
+	switch( type )
+	{
 		case 1:		DispatchKeyValue(client, "targetname", "silver_francis");
 		case 2:		DispatchKeyValue(client, "targetname", "silver_louis");
 		case 3:		DispatchKeyValue(client, "targetname", "silver_zoey");
 		case 4:		DispatchKeyValue(client, "targetname", "silver_bill");
+		case 5:		DispatchKeyValue(client, "targetname", "silver_nick");
+		case 6:		DispatchKeyValue(client, "targetname", "silver_rochelle");
+		case 7:		DispatchKeyValue(client, "targetname", "silver_coach");
+		case 8:		DispatchKeyValue(client, "targetname", "silver_ellis");
 	}
 
 	TeleportEntity(client, vPos, NULL_VECTOR, NULL_VECTOR);
@@ -1002,6 +1248,13 @@ void SpawnSurvivor(int type, float vPos[3], float vAng[3], char sWeapon[64])
 	if( sWeapon[0] )
 	{
 		char sTemp[64];
+
+		if( sWeapon[0] == '0' ) // Random weapon
+		{
+			int index = GetRandomInt(0, sizeof(g_sWeaponNames) - 1);
+			sWeapon = g_sWeaponNames[index];
+		}
+
 		Format(sTemp, sizeof(sTemp), "weapon_%s", sWeapon);
 
 		entity = CreateEntityByName(sTemp);
@@ -1052,7 +1305,7 @@ void SpawnSurvivor(int type, float vPos[3], float vAng[3], char sWeapon[64])
 }
 
 // Stops teleporting players of the same survivor type when spawning a holdout bot
-g_iAvoidChar[MAXPLAYERS+1] = {-1,...};
+int g_iAvoidChar[MAXPLAYERS+1] = {-1, ...};
 void AvoidCharacter(int type, bool avoid)
 {
 	for( int i = 1; i <= MaxClients; i++ )
@@ -1092,37 +1345,7 @@ void AvoidCharacter(int type, bool avoid)
 
 int GetOrSetPlayerAmmo(int client, int iWeapon, int iAmmo = -1)
 {
-	// Offsets
-	static StringMap hOffsets;
-	if( hOffsets == null )
-	{
-		hOffsets = new StringMap();
-		// L4D1 + L4D2
-		hOffsets.SetValue("weapon_rifle", 12);
-		hOffsets.SetValue("weapon_smg", 20);
-		hOffsets.SetValue("weapon_pumpshotgun", 28);
-		hOffsets.SetValue("weapon_shotgun_chrome", 28);
-		hOffsets.SetValue("weapon_autoshotgun", 32);
-		hOffsets.SetValue("weapon_hunting_rifle", 36);
-		// L4D2
-		hOffsets.SetValue("weapon_rifle_sg552", 12);
-		hOffsets.SetValue("weapon_rifle_desert", 12);
-		hOffsets.SetValue("weapon_rifle_ak47", 12);
-		hOffsets.SetValue("weapon_smg_silenced", 20);
-		hOffsets.SetValue("weapon_smg_mp5", 20);
-		hOffsets.SetValue("weapon_shotgun_spas", 32);
-		hOffsets.SetValue("weapon_sniper_scout", 40);
-		hOffsets.SetValue("weapon_sniper_military", 40);
-		hOffsets.SetValue("weapon_sniper_awp", 40);
-		hOffsets.SetValue("weapon_grenade_launcher", 68);
-	}
-
-	// Offset/Classname test
-	char sWeapon[32];
-	GetEdictClassname(iWeapon, sWeapon, sizeof(sWeapon));
-
-	int offset;
-	hOffsets.GetValue(sWeapon, offset);
+	int offset = GetEntData(iWeapon, g_iPrimaryAmmoType) * 4; // Thanks to "Root" or whoever for this method of not hard-coding offsets: https://github.com/zadroot/AmmoManager/blob/master/scripting/ammo_manager.sp
 
 	// Get/Set
 	if( offset )
@@ -1148,6 +1371,8 @@ public Action TimerMove(Handle timer, any client)
 		SetEntityMoveType(client, MOVETYPE_NONE);
 		TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, view_as<float>({ 0.0, 0.0, 0.0 }));
 	}
+
+	return Plugin_Continue;
 }
 
 bool IsValidEntRef(int iEnt)
@@ -1155,4 +1380,28 @@ bool IsValidEntRef(int iEnt)
 	if( iEnt && EntRefToEntIndex(iEnt) != INVALID_ENT_REFERENCE )
 		return true;
 	return false;
+}
+
+
+
+// Taken from:
+// [Tech Demo] L4D2 Vocalize ANYTHING
+// https://forums.alliedmods.net/showthread.php?t=122270
+// author = "AtomicStryker"
+// ====================================================================================================
+//					VOCALIZE SCENE
+// ====================================================================================================
+void PlaySound(int client, const char[] sound)
+{
+	EmitSoundToAll(sound, client, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+}
+
+void VocalizeScene(int client, const char[] scenefile)
+{
+	int entity = CreateEntityByName("instanced_scripted_scene");
+	DispatchKeyValue(entity, "SceneFile", scenefile);
+	DispatchSpawn(entity);
+	SetEntPropEnt(entity, Prop_Data, "m_hOwner", client);
+	ActivateEntity(entity);
+	AcceptEntityInput(entity, "Start", client, client);
 }

@@ -1,6 +1,6 @@
 /*
 *	Mini Gun Flamethrowers
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.6"
+#define PLUGIN_VERSION		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,14 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (11-Jun-2022)
+	- Added a "heat" effect to the barrel when a Mini Gun Flamethrower is used.
+	- Added cvars "l4d_mini_gun_fire_heat" and "l4d_mini_gun_fire_heats" to control usage duration and cooldown.
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+
+1.7 (25-Aug-2021)
+	- Fixed client not in game errors. Thanks to "HarryPotter" for reporting.
 
 1.6 (01-Mar-2021)
 	- Fixed "l4d_mini_gun_fire_friendly" value of "0" breaking damage to non-survivors. Thanks to "Xada" for reporting.
@@ -97,19 +105,21 @@
 #define PARTICLE_FIRE3		"weapon_molotov_thrown"
 #define SOUND_FIRE_L4D1		"ambient/Spacial_Loops/CarFire_Loop.wav"
 #define SOUND_FIRE_L4D2		"ambient/fire/interior_fire02_stereo.wav"
+#define SOUND_OVERHEAT		"ambient/machines/steam_release_2.wav"
 
 
 Handle g_hTimer;
-ConVar g_hCvarAllow, g_hCvarChange, g_hCvarDamage, g_hCvarFreq, g_hCvarFiendly, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRandom, g_hCvarRange;
-int g_iButtons[MAXPLAYERS+1], g_iCvarChange, g_iCvarDamage, g_iCvarFiendly, g_iCvarRandom, g_iIndex[MAXPLAYERS+1], g_iPlayerSpawn, g_iRoundStart, g_iSpawned[MAX_ALLOWED][4];
+ConVar g_hCvarAllow, g_hCvarChange, g_hCvarDamage, g_hCvarFreq, g_hCvarFiendly, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarHeat, g_hCvarHeats, g_hCvarRandom, g_hCvarRange;
+int g_iButtons[MAXPLAYERS+1], g_iCvarChange, g_iCvarDamage, g_iCvarFiendly, g_iCvarRandom, g_iIndex[MAXPLAYERS+1], g_iPlayerSpawn, g_iRoundStart, g_iSpawned[MAX_ALLOWED][5];
 bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2, g_bLoaded;
-float g_fCvarFreq, g_fCvarRange;
+float g_fCvarFreq, g_fCvarHeat, g_fCvarHeats, g_fCvarRange, g_fTotalTime[MAX_ALLOWED];
 
 enum
 {
 	INDEX_ENTITY,
 	INDEX_EFFECTS,
 	INDEX_PARTICLE,
+	INDEX_MODEL,
 	INDEX_TYPE
 }
 
@@ -153,9 +163,11 @@ public void OnPluginStart()
 	g_hCvarModesOff =		CreateConVar(	"l4d_mini_gun_fire_modes_off",	"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =		CreateConVar(	"l4d_mini_gun_fire_modes_tog",	"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarChange =			CreateConVar(	"l4d_mini_gun_fire_change",		"25",			"0=Off, The chance out of 100 to make pre-existing miniguns on the map into Flamethrowers.", CVAR_FLAGS);
-	g_hCvarDamage =			CreateConVar(	"l4d_mini_gun_fire_damage",		"1",			"How much damage against non-survivors per touch when fired. Triggered according to frequency cvar.", CVAR_FLAGS);
+	g_hCvarDamage =			CreateConVar(	"l4d_mini_gun_fire_damage",		"1",			"How much damage against non-survivors per touch when fired. Triggered according to frequency cvar.", CVAR_FLAGS, true, 0.3);
 	g_hCvarFreq =			CreateConVar(	"l4d_mini_gun_fire_frequency",	"0.1",			"How often the damage trace fires, igniting entities etc. In seconds (lower = faster/more hits).", CVAR_FLAGS);
 	g_hCvarFiendly =		CreateConVar(	"l4d_mini_gun_fire_friendly",	"1",			"How much damage against survivors per touch when fired. Triggered according to frequency cvar.", CVAR_FLAGS);
+	g_hCvarHeat =			CreateConVar(	"l4d_mini_gun_fire_heat",		"6.0",			"0.0=Off. How many seconds of constant use before the Flamethrower overheats.", CVAR_FLAGS);
+	g_hCvarHeats =			CreateConVar(	"l4d_mini_gun_fire_heats",		"3.0",			"How many seconds after overheating before allowing the Flamethrower to work again.", CVAR_FLAGS);
 	g_hCvarRandom =			CreateConVar(	"l4d_mini_gun_fire_random",		"-1",			"-1=All, 0=Off, other value randomly spawns that many from the config.", CVAR_FLAGS);
 	g_hCvarRange =			CreateConVar(	"l4d_mini_gun_fire_range",		"250",			"How far the flamethrower can burn entities.", CVAR_FLAGS);
 	CreateConVar(							"l4d_mini_gun_fire_version",	PLUGIN_VERSION, "Mini Gun plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -167,10 +179,12 @@ public void OnPluginStart()
 	g_hCvarModes.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarChange.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDamage.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarFreq.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarFiendly.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarChange.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarHeat.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarHeats.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRandom.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRange.AddChangeHook(ConVarChanged_Cvars);
 
@@ -200,6 +214,7 @@ public void OnMapStart()
 	PrecacheParticle(PARTICLE_FIRE3);
 
 	PrecacheSound(g_bLeft4Dead2 ? SOUND_FIRE_L4D2 : SOUND_FIRE_L4D1, true);
+	PrecacheSound(SOUND_OVERHEAT, true);
 }
 
 public void OnMapEnd()
@@ -216,6 +231,7 @@ void ResetPlugin()
 
 	for( int i = 0; i < MAX_ALLOWED; i++ )
 	{
+		g_fTotalTime[i] = 0.0;
 		DeleteEntity(i);
 	}
 
@@ -237,7 +253,10 @@ void DeleteEntity(int index)
 	int entity = g_iSpawned[index][INDEX_ENTITY];
 	int type = g_iSpawned[index][INDEX_TYPE];
 	g_iSpawned[index][INDEX_ENTITY] = 0;
+	g_iSpawned[index][INDEX_MODEL] = 0;
 	g_iSpawned[index][INDEX_TYPE] = 0;
+	// g_fLastUse[index] = 0.0;
+	// g_fStartUse[index] = 0.0;
 
 	if( IsValidEntRef(entity) )
 	{
@@ -253,17 +272,17 @@ void DeleteEntity(int index)
 			}
 			SetEntPropEnt(entity, Prop_Send, "m_owner", -1);
 		}
-		if( type == TYPE_SPAWNED ) AcceptEntityInput(entity, "Kill");
+		if( type == TYPE_SPAWNED ) RemoveEntity(entity);
 		else SDKUnhook(EntRefToEntIndex(entity), SDKHook_UsePost, OnUse);
 	}
 
 	entity = g_iSpawned[index][INDEX_EFFECTS];
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 
 	entity = g_iSpawned[index][INDEX_PARTICLE];
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 
 	g_iSpawned[index][INDEX_EFFECTS] = 0;
 	g_iSpawned[index][INDEX_PARTICLE] = 0;
@@ -279,12 +298,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -295,6 +314,8 @@ void GetCvars()
 	g_fCvarFreq =		g_hCvarFreq.FloatValue;
 	g_iCvarFiendly =	g_hCvarFiendly.IntValue;
 	g_iCvarChange =		g_hCvarChange.IntValue;
+	g_fCvarHeat =		g_hCvarHeat.FloatValue;
+	g_fCvarHeats =		g_hCvarHeats.FloatValue;
 	g_iCvarRandom =		g_hCvarRandom.IntValue;
 	g_fCvarRange =		g_hCvarRange.FloatValue;
 }
@@ -378,7 +399,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -409,29 +430,29 @@ void UnhookEvents()
 	UnhookEvent("player_spawn",			Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
-	if( g_bLoaded == true ) return;
+	if( g_bLoaded == true ) return Plugin_Continue;
 	g_bLoaded = true;
 
 	if( g_iCvarChange )
@@ -468,6 +489,7 @@ public Action TimerStart(Handle timer)
 					entity = entities[i-1];
 					GetEntPropVector(entity, Prop_Data, "m_angRotation", vAng);
 					GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
+					g_fTotalTime[i] = 0.0;
 					g_iSpawned[i][INDEX_TYPE] = TYPE_PARTMAP;
 					SpawnEffects(i, entity, vAng, vPos);
 				}
@@ -476,6 +498,8 @@ public Action TimerStart(Handle timer)
 	}
 
 	LoadGuns();
+
+	return Plugin_Continue;
 }
 
 void LoadGuns()
@@ -567,7 +591,7 @@ void LoadGuns()
 // ====================================================================================================
 //					sm_mg
 // ====================================================================================================
-public Action CmdMachineGun(int client, int args)
+Action CmdMachineGun(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -597,7 +621,7 @@ public Action CmdMachineGun(int client, int args)
 // ====================================================================================================
 //					sm_mgsave
 // ====================================================================================================
-public Action CmdMachineGunSave(int client, int args)
+Action CmdMachineGunSave(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -683,7 +707,7 @@ public Action CmdMachineGunSave(int client, int args)
 // ====================================================================================================
 //					sm_mglist
 // ====================================================================================================
-public Action CmdMachineGunList(int client, int args)
+Action CmdMachineGunList(int client, int args)
 {
 	float vPos[3];
 	int i, ent, count;
@@ -732,7 +756,7 @@ public Action CmdMachineGunList(int client, int args)
 // ====================================================================================================
 //					sm_mgdel
 // ====================================================================================================
-public Action CmdMachineGunDelete(int client, int args)
+Action CmdMachineGunDelete(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -867,7 +891,7 @@ public Action CmdMachineGunDelete(int client, int args)
 // ====================================================================================================
 //					sm_mgclear
 // ====================================================================================================
-public Action CmdMachineGunClear(int client, int args)
+Action CmdMachineGunClear(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -883,7 +907,7 @@ public Action CmdMachineGunClear(int client, int args)
 // ====================================================================================================
 //					sm_mgwipe
 // ====================================================================================================
-public Action CmdMachineGunWipe(int client, int args)
+Action CmdMachineGunWipe(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -937,6 +961,11 @@ public Action CmdMachineGunWipe(int client, int args)
 	return Plugin_Handled;
 }
 
+
+
+// ====================================================================================================
+//					CREATE FLAMETHROWER
+// ====================================================================================================
 void SetupMG(int client, float vAng[3] = NULL_VECTOR, float vPos[3] = NULL_VECTOR, int type = 0)
 {
 	SetTeleportEndPoint(client, vPos, vAng);
@@ -963,24 +992,42 @@ void SpawnMG(float vAng[3], float vPos[3], int type)
 	if( type == 0 )
 	{
 		if( g_bLeft4Dead2 )
+		{
+			g_iSpawned[index][INDEX_MODEL] = 1;
 			minigun = CreateEntityByName("prop_minigun");
+		}
 		else
+		{
+			g_iSpawned[index][INDEX_MODEL] = 2;
 			minigun = CreateEntityByName("prop_mounted_machine_gun");
+		}
 		SetEntityModel(minigun, MODEL_50CAL);
 	}
 	else
 	{
 		if( g_bLeft4Dead2 == false )
+		{
+			g_iSpawned[index][INDEX_MODEL] = 3;
 			minigun = CreateEntityByName ("prop_minigun");
+		}
 		else
+		{
+			g_iSpawned[index][INDEX_MODEL] = 4;
 			minigun = CreateEntityByName ("prop_minigun_l4d1");
+		}
 		SetEntityModel(minigun, MODEL_MINIGUN);
 	}
 
+	g_fTotalTime[index] = 0.0;
 	g_iSpawned[index][INDEX_TYPE] = TYPE_SPAWNED;
 	SpawnEffects(index, minigun, vAng, vPos);
 }
 
+
+
+// ====================================================================================================
+//					CREATE IDLE EFFECTS
+// ====================================================================================================
 void SpawnEffects(int index, int minigun, float vAng[3], float vPos[3])
 {
 	g_iSpawned[index][INDEX_ENTITY] = EntIndexToEntRef(minigun);
@@ -1005,9 +1052,14 @@ void SpawnEffects(int index, int minigun, float vAng[3], float vPos[3])
 	g_iSpawned[index][INDEX_PARTICLE] = EntIndexToEntRef(particle);
 }
 
-public Action OnUse(int weapon, int client, int caller, UseType type, float value)
+
+
+// ====================================================================================================
+//					ON USE
+// ====================================================================================================
+Action OnUse(int weapon, int client, int caller, UseType type, float value)
 {
-	if( type != Use_Toggle ) return;
+	if( type != Use_Toggle ) return Plugin_Continue;
 
 	int index = -1;
 	int entref = EntIndexToEntRef(weapon);
@@ -1020,11 +1072,57 @@ public Action OnUse(int weapon, int client, int caller, UseType type, float valu
 		}
 	}
 
-	if( index == -1 ) return;
+	if( index == -1 ) return Plugin_Continue;
 
-	g_iIndex[client] = index +1;
+	// Remove pre-think if another client was using it and the heat is still ticking down, new client will handle it
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( g_iIndex[client] == index )
+		{
+			StopPreThink(client, index);
+		}
+	}
+
+	// Hook client using MG
+	g_iIndex[client] = index + 1;
 	g_iButtons[client] = 0;
 	SDKHook(client, SDKHook_PreThink, OnPreThink);
+
+	return Plugin_Continue;
+}
+
+
+
+// ====================================================================================================
+//					PRE THINK
+// ====================================================================================================
+public void OnClientDisconnect(int client)
+{
+	int index = g_iIndex[client];
+	if( index )
+	{
+		// swap to a new client to continue heat cooldown effects if possible
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( i != client && g_iIndex[i] == 0 && IsClientInGame(i) )
+			{
+				SDKHook(i, SDKHook_PreThink, OnPreThink);
+				g_iIndex[i] = index;
+				return;
+			}
+		}
+
+		index--;
+
+		// Remove overheat and heat effect.
+		g_fTotalTime[index] = 0.0;
+
+		int entity = g_iSpawned[index][INDEX_ENTITY];
+		if( EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
+		{
+			SetEntProp(entity, Prop_Send, "m_overheated", 0, 1);
+		}
+	}
 }
 
 void StopPreThink(int client, int index)
@@ -1034,8 +1132,9 @@ void StopPreThink(int client, int index)
 	g_iIndex[client] = 0;
 }
 
-public void OnPreThink(int client)
+void OnPreThink(int client)
 {
+	// Validate index
 	int entity;
 	int index = g_iIndex[client];
 
@@ -1047,29 +1146,131 @@ public void OnPreThink(int client)
 
 	index--;
 
+	// Validate entity
 	entity = g_iSpawned[index][INDEX_ENTITY];
-	if( entity == 0 || EntRefToEntIndex(entity) != GetEntPropEnt(client, Prop_Send, "m_hUseEntity") )
+
+	if( entity == 0 || (entity = EntRefToEntIndex(entity)) != GetEntPropEnt(client, Prop_Send, "m_hUseEntity") )
 	{
-		StopPreThink(client, index);
+		// Client is no longer using the MG, but we're still accounting for Heat effect ticking down
+		if( g_fCvarHeat )
+		{
+			g_fTotalTime[index] -= GetTickInterval();
+			if( g_fTotalTime[index] < 0.0 ) g_fTotalTime[index] = 0.0;
+		}
+
+		if( entity <= 0 || g_fTotalTime[index] <= 0.0 )
+		{
+			StopPreThink(client, index);
+		}
+
 		return;
 	}
 
+	bool overheated = GetEntProp(entity, Prop_Send, "m_overheated", 1) == 1;
+
+	// Shooting, create or delete effects
 	int buttons = GetClientButtons(client);
-	if( buttons & IN_ATTACK && !(g_iButtons[client] & IN_ATTACK) )
+	if( buttons & IN_ATTACK && !overheated )
 	{
+		if( g_fCvarHeat )
+		{
+			g_fTotalTime[index] += GetTickInterval();
+		}
+
+		// Wasn't shooting before, has no effects
 		if( g_iSpawned[index][INDEX_EFFECTS] == 0 )
 		{
 			CreateEffects(index);
 		}
 	}
-	else if( !(buttons & IN_ATTACK) && g_iButtons[client] & IN_ATTACK )
+	else
 	{
+		if( g_fCvarHeat )
+		{
+			g_fTotalTime[index] -= GetTickInterval();
+			if( g_fTotalTime[index] < 0.0 ) g_fTotalTime[index] = 0.0;
+		}
+
+		// Was just shooting, has effects
 		if( g_iSpawned[index][INDEX_EFFECTS] != 0 )
 		{
 			DeleteEffects(index);
 		}
 	}
 
+	// Heat effects
+	if( g_fCvarHeat )
+	{
+		int type = g_iSpawned[index][INDEX_MODEL];
+
+		float min, max;
+
+		switch( type )
+		{
+			case 1:
+			{
+				if( overheated )
+				{
+					min = 0.0;
+					max = 0.1;
+				}
+				else
+				{
+					min = 0.8;
+					max = 1.0;
+				}
+			}
+			case 2:
+			{
+				// 50cal has different heat values for glowing when overheated and not
+				if( overheated )
+				{
+					min = 0.0;
+					max = 0.1;
+				}
+				else
+				{
+					min = 0.85;
+					max = 1.0;
+				}
+			}
+			case 3, 4:
+			{
+				min = 0.0;
+				max = 1.0;
+			}
+		}
+
+		// Using max usage time or cooldown time
+		float time = overheated ? g_fCvarHeats : g_fCvarHeat;
+
+		// Scale total usage time to percentage
+		float diff = g_fTotalTime[index] / time;
+		if( diff > 1.0 ) diff = 1.0;
+
+		// Calculate current heat value
+		float fHeat = (max - min) * diff;
+		fHeat += min;
+
+		if( fHeat > 1.0 )		fHeat = 1.0;
+		else if( fHeat < 0.0 )	fHeat = 0.0;
+
+		if( fHeat <= min )
+		{
+			SetEntProp(entity, Prop_Send, "m_overheated", 0, 1);
+		}
+		else if( fHeat == 1.0 )
+		{
+			SetEntProp(entity, Prop_Send, "m_overheated", 1, 1);
+			g_fTotalTime[index] = g_fCvarHeats; // Set cooldown time for next think
+
+			DeleteEffects(index);
+		}
+
+		SetEntPropFloat(entity, Prop_Send, "m_heat", fHeat);
+	}
+
+	// Prevent actual MG from shooting bullets
 	g_iButtons[client] = buttons;
 
 	if( buttons & IN_ATTACK )
@@ -1079,6 +1280,11 @@ public void OnPreThink(int client)
 	}
 }
 
+
+
+// ====================================================================================================
+//					CREATE AND DELETE SHOOTING EFFECTS
+// ====================================================================================================
 void CreateEffects(int index)
 {
 	int minigun = g_iSpawned[index][INDEX_ENTITY];
@@ -1102,7 +1308,24 @@ void CreateEffects(int index)
 	}
 }
 
-public Action TimerTrace(Handle timer)
+void DeleteEffects(int index)
+{
+	int entity = g_iSpawned[index][INDEX_EFFECTS];
+	g_iSpawned[index][INDEX_EFFECTS] = 0;
+
+	if( IsValidEntRef(entity) )
+	{
+		StopSound(entity, SNDCHAN_AUTO, g_bLeft4Dead2 ? SOUND_FIRE_L4D2 : SOUND_FIRE_L4D1);
+		RemoveEntity(entity);
+	}
+}
+
+
+
+// ====================================================================================================
+//					TRACE HIT AND HURT
+// ====================================================================================================
+Action TimerTrace(Handle timer)
 {
 	if( g_bCvarAllow == false )
 	{
@@ -1110,27 +1333,30 @@ public Action TimerTrace(Handle timer)
 		return Plugin_Stop;
 	}
 
+	static float vMins[3] = { -15.0, -15.0, -15.0 };
+	static float vMaxs[3] = { 15.0, 15.0, 15.0 };
 	static bool bHullTrace;
+
 	int count, index, entity;
 	Handle trace;
-	float vPos[3], vAng[3], vEnd[3], vMins[3], vMaxs[3];
+	float vPos[3], vAng[3], vEnd[3];
 
 	bHullTrace = !bHullTrace;
-	if( bHullTrace )
-	{
-		vMins = view_as<float>(  { -15.0, -15.0, -15.0 });
-		vMaxs = view_as<float>(  { 15.0, 15.0, 15.0 });
-	}
 
 	for( int client = 1; client <= MaxClients; client++ )
 	{
 		index = g_iIndex[client];
-		if( index )
+		if( index && IsClientInGame(client) )
 		{
 			index--;
-			entity = g_iSpawned[index][INDEX_EFFECTS];
-			if( IsValidEntRef(entity) )
+			entity = g_iSpawned[index][INDEX_ENTITY];
+			if( IsValidEntRef(entity) == false ) continue;
+			entity = EntRefToEntIndex(entity);
+
+			// Trace
+			if( IsValidEntRef(g_iSpawned[index][INDEX_EFFECTS]) )
 			{
+				// Aim trace
 				count++;
 				GetClientEyePosition(client, vPos);
 				GetClientEyeAngles(client, vAng);
@@ -1160,7 +1386,7 @@ public Action TimerTrace(Handle timer)
 						}
 						else
 						{
-							char classname[16];
+							static char classname[16];
 							GetEdictClassname(target, classname, sizeof(classname));
 
 							if( strcmp(classname, "infected") == 0 || strcmp(classname, "witch") == 0 || strcmp(classname, "prop_physics") == 0 )
@@ -1189,18 +1415,6 @@ void HurtEntity(int target, int client, bool infected)
 	if( infected && !g_iCvarDamage || !infected && !g_iCvarFiendly ) return;
 
 	SDKHooks_TakeDamage(target, client, client, infected ? float(g_iCvarDamage) : float(g_iCvarFiendly), DMG_BURN);
-}
-
-void DeleteEffects(int index)
-{
-	int entity = g_iSpawned[index][INDEX_EFFECTS];
-	g_iSpawned[index][INDEX_EFFECTS] = 0;
-
-	if( IsValidEntRef(entity) )
-	{
-		StopSound(entity, SNDCHAN_AUTO, g_bLeft4Dead2 ? SOUND_FIRE_L4D2 : SOUND_FIRE_L4D1);
-		AcceptEntityInput(entity, "Kill");
-	}
 }
 
 // Taken from "[L4D2] Weapon/Zombie Spawner"
@@ -1244,7 +1458,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }
@@ -1300,6 +1514,11 @@ float GetAngleBetweenVectors(const float vector1[3], const float vector2[3], con
 	return degree;
 }
 
+
+
+// ====================================================================================================
+//					VARIOUS STOCKS
+// ====================================================================================================
 void MoveForward(const float vPos[3], const float vAng[3], float vReturn[3], float fDistance)
 {
 	float vDir[3];
@@ -1333,7 +1552,7 @@ bool IsValidEntRef(int entity)
 	return false;
 }
 
-public bool FilterExcludeSelf(int entity, int contentsMask, any client)
+bool FilterExcludeSelf(int entity, int contentsMask, any client)
 {
 	if( entity == client )
 		return false;

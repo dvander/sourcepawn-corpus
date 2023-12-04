@@ -1,6 +1,6 @@
 /*
 *	Mutant Zombies
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.12"
+#define PLUGIN_VERSION		"1.27"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,64 @@
 
 ========================================================================================
 	Change Log:
+
+1.27 (19-Feb-2023)
+	- Fixed Fire Mutants taking fire damage from other sources. Thanks to "BystanderZK" for reporting.
+
+1.26 (10-Feb-2023)
+	- Fixed invincible Fire Mutants. Thanks to "sonic155" and "Maur0" for reporting and testing.
+	- Fixed Survivor bots from killing common infected instead of converting them to Fire Mutants.
+	- Removed the "Smoke" type key value "color" since it was never meant to exist, the smoke is a particle and color cannot be changed. Thanks to "sonic155" for reporting.
+
+1.25 (03-Feb-2023)
+	- Changed the method of converting and preventing Fire Mutants from dying. Thanks to "sonic155" for reporting.
+	- Added another check to prevent invisible common remaining alive.
+
+1.24 (02-Feb-2023)
+	- Fixed Fire Mutants not attacking when initially ignited.
+	- Fixed invincible Fire Mutants bug from the last 3 plugin updates. Thanks to "Mi.Cura" for reporting.
+
+1.23 (27-Jan-2023)
+	- Fixed invisible Fire Mutants bug from the last 2 plugin updates. Thanks to "Mi.Cura" for reporting.
+
+1.22 (25-Jan-2023)
+	- Added "drop_damage" data config setting to Fire Mutants, allowing dropped fire damage to be controlled independently from the "damage" key.
+	- Fixed converting common infected into Fire Mutants when shot by normal bullets.
+	- Fixed incendiary bullets not always converting common infected to Fire Mutants.
+
+1.21 (24-Jan-2023)
+	- Fixed incendiary bullets not always converting common infected to Fire Mutants.
+	- Fixed not setting the config health value on Fire Mutants in some circumstances.
+	- Fixed various fire damage causing Fire Mutants to die prematurely.
+	- Thanks to "BystanderZK" for reporting and testing.
+
+1.20 (20-Jan-2023)
+	- L4D2: Added "incendiary" data config setting to Fire Mutants, allowing common infected to convert to Fire Mutants when shot with Incendiary ammo.
+	- Fixed common infected walking through fire not having the charred model effect.
+
+1.19 (15-Dec-2022)
+	- Fixed changing "attacker" to entity reference in OnTakeDamage which affects other plugins. Thanks to "Hawkins" for reporting.
+
+1.18 (12-Dec-2022)
+	- Fixed "Fire" type not spawning when walking through fire. Thanks to "BystanderZK" for reporting.
+
+1.17 (03-Dec-2022)
+	- Fixed invalid entity errors. Thanks to "Mi.Cura" for reporting.
+
+1.16 (15-Aug-2022)
+	- Changes to load the "l4d_mutants.cfg" data config based on the z_difficulty value if the file exists.
+	- Valid filenames are "l4d_mutants_easy.cfg", "l4d_mutants_normal.cfg", "l4d_mutants_hard.cfg" and "l4d_mutants_impossible.cfg".
+	- Requested by "Hawkins".
+
+1.15 (30-Jul-2022)
+	- Potential fix for rare server crashes caused by "CBaseEntityOutput::FireOutput". Thanks to "Hawkins" for reporting.
+
+1.14 (07-Jun-2022)
+	- Fixed mutant zombies spawning when their "random" data config setting values were set to "0". Thanks to "Winn" for reporting.
+	- Removed minimum and maximum value restriction for individual mutants "random" data config setting.
+
+1.13 (12-Sep-2021)
+	- L4D1: Fixed constantly spawning Mutant Zombies due to not restricting a line of code for L4D2.
 
 1.12 (09-Oct-2020)
 	- Changed "OnClientPostAdminCheck" to "OnClientPutInServer" - to fix any issues if Steam service is down.
@@ -154,7 +212,7 @@
 #define SOUND_EXPLODE5			"weapons/hegrenade/explode5.wav"
 
 
-static const char g_sSoundsZap[8][25]	=
+static const char g_sSoundsZap[8][25] =
 {
 	"ambient/energy/zap1.wav",
 	"ambient/energy/zap2.wav",
@@ -167,7 +225,7 @@ static const char g_sSoundsZap[8][25]	=
 };
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
+ConVar g_hCvarAllow, g_hCvarDifficulty, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
 int g_iSpitHurtCount[MAXPLAYERS+1];
 float g_fFireHurtCount[MAXPLAYERS+1];
 bool g_bLeft4Dead2;
@@ -178,6 +236,7 @@ int g_iInfectedMind[MAX_ENTS][5];
 int g_iInfectedSmoke[MAX_ENTS][3];
 int g_iInfectedSpit[MAX_ENTS][3]; // [0] = Common infected, [1] = ParticleA, [2] = ParticleB
 int g_iInfectedTesla[MAX_ENTS][2];
+int g_iFireHealth[2048];
 
 // Global variables
 int g_iCheckInferno, g_iLoadStatus, g_iPlayerSpawn, g_iRoundStart;
@@ -193,8 +252,8 @@ int g_iConfCheck, g_iConfLimit, g_iConfRandom, g_iConfTypes, g_iConfUncommon;
 int g_iConfBombExplodeA, g_iConfBombExplodeD, g_iConfBombExplodeH, g_iConfBombGlow, g_iConfBombGlowCol, g_iConfBombHealth, g_iConfBombLimit, g_iConfBombRandom, g_iConfBombShake;
 float g_fConfBombDamage, g_fConfBombDamageD, g_fConfBombDistance;
 // Fire config variables
-int g_iConfFireDrop1, g_iConfFireDrop2, g_iConfFireGlow, g_iConfFireGlowCol, g_iConfFireHealth, g_iConfFireLimit, g_iConfFireRandom, g_iConfFireWalk;
-float g_fConfFireDamage, g_fConfFireTime;
+int g_iConfFireDrop1, g_iConfFireDrop2, g_iConfFireGlow, g_iConfFireGlowCol, g_iConfFireHealth, g_iConfFireLimit, g_iConfFireRandom, g_iConfFireWalk, g_iConfFireIncen;
+float g_fConfFireDamage, g_fConfFireTime, g_fConfFireDrop3;
 // Ghost config variables
 int g_iConfGhostGlow, g_iConfGhostGlowCol, g_iConfGhostHealth, g_iConfGhostLimit, g_iConfGhostOpacity, g_iConfGhostRandom;
 float g_fConfGhostDamage;
@@ -204,7 +263,6 @@ float g_fConfMindDamage, g_fConfMindDistance;
 // Smoke config variables
 int g_iConfSmokeGlow, g_iConfSmokeGlowCol, g_iConfSmokeHealth, g_iConfSmokeLimit, g_iConfSmokeRandom;
 float g_fConfSmokeDamage2, g_fConfSmokeDamage, g_fConfSmokeDistance;
-char g_sConfSmokeColor[12];
 // Spit config variables
 int g_iConfSpitEffects, g_iConfSpitGlow, g_iConfSpitGlowCol, g_iConfSpitHealth, g_iConfSpitHurt, g_iConfSpitLimit, g_iConfSpitRandom, g_iConfSpitWalk;
 float g_fConfSpitDamage, g_fConfSpitTime;
@@ -221,7 +279,8 @@ enum
 	TYPE_MIND	= (1 << 3),
 	TYPE_SMOKE	= (1 << 4),
 	TYPE_SPIT	= (1 << 5),
-	TYPE_TESLA	= (1 << 6)
+	TYPE_TESLA	= (1 << 6),
+	TYPE_DROP	= (1 << 7)
 }
 
 enum
@@ -262,7 +321,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+
 	g_bLateLoad = late;
+
+	RegPluginLibrary("l4d_mutants");
+
 	return APLRes_Success;
 }
 
@@ -284,6 +347,9 @@ public void OnPluginStart()
 	RegAdminCmd("sm_mutantspit",		CmdMutantSpit,		ADMFLAG_ROOT,	"Spawns a Mutant Spit Zombie.");
 	RegAdminCmd("sm_mutanttesla",		CmdMutantTesla,		ADMFLAG_ROOT,	"Spawns a Mutant Tesla Zombie.");
 	RegAdminCmd("sm_mutants",			CmdMutants,			ADMFLAG_ROOT,	"Spawns all Mutant Zombies.");
+
+	g_hCvarDifficulty = FindConVar("z_difficulty");
+	g_hCvarDifficulty.AddChangeHook(ConVarChanged_Diff);
 
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
 	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
@@ -410,7 +476,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Diff(Handle convar, const char[] oldValue, const char[] newValue)
+{
+	LoadDataConfig();
+}
+
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
@@ -493,7 +564,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -543,8 +614,20 @@ void ResetPlugin(bool all = false)
 	if( all == true )
 	{
 		for( int i = 1; i <= MaxClients; i++ )
+		{
 			if( IsClientInGame(i) )
+			{
 				SDKUnhook(i, SDKHook_OnTakeDamage, OnTakeDamage);
+			}
+		}
+
+		int entity = -1;
+		while( (entity = FindEntityByClassname(entity, "infected")) != INVALID_ENT_REFERENCE )
+		{
+			SDKUnhook(entity, SDKHook_OnTakeDamage, OnTakeDamageBomb);
+			SDKUnhook(entity, SDKHook_OnTakeDamage, OnTakeDamageFire);
+			SDKUnhook(entity, SDKHook_OnTakeDamage, OnCommonFireDamage);
+		}
 	}
 }
 
@@ -581,15 +664,15 @@ void DeleteEntity(int type, int index)
 
 			entity = g_iInfectedBomb[index][1];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			entity = g_iInfectedBomb[index][2];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			entity = g_iInfectedBomb[index][3];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			g_iInfectedBomb[index][0] = 0;
 			g_iInfectedBomb[index][1] = 0;
@@ -604,16 +687,15 @@ void DeleteEntity(int type, int index)
 
 			entity = g_iInfectedFire[index][1];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			entity = g_iInfectedFire[index][2];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			g_iInfectedFire[index][0] = 0;
 			g_iInfectedFire[index][1] = 0;
 			g_iInfectedFire[index][2] = 0;
-			return;
 		}
 
 		case TYPE_GHOST:
@@ -626,7 +708,6 @@ void DeleteEntity(int type, int index)
 				SetOpacity(entity, 255);
 
 			g_iInfectedGhost[index] = 0;
-			return;
 		}
 
 		case TYPE_MIND:
@@ -659,18 +740,17 @@ void DeleteEntity(int type, int index)
 
 			entity = g_iInfectedMind[index][3];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			entity = g_iInfectedMind[index][4];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			g_iInfectedMind[index][0] = 0;
 			g_iInfectedMind[index][1] = 0;
 			g_iInfectedMind[index][2] = 0;
 			g_iInfectedMind[index][3] = 0;
 			g_iInfectedMind[index][4] = 0;
-			return;
 		}
 
 		case TYPE_SMOKE:
@@ -698,7 +778,6 @@ void DeleteEntity(int type, int index)
 			g_iInfectedSmoke[index][0] = 0;
 			g_iInfectedSmoke[index][1] = 0;
 			g_iInfectedSmoke[index][2] = 0;
-			return;
 		}
 
 		case TYPE_SPIT:
@@ -708,16 +787,15 @@ void DeleteEntity(int type, int index)
 
 			entity = g_iInfectedSpit[index][1];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			entity = g_iInfectedSpit[index][2];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			g_iInfectedSpit[index][0] = 0;
 			g_iInfectedSpit[index][1] = 0;
 			g_iInfectedSpit[index][2] = 0;
-			return;
 		}
 
 		case TYPE_TESLA:
@@ -727,11 +805,10 @@ void DeleteEntity(int type, int index)
 
 			entity = g_iInfectedTesla[index][1];
 			if( IsValidEntRef(entity) )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 
 			g_iInfectedTesla[index][0] = 0;
 			g_iInfectedTesla[index][1] = 0;
-			return;
 		}
 	}
 }
@@ -744,10 +821,27 @@ void DeleteEntity(int type, int index)
 void LoadDataConfig()
 {
 	char sPath[PLATFORM_MAX_PATH];
+
+	// Load configs based on difficulty, if available
 	BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_DATA);
-	if( !FileExists(sPath) )
+
+	// Get difficulty
+	char sDiff[64];
+	g_hCvarDifficulty.GetString(sDiff, sizeof(sDiff));
+	StrToLowerCase(sDiff, sDiff, sizeof(sDiff));
+
+	// Format config "data/l4d_mutants_normal.cfg" for example
+	sPath[strlen(sPath) - 4] = 0;
+	Format(sPath, sizeof(sPath), "%s_%s.cfg", sPath, sDiff);
+
+	if( FileExists(sPath) == false )
 	{
-		SetFailState("Missing config '%s' please re-install.", CONFIG_DATA);
+		// Load default config
+		BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_DATA);
+		if( !FileExists(sPath) )
+		{
+			SetFailState("Missing config '%s' please re-install.", CONFIG_DATA);
+		}
 	}
 
 	KeyValues hFile = new KeyValues("Mutants");
@@ -785,8 +879,6 @@ void LoadDataConfig()
 		g_iConfBombHealth =		hFile.GetNum("health",				0);
 		g_iConfBombLimit =		hFile.GetNum("limit",				0);
 		g_iConfBombRandom =		hFile.GetNum("random",				0);
-		if( g_iConfBombRandom )
-			g_iConfBombRandom =		Clamp(g_iConfBombRandom,		1000, 10);
 		g_iConfBombShake =		hFile.GetNum("shake",				0);
 		hFile.Rewind();
 	}
@@ -796,6 +888,7 @@ void LoadDataConfig()
 		g_fConfFireDamage =		hFile.GetFloat("damage",			0.0);
 		g_iConfFireDrop1 =		hFile.GetNum("drop_attack",			0);
 		g_iConfFireDrop2 =		hFile.GetNum("drop_defend",			0);
+		g_fConfFireDrop3 =		hFile.GetFloat("drop_damage",		0.0);
 		g_iConfFireGlow =		hFile.GetNum("glow",				0);
 		hFile.GetString("glow_color", sTemp, sizeof(sTemp),			"");
 		g_iConfFireGlowCol =	GetColor(sTemp);
@@ -803,10 +896,10 @@ void LoadDataConfig()
 		g_iConfFireLimit =		hFile.GetNum("limit",				0);
 		g_iConfFireLimit =		Clamp(g_iConfFireLimit,				10);
 		g_iConfFireRandom =		hFile.GetNum("random",				0);
-		if( g_iConfFireRandom )
-			g_iConfFireRandom =		Clamp(g_iConfFireRandom,		1000, 10);
 		g_fConfFireTime =		hFile.GetFloat("time",				0.0);
 		g_iConfFireWalk =		hFile.GetNum("walk",				0);
+		if( g_bLeft4Dead2 )
+			g_iConfFireIncen =	hFile.GetNum("incendiary",			0);
 		hFile.Rewind();
 	}
 
@@ -821,8 +914,6 @@ void LoadDataConfig()
 		g_iConfGhostLimit =		Clamp(g_iConfGhostLimit,			10);
 		g_iConfGhostOpacity =	hFile.GetNum("opacity",				0);
 		g_iConfGhostRandom =	hFile.GetNum("random",				0);
-		if( g_iConfGhostRandom )
-			g_iConfGhostRandom =	Clamp(g_iConfGhostRandom,		1000, 10);
 		hFile.Rewind();
 	}
 
@@ -839,8 +930,6 @@ void LoadDataConfig()
 		g_iConfMindLimit =		hFile.GetNum("limit",				0);
 		g_iConfMindLimit =		Clamp(g_iConfMindLimit,				10);
 		g_iConfMindRandom =		hFile.GetNum("random",				0);
-		if( g_iConfMindRandom )
-			g_iConfMindRandom =		Clamp(g_iConfMindRandom,		1000, 10);
 		hFile.Rewind();
 	}
 
@@ -849,7 +938,6 @@ void LoadDataConfig()
 		g_fConfSmokeDamage =	hFile.GetFloat("damage",			0.0);
 		g_fConfSmokeDamage2 =	hFile.GetFloat("damage_smoke",		0.0);
 		g_fConfSmokeDistance =	hFile.GetFloat("distance",			0.0);
-		hFile.GetString("color", g_sConfSmokeColor, sizeof(g_sConfSmokeColor), "0 0 0");
 		g_iConfSmokeGlow =		hFile.GetNum("glow",				0);
 		hFile.GetString("glow_color", sTemp, sizeof(sTemp),			"");
 		g_iConfSmokeGlowCol =	GetColor(sTemp);
@@ -857,8 +945,6 @@ void LoadDataConfig()
 		g_iConfSmokeLimit =		hFile.GetNum("limit",				0);
 		g_iConfSmokeLimit =		Clamp(g_iConfSmokeLimit,			10);
 		g_iConfSmokeRandom =	hFile.GetNum("random",				0);
-		if( g_iConfSmokeRandom )
-			g_iConfSmokeRandom =	Clamp(g_iConfSmokeRandom,		1000, 10);
 		hFile.Rewind();
 	}
 
@@ -875,8 +961,6 @@ void LoadDataConfig()
 		g_iConfSpitLimit =		hFile.GetNum("limit",				0);
 		g_iConfSpitLimit =		Clamp(g_iConfSpitLimit,				10);
 		g_iConfSpitRandom =		hFile.GetNum("random",				0);
-		if( g_iConfSpitRandom )
-			g_iConfSpitRandom =		Clamp(g_iConfSpitRandom,		1000, 10);
 		g_fConfSpitTime =		hFile.GetFloat("time",				0.0);
 		g_iConfSpitWalk =		hFile.GetNum("walk",				0);
 		hFile.Rewind();
@@ -896,8 +980,6 @@ void LoadDataConfig()
 		g_iConfTeslaLimit =		hFile.GetNum("limit",				0);
 		g_iConfTeslaLimit =		Clamp(g_iConfTeslaLimit,			10);
 		g_iConfTeslaRandom =	hFile.GetNum("random",				0);
-		if( g_iConfTeslaRandom )
-			g_iConfTeslaRandom =	Clamp(g_iConfTeslaRandom,		1000, 10);
 		hFile.Rewind();
 	}
 
@@ -960,16 +1042,16 @@ public void OnClientPutInServer(int client)
 	}
 }
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
-	if( damagetype == 128 && attacker > MaxClients && GetClientTeam(victim) == 2 )
+	if( damagetype == DMG_CLUB && attacker > MaxClients && GetClientTeam(victim) == 2 )
 	{
-		attacker = EntIndexToEntRef(attacker);
+		int entref = EntIndexToEntRef(attacker);
 
 		for( int i = 0; i < MAX_ENTS; i++ )
 		{
 			// Bomb
-			if( g_iInfectedBomb[i][0] == attacker )
+			if( g_iInfectedBomb[i][0] == entref )
 			{
 				if( GetRandomInt(1, 100) <= g_iConfBombExplodeA )
 					BombDetonate(i);
@@ -979,40 +1061,40 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			}
 
 			// Fire
-			if( g_iInfectedFire[i][0] == attacker )
+			if( g_iInfectedFire[i][0] == entref )
 			{
 				if( GetRandomInt(1, 100) <= g_iConfFireDrop1 )
-					FireDrop(attacker);
+					FireDrop(entref);
 
-				damagetype = 8;
+				damagetype = DMG_BURN;
 				if( g_fConfFireDamage )
 					damage = g_fConfFireDamage;
 				return Plugin_Changed;
 			}
 
 			// Ghost
-			if( g_fConfGhostDamage && g_iInfectedGhost[i] == attacker )
+			if( g_fConfGhostDamage && g_iInfectedGhost[i] == entref )
 			{
 				damage = g_fConfGhostDamage;
 				return Plugin_Changed;
 			}
 
 			// Mind
-			if( g_fConfMindDamage && g_iInfectedMind[i][0] == attacker )
+			if( g_fConfMindDamage && g_iInfectedMind[i][0] == entref )
 			{
 				damage = g_fConfMindDamage;
 				return Plugin_Changed;
 			}
 
 			// Smoke
-			if( g_fConfSmokeDamage && g_iInfectedSmoke[i][0] == attacker )
+			if( g_fConfSmokeDamage && g_iInfectedSmoke[i][0] == entref )
 			{
 				damage = g_fConfSmokeDamage;
 				return Plugin_Changed;
 			}
 
 			// Spit
-			if( g_bLeft4Dead2 && g_iInfectedSpit[i][0] == attacker )
+			if( g_bLeft4Dead2 && g_iInfectedSpit[i][0] == entref )
 			{
 				HurtClient(victim, TYPE_SPIT);
 				if( g_iConfSpitHurt && g_iSpitHurtCount[victim] == 0 )
@@ -1026,9 +1108,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			}
 
 			// Tesla
-			if( g_iInfectedTesla[i][0] == attacker )
+			if( g_iInfectedTesla[i][0] == entref )
 			{
-				TeslaShock(attacker, victim);
+				TeslaShock(entref, victim);
 
 				if( g_fConfTeslaDamage )
 					damage = g_fConfTeslaDamage;
@@ -1046,7 +1128,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 //					HURT PLAYERS
 // ====================================================================================================
 // Spit infected hurt, repeat hurt
-public Action TimerHurt(Handle timer, any userid)
+Action TimerHurt(Handle timer, int userid)
 {
 	int client = GetClientOfUserId(userid);
 	if( client && IsClientInGame(client) && IsPlayerAlive(client) )
@@ -1078,6 +1160,7 @@ void HurtClient(int client, int type = 0)
 {
 	switch( type )
 	{
+		case TYPE_DROP:		SDKHooks_TakeDamage(client, 0, 0, g_fConfFireDrop3,		DMG_BURN);
 		case TYPE_FIRE:		SDKHooks_TakeDamage(client, 0, 0, g_fConfFireDamage,	DMG_BURN);
 		case TYPE_SPIT:		SDKHooks_TakeDamage(client, 0, 0, g_fConfSpitDamage,	DMG_GENERIC);
 		case TYPE_SMOKE:	SDKHooks_TakeDamage(client, 0, 0, g_fConfSmokeDamage2,	DMG_NERVEGAS);
@@ -1131,7 +1214,7 @@ void HookEvents(bool hook)
 }
 
 // Common Infected die, clean up effects
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int common = event.GetInt("entityid");
 	if( common )
@@ -1191,7 +1274,7 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	g_iLoadStatus = 0;
 	g_iPlayerSpawn = 0;
@@ -1200,14 +1283,14 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		g_iLoadStatus = 1;
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		g_iLoadStatus = 1;
@@ -1219,7 +1302,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdMutantsRefresh(int client, int args)
+Action CmdMutantsRefresh(int client, int args)
 {
 	ResetPlugin(true);
 	LoadDataConfig();
@@ -1230,7 +1313,7 @@ public Action CmdMutantsRefresh(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantBomb(int client, int args)
+Action CmdMutantBomb(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 	g_bHookCommonBomb = true;
@@ -1238,7 +1321,7 @@ public Action CmdMutantBomb(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantFire(int client, int args)
+Action CmdMutantFire(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 	g_bHookCommonFire = true;
@@ -1246,7 +1329,7 @@ public Action CmdMutantFire(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantGhost(int client, int args)
+Action CmdMutantGhost(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 	g_bHookCommonGhost = true;
@@ -1254,7 +1337,7 @@ public Action CmdMutantGhost(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantMind(int client, int args)
+Action CmdMutantMind(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 
@@ -1283,7 +1366,7 @@ public Action CmdMutantMind(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantSmoke(int client, int args)
+Action CmdMutantSmoke(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 	g_bHookCommonSmoke = true;
@@ -1291,7 +1374,7 @@ public Action CmdMutantSmoke(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantSpit(int client, int args)
+Action CmdMutantSpit(int client, int args)
 {
 	if( !g_bLeft4Dead2 )
 	{
@@ -1305,7 +1388,7 @@ public Action CmdMutantSpit(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutantTesla(int client, int args)
+Action CmdMutantTesla(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 	g_bHookCommonTesla = true;
@@ -1313,7 +1396,7 @@ public Action CmdMutantTesla(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMutants(int client, int args)
+Action CmdMutants(int client, int args)
 {
 	if( g_bCvarAllow == false || client == 0 ) return Plugin_Handled;
 
@@ -1370,14 +1453,14 @@ public void OnEntityCreated(int entity, const char[] classname)
 	{
 		// Mutant Zombie spawned by command OR random auto-spawn
 		if( g_bHookCommonSpawn
-		|| (g_iConfRandom && g_iSpawnAmount >= g_iConfRandom)
-		|| g_iSpawnBomb		>= g_iConfBombRandom
-		|| g_iSpawnFire		>= g_iConfFireRandom
-		|| g_iSpawnGhost	>= g_iConfGhostRandom
-		|| g_iSpawnMind		>= g_iConfMindRandom
-		|| g_iSpawnSmoke	>= g_iConfSmokeRandom
-		|| g_iSpawnSpit		>= g_iConfSpitRandom
-		|| g_iSpawnTesla	>= g_iConfTeslaRandom )
+		|| (g_iConfRandom		&& g_iSpawnAmount	>= g_iConfRandom)
+		|| (g_iConfBombRandom	&& g_iSpawnBomb		>= g_iConfBombRandom)
+		|| (g_iConfFireRandom	&& g_iSpawnFire		>= g_iConfFireRandom)
+		|| (g_iConfGhostRandom	&& g_iSpawnGhost	>= g_iConfGhostRandom)
+		|| (g_iConfMindRandom	&& g_iSpawnMind		>= g_iConfMindRandom)
+		|| (g_iConfSmokeRandom	&& g_iSpawnSmoke	>= g_iConfSmokeRandom)
+		|| (g_iConfSpitRandom	&& g_iSpawnSpit		>= g_iConfSpitRandom && g_bLeft4Dead2)
+		|| (g_iConfTeslaRandom	&& g_iSpawnTesla	>= g_iConfTeslaRandom ))
 		{
 			if( g_iConfCheck )
 				CreateTimer(0.2, TimerSpawnCommon, EntIndexToEntRef(entity));
@@ -1402,13 +1485,16 @@ public void OnEntityCreated(int entity, const char[] classname)
 			}
 
 			// "inferno" or "fire_cracker_blast" is active. We hook commons taking damage to detect if they walk in fire so they can mutate.
-			if( g_iCheckInferno > 0 && IsCommonValidToUse(entity) )
+			if( (g_iCheckInferno > 0 || g_iConfFireIncen > 0) && IsCommonValidToUse(entity) )
+			{
 				SDKHook(entity, SDKHook_OnTakeDamage, OnCommonFireDamage);
+				SDKHook(entity, SDKHook_SpawnPost, OnCommonFireSpawn);
+			}
 		}
 	}
 
 	// Detect "fire_cracker_blast" to create the "trigger_multiple" so common can walk in fire (molotovs or firework crates) and mutate.
-	else if( g_iConfFireWalk && (strcmp(classname, "inferno") == 0 || strcmp(classname, "fire_cracker_blast") == 0) )
+	else if( g_iConfFireWalk && !g_iConfFireIncen && (strcmp(classname, "inferno") == 0 || strcmp(classname, "fire_cracker_blast") == 0) )
 	{
 		// Commons are not hooked.
 		if( g_iCheckInferno == 0 )
@@ -1422,6 +1508,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 				if( IsCommonValidToUse(common) )
 				{
 					SDKHook(common, SDKHook_OnTakeDamage, OnCommonFireDamage);
+					SDKHook(entity, SDKHook_SpawnPost, OnCommonFireSpawn);
 				}
 			}
 		}
@@ -1447,66 +1534,21 @@ public void OnEntityDestroyed(int entity)
 		if( strcmp(classname, "inferno") == 0 || strcmp(classname, "fire_cracker_blast") == 0 )
 		{
 			g_iCheckInferno--;
+			if( g_iCheckInferno < 0 ) g_iCheckInferno = 0;
 
 			// No more "inferno" or "fire_cracker_blast". Unhook commons.
-			if( g_iCheckInferno == 0 )
+			if( g_iCheckInferno == 0 && !g_iConfFireIncen )
 			{
 				int common = -1;
 				while( (common = FindEntityByClassname(common, "infected")) != INVALID_ENT_REFERENCE )
+				{
 					if( IsCommonValidToUse(common) )
+					{
 						SDKUnhook(common, SDKHook_OnTakeDamage, OnCommonFireDamage);
+					}
+				}
 			}
 		}
-	}
-}
-
-
-
-// ====================================================================================================
-//					ONTAKEDAMAGE - FROM FIRE - COMMON INFECTED
-// ====================================================================================================
-public Action OnCommonFireDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
-{
-	if( damagetype == 8 || damagetype == 2056 || damagetype == 268435464 )
-	{
-		if( attacker > MaxClients && IsValidEntity(attacker) )
-		{
-			static char sTemp[20];
-			GetEdictClassname(attacker, sTemp, sizeof(sTemp));
-
-			if( strcmp(sTemp, "inferno") && strcmp(sTemp, "fire_cracker_blast") )
-				return Plugin_Handled;
-		}
-		else
-		{
-			SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
-			return Plugin_Handled;
-		}
-
-
-		// Validate model.
-		if( IsCommonValidToUse(victim) )
-		{
-			if( GetRandomInt(1, 100) <= g_iConfFireWalk )
-			{
-				damage = 0.0;
-				SetEntProp(victim, Prop_Data, "m_lifeState", 1);
-				CreateTimer(0.1, TimerCommonFireDamage, EntIndexToEntRef(victim));
-				return Plugin_Handled;
-			}
-		}
-	}
-
-	SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
-	return Plugin_Continue;
-}
-
-public Action TimerCommonFireDamage(Handle timer, any victim)
-{
-	int common = EntRefToEntIndex(victim);
-	if( common != INVALID_ENT_REFERENCE )
-	{
-		MutantFireSetup(common, false);
 	}
 }
 
@@ -1516,7 +1558,7 @@ public Action TimerCommonFireDamage(Handle timer, any victim)
 //					ONSPAWN - SPITTER ACID
 // ====================================================================================================
 // Create a trigger which Common Infected walk through, so they can mutate to Spit Infected
-public void OnSpawnSwarm(int entity)
+void OnSpawnSwarm(int entity)
 {
 	int trigger = CreateEntityByName("trigger_multiple");
 	DispatchKeyValue(trigger, "spawnflags", "1");
@@ -1541,7 +1583,7 @@ public void OnSpawnSwarm(int entity)
 }
 
 // A common walked through the trigger, mutate them!
-public void OnTouchSwarm(int entity, int common)
+void OnTouchSwarm(int entity, int common)
 {
 	if( common > MaxClients )
 	{
@@ -1561,15 +1603,20 @@ public void OnTouchSwarm(int entity, int common)
 //					ONSPAWN - COMMON INFECTED
 // ====================================================================================================
 // Determine which type of Zombie spawned.
-public Action TimerSpawnCommon(Handle timer, any entity)
+Action TimerSpawnCommon(Handle timer, int entity)
 {
 	if( IsValidEntRef(entity) )
 		SpawnCommon(EntRefToEntIndex(entity));
+
+	return Plugin_Continue;
 }
 
 void OnSpawnCommon(int common)
 {
-	SpawnCommon(common);
+	SDKUnhook(common, SDKHook_SpawnPost, OnSpawnCommon);
+
+	if( IsValidEntity(common) )
+		SpawnCommon(common);
 }
 
 void SpawnCommon(int common)
@@ -1726,7 +1773,7 @@ void MutantBombSetup(int common)
 	g_iInfectedBomb[index][3] = EntIndexToEntRef(entity);
 }
 
-public Action OnTakeDamageBomb(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageBomb(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker) && GetClientTeam(attacker) == 2 )
 	{
@@ -1810,7 +1857,6 @@ void BombDetonate(int index)
 void MutantFireSetup(int common, bool spawn)
 {
 	g_bHookCommonFire = false;
-	SetEntProp(common, Prop_Data, "m_lifeState", 0);
 
 	int index = GetEntityIndex(TYPE_FIRE);
 	if( index == -1 ) return;
@@ -1828,9 +1874,6 @@ void MutantFireSetup(int common, bool spawn)
 		AcceptEntityInput(common, "StartGlowing");
 	}
 
-	if( g_iConfFireHealth )
-		SetEntProp(common, Prop_Data, "m_iHealth", g_iConfFireHealth);
-
 	if( spawn )
 	{
 		// On infected which just spawn we simply ignite. So nice, so simple, the model appears burnt as expected.
@@ -1838,6 +1881,13 @@ void MutantFireSetup(int common, bool spawn)
 	}
 	else
 	{
+		// Infected is broken and would render invisible, so don't fix them from death
+		if( GetEntProp(common, Prop_Send, "m_bClientSideRagdoll") == 0 )
+		{
+			ReigniteCommon(common);
+		}
+
+		/* OLD METHOD:
 		// Infected which walk through fire die when IgniteEntity() is used.
 		// This is long winded and stupid, the model does not change appearance but it works.
 		int entityflame = CreateEntityByName("entityflame");
@@ -1851,7 +1901,6 @@ void MutantFireSetup(int common, bool spawn)
 		SetEntPropEnt(common, Prop_Data, "m_hEffectEntity", entityflame);
 		SetEntPropEnt(common, Prop_Send, "m_hEffectEntity", entityflame);
 		ActivateEntity(entityflame);
-		AcceptEntityInput(entityflame, "Enable");
 
 		char sTemp[16];
 		Format(sTemp, sizeof(sTemp), "fire%d%d", entityflame, common);
@@ -1860,19 +1909,159 @@ void MutantFireSetup(int common, bool spawn)
 		AcceptEntityInput(entityflame, "IgniteEntity", common, common, 600);
 		SetVariantString(sTemp);
 		AcceptEntityInput(entityflame, "Ignite", common, common, 600);
+		// */
+	}
+
+	if( g_iConfFireHealth )
+	{
+		SetEntProp(common, Prop_Data, "m_iHealth", g_iConfFireHealth);
+		g_iFireHealth[common] = g_iConfFireHealth;
+	}
+	else
+	{
+		g_iFireHealth[common] = GetEntProp(common, Prop_Data, "m_iHealth");
 	}
 }
 
-public Action OnTakeDamageFire(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+void ReigniteCommon(int common)
 {
-	if( damagetype == 8 || damagetype == 2056 || damagetype == 268435464 )
+	ExtinguishEntity(common);
+	DispatchSpawn(common); // Fix common randomly being killed, have to dispatch again to keep charred effect
+	IgniteEntity(common, 6000.0);
+
+	// Fix common standing still and not attacking
+	CreateTimer(0.1, TimerTarget, EntIndexToEntRef(common));
+	CreateTimer(0.3, TimerTarget, EntIndexToEntRef(common));
+	CreateTimer(0.5, TimerTarget, EntIndexToEntRef(common));
+}
+
+Action TimerTarget(Handle timer, int common)
+{
+	common = EntRefToEntIndex(common);
+	if( common != INVALID_ENT_REFERENCE )
 	{
-		damage = 0.0;
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
+			{
+				SDKHooks_TakeDamage(common, i, i, 0.0);
+				break;
+			}
+		}
+	}
+
+	return Plugin_Continue;
+}
+
+
+
+// ====================================================================================================
+//					ONTAKEDAMAGE - FROM FIRE - COMMON INFECTED
+// ====================================================================================================
+void OnCommonFireSpawn(int entity)
+{
+	SDKUnhook(entity, SDKHook_SpawnPost, OnCommonFireSpawn);
+	g_iFireHealth[entity] = GetEntProp(entity, Prop_Data, "m_iHealth");
+}
+
+Action OnCommonFireDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+{
+	if( (damagetype & (DMG_BULLET|DMG_BURN) == (DMG_BULLET|DMG_BURN)) && g_iConfFireIncen && GetRandomInt(1, 100) <= g_iConfFireIncen ) // Incendiary bullets
+	{
+		MutantFireSetup(victim, false);
+
+		SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
+
 		return Plugin_Handled;
 	}
 
-	if( g_iConfFireDrop2 && GetRandomInt(1, 100) <= g_iConfFireDrop2 && attacker > 0 && attacker <= MaxClients)
+	// DMG_BURN / (DMG_BURN|DMG_PREVENT_PHYSICS_FORCE) / (DMG_BURN|DMG_DIRECT)
+	else if( damagetype == 8 || damagetype == 2056 || damagetype == 268435464 ) // Fire damage
+	{
+		if( g_iConfFireWalk && inflictor > MaxClients && IsValidEntity(inflictor) )
+		{
+			static char sTemp[20];
+			GetEdictClassname(inflictor, sTemp, sizeof(sTemp));
+
+			if( strcmp(sTemp, "inferno") && strcmp(sTemp, "fire_cracker_blast") )
+			{
+				SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
+				return Plugin_Continue;
+			}
+		}
+		else
+		{
+			SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
+			return Plugin_Continue;
+		}
+
+		// Validate model.
+		if( IsCommonValidToUse(victim) )
+		{
+			if( GetRandomInt(1, 100) <= g_iConfFireWalk )
+			{
+				MutantFireSetup(victim, false);
+
+				SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
+
+				return Plugin_Handled;
+			}
+		}
+	}
+
+	SDKUnhook(victim, SDKHook_OnTakeDamage, OnCommonFireDamage);
+	return Plugin_Continue;
+}
+
+Action OnTakeDamageFire(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+{
+	// Fix health bug where the game tries to kill common with a huge amount of damage, usually 10000.0 or the commons health + 1
+	int health = GetEntProp(victim, Prop_Data, "m_iHealth") - RoundFloat(damage);
+	if( health < 0 )
+	{
+		if( g_iFireHealth[victim] - damage > 0.0 )
+		{
+			ReigniteCommon(victim);
+
+			g_iFireHealth[victim] -= RoundFloat(damage);
+			SetEntProp(victim, Prop_Data, "m_iHealth", g_iFireHealth[victim]);
+			return Plugin_Handled;
+		}
+
+		// Allow to die
+		SDKUnhook(victim, SDKHook_OnTakeDamage, OnTakeDamageFire);
+
+		return Plugin_Continue;
+	}
+
+	// Infected is broken and would render invisible, so don't fix them from death
+	if( GetEntProp(victim, Prop_Send, "m_bClientSideRagdoll") != 0 )
+	{
+		SDKUnhook(victim, SDKHook_OnTakeDamage, OnTakeDamageFire);
+
+		damage = 10000.0;
+		return Plugin_Changed;
+	}
+
+	// Fix invincible bug
+	if( GetEntProp(victim, Prop_Data, "m_lifeState") != 0 )
+	{
+		SetEntProp(victim, Prop_Data, "m_lifeState", 0);
+	}
+
+	// DMG_BURN or (DMG_BURN | DMG_PREVENT_PHYSICS_FORCE) or (DMG_BURN | DMG_DIRECT)
+	if( damagetype == 8 || damagetype == 2056 || damagetype == 268435464 )
+	{
+		return Plugin_Handled;
+	}
+
+	// Drop fire on damage chance
+	if( g_iConfFireDrop2 && attacker > 0 && attacker <= MaxClients && GetRandomInt(1, 100) <= g_iConfFireDrop2 )
 		FireDrop(victim);
+
+	// Store health value
+	g_iFireHealth[victim] = health;
+
 	return Plugin_Continue;
 }
 
@@ -1921,7 +2110,7 @@ void FireDrop(int common)
 }
 
 // A survivor walked through fire.
-public void OnTouchFire(int entity, int client)
+void OnTouchFire(int entity, int client)
 {
 	if( client > 0 && client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == 2 )
 	{
@@ -1929,8 +2118,8 @@ public void OnTouchFire(int entity, int client)
 
 		if( time - g_fFireHurtCount[client] >= 1.0 )
 		{
-			g_fFireHurtCount[client] = GetGameTime();
-			HurtClient(client, TYPE_FIRE);
+			g_fFireHurtCount[client] = time;
+			HurtClient(client, TYPE_DROP);
 		}
 	}
 }
@@ -2011,6 +2200,8 @@ void MutantMindSetup(int common)
 		}
 	}
 
+	if( !IsValidEntity(common) ) return; // Because after here it's been throwing errors about invalid entity, even though it's been valid until now. Wtf game.
+
 	//  g_iMindOrderGet(1=Save, 0=Retrieve)  -OR-  if g_iMindOrderDone(total retrieved types) > g_iMindOrderCount(total saved types)
 	int iType;
 	if( g_iMindOrderGet != 1 || g_iMindOrderDone >= g_iMindOrderCount  )
@@ -2039,7 +2230,7 @@ void MutantMindSetup(int common)
 	CreateCorrection(common, index, iType);
 }
 
-public void OnGamemodeMindOrder(const char[] output, int caller, int activator, float delay)
+void OnGamemodeMindOrder(const char[] output, int caller, int activator, float delay)
 {
 	if( g_iMindOrderGet == 2 )
 		g_iMindOrderGet = 1;
@@ -2127,7 +2318,7 @@ void CreateCorrection(int common, int index, int correction)
 	CreateTimer(0.5, TimerTeleport, index, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action TimerTeleport(Handle timer, any index)
+Action TimerTeleport(Handle timer, int index)
 {
 	int entity = g_iInfectedMind[index][0];
 
@@ -2228,7 +2419,7 @@ void MutantSmokeSetup(int common)
 	CreateTimer(1.0, TimerSmokeHurt, index, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action TimerSmokeHurt(Handle timer, any index)
+Action TimerSmokeHurt(Handle timer, int index)
 {
 	int entity = g_iInfectedSmoke[index][0];
 	if( !IsValidEntRef(entity) )
@@ -2280,7 +2471,7 @@ bool IsVisibleTo(float position[3], float targetposition[3])
 	return isVisible;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	if( !entity || entity <= MaxClients || !IsValidEntity(entity) ) // dont let WORLD, or invalid entities be hit
 		return false;
@@ -2432,17 +2623,6 @@ void TeslaShock(int common, int client)
 	AcceptEntityInput(entity, "AddOutput");
 	AcceptEntityInput(entity, "FireUser1");
 
-	SetVariantString("OnUser2 !self:Stop::0.50:-1");
-	AcceptEntityInput(entity, "AddOutput");
-	SetVariantString("OnUser2 !self:FireUser3::0.51:-1");
-	AcceptEntityInput(entity, "AddOutput");
-	AcceptEntityInput(entity, "FireUser2");
-
-	SetVariantString("OnUser3 !self:Start::0:-1");
-	AcceptEntityInput(entity, "AddOutput");
-	SetVariantString("OnUser3 !self:FireUser2::0:-1");
-	AcceptEntityInput(entity, "AddOutput");
-
 
 	// SOUND
 	iType = GetRandomInt(0, 7);
@@ -2467,7 +2647,7 @@ void TeslaShock(int common, int client)
 int CreateEnvSprite(int client, const char[] sColor)
 {
 	int entity = CreateEntityByName("env_sprite");
-	if( entity == -1)
+	if( entity == -1 )
 	{
 		LogError("Failed to create 'env_sprite'");
 		return 0;
@@ -2503,11 +2683,11 @@ int CreateParticle(int client, int type)
 
 	switch( type )
 	{
-		case ENUM_PARTICLE_SPIT:	DispatchKeyValue(entity, "effect_name", PARTICLE_SPIT);	// Spit - Goo Dribble
+		case ENUM_PARTICLE_SPIT:	DispatchKeyValue(entity, "effect_name", PARTICLE_SPIT);		// Spit - Goo Dribble
 		case ENUM_PARTICLE_SPIT2:	DispatchKeyValue(entity, "effect_name", PARTICLE_SPIT2);	// Spit - Smoke
-		case ENUM_PARTICLE_FIRE:	DispatchKeyValue(entity, "effect_name", PARTICLE_FIRE);	// Fire
+		case ENUM_PARTICLE_FIRE:	DispatchKeyValue(entity, "effect_name", PARTICLE_FIRE);		// Fire
 		case ENUM_PARTICLE_FIRE2:	DispatchKeyValue(entity, "effect_name", PARTICLE_FIRE2);	// Fire sparks
-		case ENUM_PARTICLE_BOMB:	DispatchKeyValue(entity, "effect_name", PARTICLE_BOMB);	// Bomb
+		case ENUM_PARTICLE_BOMB:	DispatchKeyValue(entity, "effect_name", PARTICLE_BOMB);		// Bomb
 		case ENUM_PARTICLE_BOMB1:	DispatchKeyValue(entity, "effect_name", PARTICLE_BOMB1);	// Bomb flare
 		case ENUM_PARTICLE_BOMB2:	DispatchKeyValue(entity, "effect_name", PARTICLE_BOMB2);	// Bomb flare
 		case ENUM_PARTICLE_BOMB3:	DispatchKeyValue(entity, "effect_name", PARTICLE_BOMB3);	// Bomb explosion
@@ -2600,49 +2780,131 @@ int CreateParticle(int client, int type)
 		}
 		case ENUM_PARTICLE_SMOKE:
 		{
-			// Refire
-			SetVariantString("OnUser1 !self:Stop::2.9:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			SetVariantString("OnUser1 !self:FireUser2::3:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			AcceptEntityInput(entity, "FireUser1");
+			CreateTimer(2.9, TimerRefireSmoke, EntIndexToEntRef(entity));
 
-			SetVariantString("OnUser2 !self:Start::0:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			SetVariantString("OnUser2 !self:FireUser1::0:-1");
-			AcceptEntityInput(entity, "AddOutput");
+			// Refire
+			// SetVariantString("OnUser1 !self:Stop::2.9:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// SetVariantString("OnUser1 !self:FireUser2::3:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// AcceptEntityInput(entity, "FireUser1");
+
+			// SetVariantString("OnUser2 !self:Start::0:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// SetVariantString("OnUser2 !self:FireUser1::0:-1");
+			// AcceptEntityInput(entity, "AddOutput");
 		}
 		case ENUM_PARTICLE_SPIT2:
 		{
-			// Refire - 5 seconds
-			SetVariantString("OnUser1 !self:Stop::5:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			SetVariantString("OnUser1 !self:FireUser2::6:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			AcceptEntityInput(entity, "FireUser1");
+			CreateTimer(5.0, TimerRefireSpit, EntIndexToEntRef(entity));
 
-			SetVariantString("OnUser2 !self:Start::0:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			SetVariantString("OnUser2 !self:FireUser1::0:-1");
-			AcceptEntityInput(entity, "AddOutput");
+			// Refire - 5 seconds
+			// SetVariantString("OnUser1 !self:Stop::5:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// SetVariantString("OnUser1 !self:FireUser2::6:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// AcceptEntityInput(entity, "FireUser1");
+
+			// SetVariantString("OnUser2 !self:Start::0:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// SetVariantString("OnUser2 !self:FireUser1::0:-1");
+			// AcceptEntityInput(entity, "AddOutput");
 		}
 		case ENUM_PARTICLE_TESLA:
 		{
-			// Refire
-			SetVariantString("OnUser1 !self:Stop::0.9:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			SetVariantString("OnUser1 !self:FireUser2::1:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			AcceptEntityInput(entity, "FireUser1");
+			CreateTimer(0.9, TimerRefireTesla, EntIndexToEntRef(entity));
 
-			SetVariantString("OnUser2 !self:Start::0:-1");
-			AcceptEntityInput(entity, "AddOutput");
-			SetVariantString("OnUser2 !self:FireUser1::0:-1");
-			AcceptEntityInput(entity, "AddOutput");
+			// Refire
+			// SetVariantString("OnUser1 !self:Stop::0.9:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// SetVariantString("OnUser1 !self:FireUser2::1:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// AcceptEntityInput(entity, "FireUser1");
+
+			// SetVariantString("OnUser2 !self:Start::0:-1");
+			// AcceptEntityInput(entity, "AddOutput");
+			// SetVariantString("OnUser2 !self:FireUser1::0:-1");
+			// AcceptEntityInput(entity, "AddOutput");
 		}
 	}
 
 	return EntIndexToEntRef(entity);
+}
+
+Action TimerRefireTesla(Handle timer, int entity)
+{
+	if( IsValidEntRef(entity) )
+	{
+		AcceptEntityInput(entity, "Stop");
+
+		CreateTimer(0.1, TimerRefireTesla2, entity);
+	}
+
+	return Plugin_Stop;
+}
+
+Action TimerRefireTesla2(Handle timer, int entity)
+{
+	if( IsValidEntRef(entity) )
+	{
+		AcceptEntityInput(entity, "Start");
+
+		CreateTimer(0.9, TimerRefireTesla, entity);
+	}
+
+	return Plugin_Stop;
+}
+
+Action TimerRefireSmoke(Handle timer, int entity)
+{
+	if( IsValidEntRef(entity) )
+	{
+		AcceptEntityInput(entity, "Stop");
+
+		CreateTimer(1.0, TimerRefireSmoke2, entity);
+		return Plugin_Continue;
+	}
+
+	return Plugin_Stop;
+}
+
+Action TimerRefireSmoke2(Handle timer, int entity)
+{
+	if( IsValidEntRef(entity) )
+	{
+		AcceptEntityInput(entity, "Start");
+
+		CreateTimer(2.9, TimerRefireSmoke, entity);
+		return Plugin_Continue;
+	}
+
+	return Plugin_Stop;
+}
+
+Action TimerRefireSpit(Handle timer, int entity)
+{
+	if( IsValidEntRef(entity) )
+	{
+		AcceptEntityInput(entity, "Stop");
+
+		CreateTimer(1.0, TimerRefireSpit2, entity);
+		return Plugin_Continue;
+	}
+
+	return Plugin_Stop;
+}
+
+Action TimerRefireSpit2(Handle timer, int entity)
+{
+	if( IsValidEntRef(entity) )
+	{
+		AcceptEntityInput(entity, "Start");
+
+		CreateTimer(5.0, TimerRefireSpit, entity);
+		return Plugin_Continue;
+	}
+
+	return Plugin_Stop;
 }
 
 
@@ -2789,6 +3051,18 @@ bool IsCommonValidToUse(int entity)
 	}
 
 	return true;
+}
+
+void StrToLowerCase(const char[] input, char[] output, int maxlength)
+{
+	int pos;
+	while( input[pos] != 0 && pos < maxlength )
+	{
+		output[pos] = CharToLower(input[pos]);
+		pos++;
+	}
+
+	output[pos] = 0;
 }
 
 bool IsValidEntRef(int entity)

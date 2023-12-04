@@ -8,7 +8,7 @@ public Plugin myinfo = {
 	name		= "[TF2] Special Ragdolls",
 	author		= "Nanochip",
 	description = "When you kill someone, turn their ragdoll into something special.",
-	version		= "1.0",
+	version		= "1.0.1",
 	url			= "http://steamcommunity.com/id/xNanochip"
 };
 
@@ -71,118 +71,15 @@ public void RagdollMenu(int client)
 	// 0 = No Special Ragdoll, 1 = Burning, 2 = Electrocuted, 
 	//3 = Gold, 4 = Ice, 5 = High Velocity, 6 = Cow Mangler Dissolve, 7 = Head Decapitation
 	menu.SetTitle("Select your enemies' ragdolls:");
-	switch (ragdollType[client])
-	{
-		case 0:
-		{
-			menu.AddItem("0", "No Special Ragdoll", ITEMDRAW_DISABLED);
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 1:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning", ITEMDRAW_DISABLED);
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 2:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted", ITEMDRAW_DISABLED);
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 3:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold", ITEMDRAW_DISABLED);
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 4:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice", ITEMDRAW_DISABLED);
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 5:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity", ITEMDRAW_DISABLED);
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 6:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve", ITEMDRAW_DISABLED);
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random");
-		}
-		case 7:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation", ITEMDRAW_DISABLED);
-			menu.AddItem("8", "Random");
-		}
-		case 8:
-		{
-			menu.AddItem("0", "No Special Ragdoll");
-			menu.AddItem("1", "Burning");
-			menu.AddItem("2", "Electrocuted");
-			menu.AddItem("3", "Gold");
-			menu.AddItem("4", "Ice");
-			menu.AddItem("5", "High Velocity");
-			menu.AddItem("6", "Cow Mangler Dissolve");
-			menu.AddItem("7", "Head Decapitation");
-			menu.AddItem("8", "Random", ITEMDRAW_DISABLED);
-		}
-	}
-	
+	menu.AddItem("0", "No Special Ragdoll", (ragdollType[client] == 0) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("1", "Burning", (ragdollType[client] == 1) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("2", "Electrocuted", (ragdollType[client] == 2) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("3", "Gold", (ragdollType[client] == 3) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("4", "Ice", (ragdollType[client] == 4) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("5", "High Velocity", (ragdollType[client] == 5) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("6", "Cow Mangler Dissolve", (ragdollType[client] == 6) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("7", "Head Decapitation", (ragdollType[client] == 7) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem("8", "Random", (ragdollType[client] == 8) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 	menu.Display(client, 20);
 }
 
@@ -240,7 +137,7 @@ public Action Event_PlayerDeath(Handle event, const char[] name, bool dontBroadc
 	
 	float clientOrigin[3];
 	SetEntPropVector(ragdoll, Prop_Send, "m_vecRagdollOrigin", clientOrigin); 
-	SetEntProp(ragdoll, Prop_Send, "m_iPlayerIndex", client);
+	SetEntPropEnt(ragdoll, Prop_Send, "m_hPlayer", client);
 	
 	// 0 = No Special Ragdoll, 1 = Burning, 2 = Electrocuted, 3 = Gold, 4 = Ice, 5 = High Velocity, 6 = Cow Mangler Dissolve
 	if (randomRagdoll[attacker] == 1) SetEntProp(ragdoll, Prop_Send, "m_bBurning", 1);
@@ -325,19 +222,6 @@ public Action RemoveBody(Handle timer, any client)
 		AcceptEntityInput(BodyRagdoll, "kill");
 	}
 }
-
-/*public Action RemoveRagdoll(Handle timer, any ent)
-{
-	if(IsValidEntity(ent))
-	{
-		char classname[64];
-		GetEdictClassname(ent, classname, sizeof(classname));
-		if(StrEqual(classname, "tf_ragdoll", false))
-		{
-			AcceptEntityInput(ent, "kill");
-		}
-	}
-}*/
 
 stock bool IsValidClient(int client) 
 {

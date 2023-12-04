@@ -1,17 +1,17 @@
-#include <sourcemod>
 #include <tf2_stocks>
 #include <tf2attributes>
 
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.13"
+#define PLUGIN_VERSION "1.17"
 
-bool g_bTouched[MAXPLAYERS+1] = false;
+bool g_bTouched[MAXPLAYERS+1] = {false, ...};
 bool g_bMVM = false;
 bool g_bLateLoad = false;
 ConVar g_hCVTimer;
 ConVar g_hCVEnabled;
+ConVar g_hCVMVMREDCEnabled;
 Handle g_hWearableEquip;
 
 public Plugin myinfo = 
@@ -41,6 +41,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart() 
 {
 	ConVar versioncvar = CreateConVar("sm_gbmc_version", PLUGIN_VERSION, "Give Bots More Cosmetics version cvar", FCVAR_NOTIFY|FCVAR_DONTRECORD); 
+	g_hCVMVMREDCEnabled = CreateConVar("sm_gbmc_MVM_red_enabled", "1", "Enables/disables Giving RED team cosmetics in MvM", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hCVEnabled = CreateConVar("sm_gbmc_enabled", "1", "Enables/disables this plugin", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_hCVTimer = CreateConVar("sm_gbmc_delay", "0.1", "Delay for giving cosmetics to bots", FCVAR_NONE, true, 0.1, true, 30.0);
 
@@ -54,7 +55,7 @@ public void OnPluginStart()
 		OnMapStart();
 	}
 	
-	GameData hTF2 = new GameData("sm-tf2.games"); // sourcemod's tf2 gamdata
+	GameData hTF2 = new GameData("sm-tf2.games"); // sourcemod's tf2 gamedata
 
 	if (!hTF2)
 		SetFailState("This plugin is designed for a TF2 dedicated server only.");
@@ -106,6 +107,18 @@ public void player_inv(Handle event, const char[] name, bool dontBroadcast)
 		g_bTouched[client] = true;
 		CreateTimer(GetConVarFloat(g_hCVTimer), Timer_GiveHat, userd);
 	}
+	
+	if (g_bMVM && GetConVarBool(g_hCVMVMREDCEnabled) && IsPlayerHere(client))
+	{
+		int team = GetClientTeam(client);
+		
+		if (team != 2)
+		{
+			return;
+		}
+		
+		CreateTimer(GetConVarFloat(g_hCVTimer), Timer_GiveHat, userd);
+	}	
 }
 
 public Action Timer_GiveHat(Handle timer, any data)
@@ -114,7 +127,7 @@ public Action Timer_GiveHat(Handle timer, any data)
 	g_bTouched[client] = false;
 	if (!GetConVarInt(g_hCVEnabled))
 	{
-		return;
+		return Plugin_Handled;
 	}
 	
 	if (IsPlayerHere(client))
@@ -123,12 +136,12 @@ public Action Timer_GiveHat(Handle timer, any data)
 		if (rnd4 == 1)
 		{
 			GiveHat2(client);
-			return;
+			return Plugin_Handled;
 		}
 
 		if (TF2_GetPlayerClass(client) == TFClass_Scout)
 		{
-			int rnd3 = GetRandomInt(1,37);
+			int rnd3 = GetRandomInt(1,45);
 			switch (rnd3)
 			{
 			case 1:
@@ -354,12 +367,59 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31117, 10, 6, 0); //California Cap			
 					CreateHat(client, 31118, 10, 6, 0); //Poolside Polo
 					CreateHat(client, 31119, 10, 6, 0); //Tools of the Tourist				
+				}
+			case 38:
+				{
+					CreateHat(client, 31195, 10, 6, 1); //Fast Food
+					CreateHat(client, 31196, 10, 6, 0); //Fried Batter			
+					CreateHat(client, 31197, 10, 6, 0); //Meal Dealer
+				}
+			case 39:
+				{
+					CreateHat(client, 765, 10, 6, 1); //C
+					CreateHat(client, 31138, 10, 6, 0); //Grounded Flyboy			
+					CreateHat(client, 30754, 10, 6, 0); //Hot Heels
+				}
+			case 40:
+				{
+					CreateHat(client, 31284, 10, 6, 1); //Boston Brain Bucket
+					CreateHat(client, 31283, 10, 6, 0); //Team Player			
+					CreateHat(client, 31285, 10, 6, 0); //Pests Pads
+				}
+			case 41:
+				{
+					CreateHat(client, 31284, 10, 6, 1); //Throttlehead
+					CreateHat(client, 31282, 10, 6, 0); //Ripped Rider			
+					CreateHat(client, 30561, 10, 6, 0); //Bootenkhamuns
+				}
+			case 42:
+				{
+					CreateHat(client, 652, 10, 6, 1); //Big Elfin Deal
+					CreateHat(client, 31258, 10, 6, 0); //Seasonal Employee		
+					CreateHat(client, 653, 10, 6, 0); //Bootie Time
+				}
+			case 43:
+				{
+					CreateHat(client, 31229, 10, 6, 1); //Batters Beak
+					CreateHat(client, 31133, 10, 6, 0); //Boom Boxers			
+					CreateHat(client, 30754, 10, 6, 0); //Hot Heels
+				}
+			case 44:
+				{
+					CreateHat(client, 31232, 10, 6, 1); //Computron 5000
+					CreateHat(client, 30888, 10, 6, 0); //Jungle Jersey			
+					CreateHat(client, 30890, 10, 6, 0); //Forest Footwear
+				}
+			case 45:
+				{
+					CreateHat(client, 31303, 10, 6, 1); //Masked Fiend
+					CreateHat(client, 31302, 10, 6, 0); //Imps Imprint		
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Soldier)
 		{
-			int rnd3 = GetRandomInt(1,41);
+			int rnd3 = GetRandomInt(1,47);
 			switch (rnd3)
 			{
 			case 1:
@@ -606,12 +666,42 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 30969, 10, 6, 1); //Brass Bucket
 					CreateHat(client, 30129, 10, 6, 0); //Hornblower		
 					CreateHat(client, 556, 10, 6, 0); //Steel Pipes
+				}
+			case 42:
+				{
+					CreateHat(client, 30984, 10, 6, 1); //Sky High Fly Guy
+					CreateHat(client, 31137, 10, 6, 0); //War Blunder		
+				}
+			case 43:
+				{
+					CreateHat(client, 31230, 10, 6, 1); //War Dog
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
+				}
+			case 44:
+				{
+					CreateHat(client, 31310, 10, 6, 1); //Firearm Protector
+					CreateHat(client, 31311, 10, 6, 0); //Safety Stripes		
+				}
+			case 45:
+				{
+					CreateHat(client, 31228, 10, 6, 1); //Poopy Doe
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
+				}
+			case 46:
+				{
+					CreateHat(client, 31277, 10, 6, 1); //Detective
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
+				}
+			case 47:
+				{
+					CreateHat(client, 31312, 10, 6, 1); //Cranial Cowl
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Pyro)
 		{
-			int rnd3 = GetRandomInt(1,42);
+			int rnd3 = GetRandomInt(1,49);
 			switch (rnd3)
 			{
 			case 1:
@@ -855,12 +945,53 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 1014, 10, 6, 1); //Brutal Bouffant
 					CreateHat(client, 31060, 10, 6, 0); //Binoculus		
 					CreateHat(client, 30391, 10, 6, 0); //Sengoku Scorcher
+				}
+			case 43:
+				{
+					CreateHat(client, 31222, 10, 6, 1); //Smiling Somen
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi	
+					CreateHat(client, 30321, 10, 6, 0); //Tiny Timber
+				}
+			case 44:
+				{
+					CreateHat(client, 31221, 10, 6, 1); //Wandering Wraith
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi
+					CreateHat(client, 31220, 10, 6, 0); //Tricksters Treats						
+				}
+			case 45:
+				{
+					CreateHat(client, 31186, 10, 6, 1); //Reel Fly Hat
+					CreateHat(client, 31188, 10, 6, 0); //Water Waders
+					CreateHat(client, 31187, 10, 6, 0); //Hook Line Cinder					
+				}
+			case 46:
+				{
+					CreateHat(client, 31231, 10, 6, 1); //Miami Rooster
+					CreateHat(client, 31051, 10, 6, 0); //Wanderers Wear
+				}
+			case 47:
+				{
+					CreateHat(client, 31296, 10, 6, 1); //Propaniac
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi
+					CreateHat(client, 30020, 10, 6, 0); //Scrap Stack					
+				}
+			case 48:
+				{
+					CreateHat(client, 31317, 10, 6, 1); //Fire Breather
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi
+					CreateHat(client, 30020, 10, 6, 0); //Scrap Stack					
+				}
+			case 49:
+				{
+					CreateHat(client, 30928, 10, 6, 1); //Balloonihoodie
+					CreateHat(client, 31318, 10, 6, 0); //Magical Mount
+					CreateHat(client, 738, 10, 6, 0); //Balloonicorn					
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_DemoMan)
 		{
-			int rnd3 = GetRandomInt(1,35);
+			int rnd3 = GetRandomInt(1,37);
 			switch (rnd3)
 			{
 			case 1:
@@ -1075,12 +1206,24 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 30348, 10, 6, 0); //Bushi Dou
 					CreateHat(client, 30366, 10, 6, 0); //Sangu Sleeves
 					CreateHat(client, 30742, 10, 6, 0); //Shin Shredders					
+				}
+			case 36:
+				{
+					CreateHat(client, 30393, 10, 6, 1); //Razor Cut
+					CreateHat(client, 31274, 10, 6, 0); //Hawaiian Hangover		
+					CreateHat(client, 31275, 10, 6, 0); //Barefoot Brawler
+				}
+			case 37:
+				{
+					CreateHat(client, 31040, 10, 6, 1); //Unforgiven Glory
+					CreateHat(client, 31037, 10, 6, 0); //Dynamite Abs		
+					CreateHat(client, 31275, 10, 6, 0); //Barefoot Brawler
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Heavy)
 		{
-			int rnd3 = GetRandomInt(1,44);
+			int rnd3 = GetRandomInt(1,52);
 			switch (rnd3)
 			{
 			case 1:
@@ -1342,11 +1485,52 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31179, 10, 6, 0); //BedBug Protection
 					CreateHat(client, 31180, 10, 6, 0); //Bear Walker
 				}				
-			}
+			case 45:
+				{
+					CreateHat(client, 31267, 10, 6, 1); //Squatters Right
+					CreateHat(client, 31268, 10, 6, 0); //Combat Casual
+					CreateHat(client, 30563, 10, 6, 0); //Jungle Booty
+				}
+			case 46:
+				{
+					CreateHat(client, 31178, 10, 6, 1); //SandManns Brush
+					CreateHat(client, 31179, 10, 6, 0); //BedBug Protection
+					CreateHat(client, 31180, 10, 6, 0); //Bear Walker
+				}
+			case 47:
+				{
+					CreateHat(client, 31255, 10, 6, 1); //Mooshanka
+					CreateHat(client, 31268, 10, 6, 0); //Combat Casual
+				}
+			case 48:
+				{
+					CreateHat(client, 31029, 10, 6, 1); //Cool Capuchon
+					CreateHat(client, 31079, 10, 6, 0); //Soviet Strongmann
+					CreateHat(client, 31123, 10, 6, 0); //Momma Kiev
+				}
+			case 49:
+				{
+					CreateHat(client, 31232, 10, 6, 1); //Computron 5000
+					CreateHat(client, 777, 10, 6, 0); //Apparatchiks Apparel
+				}
+			case 50:
+				{
+					CreateHat(client, 31304, 10, 6, 1); //Horrow Shawl
+				}
+			case 51:
+				{
+					CreateHat(client, 31315, 10, 6, 1); //Mishas Maw
+				}
+			case 52:
+				{
+					CreateHat(client, 31305, 10, 6, 1); //Road Rage
+					CreateHat(client, 31306, 10, 6, 0); //Road Block						
+				}				
+			}			
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Engineer)
 		{
-			int rnd3 = GetRandomInt(1,36);
+			int rnd3 = GetRandomInt(1,43);
 			switch (rnd3)
 			{
 			case 1:
@@ -1567,11 +1751,53 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 30337, 10, 6, 0); //Trenchers Tunic					
 					CreateHat(client, 31013, 10, 6, 0); //Mini Engy
 				}
+			case 37:
+				{
+					CreateHat(client, 31150, 10, 6, 1); //Goblineer
+					CreateHat(client, 31151, 10, 6, 0); //Ghoul Box					
+					CreateHat(client, 31013, 10, 6, 0); //Mini Engy
+				}
+			case 38:
+				{
+					CreateHat(client, 31272, 10, 6, 1); //Lawnmaker
+					CreateHat(client, 31264, 10, 6, 0); //Western Wraps				
+					CreateHat(client, 386, 10, 6, 0); //Teddy Robobelt
+				}
+			case 39:
+				{
+					CreateHat(client, 31140, 10, 6, 1); //Pug Mug
+					CreateHat(client, 30785, 10, 6, 0); //Dad Duds			
+					CreateHat(client, 31032, 10, 6, 0); //Puggyback
+				}
+			case 40:
+				{
+					CreateHat(client, 31140, 10, 6, 1); //Computron 5000
+					CreateHat(client, 30508, 10, 6, 0); //Iron Fist			
+					CreateHat(client, 30821, 10, 6, 0); //Packable Provisions
+				}
+			case 41:
+				{
+					CreateHat(client, 31148, 10, 6, 1); //Wavefinder
+					CreateHat(client, 30402, 10, 6, 0); //Tools of the Trade		
+					CreateHat(client, 1089, 10, 6, 0); //Mister Bubbles
+				}
+			case 42:
+				{
+					CreateHat(client, 31097, 10, 6, 1); //Provisions Cap
+					CreateHat(client, 30821, 10, 6, 0); //Packable Provisions
+					CreateHat(client, 31013, 10, 6, 0); //Mini Engy					
+				}
+			case 43:
+				{
+					CreateHat(client, 31298, 10, 6, 1); //More Gun Marshal
+					CreateHat(client, 30635, 10, 6, 0); //Wild West Waistcoad
+					CreateHat(client, 31319, 10, 6, 0); //Pony Express					
+				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Medic)
 		{
-			int rnd3 = GetRandomInt(1,38);
+			int rnd3 = GetRandomInt(1,43);
 			switch (rnd3)
 			{
 			case 1:
@@ -1801,12 +2027,39 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31177, 10, 6, 0); //NightWard
 					CreateHat(client, 31163, 10, 6, 0); //Particulate Protector
 					CreateHat(client, 31078, 10, 6, 0); //Derangement Garment	
+				}
+			case 39:
+				{
+					CreateHat(client, 30862, 10, 6, 1); //Field Practice
+					CreateHat(client, 31139, 10, 6, 0); //Rolfe Copter
+				}
+			case 40:
+				{
+					CreateHat(client, 31265, 10, 6, 1); //Soda Cap
+					CreateHat(client, 31266, 10, 6, 0); //Fizzy Pharmacist			
+				}
+			case 41:
+				{
+					CreateHat(client, 31027, 10, 6, 1); //Misers Muttonchops
+					CreateHat(client, 31177, 10, 6, 0); //Night Ward	
+					CreateHat(client, 31033, 10, 6, 0); //Harry		
+				}
+			case 42:
+				{
+					CreateHat(client, 31232, 10, 6, 1); //Computron 5000
+					CreateHat(client, 30756, 10, 6, 0); //Bunnyhoppers Ballistics Vest	
+					CreateHat(client, 31019, 10, 6, 0); //Pocket Admin	
+				}
+			case 43:
+				{
+					CreateHat(client, 31300, 10, 6, 1); //Victorian Villainy
+					CreateHat(client, 31299, 10, 6, 0); //Lavish Labwear
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Sniper)
 		{
-			int rnd3 = GetRandomInt(1,40);
+			int rnd3 = GetRandomInt(1,44);
 			switch (rnd3)
 			{
 			case 1:
@@ -2047,12 +2300,35 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 344, 10, 6, 1); //Crocleather Slouch
 					CreateHat(client, 30317, 10, 6, 0); //Five Month Shadow		
 					CreateHat(client, 645, 10, 6, 0); //The Outback Intellectual
+				}
+			case 41:
+				{
+					CreateHat(client, 31192, 10, 6, 1); //Wild Brim Slouch
+					CreateHat(client, 31193, 10, 6, 0); //Crocodile Dandy	
+					CreateHat(client, 31269, 10, 6, 0); //Rocko
+				}
+			case 42:
+				{
+					CreateHat(client, 31271, 10, 6, 1); //Hawaiian Hunter
+					CreateHat(client, 31270, 10, 6, 0); //Tropical Camo
+					CreateHat(client, 824, 10, 6, 0); //Koala Compact
+				}
+			case 43:
+				{
+					CreateHat(client, 31101, 10, 6, 1); //Missing Piece
+					CreateHat(client, 31102, 10, 6, 0); //Mislaid Sweater
+					CreateHat(client, 30424, 10, 6, 0); //Triggermans Tacticals
+				}
+			case 44:
+				{
+					CreateHat(client, 31313, 10, 6, 1); //Headhunters Brim
+					CreateHat(client, 31314, 10, 6, 0); //Hunting Cloak
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Spy)
 		{
-			int rnd3 = GetRandomInt(1,41);
+			int rnd3 = GetRandomInt(1,43);
 			switch (rnd3)
 			{
 			case 1:
@@ -2298,11 +2574,21 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31109, 10, 6, 1); //Crabe de Chapeau
 					CreateHat(client, 31110, 10, 6, 0); //Birds Eye Viewer			
 					CreateHat(client, 31124, 10, 6, 0); //Smoking Jacket
+				}
+			case 42:
+				{
+					CreateHat(client, 31279, 10, 6, 1); //Night Vision Gawkers
+					CreateHat(client, 31278, 10, 6, 0); //Tactical Turtleneck			
+				}
+			case 43:
+				{
+					CreateHat(client, 30404, 10, 6, 1); //Aviator Assassin
+					CreateHat(client, 31301, 10, 6, 0); //Turncoat		
 				}				
 			}
 		}		
 	}
-	return;
+	return Plugin_Handled;
 }
 
 public Action GiveHat2(int client)
@@ -2310,12 +2596,12 @@ public Action GiveHat2(int client)
 	g_bTouched[client] = false;
 	if (!GetConVarInt(g_hCVEnabled))
 	{
-		return;
+		return Plugin_Handled;
 	}
 	
 	if (IsPlayerHere(client))
 	{
-		int rnd3 = GetRandomInt(1,26);
+		int rnd3 = GetRandomInt(1,29);
 		switch (rnd3)
 		{
 			//ALLCLASS
@@ -2474,10 +2760,25 @@ public Action GiveHat2(int client)
 				CreateHat(client, 31173, 10, 6, 1); //Towering Pile of Presents
 				CreateHat(client, 31093, 10, 6, 0); //Glittering Garland
 				CreateHat(client, 31167, 10, 6, 0); //Festive Flip Thwomps
+			}
+		case 27:
+			{
+				CreateHat(client, 31245, 10, 6, 1); //Oh Deer
+				CreateHat(client, 30972, 10, 6, 0); //Pocket Santa
+			}
+		case 28:
+			{
+				CreateHat(client, 31259, 10, 6, 1); //Hat Chocolate
+				CreateHat(client, 30972, 10, 6, 0); //Pocket Santa
+			}
+		case 29:
+			{
+				CreateHat(client, 31183, 10, 6, 1); //Ballooniphones
+				CreateHat(client, 30929, 10, 6, 0); //Pocket Yeti
 			}			
 		}
 	}
-	return;
+	return Plugin_Handled;
 }
 
 bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
@@ -2530,7 +2831,7 @@ bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
 		if (GetRandomInt(1,4) == 1)
 		{
 			SetEntData(hat, FindSendPropInfo(entclass, "m_iEntityQuality"), 5);
-			TF2Attrib_SetByDefIndex(hat, 134, GetRandomInt(1,174) + 0.0);
+			TF2Attrib_SetByDefIndex(hat, 134, GetRandomInt(1,270) + 0.0);
 		}
 	}
 
@@ -2543,7 +2844,7 @@ bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
 	if(itemindex == 1158 || itemindex == 1173)
 	{
 		SetEntProp(hat, Prop_Send, "m_iEntityQuality", 5);
-		TF2Attrib_SetByDefIndex(hat, 134, GetRandomInt(1,174) + 0.0);
+		TF2Attrib_SetByDefIndex(hat, 134, GetRandomInt(1,270) + 0.0);
 	}
 
 	if (quality !=5 && quality !=11)
@@ -2726,6 +3027,11 @@ bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
 
 bool IsPlayerHere(int client)
 {
+	if (client < 1 || IsClientSourceTV(client) || IsClientReplay(client))
+	{
+		return false;
+	}
+	
 	return (client && IsClientInGame(client) && IsFakeClient(client));
 }
 

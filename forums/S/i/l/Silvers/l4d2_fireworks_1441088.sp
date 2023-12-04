@@ -1,6 +1,6 @@
 /*
 *	Fireworks Party
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.10"
+#define PLUGIN_VERSION		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (18-Aug-2023)
+	- Fixed compile errors on SM 1.12.
 
 1.10 (30-Sep-2020)
 	- Fixed compile errors on SM 1.11.
@@ -131,7 +134,7 @@ enum
 	TYPE_FLASH	= (1 << 3),
 }
 
-static const char g_sParticles[4][16] =
+char g_sParticles[4][] =
 {
 	"fireworks_01",
 	"fireworks_02",
@@ -139,7 +142,7 @@ static const char g_sParticles[4][16] =
 	"fireworks_04"
 };
 
-static const char g_sSoundsLaunch[6][45] =
+char g_sSoundsLaunch[6][] =
 {
 	"ambient/atmosphere/firewerks_launch_01.wav",
 	"ambient/atmosphere/firewerks_launch_02.wav",
@@ -149,7 +152,7 @@ static const char g_sSoundsLaunch[6][45] =
 	"ambient/atmosphere/firewerks_launch_06.wav"
 };
 
-static const char g_sSoundsBursts[4][45] =
+char g_sSoundsBursts[4][] =
 {
 	"ambient/atmosphere/firewerks_burst_01.wav",
 	"ambient/atmosphere/firewerks_burst_02.wav",
@@ -253,12 +256,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -359,7 +362,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -376,7 +379,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					ADMIN COMMANDS
 // ====================================================================================================
-public Action CmdFireworks(int client, int args)
+Action CmdFireworks(int client, int args)
 {
 	if( client && IsClientInGame(client) )
 	{
@@ -415,7 +418,7 @@ bool SetTeleportEndPoint(int client, float vPos[3])
 	return true;
 }
 
-public bool TraceEntityFilterPlayer(int entity, int contentsMask)
+bool TraceEntityFilterPlayer(int entity, int contentsMask)
 {
 	return entity > MaxClients && !entity;
 }
@@ -441,7 +444,7 @@ void UnhookEvents()
 	UnhookEvent("round_end",		Event_RoundEnd,			EventHookMode_PostNoCopy);
 }
 
-public void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
+void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
 {
 	char sTemp[42];
 	float vPos[3];
@@ -488,14 +491,14 @@ public void OnMapEnd()
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	g_iParticleCount = 0;
 	g_iRoundStart = 0;
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 	{
@@ -508,7 +511,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 	{
@@ -521,9 +524,10 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public Action TimerConvert(Handle timer)
+Action TimerConvert(Handle timer)
 {
 	ConvertToCrates();
+	return Plugin_Continue;
 }
 
 void ConvertToCrates()
@@ -626,7 +630,7 @@ int ReplaceCan(int entity)
 	float vPos[3], vAng[3];
 	GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPos);
 	GetEntPropVector(entity, Prop_Data, "m_angAbsRotation", vAng);
-	AcceptEntityInput(entity, "kill");
+	RemoveEntity(entity);
 
 	vAng[0] += 90;
 	vPos[2] += 5.0;
@@ -708,7 +712,7 @@ void MakeFireworks(const float vOrigin[3])
 	}
 }
 
-public Action TimerRandomFirework(Handle timer, DataPack hPack)
+Action TimerRandomFirework(Handle timer, DataPack hPack)
 {
 	float vPos[3], vAng[3];
 
@@ -726,6 +730,8 @@ public Action TimerRandomFirework(Handle timer, DataPack hPack)
 	ShowParticle(vPos, vAng, g_sParticles[i]);
 
 	PlaySound(vPos); // Play whistle now and explosion sound in 2 seconds.
+
+	return Plugin_Continue;
 }
 
 // Get a random firework type from the cvars enum and display
@@ -829,7 +835,7 @@ void PlaySound(float vPos[3])
 	}
 }
 
-public Action TimerPlayBurst(Handle timer, DataPack hPack)
+Action TimerPlayBurst(Handle timer, DataPack hPack)
 {
 	float vPos[3];
 
@@ -839,6 +845,8 @@ public Action TimerPlayBurst(Handle timer, DataPack hPack)
 	vPos[2] = hPack.ReadFloat() + 400.0;
 
 	PlayAmbient(g_sSoundsBursts[GetRandomInt(0, 3)], vPos);
+
+	return Plugin_Continue;
 }
 
 void PlayAmbient(char[] sName, float vPos[3])

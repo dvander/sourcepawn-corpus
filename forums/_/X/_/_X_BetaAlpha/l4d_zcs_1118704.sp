@@ -1,12 +1,12 @@
 /**
  * vim: set ts=4 :
  * =============================================================================
- * Zombie Character Select 0.9.6-L4D1 by XBetaAlpha
+ * Zombie Character Select 0.9.7-L4D1 by XBetaAlpha
  *
  * Allows a player on the infected team to change their infected class.
  * Complete rewrite based on the Infected Character Select idea by Crimson_Fox.
  *
- * SourceMod (C)2004-2013 AlliedModders LLC.  All rights reserved.
+ * SourceMod (C)2004-2016 AlliedModders LLC.  All rights reserved.
  * =============================================================================
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -34,15 +34,15 @@
  */
 
 #pragma semicolon 1
-
+#pragma newdecls required
 #include <sourcemod>
 #include <sdktools>
 
 #define PLUGIN_NAME		"Zombie Character Select"
 #define PLUGIN_AUTHOR		"XBetaAlpha"
 #define PLUGIN_DESC		"Allows infected team players to change their class in ghost mode. (Versus Only)"
-#define PLUGIN_VERSION		"0.9.6"
-#define PLUGIN_URL		"http://dev.andrewx.net/sm/zcs"
+#define PLUGIN_VERSION		"0.9.7"
+#define PLUGIN_URL		"https://forums.alliedmods.net/showthread.php?t=121461"
 #define PLUGIN_FILENAME		"l4d_zcs"
 
 #define L4D_MAXPLAYERS		32
@@ -86,93 +86,94 @@
 #define SELECT_KEY(%1)		(%1 == 1 ? IN_ATTACK2 : (%1 == 2 ? IN_RELOAD : (%1 == 3 ? IN_ZOOM : 0)))
 #define PLAYER_KEYS(%1)		(%1 == 1 ? "MELEE" : (%1 == 2 ? "RELOAD" : (%1 == 3 ? "ZOOM" : "None")))
 
-new Handle:g_hSetClass		= INVALID_HANDLE;
-new Handle:g_hCreateAbility	= INVALID_HANDLE;
-new Handle:g_hGameConf		= INVALID_HANDLE;
+Handle g_hSetClass		= INVALID_HANDLE;
+Handle g_hCreateAbility		= INVALID_HANDLE;
+Handle g_hGameConf		= INVALID_HANDLE;
 
-new Handle:g_hEnable		= INVALID_HANDLE;
-new Handle:g_hDebug		= INVALID_HANDLE;
-new Handle:g_hRespectLimits 	= INVALID_HANDLE;
-new Handle:g_hShowHudPanel 	= INVALID_HANDLE;
-new Handle:g_hCountFakeBots 	= INVALID_HANDLE;
-new Handle:g_hAllowFinaleSwitch	= INVALID_HANDLE;
-new Handle:g_hAllowLastClass	= INVALID_HANDLE;
-new Handle:g_hAllowLastOnLimit	= INVALID_HANDLE;
-new Handle:g_hAllowClassSwitch	= INVALID_HANDLE;
-new Handle:g_hAllowCullSwitch	= INVALID_HANDLE;
-new Handle:g_hAllowSpawnSwitch	= INVALID_HANDLE;
-new Handle:g_hAccessLevel	= INVALID_HANDLE;
-new Handle:g_hSelectKey		= INVALID_HANDLE;
-new Handle:g_hNotifyKey		= INVALID_HANDLE;
-new Handle:g_hNotifyKeyVerbose	= INVALID_HANDLE;
-new Handle:g_hNotifyClass	= INVALID_HANDLE;
-new Handle:g_hNotifyLock	= INVALID_HANDLE;
-new Handle:g_hSelectDelay 	= INVALID_HANDLE;
-new Handle:g_hCooldownEnable	= INVALID_HANDLE;
-new Handle:g_hCooldownSmoker	= INVALID_HANDLE;
-new Handle:g_hCooldownBoomer	= INVALID_HANDLE;
-new Handle:g_hCooldownHunter	= INVALID_HANDLE;
-new Handle:g_hLockDelay		= INVALID_HANDLE;
-new Handle:g_hSmokerLimit	= INVALID_HANDLE;
-new Handle:g_hBoomerLimit	= INVALID_HANDLE;
-new Handle:g_hHunterLimit	= INVALID_HANDLE;
+Handle g_hEnable		= INVALID_HANDLE;
+Handle g_hDebug			= INVALID_HANDLE;
+Handle g_hRespectLimits		= INVALID_HANDLE;
+Handle g_hShowHudPanel		= INVALID_HANDLE;
+Handle g_hCountFakeBots		= INVALID_HANDLE;
+Handle g_hAllowFinaleSwitch	= INVALID_HANDLE;
+Handle g_hAllowLastClass	= INVALID_HANDLE;
+Handle g_hAllowLastOnLimit	= INVALID_HANDLE;
+Handle g_hAllowClassSwitch	= INVALID_HANDLE;
+Handle g_hAllowCullSwitch	= INVALID_HANDLE;
+Handle g_hAllowSpawnSwitch	= INVALID_HANDLE;
+Handle g_hAccessLevel		= INVALID_HANDLE;
+Handle g_hSelectKey		= INVALID_HANDLE;
+Handle g_hNotifyKey		= INVALID_HANDLE;
+Handle g_hNotifyKeyVerbose	= INVALID_HANDLE;
+Handle g_hNotifyClass		= INVALID_HANDLE;
+Handle g_hNotifyLock		= INVALID_HANDLE;
+Handle g_hSelectDelay		= INVALID_HANDLE;
+Handle g_hCooldownEnable	= INVALID_HANDLE;
+Handle g_hCooldownSmoker	= INVALID_HANDLE;
+Handle g_hCooldownBoomer	= INVALID_HANDLE;
+Handle g_hCooldownHunter	= INVALID_HANDLE;
+Handle g_hLockDelay		= INVALID_HANDLE;
+Handle g_hSmokerLimit		= INVALID_HANDLE;
+Handle g_hBoomerLimit		= INVALID_HANDLE;
+Handle g_hHunterLimit		= INVALID_HANDLE;
 
-new Handle:g_hLockTimer[L4D_MAXPLAYERS+1]	= {INVALID_HANDLE,...};
-new Handle:g_hAllowClassTimer[ZC_INDEXSIZE]	= {INVALID_HANDLE,...};
-new Handle:g_hSpawnGhostTimer[L4D_MAXPLAYERS+1] = {INVALID_HANDLE,...};
+Handle g_hLockTimer[L4D_MAXPLAYERS+1]		= {INVALID_HANDLE,...};
+Handle g_hAllowClassTimer[ZC_INDEXSIZE]		= {INVALID_HANDLE,...};
+Handle g_hSpawnGhostTimer[L4D_MAXPLAYERS+1]	= {INVALID_HANDLE,...};
 
-new String:g_sAccessLevel[PLAYER_ADMFLAG_SIZE];
+char g_sAccessLevel[PLAYER_ADMFLAG_SIZE];
 
-new bool:g_bIsHoldingMelee[L4D_MAXPLAYERS+1]	= {false,...};
-new bool:g_bIsChanging[L4D_MAXPLAYERS+1]	= {false,...};
-new bool:g_bSwitchLock[L4D_MAXPLAYERS+1]	= {false,...};
-new bool:g_bHasMaterialised[L4D_MAXPLAYERS+1]	= {false,...};
-new bool:g_bHasSpawned[L4D_MAXPLAYERS+1]	= {false,...};
-new bool:g_bUserFlagsCheck[L4D_MAXPLAYERS+1]	= {false,...};
-new bool:g_bEnable		= false;
-new bool:g_bDebug		= false;
-new bool:g_bRespectLimits	= false;
-new bool:g_bShowHudPanel	= false;
-new bool:g_bCountFakeBots	= false;
-new bool:g_bAllowFinaleSwitch	= false;
-new bool:g_bAllowLastClass	= false;
-new bool:g_bAllowLastOnLimit	= false;
-new bool:g_bAllowClassSwitch	= false;
-new bool:g_bAllowCullSwitch	= false;
-new bool:g_bAllowSpawnSwitch	= false;
-new bool:g_bCooldownEnable	= false;
-new bool:g_bNotifyKey		= false;
-new bool:g_bNotifyKeyVerbose	= false;
-new bool:g_bNotifyClass		= false;
-new bool:g_bNotifyLock		= false;
-new bool:g_bSwitchDisabled	= false;
-new bool:g_bRoundStart		= false;
-new bool:g_bRoundEnd		= false;
-new bool:g_bLeftSafeRoom	= false;
-new bool:g_bHookedEvents	= false;
+bool g_bIsHoldingMelee[L4D_MAXPLAYERS+1]	= {false,...};
+bool g_bIsChanging[L4D_MAXPLAYERS+1]		= {false,...};
+bool g_bSwitchLock[L4D_MAXPLAYERS+1]		= {false,...};
+bool g_bHasMaterialised[L4D_MAXPLAYERS+1]	= {false,...};
+bool g_bHasSpawned[L4D_MAXPLAYERS+1]		= {false,...};
+bool g_bUserFlagsCheck[L4D_MAXPLAYERS+1]	= {false,...};
 
-new g_iSmokerLimit		= -1;
-new g_iBoomerLimit		= -1;
-new g_iHunterLimit		= -1;
-new g_iSelectKey		= 0;
-new g_oAbility			= 0;
+bool g_bEnable			= false;
+bool g_bDebug			= false;
+bool g_bRespectLimits		= false;
+bool g_bShowHudPanel		= false;
+bool g_bCountFakeBots		= false;
+bool g_bAllowFinaleSwitch	= false;
+bool g_bAllowLastClass		= false;
+bool g_bAllowLastOnLimit	= false;
+bool g_bAllowClassSwitch	= false;
+bool g_bAllowCullSwitch		= false;
+bool g_bAllowSpawnSwitch	= false;
+bool g_bCooldownEnable		= false;
+bool g_bNotifyKey		= false;
+bool g_bNotifyKeyVerbose	= false;
+bool g_bNotifyClass		= false;
+bool g_bNotifyLock		= false;
+bool g_bSwitchDisabled		= false;
+bool g_bRoundStart		= false;
+bool g_bRoundEnd		= false;
+bool g_bLeftSafeRoom		= false;
+bool g_bHookedEvents		= false;
 
-new Float:g_fLockDelay          	= 0.0;
-new Float:g_fSelectDelay		= 0.0;
-new Float:g_fCooldownSmoker		= 0.0;
-new Float:g_fCooldownBoomer		= 0.0;
-new Float:g_fCooldownHunter		= 0.0;
-new Float:g_fClassDelay[ZC_INDEXSIZE]	= {0.0,...};
+int g_iSmokerLimit		= -1;
+int g_iBoomerLimit		= -1;
+int g_iHunterLimit		= -1;
+int g_iSelectKey		= 0;
+int g_oAbility			= 0;
 
-new g_iNotifyKeyVerbose[L4D_MAXPLAYERS+1] = {0,...};
-new g_iLastClass[L4D_MAXPLAYERS+1]	  = {0,...};
-new g_iNextClass[L4D_MAXPLAYERS+1]	  = {0,...};
-new g_iSLastClass[L4D_MAXPLAYERS+1]	  = {0,...};
-new g_iZVLimits[ZC_LIMITSIZE]		  = {0,...};
-new g_iAllowClass[ZC_INDEXSIZE] 	  = {1,...};
-new g_iHudCooldown[ZC_INDEXSIZE]	  = {0,...};
+float g_fLockDelay		  = 0.0;
+float g_fSelectDelay		  = 0.0;
+float g_fCooldownSmoker		  = 0.0;
+float g_fCooldownBoomer		  = 0.0;
+float g_fCooldownHunter		  = 0.0;
+float g_fClassDelay[ZC_INDEXSIZE] = {0.0,...};
 
-public Plugin:myinfo =
+int g_iNotifyKeyVerbose[L4D_MAXPLAYERS+1] = {0,...};
+int g_iLastClass[L4D_MAXPLAYERS+1]	  = {0,...};
+int g_iNextClass[L4D_MAXPLAYERS+1]	  = {0,...};
+int g_iSLastClass[L4D_MAXPLAYERS+1]	  = {0,...};
+int g_iZVLimits[ZC_LIMITSIZE]		  = {0,...};
+int g_iAllowClass[ZC_INDEXSIZE]		  = {1,...};
+int g_iHudCooldown[ZC_INDEXSIZE]	  = {0,...};
+
+public Plugin myinfo =
 {
 	name = PLUGIN_NAME,
 	author = PLUGIN_AUTHOR,
@@ -181,7 +182,7 @@ public Plugin:myinfo =
 	url = PLUGIN_URL
 }
 
-public APLRes:AskPluginLoad2(Handle:hPlugin, bool:isAfterMapLoaded, String:error[], err_max)
+public APLRes AskPluginLoad2(Handle hPlugin, bool isAfterMapLoaded, char[] error, int err_max)
 {
 	if (!Sub_CheckGameName(L4D_GAMENAME))
 	{
@@ -192,7 +193,7 @@ public APLRes:AskPluginLoad2(Handle:hPlugin, bool:isAfterMapLoaded, String:error
 	return APLRes_Success;
 }
 
-public OnPluginStart()
+public void OnPluginStart()
 {
 	Sub_HookGameData(PLUGIN_FILENAME);
 
@@ -261,13 +262,13 @@ public OnPluginStart()
 	Sub_CheckEventHooks();
 }
 
-public OnMapStart()
+public void OnMapStart()
 {
 	Sub_ReloadConVars();
 	Sub_ReloadLimits();
 }
 
-public OnClientDisconnect(Client)
+public void OnClientDisconnect(int Client)
 {
 	if (IsFakeClient(Client))
 		return;
@@ -280,7 +281,7 @@ public OnClientDisconnect(Client)
 	g_bUserFlagsCheck[Client] = false;
 }
 
-public OnClientPostAdminCheck(Client)
+public void OnClientPostAdminCheck(int Client)
 {
 	if (IsFakeClient(Client))
 		return;
@@ -294,13 +295,12 @@ public OnClientPostAdminCheck(Client)
 	{
 		if ((GetUserFlagBits(Client) & ADMFLAG_ROOT) || (GetUserFlagBits(Client) & ReadFlagString(g_sAccessLevel)))
 			g_bUserFlagsCheck[Client] = false;
-
 		else
 			g_bUserFlagsCheck[Client] = true;
 	}
 }
 
-public Action:Event_RoundStart(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_RoundStart(Handle hEvent, const char[] name, bool dontBroadcast)
 {
 	if (g_bRoundStart)
 		return Plugin_Continue;
@@ -318,7 +318,7 @@ public Action:Event_RoundStart(Handle:hEvent, const String:name[], bool:dontBroa
 	return Plugin_Continue;
 }
 
-public Action:Event_RoundEnd(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_RoundEnd(Handle hEvent, const char[] name, bool dontBroadcast)
 {
 	if (g_bRoundEnd)
 		return Plugin_Continue;
@@ -331,23 +331,25 @@ public Action:Event_RoundEnd(Handle:hEvent, const String:name[], bool:dontBroadc
 	return Plugin_Continue;
 }
 
-public Action:Event_FinaleStart(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_FinaleStart(Handle hEvent, const char[] name, bool dontBroadcast)
 {
 	if (!g_bAllowFinaleSwitch)
 		g_bSwitchDisabled = true;
 	else
 		g_bSwitchDisabled = false;
+
+	return Plugin_Continue;
 }
 
-public Action:Event_PlayerTeam(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerTeam(Handle hEvent, const char[] name, bool dontBroadcast)
 {
-	new Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
+	int Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
 
 	if (Client == 0 || !IsClientInGame(Client))
 		return Plugin_Continue;
 
-	new NewTeam = GetEventInt(hEvent, "team");
-	new OldTeam = GetEventInt(hEvent, "oldteam");
+	int NewTeam = GetEventInt(hEvent, "team");
+	int OldTeam = GetEventInt(hEvent, "oldteam");
 
 	if (OldTeam == TEAM_INFECTED)
 	{
@@ -368,9 +370,9 @@ public Action:Event_PlayerTeam(Handle:hEvent, const String:name[], bool:dontBroa
 	return Plugin_Continue;
 }
 
-public Action:Event_PlayerSpawn(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerSpawn(Handle hEvent, const char[] name, bool dontBroadcast)
 {
-	new Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
+	int Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
 
 	if (Client == 0 || !IsClientInGame(Client) || IsFakeClient(Client) || GetClientTeam(Client) != TEAM_INFECTED)
 		return Plugin_Continue;
@@ -393,18 +395,18 @@ public Action:Event_PlayerSpawn(Handle:hEvent, const String:name[], bool:dontBro
 	return Plugin_Continue;
 }
 
-public Action:Event_PlayerDeath(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerDeath(Handle hEvent, const char[] name, bool dontBroadcast)
 {
-	new Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
+	int Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
 
-        if (g_bRoundEnd || Client == 0 || !IsClientInGame(Client) || IsFakeClient(Client) || GetClientTeam(Client) != TEAM_INFECTED)
+	if (g_bRoundEnd || Client == 0 || !IsClientInGame(Client) || IsFakeClient(Client) || GetClientTeam(Client) != TEAM_INFECTED)
 		return Plugin_Continue;
 
-	if (g_bCooldownEnable && g_bRespectLimits)
+	if (g_bCooldownEnable)
 	{
 		if (!Sub_IsPlayerGhost(Client))
 		{
-			new ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
+			int ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
 
 			if ((ZClass >= ZC_SMOKER) && (ZClass <= ZC_HUNTER))
 			{
@@ -422,7 +424,7 @@ public Action:Event_PlayerDeath(Handle:hEvent, const String:name[], bool:dontBro
 	}
 
 	if (Sub_IsPlayerGhost(Client))
-		 Sub_ClearClassLock(Client);
+		Sub_ClearClassLock(Client);
 
 	g_bHasMaterialised[Client] = false;
 	g_bHasSpawned[Client] = false;
@@ -430,9 +432,9 @@ public Action:Event_PlayerDeath(Handle:hEvent, const String:name[], bool:dontBro
 	return Plugin_Continue;
 }
 
-public Action:Event_GhostSpawnTime(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_GhostSpawnTime(Handle hEvent, const char[] name, bool dontBroadcast)
 {
-	new Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
+	int Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
 
 	if (g_bRoundEnd || Client == 0 || !IsClientInGame(Client) || IsFakeClient(Client))
 		return Plugin_Continue;
@@ -441,7 +443,7 @@ public Action:Event_GhostSpawnTime(Handle:hEvent, const String:name[], bool:dont
 		return Plugin_Continue;
 
 	Sub_ClearClassLock(Client);
-	new Float:SpawnTime = GetEventFloat(hEvent, "spawntime");
+	float SpawnTime = GetEventFloat(hEvent, "spawntime");
 
 	if (g_hSpawnGhostTimer[Client] == INVALID_HANDLE)
 	{
@@ -449,9 +451,9 @@ public Action:Event_GhostSpawnTime(Handle:hEvent, const String:name[], bool:dont
 		Sub_DebugPrint("[+] E_GST: (%N) Will spawn as a ghost in %0.fs.", Client, SpawnTime);
 	}
 
-	if (g_bCooldownEnable && g_bRespectLimits)
+	if (g_bCooldownEnable)
 	{
-		new ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
+		int ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
 
 		if ((ZClass >= ZC_SMOKER) && (ZClass <= ZC_HUNTER))
 		{
@@ -473,14 +475,14 @@ public Action:Event_GhostSpawnTime(Handle:hEvent, const String:name[], bool:dont
 	return Plugin_Continue;
 }
 
-public Action:Event_PlayerLeftStartArea(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerLeftStartArea(Handle hEvent, const char[] name, bool dontBroadcast)
 {
 	if (g_bLeftSafeRoom || g_bRoundEnd)
 		return Plugin_Continue;
 
 	g_bLeftSafeRoom = true;
 
-	for (new i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i) && GetClientTeam(i) == TEAM_INFECTED)
 			Sub_CheckClassLock(i);
@@ -489,31 +491,31 @@ public Action:Event_PlayerLeftStartArea(Handle:hEvent, const String:name[], bool
 	return Plugin_Continue;
 }
 
-public Action:Event_DoorOpen(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_DoorOpen(Handle hEvent, const char[] name, bool dontBroadcast)
 {
 	if (g_bLeftSafeRoom || g_bRoundEnd)
-                return Plugin_Continue;
+		return Plugin_Continue;
 
 	if (!GetEventBool(hEvent, "checkpoint"))
 		return Plugin_Continue;
 
 	g_bLeftSafeRoom = true;
 
-	for (new i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i) && GetClientTeam(i) == TEAM_INFECTED)
 			Sub_CheckClassLock(i);
 	}
 
-        return Plugin_Continue;
+	return Plugin_Continue;
 }
 
-public Action:Event_TankFrustrated(Handle:hEvent, const String:name[], bool:dontBroadcast)
+public Action Event_TankFrustrated(Handle hEvent, const char[] name, bool dontBroadcast)
 {
 	if (g_bRoundEnd)
 		return Plugin_Continue;
 
-	new Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
+	int Client = GetClientOfUserId(GetEventInt(hEvent, "userid"));
 
 	Sub_DebugPrint("[+] E_TF: Tank is frustrated. Switching player (%N) back to special infected.", Client);
 	g_bHasMaterialised[Client] = false;
@@ -523,9 +525,9 @@ public Action:Event_TankFrustrated(Handle:hEvent, const String:name[], bool:dont
 	return Plugin_Continue;
 }
 
-public Action:OnPlayerRunCmd(Client, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon)
+public Action OnPlayerRunCmd(int Client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-	if (!g_bEnable || Client == 0 || !IsValidEntity(Client) || !IsClientInGame(Client) || IsFakeClient(Client))
+	if (!g_bEnable || Client == 0 || !IsClientInGame(Client) || IsFakeClient(Client))
 		return Plugin_Continue;
 
 	if (Sub_IsPlayerGhost(Client) && !Sub_IsPlayerCulling(Client) && g_bAllowClassSwitch)
@@ -559,7 +561,7 @@ public Action:OnPlayerRunCmd(Client, &buttons, &impulse, Float:vel[3], Float:ang
 	return Plugin_Continue;
 }
 
-public Action:Timer_SelectDelay(Handle:hTimer, any:Client)
+public Action Timer_SelectDelay(Handle hTimer, any Client)
 {
 	if (!IsClientInGame(Client) || IsFakeClient(Client))
 		return Plugin_Continue;
@@ -573,32 +575,38 @@ public Action:Timer_SelectDelay(Handle:hTimer, any:Client)
 	return Plugin_Continue;
 }
 
-public Action:Timer_NotifyKey(Handle:hTimer, any:Client)
+public Action Timer_NotifyKey(Handle hTimer, any Client)
 {
 	if (IsClientInGame(Client) && !IsFakeClient(Client) && GetClientTeam(Client) == TEAM_INFECTED)
 	{
 		if (g_bNotifyKey && !g_bUserFlagsCheck[Client])
 			PrintToChat(Client, PLAYER_NOTIFY_KEY, PLAYER_KEYS(g_iSelectKey));
 	}
+
+        return Plugin_Continue;
 }
 
-public Action:Timer_NotifyLock(Handle:hTimer, any:Client)
+public Action Timer_NotifyLock(Handle hTimer, any Client)
 {
 	if (IsClientInGame(Client) && !IsFakeClient(Client) && GetClientTeam(Client) == TEAM_INFECTED)
 	{
 		if (g_bNotifyLock && !g_bUserFlagsCheck[Client])
 			PrintToChat(Client, PLAYER_NOTIFY_LOCK, g_fLockDelay);
 	}
+
+	return Plugin_Continue;
 }
 
-public Action:Timer_DelayChange(Handle:hTimer, any:Client)
+public Action Timer_DelayChange(Handle hTimer, any Client)
 {
 	g_bIsChanging[Client] = false;
+
+	return Plugin_Continue;
 }
 
-public Action:Timer_CheckPlayerGhostDelayed(Handle:hTimer, any:Client)
+public Action Timer_CheckPlayerGhostDelayed(Handle hTimer, any Client)
 {
-	if (Client > 0 && IsClientInGame(Client) && IsFakeClient(Client) && Sub_IsPlayerGhost(Client))
+	if (Client > 0 && IsClientInGame(Client) && !IsFakeClient(Client) && Sub_IsPlayerGhost(Client))
 	{
 		Sub_CheckClassLock(Client);
 		Sub_DetermineClass(Client, GetEntProp(Client, Prop_Send, "m_zombieClass"));
@@ -610,9 +618,10 @@ public Action:Timer_CheckPlayerGhostDelayed(Handle:hTimer, any:Client)
 		}
 	}
 
+	return Plugin_Continue;
 }
 
-public Action:Timer_ReleaseClass(Handle:hTimer, any:ZClass)
+public Action Timer_ReleaseClass(Handle hTimer, any ZClass)
 {
 	if (g_iAllowClass[ZClass] != 1)
 	{
@@ -621,9 +630,11 @@ public Action:Timer_ReleaseClass(Handle:hTimer, any:ZClass)
 		Sub_DebugPrint("[+] T_RC: Class (%s) is now released. (g_iAllowClass=1)", TEAM_CLASS(ZClass));
 		g_hAllowClassTimer[ZClass] = INVALID_HANDLE;
 	}
+
+	return Plugin_Continue;
 }
 
-public Action:Timer_SpawnGhostClass(Handle:hTimer, any:Client)
+public Action Timer_SpawnGhostClass(Handle hTimer, any Client)
 {
 	g_hSpawnGhostTimer[Client] = INVALID_HANDLE;
 
@@ -637,20 +648,20 @@ public Action:Timer_SpawnGhostClass(Handle:hTimer, any:Client)
 		return Plugin_Continue;
 	}
 
-	if (!IsValidEntity(Client) || !Sub_IsPlayerGhost(Client))
+	if (!Sub_IsPlayerGhost(Client))
 		return Plugin_Continue;
 
 	Sub_CheckClassLock(Client);
 
-        new ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
+	int ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
 
-        if (!g_bRespectLimits)
+	if (!g_bRespectLimits)
 	{
 		if (ZClass == g_iLastClass[Client])
 			Sub_DetermineClass(Client, ZClass);
 	}
 
-        else
+	else
 		Sub_DetermineClass(Client, ZClass);
 
 	if (g_bNotifyKey && g_bNotifyKeyVerbose)
@@ -676,7 +687,7 @@ public Action:Timer_SpawnGhostClass(Handle:hTimer, any:Client)
 	return Plugin_Continue;
 }
 
-public Action:Timer_SwitchLock(Handle:hTimer, any:Client)
+public Action Timer_SwitchLock(Handle hTimer, any Client)
 {
 	if (Client == 0 || !IsClientInGame(Client) || IsFakeClient(Client) || GetClientTeam(Client) != TEAM_INFECTED)
 		return Plugin_Continue;
@@ -695,7 +706,7 @@ public Action:Timer_SwitchLock(Handle:hTimer, any:Client)
 	return Plugin_Continue;
 }
 
-public Action:Timer_ShowHud(Handle:hTimer)
+public Action Timer_ShowHud(Handle hTimer)
 {
 	if (g_bRoundEnd)
 		return Plugin_Stop;
@@ -705,7 +716,7 @@ public Action:Timer_ShowHud(Handle:hTimer)
 	return Plugin_Continue;
 }
 
-public Sub_ClearSpawnGhostTimer(any:Client)
+public void Sub_ClearSpawnGhostTimer(any Client)
 {
 	if (g_hSpawnGhostTimer[Client] != INVALID_HANDLE)
 	{
@@ -715,7 +726,7 @@ public Sub_ClearSpawnGhostTimer(any:Client)
 	}
 }
 
-public Sub_ClearClassLock(any:Client)
+public void Sub_ClearClassLock(any Client)
 {
 	if (g_fLockDelay > 0 && g_bLeftSafeRoom)
 	{
@@ -731,7 +742,7 @@ public Sub_ClearClassLock(any:Client)
 	}
 }
 
-public Sub_CheckClassLock(any:Client)
+public void Sub_CheckClassLock(any Client)
 {
 	if (g_fLockDelay > 0 && g_bLeftSafeRoom && !Sub_IsTank(Client) && IsPlayerAlive(Client) && g_bAllowClassSwitch)
 	{
@@ -744,9 +755,9 @@ public Sub_CheckClassLock(any:Client)
 	}
 }
 
-public Sub_InitArrays()
+public void Sub_InitArrays()
 {
-	for (new i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		g_iNextClass[i] = 0;
 		g_iLastClass[i] = 0;
@@ -763,7 +774,7 @@ public Sub_InitArrays()
 
 	if (g_bCooldownEnable)
 	{
-		for (new i = 1; i <= ZC_TOTAL; i++)
+		for (int i = 1; i <= ZC_TOTAL; i++)
 		{
 			g_hAllowClassTimer[i] = INVALID_HANDLE;
 			g_iAllowClass[i] = 1;
@@ -772,7 +783,7 @@ public Sub_InitArrays()
 	}
 }
 
-public Sub_CheckEventHooks()
+public void Sub_CheckEventHooks()
 {
 	if (g_bEnable)
 	{
@@ -819,7 +830,7 @@ public Sub_CheckEventHooks()
 	}
 }
 
-public Sub_ReloadConVars()
+public void Sub_ReloadConVars()
 {
 	g_bEnable = GetConVarBool(g_hEnable);
 	g_bDebug = GetConVarBool(g_hDebug);
@@ -849,9 +860,9 @@ public Sub_ReloadConVars()
 	g_iHunterLimit = GetConVarInt(g_hHunterLimit);
 }
 
-public Sub_ReloadLimits()
+public void Sub_ReloadLimits()
 {
-	for (new i = 1; i <= ZC_TOTAL; i++)
+	for (int i = 1; i <= ZC_TOTAL; i++)
 	{
 		g_iZVLimits[i] = 0;
 		g_fClassDelay[i] = 0.0;
@@ -861,7 +872,7 @@ public Sub_ReloadLimits()
 	g_iZVLimits[ZC_BOOMER] = g_iBoomerLimit != -1 ? g_iBoomerLimit : GetConVarInt(FindConVar(CVAR_Z_VS_BOOMER_LIMIT));
 	g_iZVLimits[ZC_HUNTER] = g_iHunterLimit != -1 ? g_iHunterLimit : GetConVarInt(FindConVar(CVAR_Z_VS_HUNTER_LIMIT));
 
-	for (new i = ZC_SMOKER; i <= ZC_HUNTER; i++)
+	for (int i = ZC_SMOKER; i <= ZC_HUNTER; i++)
 	{
 		g_iZVLimits[ZC_TOTAL] += g_iZVLimits[i];
 	}
@@ -871,7 +882,7 @@ public Sub_ReloadLimits()
 	g_fClassDelay[ZC_HUNTER] = g_fCooldownHunter;
 }
 
-public Sub_HookGameData(String:GameDataFile[])
+public void Sub_HookGameData(char[] GameDataFile)
 {
 	g_hGameConf = LoadGameConfigFile(GameDataFile);
 
@@ -903,25 +914,24 @@ public Sub_HookGameData(String:GameDataFile[])
 		SetFailState("[+] S_HGD: Error: Unable to load gamedata file, exiting.");
 }
 
-public Sub_ConVarsChanged(Handle:hConVar, const String:oldValue[], const String:newValue[])
+public void Sub_ConVarsChanged(Handle hConVar, const char[] oldValue, const char[] newValue)
 {
 	Sub_ReloadConVars();
 	Sub_ReloadLimits();
 	Sub_CheckEventHooks();
 }
 
-public Sub_CountInfectedClass(any:ZClass, bool:GetTotal)
+public int Sub_CountInfectedClass(any ZClass, bool GetTotal)
 {
-	new ClassCount, ClassType;
+	int ClassCount, ClassType;
 
-	for (new i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && GetClientTeam(i) == TEAM_INFECTED)
 		{
 			if (IsPlayerAlive(i))
 			{
 				ClassType = GetEntProp(i, Prop_Send, "m_zombieClass");
-
 				if (GetTotal && ClassType != ZC_TANK)
 				{
 					if (!g_bCountFakeBots)
@@ -955,16 +965,16 @@ public Sub_CountInfectedClass(any:ZClass, bool:GetTotal)
 	return ClassCount;
 }
 
-public bool:Sub_CheckPerClassLimits(any:ZClass)
+public bool Sub_CheckPerClassLimits(any ZClass)
 {
-	new ClassCount = Sub_CountInfectedClass(ZClass, false);
+	int ClassCount = Sub_CountInfectedClass(ZClass, false);
 
-	if (g_bCooldownEnable && g_bRespectLimits)
+	if (g_bCooldownEnable)
 	{
 		if (g_iAllowClass[ZClass] != 1)
 		{
-			Sub_DebugPrint("[+] S_CPCL: Class (%s) cannot be selected while cooling down. Count Raised (%d/%d)", TEAM_CLASS(ZClass), ClassCount, ClassCount + 1);
-			ClassCount += 1;
+			ClassCount = g_iZVLimits[ZClass];
+			Sub_DebugPrint("[+] S_CPCL: Class (%s) cannot be selected while cooling down. Forcing class count=%d to class limit=%d", TEAM_CLASS(ZClass), ClassCount, g_iZVLimits[ZClass]);
 		}
 	}
 
@@ -974,22 +984,21 @@ public bool:Sub_CheckPerClassLimits(any:ZClass)
 	return false;
 }
 
-public bool:Sub_CheckAllClassLimits(any:ZClass)
+public bool Sub_CheckAllClassLimits(any ZClass)
 {
-	for (new i = ZC_SMOKER; i <= ZC_HUNTER; i++)
+	for (int i = ZC_SMOKER; i <= ZC_HUNTER; i++)
 	{
-		new ClassCount = Sub_CountInfectedClass(i, false);
-
-		if (g_bCooldownEnable && g_bRespectLimits)
+		int ClassCount = Sub_CountInfectedClass(i, false);
+		if (g_bCooldownEnable)
 		{
 			if (g_iAllowClass[i] != 1)
-				ClassCount += 1;
+				ClassCount = g_iZVLimits[i];
 		}
 
 		if (ZClass == 0)
 		{
-	        	if (ClassCount < g_iZVLimits[i])
-        		        return true;
+			if (ClassCount < g_iZVLimits[i])
+				return true;
 		}
 
 		else
@@ -1002,9 +1011,9 @@ public bool:Sub_CheckAllClassLimits(any:ZClass)
 	return false;
 }
 
-public bool:Sub_IsTank(any:Client)
+public bool Sub_IsTank(any Client)
 {
-	new ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
+	int ZClass = GetEntProp(Client, Prop_Send, "m_zombieClass");
 
 	if (IsPlayerAlive(Client) && ZClass == ZC_TANK)
 		return true;
@@ -1012,7 +1021,7 @@ public bool:Sub_IsTank(any:Client)
 	return false;
 }
 
-public Sub_DetermineClass(any:Client, any:ZClass)
+public void Sub_DetermineClass(any Client, any ZClass)
 {
 	if (ZClass > ZC_HUNTER)
 		return;
@@ -1026,7 +1035,7 @@ public Sub_DetermineClass(any:Client, any:ZClass)
 			if (Sub_IsTank(Client))
 				return;
 
-			new ZTotal = Sub_CountInfectedClass(0, true);
+			int ZTotal = Sub_CountInfectedClass(0, true);
 
 			if (!Sub_CheckAllClassLimits(0))
 			{
@@ -1047,7 +1056,7 @@ public Sub_DetermineClass(any:Client, any:ZClass)
 				return;
 			}
 
-			for (new i = ZC_SMOKER; i <= ZC_HUNTER; i++)
+			for (int i = ZC_SMOKER; i <= ZC_HUNTER; i++)
 			{
 				if (g_iNextClass[Client] == i)
 				{
@@ -1085,7 +1094,8 @@ public Sub_DetermineClass(any:Client, any:ZClass)
 
 	if (Sub_IsPlayerGhost(Client))
 	{
-		new WeaponIndex;
+		int WeaponIndex;
+
 		while ((WeaponIndex = GetPlayerWeaponSlot(Client, 0)) != -1)
 		{
 			RemovePlayerItem(Client, WeaponIndex);
@@ -1093,17 +1103,19 @@ public Sub_DetermineClass(any:Client, any:ZClass)
 		}
 
 		SDKCall(g_hSetClass, Client, g_iNextClass[Client]);
-		AcceptEntityInput(MakeCompatEntRef(GetEntProp(Client, Prop_Send, "m_customAbility")), "Kill");
+
+		int cAbility = GetEntPropEnt(Client, Prop_Send, "m_customAbility");
+		if (cAbility > 0) AcceptEntityInput(cAbility, "Kill");
+
 		SetEntProp(Client, Prop_Send, "m_customAbility", GetEntData(SDKCall(g_hCreateAbility, Client), g_oAbility));
 	}
 
 	return;
 }
 
-public Sub_CheckLastClass(any:Client, any:ZClass)
+public int Sub_CheckLastClass(any Client, any ZClass)
 {
 	g_iLastClass[Client] = g_iSLastClass[Client];
-
 	if (g_iLastClass[Client] == ZClass)
 	{
 		Sub_DebugPrint("[+] S_CLC: (%N) Detected Same Class (%s/%s)", Client, TEAM_CLASS(g_iLastClass[Client]), TEAM_CLASS(g_iNextClass[Client]));
@@ -1140,7 +1152,7 @@ public Sub_CheckLastClass(any:Client, any:ZClass)
 	return 0;
 }
 
-public Sub_IsPlayerGhost(any:Client)
+public bool Sub_IsPlayerGhost(any Client)
 {
 	if (GetEntProp(Client, Prop_Send, "m_isGhost"))
 		return true;
@@ -1148,7 +1160,7 @@ public Sub_IsPlayerGhost(any:Client)
 		return false;
 }
 
-public Sub_IsPlayerCulling(any:Client)
+public bool Sub_IsPlayerCulling(any Client)
 {
 	if (g_bAllowCullSwitch)
 		return false;
@@ -1159,9 +1171,9 @@ public Sub_IsPlayerCulling(any:Client)
 		return false;
 }
 
-public Sub_CheckGameName(String:GameInput[])
+public bool Sub_CheckGameName(char[] GameInput)
 {
-	decl String:GameName[64];
+	char GameName[64];
 	GetGameFolderName(GameName, sizeof(GameName));
 
 	if (!StrEqual(GameName, GameInput, false))
@@ -1170,44 +1182,44 @@ public Sub_CheckGameName(String:GameInput[])
 	return true;
 }
 
-public Sub_DebugPrint(const String:Message[], any:...)
+public void Sub_DebugPrint(const char[] Message, any ...)
 {
 	if (g_bDebug)
 	{
-		decl String:DebugBuff[128];
+		char DebugBuff[128];
 		VFormat(DebugBuff, sizeof(DebugBuff), Message, 2);
 		LogMessage(DebugBuff);
 	}
 }
 
-public Hud_ShowLimits()
+public void Hud_ShowLimits()
 {
 	if (!g_bShowHudPanel || !g_bEnable)
 		return;
 
-	new Handle:hPanel = CreatePanel();
-	decl String:sPanelBuff[1024];
-	decl String:sCooldownSymbol[8] = "";
+	Handle hPanel = CreatePanel();
+	char sPanelBuff[1024];
+	char sCooldownSymbol[8] = "";
 
 	Format(sPanelBuff, sizeof(sPanelBuff), "Infected Limits");
 	DrawPanelText(hPanel, sPanelBuff);
 	DrawPanelText(hPanel, " ");
 
-	for (new i = ZC_SMOKER; i <= ZC_HUNTER; i++)
+	for (int i = ZC_SMOKER; i <= ZC_HUNTER; i++)
 	{
 		sCooldownSymbol = g_iHudCooldown[i] == 1 ? "(C)" : "   ";
 		Format(sPanelBuff, sizeof(sPanelBuff), "->%d. (%d/%d) %s %s", i, Sub_CountInfectedClass(i, false), g_iZVLimits[i], TEAM_CLASS(i), sCooldownSymbol);
 		DrawPanelText(hPanel, sPanelBuff);
 	}
 
-	for (new i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i) && IsClientAuthorized(i))
 		{
 			if (GetClientTeam(i) == TEAM_INFECTED && Sub_IsPlayerGhost(i))
 			{
 				if ((GetClientMenu(i) == MenuSource_RawPanel) || (GetClientMenu(i) == MenuSource_None))
-                                        SendPanelToClient(hPanel, i, Hud_LimitsPanel, PLAYER_HUD_DELAY);
+					SendPanelToClient(hPanel, i, Hud_LimitsPanel, PLAYER_HUD_DELAY);
 			}
 		}
 	}
@@ -1215,7 +1227,7 @@ public Hud_ShowLimits()
 	CloseHandle(hPanel);
 }
 
-public Hud_LimitsPanel(Handle:hMenu, MenuAction:action, param1, param2)
+public int Hud_LimitsPanel(Handle hMenu, MenuAction action, int param1, int param2)
 {
-	return;
+	return 0;
 }

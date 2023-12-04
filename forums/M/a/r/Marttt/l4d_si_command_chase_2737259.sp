@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.5 (01-October-2021)
+    - Fixed beams not disappearing on L4D1.
+
 1.0.4 (14-April-2021)
     - Added display type cvars for the messages.
 
@@ -30,7 +33,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] SI Command Chase Common"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Allow special infecteds to command common infected to chase at crosshair"
-#define PLUGIN_VERSION                "1.0.4"
+#define PLUGIN_VERSION                "1.0.5"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=330708"
 
 // ====================================================================================================
@@ -73,11 +76,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_INFO_GOAL_INFECTED_CHASE     "info_goal_infected_chase"
-#define CLASSNAME_INFO_TARGET                  "info_target"
-#define CLASSNAME_ENV_SPRITE                   "env_sprite"
-#define CLASSNAME_ENV_INSTRUCTOR_HINT          "env_instructor_hint"
-
 #define ENTITY_WORLDSPAWN             0
 
 #define TEAM_SPECTATOR                1
@@ -126,120 +124,127 @@ public Plugin myinfo =
 #define FLAG_MSG_DISPLAY_CHAT         (1 << 0) // 1 | 01
 #define FLAG_MSG_DISPLAY_HINT         (1 << 1) // 2 | 10
 
+#define DIRECTION_OUT                 0
+#define DIRECTION_IN                  1
+
+#define L4D1_BEAM_LIFE_MIN            0.11 // less than 0.11 reads as 0 in L4D1
+#define L4D2_BEAM_LIFE_MIN            0.1
+
 #define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Duration;
-static ConVar g_hCvar_Cooldown;
-static ConVar g_hCvar_SkillReadySound;
-static ConVar g_hCvar_Button;
-static ConVar g_hCvar_SafeArea;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_Field;
-static ConVar g_hCvar_FieldModel;
-static ConVar g_hCvar_FieldColor;
-static ConVar g_hCvar_FieldAlpha;
-static ConVar g_hCvar_FieldDuration;
-static ConVar g_hCvar_FieldRepeat;
-static ConVar g_hCvar_FieldStartRadius;
-static ConVar g_hCvar_FieldEndRadius;
-static ConVar g_hCvar_FieldWidth;
-static ConVar g_hCvar_FieldAmplitude;
-static ConVar g_hCvar_Sprite;
-static ConVar g_hCvar_SpriteZAxis;
-static ConVar g_hCvar_SpriteModel;
-static ConVar g_hCvar_SpriteAlpha;
-static ConVar g_hCvar_SpriteScale;
-static ConVar g_hCvar_SpriteColor;
-static ConVar g_hCvar_SpriteFadeDistance;
-static ConVar g_hCvar_SpriteSpeed;
-static ConVar g_hCvar_SpriteMinMax;
-static ConVar g_hCvar_SyncRandomColor;
-static ConVar g_hCvar_PressKeyMsg;
-static ConVar g_hCvar_SkillReadyMsg;
-static ConVar g_hCvar_SI;
-static ConVar g_hCvar_InstructorHint;
-static ConVar g_hCvar_InstructorHintColor;
-static ConVar g_hCvar_InstructorHintIcon;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Duration;
+ConVar g_hCvar_Cooldown;
+ConVar g_hCvar_SkillReadySound;
+ConVar g_hCvar_Button;
+ConVar g_hCvar_SafeArea;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_Field;
+ConVar g_hCvar_FieldModel;
+ConVar g_hCvar_FieldColor;
+ConVar g_hCvar_FieldAlpha;
+ConVar g_hCvar_FieldDuration;
+ConVar g_hCvar_FieldRepeat;
+ConVar g_hCvar_FieldStartRadius;
+ConVar g_hCvar_FieldEndRadius;
+ConVar g_hCvar_FieldWidth;
+ConVar g_hCvar_FieldAmplitude;
+ConVar g_hCvar_FieldOffset;
+ConVar g_hCvar_Sprite;
+ConVar g_hCvar_SpriteZAxis;
+ConVar g_hCvar_SpriteModel;
+ConVar g_hCvar_SpriteAlpha;
+ConVar g_hCvar_SpriteScale;
+ConVar g_hCvar_SpriteColor;
+ConVar g_hCvar_SpriteFadeDistance;
+ConVar g_hCvar_SpriteSpeed;
+ConVar g_hCvar_SpriteMinMax;
+ConVar g_hCvar_SyncRandomColor;
+ConVar g_hCvar_PressKeyMsg;
+ConVar g_hCvar_SkillReadyMsg;
+ConVar g_hCvar_SI;
+ConVar g_hCvar_InstructorHint;
+ConVar g_hCvar_InstructorHintColor;
+ConVar g_hCvar_InstructorHintIcon;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_SkillReadySound;
-static bool   g_bCvar_SafeArea;
-static bool   g_bCvar_Team;
-static bool   g_bCvar_Field;
-static bool   g_bCvar_RandomFieldColor;
-static bool   g_bCvar_Sprite;
-static bool   g_bCvar_RandomSpriteColor;
-static bool   g_bCvar_SpriteSpeed;
-static bool   g_bCvar_SpriteMinMax;
-static bool   g_bCvar_SyncRandomColor;
-static bool   g_bCvar_InstructorHint;
-static bool   g_bCvar_InstructorHintIcon;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_SkillReadySound;
+bool g_bCvar_SafeArea;
+bool g_bCvar_Field;
+bool g_bCvar_RandomFieldColor;
+bool g_bCvar_Sprite;
+bool g_bCvar_RandomSpriteColor;
+bool g_bCvar_SpriteSpeed;
+bool g_bCvar_SpriteMinMax;
+bool g_bCvar_SyncRandomColor;
+bool g_bCvar_InstructorHint;
+bool g_bCvar_InstructorHintIcon;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Button;
-static int    g_iCvar_Team;
-static int    g_iCvar_FieldColor[3];
-static int    g_iCvar_FieldAlpha;
-static int    g_iCvar_SpriteAlpha;
-static int    g_iCvar_SpriteFadeDistance;
-static int    g_iCvar_PressKeyMsg;
-static int    g_iCvar_SkillReadyMsg;
-static int    g_iCvar_SI;
-static int    g_iFieldModelIndex = -1;
+int g_iCvar_Button;
+int g_iCvar_Team;
+int g_iCvar_FieldColor[3];
+int g_iCvar_FieldAlpha;
+int g_iCvar_SpriteAlpha;
+int g_iCvar_SpriteFadeDistance;
+int g_iCvar_PressKeyMsg;
+int g_iCvar_SkillReadyMsg;
+int g_iCvar_SI;
+int g_iFieldModelIndex = -1;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_Duration;
-static float  g_fCvar_Cooldown;
-static float  g_fCvar_FieldDuration;
-static float  g_fCvar_FieldRepeat;
-static float  g_fCvar_FieldStartRadius;
-static float  g_fCvar_FieldEndRadius;
-static float  g_fCvar_FieldWidth;
-static float  g_fCvar_FieldAmplitude;
-static float  g_fCvar_SpriteZAxis;
-static float  g_fCvar_SpriteScale;
-static float  g_fCvar_SpriteSpeed;
-static float  g_fCvar_SpriteMinMax;
+float g_fBeamLife;
+float g_fCvar_Duration;
+float g_fCvar_Cooldown;
+float g_fCvar_FieldDuration;
+float g_fCvar_FieldRepeat;
+float g_fCvar_FieldStartRadius;
+float g_fCvar_FieldEndRadius;
+float g_fCvar_FieldWidth;
+float g_fCvar_FieldAmplitude;
+float g_fCvar_FieldOffset;
+float g_fCvar_SpriteZAxis;
+float g_fCvar_SpriteScale;
+float g_fCvar_SpriteSpeed;
+float g_fCvar_SpriteMinMax;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_SkillReadySound[100];
-static char   g_sCvar_FieldModel[100];
-static char   g_sCvar_FieldColor[12];
-static char   g_sCvar_SpriteModel[100];
-static char   g_sCvar_SpriteAlpha[4];
-static char   g_sCvar_SpriteScale[5];
-static char   g_sCvar_SpriteColor[12];
-static char   g_sCvar_SpriteFadeDistance[5];
-static char   g_sCvar_InstructorHintColor[12];
-static char   g_sCvar_InstructorHintIcon[26];
-static char   g_sKillDelay[32];
-static char   g_sButton[33];
+char g_sCvar_SkillReadySound[PLATFORM_MAX_PATH];
+char g_sCvar_FieldModel[PLATFORM_MAX_PATH];
+char g_sCvar_FieldColor[12];
+char g_sCvar_SpriteModel[PLATFORM_MAX_PATH];
+char g_sCvar_SpriteAlpha[4];
+char g_sCvar_SpriteScale[5];
+char g_sCvar_SpriteColor[12];
+char g_sCvar_SpriteFadeDistance[5];
+char g_sCvar_InstructorHintColor[12];
+char g_sCvar_InstructorHintIcon[26];
+char g_sKillInput[50];
+char g_sButton[33];
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static float  gc_fLastTime[MAXPLAYERS+1];
+float gc_fLastTime[MAXPLAYERS+1];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static bool   ge_bMoveUp[MAXENTITIES+1];
-static int    ge_iOwner[MAXENTITIES+1];
+bool ge_bMoveUp[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -255,6 +260,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
     }
 
     g_bL4D2 = (engine == Engine_Left4Dead2);
+    g_fBeamLife = (g_bL4D2 ? L4D2_BEAM_LIFE_MIN : L4D1_BEAM_LIFE_MIN);
 
     return APLRes_Success;
 }
@@ -263,6 +269,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    LoadTranslations("common.phrases");
     LoadPluginTranslations();
 
     CreateConVar("l4d_si_command_chase_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
@@ -274,18 +281,19 @@ public void OnPluginStart()
     g_hCvar_SafeArea                = CreateConVar("l4d_si_command_chase_safe_area", "1", "Allow trigger common zombies while survivors are in the starting safe area.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Team                    = CreateConVar("l4d_si_command_chase_team", "2", "Which teams should be able to see the chase effects (beacon / sprite).\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
     g_hCvar_Field                   = CreateConVar("l4d_si_command_chase_field", "1", "Create a beacon field where the chase has been created.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_FieldModel              = CreateConVar("l4d_si_command_chase_field_model", "materials/sprites/laserbeam.vmt", "Beacon field model.");
+    g_hCvar_FieldModel              = CreateConVar("l4d_si_command_chase_field_model", "sprites/laserbeam.vmt", "Beacon field model.");
     g_hCvar_FieldColor              = CreateConVar("l4d_si_command_chase_field_color", "0 255 0", "Beacon field color.\nUse \"random\" for random colors.\nUse three values between 0-255 separated by spaces (\"<0-255> <0-255> <0-255>\").", CVAR_FLAGS);
     g_hCvar_FieldAlpha              = CreateConVar("l4d_si_command_chase_field_alpha", "255", "Beacon field alpha transparency.\n0 = Invisible, 255 = Fully Visible.", CVAR_FLAGS, true, 0.0, true, 255.0);
-    g_hCvar_FieldDuration           = CreateConVar("l4d_si_command_chase_field_duration", "1.0", "Time duration of beacon field.", CVAR_FLAGS, true, 0.1);
+    g_hCvar_FieldDuration           = CreateConVar("l4d_si_command_chase_field_duration", "1.0", "Beacon field duration (seconds).", CVAR_FLAGS, true, 0.1);
     g_hCvar_FieldRepeat             = CreateConVar("l4d_si_command_chase_field_repeat", "1.0", "Repeat interval to create a beacon field.", CVAR_FLAGS, true, 0.0);
     g_hCvar_FieldStartRadius        = CreateConVar("l4d_si_command_chase_field_start_radius", "75.0", "Beacon field start radius.", CVAR_FLAGS, true, 0.0);
     g_hCvar_FieldEndRadius          = CreateConVar("l4d_si_command_chase_field_end_radius", "100.0", "Beacon field end radius.", CVAR_FLAGS, true, 0.0);
     g_hCvar_FieldWidth              = CreateConVar("l4d_si_command_chase_field_width", "2.0", "Beacon field width.", CVAR_FLAGS, true, 0.0);
     g_hCvar_FieldAmplitude          = CreateConVar("l4d_si_command_chase_field_amplitude", "0.0", "Beacon field amplitude.", CVAR_FLAGS, true, 0.0);
+    g_hCvar_FieldOffset             = CreateConVar("l4d_si_command_chase_field_offset", "24.0", "Beacon field offset (Z pos).", CVAR_FLAGS, true, 0.0);
     g_hCvar_Sprite                  = CreateConVar("l4d_si_command_chase_sprite", "1", "Create a sprite where the chase has been created.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_SpriteZAxis             = CreateConVar("l4d_si_command_chase_sprite_z_axis", "50.0", "Additional Z axis to the sprite.", CVAR_FLAGS, true, 0.0);
-    g_hCvar_SpriteModel             = CreateConVar("l4d_si_command_chase_sprite_model", "materials/vgui/icon_download.vmt", "Sprite model.");
+    g_hCvar_SpriteModel             = CreateConVar("l4d_si_command_chase_sprite_model", "vgui/icon_download.vmt", "Sprite model.");
     g_hCvar_SpriteColor             = CreateConVar("l4d_si_command_chase_sprite_color", "0 255 0", "Sprite color.\nUse \"random\" for random colors.\nUse three values between 0-255 separated by spaces (\"<0-255> <0-255> <0-255>\").", CVAR_FLAGS);
     g_hCvar_SpriteAlpha             = CreateConVar("l4d_si_command_chase_sprite_alpha", "255", "Sprite alpha transparency.\nNote: Some models don't allow to change the alpha.\n0 = Invisible, 255 = Fully Visible", CVAR_FLAGS, true, 0.0, true, 255.0);
     g_hCvar_SpriteScale             = CreateConVar("l4d_si_command_chase_sprite_scale", "0.25", "Sprite scale (increases both height and width).\nSome range values maintain the size the same.", CVAR_FLAGS, true, 0.0);
@@ -303,7 +311,7 @@ public void OnPluginStart()
 
     if (g_bL4D2)
     {
-        g_hCvar_InstructorHint      = CreateConVar("l4d_si_command_chase_instructor_hint", "1", "Show instructor hint message.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        g_hCvar_InstructorHint = CreateConVar("l4d_si_command_chase_instructor_hint", "1", "Show instructor hint message.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_InstructorHintColor = CreateConVar("l4d_si_command_chase_instructor_hint_color", "255 255 255", "Instructor hint color.\nL4D2 only.\nUse three values between 0-255 separated by spaces (\"<0-255> <0-255> <0-255>\").", CVAR_FLAGS);
         g_hCvar_InstructorHintIcon  = CreateConVar("l4d_si_command_chase_instructor_hint_icon", "icon_interact", "Instructor hint icon.\nL4D2 only.\nEmpty = OFF.", CVAR_FLAGS);
     }
@@ -326,6 +334,7 @@ public void OnPluginStart()
     g_hCvar_FieldEndRadius.AddChangeHook(Event_ConVarChanged);
     g_hCvar_FieldWidth.AddChangeHook(Event_ConVarChanged);
     g_hCvar_FieldAmplitude.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_FieldOffset.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Sprite.AddChangeHook(Event_ConVarChanged);
     g_hCvar_SpriteZAxis.AddChangeHook(Event_ConVarChanged);
     g_hCvar_SpriteModel.AddChangeHook(Event_ConVarChanged);
@@ -356,7 +365,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -371,39 +380,30 @@ public void LoadPluginTranslations()
 public void OnPluginEnd()
 {
     int entity;
-    char targetname[21];
+    char targetname[22];
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_INFO_TARGET)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "info_target")) != INVALID_ENT_REFERENCE)
     {
-        if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1)
-        {
-            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
-            if (StrEqual(targetname, "l4d_si_command_chase"))
-                AcceptEntityInput(entity, "Kill");
-        }
+        GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+        if (StrEqual(targetname, "l4d_si_command_chase"))
+            AcceptEntityInput(entity, "Kill");
     }
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_ENV_SPRITE)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "env_sprite")) != INVALID_ENT_REFERENCE)
     {
-        if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1)
-        {
-            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
-            if (StrEqual(targetname, "l4d_si_command_chase"))
-                AcceptEntityInput(entity, "Kill");
-        }
+        GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+        if (StrEqual(targetname, "l4d_si_command_chase"))
+            AcceptEntityInput(entity, "Kill");
     }
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_INFO_GOAL_INFECTED_CHASE)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "info_goal_infected_chase")) != INVALID_ENT_REFERENCE)
     {
-        if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1)
-        {
-            GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
-            if (StrEqual(targetname, "l4d_si_command_chase"))
-                AcceptEntityInput(entity, "Kill");
-        }
+        GetEntPropString(entity, Prop_Data, "m_iName", targetname, sizeof(targetname));
+        if (StrEqual(targetname, "l4d_si_command_chase"))
+            AcceptEntityInput(entity, "Kill");
     }
 }
 
@@ -413,21 +413,21 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_Duration = g_hCvar_Duration.FloatValue;
@@ -440,15 +440,13 @@ public void GetCvars()
     g_iCvar_Button = g_hCvar_Button.IntValue;
     g_bCvar_SafeArea = g_hCvar_SafeArea.BoolValue;
     g_iCvar_Team = g_hCvar_Team.IntValue;
-    g_bCvar_Team = (g_iCvar_Team > 0);
     g_hCvar_FieldModel.GetString(g_sCvar_FieldModel, sizeof(g_sCvar_FieldModel));
     TrimString(g_sCvar_FieldModel);
     g_iFieldModelIndex = PrecacheModel(g_sCvar_FieldModel, true);
     g_bCvar_Field = g_hCvar_Field.BoolValue;
     g_hCvar_FieldColor.GetString(g_sCvar_FieldColor, sizeof(g_sCvar_FieldColor));
     TrimString(g_sCvar_FieldColor);
-    StringToLowerCase(g_sCvar_FieldColor);
-    g_bCvar_RandomFieldColor = StrEqual(g_sCvar_FieldColor, "random");
+    g_bCvar_RandomFieldColor = StrEqual(g_sCvar_FieldColor, "random", false);
     g_iCvar_FieldColor = ConvertRGBToIntArray(g_sCvar_FieldColor);
     g_iCvar_FieldAlpha = g_hCvar_FieldAlpha.IntValue;
     g_fCvar_FieldDuration = g_hCvar_FieldDuration.FloatValue;
@@ -457,21 +455,21 @@ public void GetCvars()
     g_fCvar_FieldEndRadius = g_hCvar_FieldEndRadius.FloatValue;
     g_fCvar_FieldWidth = g_hCvar_FieldWidth.FloatValue;
     g_fCvar_FieldAmplitude = g_hCvar_FieldAmplitude.FloatValue;
+    g_fCvar_FieldOffset = g_hCvar_FieldOffset.FloatValue;
     g_bCvar_Sprite = g_hCvar_Sprite.BoolValue;
     g_fCvar_SpriteZAxis = g_hCvar_SpriteZAxis.FloatValue;
     g_hCvar_SpriteModel.GetString(g_sCvar_SpriteModel, sizeof(g_sCvar_SpriteModel));
     TrimString(g_sCvar_SpriteModel);
     PrecacheModel(g_sCvar_SpriteModel, true);
     g_iCvar_SpriteAlpha = g_hCvar_SpriteAlpha.IntValue;
-    FormatEx(g_sCvar_SpriteAlpha, sizeof(g_sCvar_SpriteAlpha), "%i", g_iCvar_SpriteAlpha);
+    IntToString(g_iCvar_SpriteAlpha, g_sCvar_SpriteAlpha, sizeof(g_sCvar_SpriteAlpha));
     g_fCvar_SpriteScale = g_hCvar_SpriteScale.FloatValue;
-    FormatEx(g_sCvar_SpriteScale, sizeof(g_sCvar_SpriteScale), "%.2f", g_fCvar_SpriteScale);
+    FloatToString(g_fCvar_SpriteScale, g_sCvar_SpriteScale, sizeof(g_sCvar_SpriteScale));
     g_hCvar_SpriteColor.GetString(g_sCvar_SpriteColor, sizeof(g_sCvar_SpriteColor));
     TrimString(g_sCvar_SpriteColor);
-    StringToLowerCase(g_sCvar_SpriteColor);
-    g_bCvar_RandomSpriteColor = StrEqual(g_sCvar_SpriteColor, "random");
+    g_bCvar_RandomSpriteColor = StrEqual(g_sCvar_SpriteColor, "random", false);
     g_iCvar_SpriteFadeDistance = g_hCvar_SpriteFadeDistance.IntValue;
-    FormatEx(g_sCvar_SpriteFadeDistance, sizeof(g_sCvar_SpriteFadeDistance), "%i", g_iCvar_SpriteFadeDistance);
+    IntToString(g_iCvar_SpriteFadeDistance, g_sCvar_SpriteFadeDistance, sizeof(g_sCvar_SpriteFadeDistance));
     g_fCvar_SpriteSpeed = g_hCvar_SpriteSpeed.FloatValue;
     g_bCvar_SpriteSpeed = (g_fCvar_SpriteSpeed > 0.0);
     g_fCvar_SpriteMinMax = g_hCvar_SpriteMinMax.FloatValue;
@@ -490,7 +488,7 @@ public void GetCvars()
         g_bCvar_InstructorHintIcon = (g_sCvar_InstructorHintIcon[0] != 0);
     }
 
-    FormatEx(g_sKillDelay, sizeof(g_sKillDelay), "OnUser1 !self:Kill::%.2f:-1", g_fCvar_Duration);
+    FormatEx(g_sKillInput, sizeof(g_sKillInput), "OnUser1 !self:Kill::%.1f:-1", g_fCvar_Duration);
 
     char buttons[3][11];
     int buttonsCount;
@@ -515,18 +513,17 @@ public void OnClientDisconnect(int client)
 
 public void OnEntityDestroyed(int entity)
 {
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     ge_bMoveUp[entity] = false;
-    ge_iOwner[entity] = 0;
 }
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -535,7 +532,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -547,18 +544,23 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
+    int client = GetClientOfUserId(event.GetInt("userid"));
+
+    if (client == 0)
+        return;
+
     RequestFrame(OnNextFrame, event.GetInt("userid")); // We need wait a frame to check ghost state
 }
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int userid)
+void OnNextFrame(int userid)
 {
     int client = GetClientOfUserId(userid);
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (IsFakeClient(client))
@@ -588,7 +590,7 @@ public void OnNextFrame(int userid)
 
 /****************************************************************************************************/
 
-public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float vel[3], const float angles[3], int weapon, int subtype, int cmdnum, int tickcount, int seed, const int mouse[2])
+public void OnPlayerRunCmdPost(int client, int buttons)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -603,7 +605,7 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
         (buttons & IN_ZOOM) && (g_iCvar_Button & FLAG_BUTTON_ZOOM) ||
         (buttons & IN_USE) && (g_iCvar_Button & FLAG_BUTTON_USE))
     {
-        if (GetGameTime() - gc_fLastTime[client] < g_fCvar_Cooldown)
+        if (gc_fLastTime[client] != 0.0 && GetGameTime() - gc_fLastTime[client] < g_fCvar_Cooldown)
             return;
 
         if (!g_bCvar_SafeArea && !HasAnySurvivorLeftSafeArea())
@@ -627,7 +629,7 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
 
 /****************************************************************************************************/
 
-public void PerformChaseAim(int client)
+void PerformChaseAim(int client)
 {
     bool hit;
     float vEndPos[3];
@@ -665,17 +667,14 @@ public void PerformChaseAim(int client)
 
     CreateTimer(g_fCvar_Cooldown, TimerCooldown, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 
-    int entity = CreateEntityByName(CLASSNAME_INFO_GOAL_INFECTED_CHASE);
+    int entity = CreateEntityByName("info_goal_infected_chase");
     DispatchKeyValue(entity, "targetname", "l4d_si_command_chase");
-    SetEntProp(entity, Prop_Data, "m_iHammerID", -1);
-
-    TeleportEntity(entity, vEndPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vEndPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     AcceptEntityInput(entity, "Enable");
 
-    SetVariantString(g_sKillDelay);
+    SetVariantString(g_sKillInput);
     AcceptEntityInput(entity, "AddOutput");
     AcceptEntityInput(entity, "FireUser1");
 
@@ -691,7 +690,7 @@ public void PerformChaseAim(int client)
     {
         float vBeamPos[3];
         vBeamPos = vEndPos;
-        vBeamPos[2] += (g_fCvar_FieldWidth + 1.0); // Change the Z pos to go up according with the width for better looking
+        vBeamPos[2] += g_fCvar_FieldOffset;
 
         int color[4];
         if (g_bCvar_RandomFieldColor)
@@ -718,10 +717,12 @@ public void PerformChaseAim(int client)
             color[3] = g_iCvar_FieldAlpha;
         }
 
+        int direction = DIRECTION_IN;
         float timeLimit = GetGameTime() + g_fCvar_Duration;
 
         DataPack pack;
         CreateDataTimer(g_fCvar_FieldRepeat, TimerField, pack, TIMER_FLAG_NO_MAPCHANGE);
+        pack.WriteCell(direction);
         pack.WriteCell(color[0]);
         pack.WriteCell(color[1]);
         pack.WriteCell(color[2]);
@@ -733,11 +734,11 @@ public void PerformChaseAim(int client)
 
         float fieldDuration = (timeLimit - GetGameTime() < g_fCvar_FieldDuration ? timeLimit - GetGameTime() : g_fCvar_FieldDuration);
 
-        if (fieldDuration < 0.1) // Prevent rounding to 0 which makes the beam don't disappear
-            fieldDuration = 0.1;
+        if (fieldDuration < g_fBeamLife)
+            fieldDuration = g_fBeamLife;
 
-        int targets[MAXPLAYERS+1];
-        int targetCount;
+        int[] targets = new int[MaxClients];
+        int targetsCount;
 
         for (int target = 1; target <= MaxClients; target++)
         {
@@ -750,11 +751,11 @@ public void PerformChaseAim(int client)
             if (!(GetTeamFlag(GetClientTeam(target)) & g_iCvar_Team))
                 continue;
 
-            targets[targetCount++] = target;
+            targets[targetsCount++] = target;
         }
 
         TE_SetupBeamRingPoint(vBeamPos, g_fCvar_FieldStartRadius, g_fCvar_FieldEndRadius, g_iFieldModelIndex, 0, 0, 0, fieldDuration, g_fCvar_FieldWidth, g_fCvar_FieldAmplitude, color, 0, 0);
-        TE_Send(targets, targetCount);
+        TE_Send(targets, targetsCount);
     }
 
     if (g_bCvar_Sprite)
@@ -779,42 +780,36 @@ public void PerformChaseAim(int client)
             color = g_sCvar_SpriteColor;
         }
 
-        int infoTarget = CreateEntityByName(CLASSNAME_INFO_TARGET);
+        int infoTarget = CreateEntityByName("info_target");
         DispatchKeyValue(infoTarget, "targetname", targetname);
-
-        TeleportEntity(infoTarget, vSpritePos, NULL_VECTOR, NULL_VECTOR);
+        DispatchKeyValueVector(infoTarget, "origin", vSpritePos);
         DispatchSpawn(infoTarget);
-        ActivateEntity(infoTarget);
 
         SetEntPropEnt(infoTarget, Prop_Send, "m_hOwnerEntity", client);
 
-        SetVariantString(g_sKillDelay);
+        SetVariantString(g_sKillInput);
         AcceptEntityInput(infoTarget, "AddOutput");
         AcceptEntityInput(infoTarget, "FireUser1");
 
-        int sprite = CreateEntityByName(CLASSNAME_ENV_SPRITE);
-        ge_iOwner[sprite] = client;
+        int sprite = CreateEntityByName("env_sprite");
         DispatchKeyValue(sprite, "targetname", targetname);
         DispatchKeyValue(sprite, "spawnflags", "1");
-        SetEntProp(sprite, Prop_Data, "m_iHammerID", -1);
-        SDKHook(sprite, SDKHook_SetTransmit, OnSetTransmitSprite);
+        SDKHook(sprite, SDKHook_SetTransmit, OnSetTransmit);
 
         DispatchKeyValue(sprite, "model", g_sCvar_SpriteModel);
         DispatchKeyValue(sprite, "rendercolor", color);
         DispatchKeyValue(sprite, "renderamt", g_sCvar_SpriteAlpha); // If renderamt goes before rendercolor, it doesn't render
         DispatchKeyValue(sprite, "scale", g_sCvar_SpriteScale);
         DispatchKeyValue(sprite, "fademindist", g_sCvar_SpriteFadeDistance);
-
-        TeleportEntity(sprite, vSpritePos, NULL_VECTOR, NULL_VECTOR);
+        DispatchKeyValueVector(sprite, "origin", vSpritePos);
         DispatchSpawn(sprite);
-        ActivateEntity(sprite);
 
         SetVariantString("!activator");
         AcceptEntityInput(sprite, "SetParent", infoTarget); // We need parent the entity to an info_target, otherwise SetTransmit won't work
 
         SetEntPropEnt(sprite, Prop_Send, "m_hOwnerEntity", client);
         AcceptEntityInput(sprite, "ShowSprite");
-        SetVariantString(g_sKillDelay);
+        SetVariantString(g_sKillInput);
         AcceptEntityInput(sprite, "AddOutput");
         AcceptEntityInput(sprite, "FireUser1");
 
@@ -825,13 +820,15 @@ public void PerformChaseAim(int client)
 
 /****************************************************************************************************/
 
-public Action TimerField(Handle timer, DataPack pack)
+Action TimerField(Handle timer, DataPack pack)
 {
+    int direction;
     int color[4];
     float timeLimit;
     float vBeamPos[3];
 
     pack.Reset();
+    direction = pack.ReadCell();
     color[0] = pack.ReadCell();
     color[1] = pack.ReadCell();
     color[2] = pack.ReadCell();
@@ -842,15 +839,15 @@ public Action TimerField(Handle timer, DataPack pack)
     vBeamPos[2] = pack.ReadFloat();
 
     if (timeLimit < GetGameTime())
-        return;
+        return Plugin_Stop;
 
     float fieldDuration = (timeLimit - GetGameTime() < g_fCvar_FieldDuration ? timeLimit - GetGameTime() : g_fCvar_FieldDuration);
 
-    if (fieldDuration < 0.1) // Prevent rounding to 0 which makes the beam don't disappear
-        fieldDuration = 0.1;
+    if (fieldDuration < g_fBeamLife)
+        fieldDuration = g_fBeamLife;
 
-    int targets[MAXPLAYERS+1];
-    int targetCount;
+    int[] targets = new int[MaxClients];
+    int targetsCount;
 
     for (int target = 1; target <= MaxClients; target++)
     {
@@ -863,14 +860,28 @@ public Action TimerField(Handle timer, DataPack pack)
         if (!(GetTeamFlag(GetClientTeam(target)) & g_iCvar_Team))
             continue;
 
-        targets[targetCount++] = target;
+        targets[targetsCount++] = target;
     }
 
-    TE_SetupBeamRingPoint(vBeamPos, g_fCvar_FieldStartRadius, g_fCvar_FieldEndRadius, g_iFieldModelIndex, 0, 0, 0, fieldDuration, g_fCvar_FieldWidth, g_fCvar_FieldAmplitude, color, 0, 0);
-    TE_Send(targets, targetCount);
+    switch (direction)
+    {
+        case DIRECTION_OUT:
+        {
+            direction = DIRECTION_IN;
+            TE_SetupBeamRingPoint(vBeamPos, g_fCvar_FieldStartRadius, g_fCvar_FieldEndRadius, g_iFieldModelIndex, 0, 0, 0, fieldDuration, g_fCvar_FieldWidth, g_fCvar_FieldAmplitude, color, 0, 0);
+            TE_Send(targets, targetsCount);
+        }
+        case DIRECTION_IN:
+        {
+            direction = DIRECTION_OUT;
+            TE_SetupBeamRingPoint(vBeamPos, g_fCvar_FieldEndRadius, g_fCvar_FieldStartRadius, g_iFieldModelIndex, 0, 0, 0, fieldDuration, g_fCvar_FieldWidth, g_fCvar_FieldAmplitude, color, 0, 0);
+            TE_Send(targets, targetsCount);
+        }
+    }
 
     DataPack pack2;
     CreateDataTimer(g_fCvar_FieldRepeat, TimerField, pack2, TIMER_FLAG_NO_MAPCHANGE);
+    pack2.WriteCell(direction);
     pack2.WriteCell(color[0]);
     pack2.WriteCell(color[1]);
     pack2.WriteCell(color[2]);
@@ -879,11 +890,13 @@ public Action TimerField(Handle timer, DataPack pack)
     pack2.WriteFloat(vBeamPos[0]);
     pack2.WriteFloat(vBeamPos[1]);
     pack2.WriteFloat(vBeamPos[2]);
+
+    return Plugin_Stop;
 }
 
 /****************************************************************************************************/
 
-public Action TimerMoveSprite(Handle timer, int entityRef)
+Action TimerMoveSprite(Handle timer, int entityRef)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Stop;
@@ -894,7 +907,7 @@ public Action TimerMoveSprite(Handle timer, int entityRef)
         return Plugin_Stop;
 
     float vPos[3];
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
+    GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos); // Don't use m_vecAbsOrigin cause it is parented
 
     if (ge_bMoveUp[entity])
     {
@@ -918,13 +931,10 @@ public Action TimerMoveSprite(Handle timer, int entityRef)
 
 /****************************************************************************************************/
 
-public Action OnSetTransmitSprite(int entity, int client)
+Action OnSetTransmit(int entity, int client)
 {
     if (IsFakeClient(client))
         return Plugin_Handled;
-
-    if (ge_iOwner[entity] == client) // Always visible to the activator
-        return Plugin_Continue;
 
     if (GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team)
         return Plugin_Continue;
@@ -934,7 +944,7 @@ public Action OnSetTransmitSprite(int entity, int client)
 
 /****************************************************************************************************/
 
-public bool TraceFilter(int entity, int contentsMask, int client)
+bool TraceFilter(int entity, int contentsMask, int client)
 {
     if (entity == client)
         return false;
@@ -947,14 +957,14 @@ public bool TraceFilter(int entity, int contentsMask, int client)
 
 /****************************************************************************************************/
 
-public Action TimerCooldown(Handle timer, int userid)
+Action TimerCooldown(Handle timer, int userid)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Stop;
 
     int client = GetClientOfUserId(userid);
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return Plugin_Stop;
 
     if (GetClientTeam(client) != TEAM_INFECTED)
@@ -1009,9 +1019,9 @@ void PrintInstructorHintText(int client, const char[] message, any ...)
     GetEntPropString(client, Prop_Data, "m_iName", clienttargetname, sizeof(clienttargetname));
 
     char hintTarget[7];
-    FormatEx(hintTarget, sizeof(hintTarget), "hint%d", client);
+    FormatEx(hintTarget, sizeof(hintTarget), "hint%i", client);
 
-    int entity = CreateEntityByName(CLASSNAME_ENV_INSTRUCTOR_HINT);
+    int entity = CreateEntityByName("env_instructor_hint");
     DispatchKeyValue(client, "targetname", hintTarget);
     DispatchKeyValue(entity, "hint_target", hintTarget);
     DispatchKeyValue(entity, "targetname", "l4d_si_command_chase");
@@ -1023,41 +1033,39 @@ void PrintInstructorHintText(int client, const char[] message, any ...)
     DispatchSpawn(entity);
     AcceptEntityInput(entity, "ShowHint", client);
 
-    SetVariantString(g_sKillDelay);
+    SetVariantString(g_sKillInput);
     AcceptEntityInput(entity, "AddOutput");
     AcceptEntityInput(entity, "FireUser1");
 
-    DispatchKeyValue(client, "targetname", clienttargetname); // rollback the client targetname
+    DispatchKeyValue(client, "targetname", clienttargetname); // Rollback the client targetname
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdForceChaseAim(int client, int args)
+Action CmdForceChaseAim(int client, int args)
 {
-    if (!IsValidClient(client))
-        return Plugin_Handled;
+    int target_count;
+    int target_list[MAXPLAYERS];
 
     if (args == 0) // self
     {
-        if (GetGameTime() - gc_fLastTime[client] < g_fCvar_Cooldown)
-            return Plugin_Handled;
-
-        PerformChaseAim(client);
-        return Plugin_Handled;
+        if (IsValidClient(client))
+        {
+            target_count = 1;
+            target_list[0] = client;
+        }
     }
     else // specified target
     {
-        char sArg[64];
-        GetCmdArg(1, sArg, sizeof(sArg));
+        char arg1[MAX_TARGET_LENGTH];
+        GetCmdArg(1, arg1, sizeof(arg1));
 
         char target_name[MAX_TARGET_LENGTH];
-        int target_list[MAXPLAYERS];
-        int target_count;
         bool tn_is_ml;
 
         if ((target_count = ProcessTargetString(
-            sArg,
+            arg1,
             client,
             target_list,
             sizeof(target_list),
@@ -1066,16 +1074,16 @@ public Action CmdForceChaseAim(int client, int args)
             sizeof(target_name),
             tn_is_ml)) <= 0)
         {
-            return Plugin_Handled;
+            ReplyToTargetError(client, target_count);
         }
+    }
 
-        for (int i = 0; i < target_count; i++)
-        {
-            if (GetGameTime() - gc_fLastTime[target_list[i]] < g_fCvar_Cooldown)
-                continue;
+    for (int i = 0; i < target_count; i++)
+    {
+        if (gc_fLastTime[client] != 0.0 && GetGameTime() - gc_fLastTime[target_list[i]] < g_fCvar_Cooldown)
+            continue;
 
-            PerformChaseAim(target_list[i]);
-        }
+        PerformChaseAim(target_list[i]);
     }
 
     return Plugin_Handled;
@@ -1083,7 +1091,7 @@ public Action CmdForceChaseAim(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1092,38 +1100,53 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_si_command_chase_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_si_command_chase_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_si_command_chase_duration : %.2f", g_fCvar_Duration);
-    PrintToConsole(client, "l4d_si_command_chase_cooldown : %.2f", g_fCvar_Cooldown);
+    PrintToConsole(client, "l4d_si_command_chase_duration : %.1f", g_fCvar_Duration);
+    PrintToConsole(client, "l4d_si_command_chase_cooldown : %.1f", g_fCvar_Cooldown);
     PrintToConsole(client, "l4d_si_command_chase_skill_ready_sound : \"%s\" (%s)", g_sCvar_SkillReadySound, g_bCvar_SkillReadySound ? "true" : "false");
     PrintToConsole(client, "l4d_si_command_chase_button : %i (RELOAD: %s | ZOOM: %s | USE: %s)", g_iCvar_Button, g_iCvar_Button & FLAG_BUTTON_RELOAD ? "ON" : "OFF", g_iCvar_Button & FLAG_BUTTON_ZOOM ? "ON" : "OFF", g_iCvar_Button & FLAG_BUTTON_USE ? "ON" : "OFF");
     PrintToConsole(client, "l4d_si_command_chase_safe_area : %b (%s)", g_bCvar_SafeArea, g_bCvar_SafeArea ? "true" : "false");
-    PrintToConsole(client, "l4d_si_command_chase_team : %i (%s)", g_iCvar_Team, g_bCvar_Team ? "true" : "false");
+    PrintToConsole(client, "l4d_si_command_chase_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
+    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
     PrintToConsole(client, "l4d_si_command_chase_field : %b (%s)", g_bCvar_Field, g_bCvar_Field ? "true" : "false");
     PrintToConsole(client, "l4d_si_command_chase_field_model : \"%s\"", g_sCvar_FieldModel);
     PrintToConsole(client, "l4d_si_command_chase_field_color : \"%s\"", g_sCvar_FieldColor);
     PrintToConsole(client, "l4d_si_command_chase_field_alpha : %i", g_iCvar_FieldAlpha);
-    PrintToConsole(client, "l4d_si_command_chase_field_duration : %.2f", g_fCvar_FieldDuration);
-    PrintToConsole(client, "l4d_si_command_chase_field_repeat : %.2f", g_fCvar_FieldRepeat);
-    PrintToConsole(client, "l4d_si_command_chase_field_start_radius : %.2f", g_fCvar_FieldStartRadius);
-    PrintToConsole(client, "l4d_si_command_chase_field_end_radius : %.2f", g_fCvar_FieldEndRadius);
-    PrintToConsole(client, "l4d_si_command_chase_field_width : %.2f", g_fCvar_FieldWidth);
-    PrintToConsole(client, "l4d_si_command_chase_field_amplitude : %.2f", g_fCvar_FieldAmplitude);
+    PrintToConsole(client, "l4d_si_command_chase_field_duration : %.1f", g_fCvar_FieldDuration);
+    PrintToConsole(client, "l4d_si_command_chase_field_repeat : %.1f", g_fCvar_FieldRepeat);
+    PrintToConsole(client, "l4d_si_command_chase_field_start_radius : %.1f", g_fCvar_FieldStartRadius);
+    PrintToConsole(client, "l4d_si_command_chase_field_end_radius : %.1f", g_fCvar_FieldEndRadius);
+    PrintToConsole(client, "l4d_si_command_chase_field_width : %.1f", g_fCvar_FieldWidth);
+    PrintToConsole(client, "l4d_si_command_chase_field_amplitude : %.1f", g_fCvar_FieldAmplitude);
+    PrintToConsole(client, "l4d_si_command_chase_field_offset : %.1f", g_fCvar_FieldOffset);
     PrintToConsole(client, "l4d_si_command_chase_sprite : %b (%s)", g_bCvar_Sprite, g_bCvar_Sprite ? "true" : "false");
-    PrintToConsole(client, "l4d_si_command_chase_sprite_z_axis : %.2f", g_fCvar_SpriteZAxis);
+    PrintToConsole(client, "l4d_si_command_chase_sprite_z_axis : %.1f", g_fCvar_SpriteZAxis);
     PrintToConsole(client, "l4d_si_command_chase_sprite_model : \"%s\"", g_sCvar_SpriteModel);
     PrintToConsole(client, "l4d_si_command_chase_sprite_color : \"%s\"", g_sCvar_SpriteColor);
     PrintToConsole(client, "l4d_si_command_chase_sprite_alpha : %i", g_iCvar_SpriteAlpha);
-    PrintToConsole(client, "l4d_si_command_chase_sprite_scale : %.2f", g_fCvar_SpriteScale);
+    PrintToConsole(client, "l4d_si_command_chase_sprite_scale : %.1f", g_fCvar_SpriteScale);
     PrintToConsole(client, "l4d_si_command_chase_sprite_fade_distance : %i", g_iCvar_SpriteFadeDistance);
-    PrintToConsole(client, "l4d_si_command_chase_sprite_speed : %.2f (%s)", g_fCvar_SpriteSpeed, g_bCvar_SpriteSpeed ? "true" : "false");
-    PrintToConsole(client, "l4d_si_command_chase_sprite_min_max : %.2f (%s)", g_fCvar_SpriteMinMax, g_bCvar_SpriteMinMax ? "true" : "false");
+    PrintToConsole(client, "l4d_si_command_chase_sprite_speed : %.1f (%s)", g_fCvar_SpriteSpeed, g_bCvar_SpriteSpeed ? "true" : "false");
+    PrintToConsole(client, "l4d_si_command_chase_sprite_min_max : %.1f (%s)", g_fCvar_SpriteMinMax, g_bCvar_SpriteMinMax ? "true" : "false");
     PrintToConsole(client, "l4d_si_command_chase_sync_random_color : %b (%s)", g_bCvar_SyncRandomColor, g_bCvar_SyncRandomColor ? "true" : "false");
     PrintToConsole(client, "l4d_si_command_chase_press_key_msg : %i (CHAT: %s | HINT: %s)", g_iCvar_PressKeyMsg, g_iCvar_PressKeyMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_PressKeyMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF");
     PrintToConsole(client, "l4d_si_command_chase_skill_ready_msg : %i (CHAT: %s | HINT: %s)", g_iCvar_SkillReadyMsg, g_iCvar_SkillReadyMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_SkillReadyMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF");
-    PrintToConsole(client, "l4d_si_command_chase_si : %i", g_iCvar_SI);
-    PrintToConsole(client, "l4d_si_command_chase_instructor_hint : %b (%s)", g_bCvar_InstructorHint, g_bCvar_InstructorHint ? "true" : "false");
-    PrintToConsole(client, "l4d_si_command_chase_instructor_hint_color : \"%s\"", g_sCvar_InstructorHintColor);
-    PrintToConsole(client, "l4d_si_command_chase_instructor_hint_icon : \"%s\" (%s)", g_sCvar_InstructorHintIcon, g_bCvar_InstructorHintIcon ? "true" : "false");
+    if (g_bL4D2)
+    {
+        PrintToConsole(client, "l4d_si_command_chase_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
+    else
+    {
+        PrintToConsole(client, "l4d_si_command_chase_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
+    if (g_bL4D2)
+    {
+        PrintToConsole(client, "l4d_si_command_chase_instructor_hint : %b (%s)", g_bCvar_InstructorHint, g_bCvar_InstructorHint ? "true" : "false");
+        PrintToConsole(client, "l4d_si_command_chase_instructor_hint_color : \"%s\"", g_sCvar_InstructorHintColor);
+        PrintToConsole(client, "l4d_si_command_chase_instructor_hint_icon : \"%s\" (%s)", g_sCvar_InstructorHintIcon, g_bCvar_InstructorHintIcon ? "true" : "false");
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -1156,19 +1179,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/
@@ -1282,7 +1292,7 @@ bool IsPlayerGhost(int client)
  *
  * @return              True if any survivor have left safe area, false otherwise.
  */
-static int g_iEntTerrorPlayerManager = INVALID_ENT_REFERENCE;
+int g_iEntTerrorPlayerManager = INVALID_ENT_REFERENCE;
 bool HasAnySurvivorLeftSafeArea()
 {
     int entity = EntRefToEntIndex(g_iEntTerrorPlayerManager);
@@ -1299,21 +1309,6 @@ bool HasAnySurvivorLeftSafeArea()
     g_iEntTerrorPlayerManager = EntIndexToEntRef(entity);
 
     return (GetEntProp(entity, Prop_Send, "m_hasAnySurvivorLeftSafeArea") == 1);
-}
-
-/****************************************************************************************************/
-
-/**
- * Converts the string to lower case.
- *
- * @param input         Input string.
- */
-void StringToLowerCase(char[] input)
-{
-    for (int i = 0; i < strlen(input); i++)
-    {
-        input[i] = CharToLower(input[i]);
-    }
 }
 
 /****************************************************************************************************/
@@ -1370,7 +1365,7 @@ int[] ConvertRGBToIntArray(char[] sColor)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);
@@ -1398,7 +1393,7 @@ public void CPrintToChat(int client, char[] message, any ...)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintHintText(int client, char[] message, any ...)
+void CPrintHintText(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

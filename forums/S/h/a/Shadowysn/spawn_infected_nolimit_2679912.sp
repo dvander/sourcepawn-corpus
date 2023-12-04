@@ -1,7 +1,7 @@
 #define PLUGIN_NAME "[L4D2] Manual-Spawn Special Infected"
 #define PLUGIN_AUTHOR "Shadowysn, ProdigySim (Major Windows Fix)"
 #define PLUGIN_DESC "Spawn special infected without the director limits!"
-#define PLUGIN_VERSION "1.2.1"
+#define PLUGIN_VERSION "1.2.2"
 #define PLUGIN_URL ""
 #define PLUGIN_NAME_SHORT "Manual-Spawn Special Infected"
 #define PLUGIN_NAME_TECH "spawn_infected_nolimit"
@@ -80,9 +80,9 @@ static Handle hInfectedAttackSurvivorTeam = null;
 ConVar version_cvar;
 
 #define cmd_1 "sm_dzspawn"
-char cmd_1_desc[128];
+static char cmd_1_desc[128];
 #define cmd_2 "sm_mdzs"
-char cmd_2_desc[128];
+static char cmd_2_desc[128];
 
 static bool g_isSequel = false;
 
@@ -113,31 +113,29 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	char version_str[128];
-	Format(version_str, sizeof(version_str), "%s version.", PLUGIN_NAME_SHORT);
-	//char cmd_str[64];
-	//Format(cmd_str, sizeof(cmd_str), "sm_%s_version", PLUGIN_NAME_TECH);
-	version_cvar = CreateConVar("sm_spawn_infected_nolimit_version", PLUGIN_VERSION, version_str, 0|FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
-	if(version_cvar != null)
+	static char desc_str[64];
+	Format(desc_str, sizeof(desc_str), "%s version.", PLUGIN_NAME_SHORT);
+	static char cmd_str[64];
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_version", PLUGIN_NAME_TECH);
+	version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, desc_str, FCVAR_NONE|FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	if (version_cvar != null)
 		SetConVarString(version_cvar, PLUGIN_VERSION);
 	
-	Format(cmd_1_desc, sizeof(cmd_1_desc), "%s <zombie> <mode> <number> - Spawn a special infected, bypassing the limit enforced by the game.", cmd_1);
+	GetGamedata();
+	
+	Format(cmd_1_desc, sizeof(cmd_1_desc), "%s <zombie> <number> <mode> - Spawn a special infected, bypassing the limit enforced by the game.", cmd_1);
 	Format(cmd_2_desc, sizeof(cmd_2_desc), "%s - Open a menu to spawn a special infected, bypassing the limit enforced by the game.", cmd_2);
 	RegAdminCmd(cmd_1, Command_Spawn, ADMFLAG_CHEATS, cmd_1_desc);
 	RegAdminCmd(cmd_2, Command_SpawnMenu, ADMFLAG_CHEATS, cmd_2_desc);
 	
 	HookEvent("witch_harasser_set", witch_harasser_set, EventHookMode_Post);
 	HookEvent("witch_killed", witch_killed, EventHookMode_Post);
-	
-	GetGamedata();
 }
 
 void CheckandPrecacheModel(const char[] model)
 {
 	if (!IsModelPrecached(model))
-	{
 		PrecacheModel(model, true);
-	}
 }
 
 public void OnMapStart()
@@ -159,14 +157,14 @@ public void OnMapStart()
 void witch_harasser_set(Event event, const char[] name, bool dontBroadcast)
 {
 	int witch = event.GetInt("witchid");
-	if (!IsValidEntity(witch) || witch <= 0) return;
+	if (!RealValidEntity(witch)) return;
 	
-	char witchName[64];
+	static char witchName[17];
 	GetEntPropString(witch, Prop_Data, "m_iName", witchName, sizeof(witchName));
-	if (!StrEqual(witchName, BRIDE_WITCH_TARGETNAME, false)) return;
+	if (strcmp(witchName, BRIDE_WITCH_TARGETNAME, false) != 0) return;
 	
 	int dir_ent = CheckForDirectorEnt();
-	if (!IsValidEntity(dir_ent) || dir_ent <= 0) return;
+	if (!RealValidEntity(dir_ent)) return;
 	
 	PrintToServer("Bride startled");
 	
@@ -177,14 +175,14 @@ void witch_harasser_set(Event event, const char[] name, bool dontBroadcast)
 void witch_killed(Event event, const char[] name, bool dontBroadcast)
 {
 	int witch = event.GetInt("witchid");
-	if (!IsValidEntity(witch) || witch <= 0) return;
+	if (!RealValidEntity(witch)) return;
 	
-	char witchName[64];
+	static char witchName[17];
 	GetEntPropString(witch, Prop_Data, "m_iName", witchName, sizeof(witchName));
-	if (!StrEqual(witchName, BRIDE_WITCH_TARGETNAME, false)) return;
+	if (strcmp(witchName, BRIDE_WITCH_TARGETNAME, false) != 0) return;
 	
 	int dir_ent = CheckForDirectorEnt();
-	if (!IsValidEntity(dir_ent) || dir_ent <= 0) return;
+	if (!RealValidEntity(dir_ent)) return;
 	
 	//if (!event.GetBool("oneshot")) return;
 	
@@ -197,7 +195,7 @@ void witch_killed(Event event, const char[] name, bool dontBroadcast)
 int CheckForDirectorEnt()
 {
 	int result = FindEntityByClassname(-1, DIRECTOR_CLASS);
-	if (!IsValidEntity(result) || result <= 0)
+	if (!RealValidEntity(result))
 	{
 		result = CreateEntityByName(DIRECTOR_CLASS);
 		DispatchSpawn(result);
@@ -242,7 +240,7 @@ int SpawnMenu_Handler(Handle menu, MenuAction action, int client, int param)
 	{
 		case MenuAction_Select:
 		{
-			char zombie[12];
+			static char zombie[12];
 			GetMenuItem(menu, param, zombie, sizeof(zombie));
 			
 			CreateInfectedWithParams(client, zombie);
@@ -260,6 +258,7 @@ int SpawnMenu_Handler(Handle menu, MenuAction action, int client, int param)
 			CloseHandle(menu);
 		}
 	}
+	return 0;
 }
 
 Action Command_Spawn(int client, any args)
@@ -276,12 +275,10 @@ Action Command_Spawn(int client, any args)
 		return Plugin_Handled;
 	}
 	
-	char zomb[128];
+	static char zomb[128], number[4], mode[2];
 	GetCmdArg(1, zomb, sizeof(zomb));
-	char mode[2];
-	GetCmdArg(2, mode, sizeof(mode));
-	char number[4];
-	GetCmdArg(3, number, sizeof(number));
+	GetCmdArg(2, number, sizeof(number));
+	GetCmdArg(3, mode, sizeof(mode));
 	int mode_int = StringToInt(mode);
 	int number_int = StringToInt(number);
 	if (number_int < 1)
@@ -298,11 +295,11 @@ Action Command_Spawn(int client, any args)
 	else
 	{
 		DataPack data = CreateDataPack();
-		data.WriteCell(client);
+		CreateDataTimer(0.01, Timer_CreateInfected, data);
+		data.WriteCell(GetClientUserId(client));
 		data.WriteString(zomb);
 		data.WriteCell(mode_int);
 		data.WriteCell(number_int);
-		CreateTimer(0.01, Timer_CreateInfected, data);
 	}
 	
 	return Plugin_Handled;
@@ -311,15 +308,14 @@ Action Command_Spawn(int client, any args)
 Action Timer_CreateInfected(Handle timer, DataPack data)
 {
 	data.Reset();
-	int client = data.ReadCell();
-	char zomb[128];
+	int client = GetClientOfUserId(data.ReadCell());
+	static char zomb[128];
 	data.ReadString(zomb, sizeof(zomb));
 	int mode_int = data.ReadCell();
 	int number_int = data.ReadCell();
-	if (data != null)
-	{ CloseHandle(data); }
 	
 	CreateInfectedWithParams(client, zomb, mode_int, number_int);
+	return Plugin_Continue;
 }
 
 void CreateInfectedWithParams(int client, const char[] zomb, int mode = 0, int number = 1)
@@ -333,7 +329,7 @@ void CreateInfectedWithParams(int client, const char[] zomb, int mode = 0, int n
 		GetClientEyePosition(client, pos);
 		GetClientEyeAngles(client, ang);
 		TR_TraceRayFilter(pos, ang, MASK_OPAQUE, RayType_Infinite, TraceRayDontHitPlayers, client);
-		if(TR_DidHit(null))
+		if (TR_DidHit(null))
 		{
 			TR_GetEndPosition(pos);
 		}
@@ -347,7 +343,7 @@ void CreateInfectedWithParams(int client, const char[] zomb, int mode = 0, int n
 	for (int i = 0;i < number;i++)
 	{
 		int infected = CreateInfected(zomb, pos, ang);
-		if (!IsValidEntity(infected))
+		if (!RealValidEntity(infected))
 		{ failed_Count += 1; }
 	}
 	if (failed_Count > 1)
@@ -357,24 +353,24 @@ void CreateInfectedWithParams(int client, const char[] zomb, int mode = 0, int n
 }
 bool TraceRayDontHitPlayers(int entity, int mask, any data)
 {
-	if(IsValidClient(data))
+	if (IsValidClient(data))
 	{
 		return false;
 	}
 	return true;
 }
 
-int CreateInfected(const char[] zomb, float[3] pos, float[3] ang)
+int CreateInfected(const char[] zomb, float pos[3], float ang[3])
 {
 	int bot = -1;
 	
-	if (StrEqual(zomb, "witch", false) || (g_isSequel && StrEqual(zomb, "witch_bride", false)))
+	if (strncmp(zomb, "witch", 5, false) == 0 || (g_isSequel && strncmp(zomb, "witch_bride", 11, false) == 0))
 	{
 		int witch = CreateEntityByName("witch");
 		TeleportEntity(witch, pos, ang, NULL_VECTOR);
 		DispatchSpawn(witch);
 		ActivateEntity(witch);
-		if (g_isSequel && StrEqual(zomb, "witch_bride", false))
+		if (g_isSequel && strncmp(zomb, "witch_bride", 11, false) == 0)
 		{
 			SetEntityModel(witch, MODEL_WITCHBRIDE);
 			//AssignPanicToWitch(witch);
@@ -382,37 +378,37 @@ int CreateInfected(const char[] zomb, float[3] pos, float[3] ang)
 		}
 		return witch;
 	}
-	else if (StrEqual(zomb, "smoker", false))
+	else if (strncmp(zomb, "smoker", 6, false) == 0)
 	{
 		bot = SDKCall(hCreateSmoker, "Smoker");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_SMOKER);
 	}
-	else if (StrEqual(zomb, "boomer", false))
+	else if (strncmp(zomb, "boomer", 6, false) == 0)
 	{
 		bot = SDKCall(hCreateBoomer, "Boomer");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_BOOMER);
 	}
-	else if (StrEqual(zomb, "hunter", false))
+	else if (strncmp(zomb, "hunter", 6, false) == 0)
 	{
 		bot = SDKCall(hCreateHunter, "Hunter");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_HUNTER);
 	}
-	else if (StrEqual(zomb, "spitter", false) && g_isSequel)
+	else if (strncmp(zomb, "spitter", 7, false) == 0 && g_isSequel)
 	{
 		bot = SDKCall(hCreateSpitter, "Spitter");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_SPITTER);
 	}
-	else if (StrEqual(zomb, "jockey", false) && g_isSequel)
+	else if (strncmp(zomb, "jockey", 6, false) == 0 && g_isSequel)
 	{
 		bot = SDKCall(hCreateJockey, "Jockey");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_JOCKEY);
 	}
-	else if (StrEqual(zomb, "charger", false) && g_isSequel)
+	else if (strncmp(zomb, "charger", 7, false) == 0 && g_isSequel)
 	{
 		bot = SDKCall(hCreateCharger, "Charger");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_CHARGER);
 	}
-	else if (StrEqual(zomb, "tank", false))
+	else if (strncmp(zomb, "tank", 4, false) == 0)
 	{
 		bot = SDKCall(hCreateTank, "Tank");
 		if (IsValidClient(bot)) SetEntityModel(bot, MODEL_TANK);
@@ -424,14 +420,13 @@ int CreateInfected(const char[] zomb, float[3] pos, float[3] ang)
 		DispatchSpawn(infected);
 		ActivateEntity(infected);
 		if (hInfectedAttackSurvivorTeam != null && StrContains(zomb, "chase", false) > -1)
-		{ CreateTimer(0.4, Timer_Chase, infected); }
+		{ CreateTimer(0.4, Timer_Chase, EntIndexToEntRef(infected)); }
 		return infected;
 	}
 	
 	if (IsValidClient(bot))
 	{
 		ChangeClientTeam(bot, 3);
-		//SDKCall(hRoundRespawn, bot);
 		SetEntProp(bot, Prop_Send, "m_usSolidFlags", 16);
 		SetEntProp(bot, Prop_Send, "movetype", 2);
 		SetEntProp(bot, Prop_Send, "deadflag", 0);
@@ -501,7 +496,7 @@ void Logic_RunScript(const char[] sCode, any ...)
 		iScriptLogic = g_iScriptLogic;
 	}
 	
-	char sBuffer[512]; 
+	static char sBuffer[512]; 
 	VFormat(sBuffer, sizeof(sBuffer), sCode, 2); 
 	
 	SetVariantString(sBuffer); 
@@ -512,22 +507,24 @@ int FindEntityByTargetname(int index, const char[] findname, bool onlyNetworked 
 {
 	for (int i = index; i < (onlyNetworked ? GetMaxEntities() : (GetMaxEntities()*2)); i++) {
 		if (!RealValidEntity(i)) continue;
-		char name[128];
+		static char name[128];
 		GetEntPropString(i, Prop_Data, "m_iName", name, sizeof(name));
-		if (!StrEqual(name, findname, false)) continue;
+		if (strcmp(name, findname, false) != 0) continue;
 		return i;
 	}
 	return -1;
 }*/
 
-Action Timer_Chase(Handle timer, int infected)
+Action Timer_Chase(Handle timer, int inf_ref)
 {
-	if (!IsValidEntity(infected)) return;
-	char class[64];
+	int infected = EntRefToEntIndex(inf_ref);
+	if (!RealValidEntity(infected)) return Plugin_Continue;
+	static char class[9];
 	GetEntityClassname(infected, class, sizeof(class));
-	if (!StrEqual(class, "infected", false)) return;
+	if (strcmp(class, "infected", false) != 0) return Plugin_Continue;
 	
 	SDKCall(hInfectedAttackSurvivorTeam, infected);
+	return Plugin_Continue;
 }
 
 void RequestFrame_SetPos(DataPack data)
@@ -564,9 +561,9 @@ int KickDeadInfectedBots(int client)
 
 void GetGamedata()
 {
-	char filePath[PLATFORM_MAX_PATH];
+	static char filePath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, filePath, sizeof(filePath), "gamedata/%s.txt", GAMEDATA);
-	if( FileExists(filePath) )
+	if ( FileExists(filePath) )
 	{
 		hConf = LoadGameConfigFile(GAMEDATA); // For some reason this doesn't return null even for invalid files, so check they exist first.
 	}
@@ -715,7 +712,7 @@ void LoadStringFromAdddress(Address addr, char[] buffer, int maxlength) {
 	int i = 0;
 	while(i < maxlength) {
 		char val = LoadFromAddress(addr + view_as<Address>(i), NumberType_Int8);
-		if(val == 0) {
+		if (val == 0) {
 			buffer[i] = 0;
 			break;
 		}
@@ -915,5 +912,5 @@ bool IsValidClient(int client, bool replaycheck = true)
 	return true;
 }
 
-/*bool RealValidEntity(int entity)
-{ return (entity > 0 && IsValidEntity(entity)); }*/
+bool RealValidEntity(int entity)
+{ return (entity > 0 && IsValidEntity(entity)); }

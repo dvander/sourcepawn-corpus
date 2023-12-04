@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.8 (05-September-2021)
+    - Added Traditional Chinese (zho) translation. (thanks to "in2002")
+
 1.0.7 (11-April-2021)
     - Added Russian (ru) translation. (thanks to "Zheldorg")
 
@@ -12,10 +15,10 @@ Change Log:
     - Added better cvar handling for L4D1.
 
 1.0.4 (15-October-2020)
-    - Added two detection methods. (OnEntityCreated x weapon_fire+molotov_thrown[L4D2])
+    - Added two detection methods. (weapon_fire+molotov_thrown[L4D2])
 
 1.0.3 (30-September-2020)
-    - Moved molotov check to "molotov_thrown" event. (L4D2 only)
+    - Moved molotov check to "molotov_thrown". (L4D2 only)
     - Updated translation file to be more color friendly and highlighted the throwables.
     - Removed EventHookMode_PostNoCopy from hook events.
 
@@ -39,7 +42,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Throwable Announcer"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Outputs to the chat who threw a throwable"
-#define PLUGIN_VERSION                "1.0.7"
+#define PLUGIN_VERSION                "1.0.8"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=327613"
 
 // ====================================================================================================
@@ -104,46 +107,47 @@ public Plugin myinfo =
 #define TYPE_PIPEBOMB                 2
 #define TYPE_VOMITJAR                 3
 
+#define SLOT_GRENADE                  2
+
 #define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_FakeThrow;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_Self;
-static ConVar g_hCvar_Molotov;
-static ConVar g_hCvar_Pipebomb;
-static ConVar g_hCvar_Vomitjar;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_FakeThrow;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_Self;
+ConVar g_hCvar_Molotov;
+ConVar g_hCvar_Pipebomb;
+ConVar g_hCvar_Vomitjar;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Team;
-static bool   g_bCvar_Self;
-static bool   g_bCvar_Molotov;
-static bool   g_bCvar_Pipebomb;
-static bool   g_bCvar_Vomitjar;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_Self;
+bool g_bCvar_Molotov;
+bool g_bCvar_Pipebomb;
+bool g_bCvar_Vomitjar;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Team;
+int g_iCvar_Team;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_FakeThrow;
+float g_fCvar_FakeThrow;
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static int    ge_iType[MAXENTITIES+1];
-static float  ge_fLastThrown[MAXENTITIES+1];
+int ge_iType[MAXENTITIES+1];
+float ge_fLastThrown[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -198,7 +202,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -214,27 +218,26 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_FakeThrow = g_hCvar_FakeThrow.FloatValue;
     g_iCvar_Team = g_hCvar_Team.IntValue;
-    g_bCvar_Team = (g_iCvar_Team > 0);
     g_bCvar_Self = g_hCvar_Self.BoolValue;
     g_bCvar_Molotov = g_hCvar_Molotov.BoolValue;
     g_bCvar_Pipebomb = g_hCvar_Pipebomb.BoolValue;
@@ -244,28 +247,28 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
         HookEvent("weapon_fire", Event_WeaponFire);
 
         if (g_bL4D2)
-            HookEvent("molotov_thrown", Event_MolotovThrown_L4D2); //L4D1 doesn't have "molotov_thrown" event
+            HookEvent("molotov_thrown", Event_MolotovThrown_L4D2); // L4D1 doesn't have "molotov_thrown" event
 
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
         UnhookEvent("weapon_fire", Event_WeaponFire);
 
         if (g_bL4D2)
-            UnhookEvent("molotov_thrown", Event_MolotovThrown_L4D2); //L4D1 doesn't have "molotov_thrown" event
+            UnhookEvent("molotov_thrown", Event_MolotovThrown_L4D2); // L4D1 doesn't have "molotov_thrown" event
 
         return;
     }
@@ -275,7 +278,7 @@ public void HookEvents(bool hook)
 
 public void OnEntityDestroyed(int entity)
 {
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     ge_iType[entity] = TYPE_NONE;
@@ -284,20 +287,14 @@ public void OnEntityDestroyed(int entity)
 
 /****************************************************************************************************/
 
-public void Event_MolotovThrown_L4D2(Event event, const char[] name, bool dontBroadcast)
+void Event_MolotovThrown_L4D2(Event event, const char[] name, bool dontBroadcast)
 {
-    if (!g_bCvar_Enabled)
-        return;
-
-    if (!g_bCvar_Team)
-        return;
-
     if (!g_bCvar_Molotov)
         return;
 
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     OutputMessage(client, TYPE_MOLOTOV);
@@ -305,15 +302,13 @@ public void Event_MolotovThrown_L4D2(Event event, const char[] name, bool dontBr
 
 /****************************************************************************************************/
 
-public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 {
-    if (!g_bCvar_Enabled)
-        return;
-
-    if (!g_bCvar_Team)
-        return;
-
+    int client = GetClientOfUserId(event.GetInt("userid"));
     int weaponid = event.GetInt("weaponid");
+
+    if (client == 0)
+        return;
 
     if (g_bL4D2)
     {
@@ -321,12 +316,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
         {
             case L4D2_WEPID_PIPE_BOMB:
             {
-                int client = GetClientOfUserId(event.GetInt("userid"));
-
-                if (!IsValidClient(client))
-                    return;
-
-                int entity = GetPlayerWeaponSlot(client, 2);
+                int entity = GetPlayerWeaponSlot(client, SLOT_GRENADE);
 
                 if (entity == -1)
                     return;
@@ -337,12 +327,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
             }
             case L4D2_WEPID_VOMITJAR:
             {
-                int client = GetClientOfUserId(event.GetInt("userid"));
-
-                if (!IsValidClient(client))
-                    return;
-
-                int entity = GetPlayerWeaponSlot(client, 2);
+                int entity = GetPlayerWeaponSlot(client, SLOT_GRENADE);
 
                 if (entity == -1)
                     return;
@@ -359,12 +344,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
         {
             case L4D1_WEPID_MOLOTOV:
             {
-                int client = GetClientOfUserId(event.GetInt("userid"));
-
-                if (!IsValidClient(client))
-                    return;
-
-                int entity = GetPlayerWeaponSlot(client, 2);
+                int entity = GetPlayerWeaponSlot(client, SLOT_GRENADE);
 
                 if (entity == -1)
                     return;
@@ -375,12 +355,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
             }
             case L4D1_WEPID_PIPE_BOMB:
             {
-                int client = GetClientOfUserId(event.GetInt("userid"));
-
-                if (!IsValidClient(client))
-                    return;
-
-                int entity = GetPlayerWeaponSlot(client, 2);
+                int entity = GetPlayerWeaponSlot(client, SLOT_GRENADE);
 
                 if (entity == -1)
                     return;
@@ -395,7 +370,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+void OnNextFrame(int entityRef)
 {
     int entity = EntRefToEntIndex(entityRef);
 
@@ -421,7 +396,7 @@ public void OnNextFrame(int entityRef)
 
 /****************************************************************************************************/
 
-void OutputMessage(int attacker, int type)
+void OutputMessage(int client, int type)
 {
     switch (type)
     {
@@ -430,26 +405,12 @@ void OutputMessage(int attacker, int type)
             if (!g_bCvar_Molotov)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Thrown a molotov", attacker);
+                CPrintToChat(target, "%t", "Thrown a molotov", client);
             }
         }
 
@@ -458,26 +419,12 @@ void OutputMessage(int attacker, int type)
             if (!g_bCvar_Pipebomb)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Thrown a pipe bomb", attacker);
+                CPrintToChat(target, "%t", "Thrown a pipe bomb", client);
             }
         }
 
@@ -486,35 +433,40 @@ void OutputMessage(int attacker, int type)
             if (!g_bCvar_Vomitjar)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Thrown a vomit jar", attacker);
+                CPrintToChat(target, "%t", "Thrown a vomit jar", client);
             }
         }
     }
 }
 
+/****************************************************************************************************/
+
+bool IsValidPrintTarget(int target, int client)
+{
+    if (!IsClientInGame(target))
+        return false;
+
+    if (IsFakeClient(target))
+        return false;
+
+    if (target == client && !g_bCvar_Self)
+       return false;
+
+    if (!(GetTeamFlag(GetClientTeam(target)) & g_iCvar_Team))
+        return false;
+
+    return true;
+}
+
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -522,10 +474,11 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "--------------- Plugin Cvars (l4d_throwable_announcer) ---------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_throwable_announcer_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_throwable_announcer_fake_throw : %.2f", g_fCvar_FakeThrow);
+    PrintToConsole(client, "l4d_throwable_announcer_fake_throw : %.1f", g_fCvar_FakeThrow);
     PrintToConsole(client, "l4d_throwable_announcer_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_throwable_announcer_team : %i", g_iCvar_Team, g_bCvar_Team ? "true" : "false");
-    PrintToConsole(client, "l4d_throwable_announcer_self : %i", g_bCvar_Self);
+    PrintToConsole(client, "l4d_throwable_announcer_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
+    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_throwable_announcer_self : %b (%s)", g_bCvar_Self, g_bCvar_Self ? "true" : "false");
     PrintToConsole(client, "l4d_throwable_announcer_molotov : %b (%s)", g_bCvar_Molotov, g_bCvar_Molotov ? "true" : "false");
     PrintToConsole(client, "l4d_throwable_announcer_pipebomb : %b (%s)", g_bCvar_Pipebomb, g_bCvar_Pipebomb ? "true" : "false");
     if (g_bL4D2)
@@ -556,25 +509,12 @@ bool IsValidClientIndex(int client)
 /**
  * Validates if is a valid client.
  *
- * @param client        Client index.
- * @return              True if client index is valid and client is in game, false otherwise.
+ * @param client          Client index.
+ * @return                True if client index is valid and client is in game, false otherwise.
  */
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/
@@ -614,7 +554,7 @@ int GetTeamFlag(int team)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

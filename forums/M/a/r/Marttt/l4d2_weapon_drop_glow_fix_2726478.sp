@@ -2,6 +2,10 @@
 // ====================================================================================================
 Change Log:
 
+1.0.3 (25-December-2021)
+    - Changed WeaponEquipPost to weapon_drop event.
+    - Fixed weapons glowing on hands. (thanks "Tonblader" for reporting)
+
 1.0.2 (08-March-2021)
     - Fixed invalid weapon index on SDKHook_WeaponSwitch/Post (thanks "HarryPotter" for reporting)
 
@@ -23,7 +27,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Weapon Drop Glow Fix"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Fix glow disappearing from a weapon when player dies or take a break while holding it"
-#define PLUGIN_VERSION                "1.0.2"
+#define PLUGIN_VERSION                "1.0.3"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328841"
 
 // ====================================================================================================
@@ -70,18 +74,23 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Enabled;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+
+// ====================================================================================================
+// client - Plugin Variables
+// ====================================================================================================
+bool gc_bWeaponEquipHooked[MAXPLAYERS+1];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static int    ge_iGlowType[MAXENTITIES+1];
+int ge_iGlowType[MAXENTITIES+1] = { -1, ... };
 
 // ====================================================================================================
 // Plugin Start
@@ -122,28 +131,30 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
+    HookEvents();
 
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
+
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -158,64 +169,85 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
+    if (gc_bWeaponEquipHooked[client])
         return;
 
+    gc_bWeaponEquipHooked[client] = true;
     SDKHook(client, SDKHook_WeaponEquip, OnWeaponEquip);
-    SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
 }
 
 /****************************************************************************************************/
 
-public Action OnWeaponEquip(int client, int weapon)
+public void OnClientDisconnect(int client)
 {
-    if (!g_bCvar_Enabled)
-        return;
-
-    if (!IsValidEntity(weapon))
-        return;
-
-    if (ge_iGlowType[weapon] > 0) // "take a break" bug fix
-        return;
-
-    ge_iGlowType[weapon] = GetEntProp(weapon, Prop_Send, "m_iGlowType");
-}
-
-/****************************************************************************************************/
-
-public void OnWeaponEquipPost(int client, int weapon)
-{
-    if (!g_bCvar_Enabled)
-        return;
-
-    if (!IsValidEntity(weapon))
-        return;
-
-    if (ge_iGlowType[weapon] == 0)
-        return;
-
-    SetEntProp(weapon, Prop_Send, "m_iGlowType", ge_iGlowType[weapon]);
+    gc_bWeaponEquipHooked[client] = false;
 }
 
 /****************************************************************************************************/
 
 public void OnEntityDestroyed(int entity)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    ge_iGlowType[entity] = 0;
+    ge_iGlowType[entity] = -1;
 }
 
 /****************************************************************************************************/
 
+void HookEvents()
+{
+    if (g_bCvar_Enabled && !g_bEventsHooked)
+    {
+        g_bEventsHooked = true;
+
+        HookEvent("weapon_drop", Event_WeaponDrop);
+
+        return;
+    }
+
+    if (!g_bCvar_Enabled && g_bEventsHooked)
+    {
+        g_bEventsHooked = false;
+
+        UnhookEvent("weapon_drop", Event_WeaponDrop);
+
+        return;
+    }
+}
+
+/****************************************************************************************************/
+
+Action OnWeaponEquip(int client, int weapon)
+{
+    if (!g_bCvar_Enabled)
+        return Plugin_Continue;
+
+    if (!IsValidEntity(weapon))
+        return Plugin_Continue;
+
+    if (ge_iGlowType[weapon] != -1) // "take a break" bug fix
+        return Plugin_Continue;
+
+    ge_iGlowType[weapon] = GetEntProp(weapon, Prop_Send, "m_iGlowType");
+
+    return Plugin_Continue;
+}
+
+/****************************************************************************************************/
+
+void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
+{
+    int entity = event.GetInt("propid");
+
+    if (ge_iGlowType[entity] != -1)
+        SetEntProp(entity, Prop_Send, "m_iGlowType", ge_iGlowType[entity]);
+}
+
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -229,18 +261,4 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

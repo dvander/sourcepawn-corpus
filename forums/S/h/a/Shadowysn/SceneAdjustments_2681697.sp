@@ -1,14 +1,13 @@
-#define PLUGIN_NAME "[L4D2] Scene Adjustments"
+#define PLUGIN_NAME "[L4D1?/2] 5+ Survivor Friendly Fire Quote Fix"
 #define PLUGIN_AUTHOR "Shadowysn"
-#define PLUGIN_DESC "Re-adds some quotes as well as fixing friendly fire lines for 5+ survivors."
-#define PLUGIN_VERSION "1.1.5"
+#define PLUGIN_DESC "Mainly fixes friendly fire lines for 5+ survivors."
+#define PLUGIN_VERSION "1.1.5d"
 #define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?p=2681697"
 #define PLUGIN_NAME_SHORT "Scene Adjustments"
 #define PLUGIN_NAME_TECH "l4d_sceneadjust"
 
 #define DEBUG 0
 
-#pragma semicolon 1
 #include <sourcemod>
 //#include <sceneprocessor>
 #include <sdktools>
@@ -19,15 +18,13 @@
 
 //static bool pounced[MAXPLAYERS+1] = false; // Hunter pounce zoeyfix/oof //
 //static bool hasMourned[MAXPLAYERS+1] = false; // L4D1 passing survivor mourn fix //
-static bool canMourn[MAXPLAYERS+1] = false; // L4D1 passing survivor mourn fix //
-static float g_vecLastLivingOrigin[3][MAXPLAYERS+1]; // L4D1 passing survivor mourn fix //
-static int targetClient[MAXPLAYERS+1] = INVALID_ENT_REFERENCE; // L4D1 passing survivor mourn fix //
+bool canMourn[MAXPLAYERS+1] = {false}; // L4D1 passing survivor mourn fix //
+float g_vecLastLivingOrigin[3][MAXPLAYERS+1]; // L4D1 passing survivor mourn fix //
+int targetClient[MAXPLAYERS+1] = {INVALID_ENT_REFERENCE}; // L4D1 passing survivor mourn fix //
 
-static float friendlyFire_Time[MAXPLAYERS+1] = 0.0; // Friendly Fire fix //
-static bool hasFriendlyFired = false; // Friendly Fire fix //
+float friendlyFire_Time[MAXPLAYERS+1] = {0.0}; // Friendly Fire fix //
+bool hasFriendlyFired = false; // Friendly Fire fix //
 #define FRIENDLYFIRE_DELAY 10.0 // Friendly Fire fix //
-
-ConVar version_cvar;
 
 public Plugin myinfo = 
 {
@@ -57,33 +54,31 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 //ConVar Scene_ZoeyPounced;
-ConVar Scene_OofSounds;
-ConVar Scene_FriendlyFire;
-ConVar Scene_L4D1Mourn;
+ConVar Scene_OofSounds, Scene_FriendlyFire, Scene_L4D1Mourn;
 
 public void OnPluginStart()
 {
-	char cvar_desc_str[500];
-	Format(cvar_desc_str, sizeof(cvar_desc_str), "%s plugin version.", PLUGIN_NAME_SHORT);
-	version_cvar = CreateConVar("sm_l4d_sceneadjust_ver", PLUGIN_VERSION, cvar_desc_str, 0|FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	static char desc_str[128];
+	Format(desc_str, sizeof(desc_str), "%s version.", PLUGIN_NAME_SHORT);
+	static char cmd_str[64];
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_version", PLUGIN_NAME_TECH);
+	ConVar version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, desc_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
 	if (version_cvar != null)
-		SetConVarString(version_cvar, PLUGIN_VERSION);
-	
-	char cvar_str[128];
+		version_cvar.SetString(PLUGIN_VERSION);
 	
 	if (g_isSequel)
 	{
-		//Format(cvar_str, sizeof(cvar_str), "sm_%s_zoey_pounce", PLUGIN_NAME_TECH);
-		//Format(cvar_desc_str, sizeof(cvar_desc_str), "Should %s fix Zoey's lines while pounced?", PLUGIN_NAME_SHORT);
-		//Scene_ZoeyPounced = CreateConVar(cvar_str, "1", cvar_desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
+		//Format(cmd_str, sizeof(cmd_str), "sm_%s_zoey_pounce", PLUGIN_NAME_TECH);
+		//Format(desc_str, sizeof(desc_str), "Should %s fix Zoey's lines while pounced?", PLUGIN_NAME_SHORT);
+		//Scene_ZoeyPounced = CreateConVar(cmd_str, "1", desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
 		
-		Format(cvar_str, sizeof(cvar_str), "sm_%s_oof", PLUGIN_NAME_TECH);
-		Format(cvar_desc_str, sizeof(cvar_desc_str), "Should %s make Survivors play their minor hurt sounds upon getting pounced/charged?", PLUGIN_NAME_SHORT);
-		Scene_OofSounds = CreateConVar(cvar_str, "1", cvar_desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
+		Format(cmd_str, sizeof(cmd_str), "sm_%s_oof", PLUGIN_NAME_TECH);
+		Format(desc_str, sizeof(desc_str), "Should %s make Survivors play their minor hurt sounds upon getting pounced/charged?", PLUGIN_NAME_SHORT);
+		Scene_OofSounds = CreateConVar(cmd_str, "1", desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
 	
-		Format(cvar_str, sizeof(cvar_str), "sm_%s_l4d1mourn", PLUGIN_NAME_TECH);
-		Format(cvar_desc_str, sizeof(cvar_desc_str), "Should %s fix the L4D1 survivors on L4D2 set not mourning their own group?", PLUGIN_NAME_SHORT);
-		Scene_L4D1Mourn = CreateConVar(cvar_str, "1", cvar_desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
+		Format(cmd_str, sizeof(cmd_str), "sm_%s_l4d1mourn", PLUGIN_NAME_TECH);
+		Format(desc_str, sizeof(desc_str), "Should %s fix the L4D1 survivors on L4D2 set not mourning their own group?", PLUGIN_NAME_SHORT);
+		Scene_L4D1Mourn = CreateConVar(cmd_str, "0", desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
 	}
 	else
 	{
@@ -92,9 +87,9 @@ public void OnPluginStart()
 		delete Scene_L4D1Mourn;
 	}
 	
-	Format(cvar_str, sizeof(cvar_str), "sm_%s_friendlyfire", PLUGIN_NAME_TECH);
-	Format(cvar_desc_str, sizeof(cvar_desc_str), "Should %s fix friendly fire quotes not playing for 5+ survivors?", PLUGIN_NAME_SHORT);
-	Scene_FriendlyFire = CreateConVar(cvar_str, "1", cvar_desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_friendlyfire", PLUGIN_NAME_TECH);
+	Format(desc_str, sizeof(desc_str), "Should %s fix friendly fire quotes not playing for 5+ survivors?", PLUGIN_NAME_SHORT);
+	Scene_FriendlyFire = CreateConVar(cmd_str, "1", desc_str, FCVAR_ARCHIVE, true, 0.0, true, 1.0);
 	
 	if (g_isSequel)
 	{
@@ -131,72 +126,73 @@ public void OnPluginEnd()
 // L4D1 passing survivor mourn fix //
 Action TimerUpdate_Mourn(Handle timer)
 {
-	if (!IsServerProcessing()) return;
+	if (!IsServerProcessing()) return Plugin_Continue;
 	
-	if (Scene_L4D1Mourn == null || !GetConVarBool(Scene_L4D1Mourn)) return;
+	if (Scene_L4D1Mourn == null || !GetConVarBool(Scene_L4D1Mourn)) return Plugin_Continue;
 	
-	for (int i = 1; i <= MaxClients; i++)
+	for (int client = 1; client <= MaxClients; client++)
 	{
-		if (IsValidClient(i) && IsPlayerAlive(i))
+		if (!IsValidClient(client) || !IsPlayerAlive(client)) continue;
+		
+		int is_Incap = GetEntProp(client, Prop_Send, "m_isIncapacitated");
+		//if (IsClientL4D1Survivor(client) && !is_Incap && !hasMourned[client])
+		if (!IsClientL4D1Survivor(client) || is_Incap) continue;
+		
+		for (int loopclient = 1; loopclient <= MaxClients; loopclient++)
 		{
-			int is_Incap = GetEntProp(i, Prop_Send, "m_isIncapacitated");
-			//if (IsClientL4D1Survivor(i) && !is_Incap && !hasMourned[i])
-			if (IsClientL4D1Survivor(i) && !is_Incap)
+			if (!IsValidClient(loopclient)) continue;
+			if (!IsSurvivor(loopclient) || !IsClientL4D1Survivor(loopclient) || IsPlayerAlive(loopclient)) continue;
+			if (IsValidClient(targetClient[client]) && targetClient[client] == loopclient) continue;
+			
+			int character = GetEntProp(client, Prop_Send, "m_survivorCharacter");
+			int loopchar = GetEntProp(loopclient, Prop_Send, "m_survivorCharacter");
+			
+			static char weapon_name[128];
+			GetClientWeapon(loopclient, weapon_name, sizeof(weapon_name));
+			if (character == loopchar || strcmp(weapon_name, "weapon_defibrillator", false) == 0) continue;
+			float client_pos[3];
+			float other_pos[3];
+			other_pos[0] = g_vecLastLivingOrigin[0][loopclient];
+			other_pos[1] = g_vecLastLivingOrigin[1][loopclient];
+			other_pos[2] = g_vecLastLivingOrigin[2][loopclient];
+			
+			//if (!HasEntProp(loopclient, Prop_Data, "m_vecAbsOrigin")) continue;
+			if (other_pos[0] == 0.0 && other_pos[1] == 0.0 && other_pos[2] == 0.0) continue;
+			
+			GetClientAbsOrigin(client, client_pos);
+			
+			float distance = GetVectorDistance(client_pos, other_pos);
+			if (distance <= 50.0 && canMourn[client])
+			//if (distance <= 50.0 && canMourn[client])
 			{
-				for (int loopclient = 1; loopclient <= MaxClients; loopclient++)
-				{
-					if (!IsValidClient(loopclient)) continue;
-					if (!IsSurvivor(loopclient) || !IsClientL4D1Survivor(loopclient) || IsPlayerAlive(loopclient)) continue;
-					if (IsValidClient(targetClient[i]) && targetClient[i] == loopclient) continue;
-					int character = GetEntProp(i, Prop_Send, "m_survivorCharacter");
-					int loopchar = GetEntProp(loopclient, Prop_Send, "m_survivorCharacter");
-					char weapon_name[128];
-					GetClientWeapon(loopclient, weapon_name, sizeof(weapon_name));
-					if (character == loopchar || StrEqual(weapon_name, "weapon_defibrillator", false)) continue;
-					float client_pos[3];
-					float other_pos[3];
-					other_pos[0] = g_vecLastLivingOrigin[0][loopclient];
-					other_pos[1] = g_vecLastLivingOrigin[1][loopclient];
-					other_pos[2] = g_vecLastLivingOrigin[2][loopclient];
-					
-					//if (!HasEntProp(loopclient, Prop_Data, "m_vecAbsOrigin")) continue;
-					if (other_pos[0] == 0.0 && other_pos[1] == 0.0 && other_pos[2] == 0.0) continue;
-					
-					GetClientAbsOrigin(i, client_pos);
-					
-					float distance = GetVectorDistance(client_pos, other_pos);
-					if (distance <= 50.0 && canMourn[i])
-					//if (distance <= 50.0 && canMourn[i])
-					{
-						canMourn[i] = false;
-						SurvivorMourn(i, loopclient);
-						targetClient[i] = loopclient;
-						break;
-					}
-					else if (distance > 200.0 && !canMourn[i])
-					{
-						canMourn[i] = true;
-						//targetClient[i] = INVALID_ENT_REFERENCE;
-						break;
-					}
-				}
+				canMourn[client] = false;
+				SurvivorMourn(client, loopclient);
+				targetClient[client] = loopclient;
+				break;
+			}
+			else if (distance > 200.0 && !canMourn[client])
+			{
+				canMourn[client] = true;
+				//targetClient[client] = INVALID_ENT_REFERENCE;
+				break;
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
 void SurvivorMourn(int client, int victim)
 {
 	//char client_namestr[PLATFORM_MAX_PATH];
-	char victim_namestr[PLATFORM_MAX_PATH];
+	static char victim_namestr[32];
 	//GetSurvivorSceneName(client, false, client_namestr, sizeof(client_namestr));
 	GetSurvivorSceneName(victim, false, victim_namestr, sizeof(victim_namestr));
 	
-	char temp_str[128];
+	static char context_str[64];
 	//int worldspawn = 0;
 	
-	Format(temp_str, sizeof(temp_str), "DeadCharacter:%s:0.1", victim_namestr);
-	SetVariantString(temp_str);
+	Format(context_str, sizeof(context_str), "DeadCharacter:%s:0.1", victim_namestr);
+	SetVariantString(context_str);
 	AcceptEntityInput(client, "AddContext");
 	//hasMourned[client] = true;
 	//SetVariantString("SaidSomeoneDied:1:10");
@@ -205,9 +201,9 @@ void SurvivorMourn(int client, int victim)
 	AcceptEntityInput(client, "SpeakResponseConcept");
 }
 
-void player_death(Handle event, const char[] name, bool dontBroadcast)
+void player_death(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid", 0));
 	if (IsValidClient(client) && !IsPlayerAlive(client) && IsSurvivor(client))
 	{
 		//hasMourned[client] = false;
@@ -230,14 +226,15 @@ void player_death(Handle event, const char[] name, bool dontBroadcast)
 // L4D1 passing survivor mourn fix end //
 
 // Hunter pounce zoeyfix/oof //
-void lunge_pounce(Handle event, const char[] name, bool dontBroadcast)
+void lunge_pounce(Event event, const char[] name, bool dontBroadcast)
 {
 	#if DEBUG
 	PrintToChatAll("Lunge pounce!");
 	#endif
-	int client = GetClientOfUserId(GetEventInt(event, "victim"));
-	//if (IsZoey(client) && IsValidEntity(GetEntPropEnt(client, Prop_Send, "m_pounceAttacker")))
-	if (IsSurvivor(client) && IsPlayerAlive(client) && Scene_OofSounds != null && GetConVarBool(Scene_OofSounds))
+	int client = GetClientOfUserId(event.GetInt("victim", 0));
+	//if (IsZoey(client) && RealValidEntity(GetEntPropEnt(client, Prop_Send, "m_pounceAttacker")))
+	if (IsValidClient(client) && IsSurvivor(client) && IsPlayerAlive(client) && 
+	Scene_OofSounds != null && GetConVarBool(Scene_OofSounds))
 	{
 		SetVariantString("PainLevel:Minor:0.5");
 		AcceptEntityInput(client, "AddContext");
@@ -255,13 +252,13 @@ void lunge_pounce(Handle event, const char[] name, bool dontBroadcast)
 	}*/
 }
 
-/*void pounce_end(Handle event, const char[] name, bool dontBroadcast)
+/*void pounce_end(Event event, const char[] name, bool dontBroadcast)
 {
 	#if DEBUG
 	PrintToChatAll("Pounce end!");
 	#endif
-	int client = GetClientOfUserId(GetEventInt(event, "victim"));
-	//if (IsZoey(client) && !IsValidEntity(GetEntPropEnt(client, Prop_Send, "m_pounceAttacker")))
+	int client = GetClientOfUserId(event.GetInt("victim", 0));
+	//if (IsZoey(client) && !RealValidEntity(GetEntPropEnt(client, Prop_Send, "m_pounceAttacker")))
 	if (IsZoey(client) && pounced[client])
 	{ pounced[client] = false; }
 }
@@ -269,7 +266,7 @@ void lunge_pounce(Handle event, const char[] name, bool dontBroadcast)
 Action ScreamThink(Handle timer, int client)
 {
 	if (!IsServerProcessing()) return;
-	if (IsSurvivor(client) && IsPlayerAlive(client) && pounced[client] && 
+	if (IsValidClient(client) && IsSurvivor(client) && IsPlayerAlive(client) && pounced[client] && 
 	Scene_ZoeyPounced != null && GetConVarBool(Scene_ZoeyPounced))
 	{
 		#if DEBUG
@@ -306,10 +303,11 @@ Action ScreamThink(Handle timer, int client)
 // Hunter pounce zoeyfix/oof end //
 
 // Charger Oof sound //
-void charger_carry_start(Handle event, const char[] name, bool dontBroadcast)
+void charger_carry_start(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(GetEventInt(event, "victim"));
-	if (IsSurvivor(client) && IsPlayerAlive(client) && Scene_OofSounds != null && GetConVarBool(Scene_OofSounds))
+	int client = GetClientOfUserId(event.GetInt("victim", 0));
+	if (IsValidClient(client) && IsSurvivor(client) && IsPlayerAlive(client) && 
+	Scene_OofSounds != null && GetConVarBool(Scene_OofSounds))
 	{
 		SetVariantString("PainLevel:Minor:0.5");
 		AcceptEntityInput(client, "AddContext");
@@ -319,14 +317,14 @@ void charger_carry_start(Handle event, const char[] name, bool dontBroadcast)
 }
 // Charger Oof sound end //
 
-/*void player_shoved(Handle event, const char[] name, bool dontBroadcast)
+/*void player_shoved(Event event, const char[] name, bool dontBroadcast)
 {
 	#if DEBUG
 	PrintToChatAll("Shoved1!");
 	#endif
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
-	//int client = GetClientOfUserId(GetEventInt(event, "entityid"));
-	//int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int client = GetClientOfUserId(event.GetInt("userid", 0));
+	//int client = GetClientOfUserId(event.GetInt("entityid", 0));
+	//int attacker = GetClientOfUserId(event.GetInt("attacker", 0));
 	if (IsValidClient(client) && IsPlayerAlive(client))
 	{
 		#if DEBUG
@@ -336,12 +334,12 @@ void charger_carry_start(Handle event, const char[] name, bool dontBroadcast)
 }*/
 
 // Friendly Fire fix //
-void friendly_fire(Handle event, const char[] name, bool dontBroadcast)
+void friendly_fire(Event event, const char[] name, bool dontBroadcast)
 {
 	if (Scene_FriendlyFire == null || !GetConVarBool(Scene_FriendlyFire)) return;
 	
-	int client = GetClientOfUserId(GetEventInt(event, "victim"));
-	if (!IsSurvivor(client)) return;
+	int client = GetClientOfUserId(event.GetInt("victim", 0));
+	if (!IsValidClient(client) || !IsSurvivor(client)) return;
 	
 	float game_Time = GetGameTime();
 	if (friendlyFire_Time[client] > game_Time) return;
@@ -355,104 +353,98 @@ void player_hurt(Event event, const char[] name, bool dontBroadcast)
 	
 	if (hasFriendlyFired) return;
 	
-	int clientID = GetEventInt(event, "userid");
+	int clientID = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(clientID);
 	//if (!IsSurvivor(client) || !IsExtraSurvivor(client)) return;
-	if (!IsSurvivor(client)) return;
+	if (!IsValidClient(client) || !IsSurvivor(client)) return;
 	
 	float game_Time = GetGameTime();
 	if (friendlyFire_Time[client] > game_Time) return;
 	
-	int attackerID = GetEventInt(event, "attacker");
+	int attackerID = event.GetInt("attacker", 0);
 	int attacker = GetClientOfUserId(attackerID);
-	if (!IsSurvivor(attacker) || attacker == client) return;
+	if (!IsValidClient(attacker) || !IsSurvivor(attacker) || attacker == client) return;
 	
-	int type = GetEventInt(event, "type");
+	int type = event.GetInt("type", 0);
 	if (!(type & DMG_BULLET) && !(type & DMG_BLAST) && !(type & DMG_CLUB) && !(type & DMG_SLASH))
 	return;
 	
 	friendlyFire_Time[client] = game_Time+FRIENDLYFIRE_DELAY;
 	
-	Handle friendly_fire_ev = CreateEvent("friendly_fire");
-	SetEventInt(friendly_fire_ev, "attacker", GetClientUserId(attacker));
-	SetEventInt(friendly_fire_ev, "victim", GetClientUserId(client));
-	SetEventInt(friendly_fire_ev, "guilty", GetClientUserId(attacker));
-	SetEventInt(friendly_fire_ev, "type", type);
-	FireEvent(friendly_fire_ev);
+	Event ff_ev = CreateEvent("friendly_fire");
+	ff_ev.SetInt("attacker", attackerID);
+	ff_ev.SetInt("victim", clientID);
+	ff_ev.SetInt("guilty", attackerID);
+	ff_ev.SetInt("type", type);
+	ff_ev.Fire();
 	
-	Handle award_earned = CreateEvent("award_earned");
-	SetEventInt(award_earned, "userid", GetClientUserId(client));
-	SetEventInt(award_earned, "entityid", EntRefToEntIndex(client));
-	SetEventInt(award_earned, "subjectentid", EntRefToEntIndex(attacker));
-	SetEventInt(award_earned, "award", 87);
-	FireEvent(award_earned);
+	Event award_ev = CreateEvent("award_earned");
+	award_ev.SetInt("userid", clientID);
+	award_ev.SetInt("entityid", client);
+	award_ev.SetInt("subjectentid", attacker);
+	award_ev.SetInt("award", 87);
+	award_ev.Fire();
 	
-	char name_str[32];
+	static char name_str[32];
 	GetSurvivorSceneName(attacker, false, name_str, sizeof(name_str));
 	
 	//if (RecognizesOther(client, attacker))
 	//{
-	char temp_str[128];
-	//Format(temp_str, sizeof(temp_str), "%sFriendlyFire:1:10", name_str);
-	Format(temp_str, sizeof(temp_str), "Subject:%s:0.6", name_str);
-	SetVariantString(temp_str);
+	static char context_str[64];
+	//Format(context_str, sizeof(context_str), "%sFriendlyFire:1:10", name_str);
+	Format(context_str, sizeof(context_str), "Subject:%s:0.6", name_str);
+	SetVariantString(context_str);
 	AcceptEntityInput(client, "AddContext");
 	//}
 	
 	hasFriendlyFired = true;
-	CreateTimer(0.5, Timer_FFResponse, client, TIMER_FLAG_NO_MAPCHANGE);
-	CreateTimer(0.0, Timer_hasFriendlyFired, -1, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.5, Timer_FFResponse, clientID, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.0, Timer_hasFriendlyFired, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-Action Timer_FFResponse(Handle timer, int client)
+Action Timer_FFResponse(Handle timer, int userid)
 {
-	if (!IsSurvivor(client)) return;
+	int client = GetClientOfUserId(userid);
+	if (!IsValidClient(client) || !IsSurvivor(client)) return Plugin_Continue;
 	
 	SetVariantString("PlayerFriendlyFire");
 	AcceptEntityInput(client, "SpeakResponseConcept");
+	return Plugin_Continue;
 }
 
 Action Timer_hasFriendlyFired(Handle timer)
 {
 	hasFriendlyFired = false;
+	return Plugin_Continue;
 }
 // Friendly Fire fix end //
 
 void GetSurvivorSceneName(int client, bool is_victim = false, char[] str, int maxlength)
 {
-	if (!IsSurvivor(client)) return;
+	if (!IsValidClient(client) || !IsSurvivor(client)) return;
 	
-	static char cl_model[PLATFORM_MAX_PATH];
+	static char cl_model[48];
 	GetClientModel(client, cl_model, sizeof(cl_model));
 	//PrintToChatAll("%s", cl_model);
-	if (StrEqual(cl_model, "models/survivors/survivor_gambler.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "nick") : strcopy(str, maxlength, "Gambler"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_producer.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "rochelle") : strcopy(str, maxlength, "Producer"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_coach.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "coach") : strcopy(str, maxlength, "Coach"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_mechanic.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "ellis") : strcopy(str, maxlength, "Mechanic"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_namvet.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "bill") : strcopy(str, maxlength, "NamVet"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_teenangst.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "zoey") : strcopy(str, maxlength, "TeenGirl"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_biker.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "francis") : strcopy(str, maxlength, "Biker"); }
-	else if (StrEqual(cl_model, "models/survivors/survivor_manager.mdl", false))
-	{ is_victim ? strcopy(str, maxlength, "louis") : strcopy(str, maxlength, "Manager"); }
-	else
-	{ strcopy(str, maxlength, "Unknown"); }
+	if 		(strncmp(cl_model, "models/survivors/survivor_gambler.mdl", 37, false) == 0)		is_victim ? strcopy(str, maxlength, "nick") :		strcopy(str, maxlength, "Gambler");
+	else if	(strncmp(cl_model, "models/survivors/survivor_producer.mdl", 38, false) == 0)	is_victim ? strcopy(str, maxlength, "rochelle") :	strcopy(str, maxlength, "Producer");
+	else if	(strncmp(cl_model, "models/survivors/survivor_coach.mdl", 35, false) == 0)		is_victim ? strcopy(str, maxlength, "coach") :		strcopy(str, maxlength, "Coach");
+	else if	(strncmp(cl_model, "models/survivors/survivor_mechanic.mdl", 38, false) == 0)	is_victim ? strcopy(str, maxlength, "ellis") :		strcopy(str, maxlength, "Mechanic");
+	else if	(strncmp(cl_model, "models/survivors/survivor_namvet.mdl", 36, false) == 0)		is_victim ? strcopy(str, maxlength, "bill") :		strcopy(str, maxlength, "NamVet");
+	else if (strncmp(cl_model, "models/survivors/survivor_teenangst.mdl", 39, false) == 0)	is_victim ? strcopy(str, maxlength, "zoey") :		strcopy(str, maxlength, "TeenGirl");
+	else if (strncmp(cl_model, "models/survivors/survivor_biker.mdl", 35, false) == 0)		is_victim ? strcopy(str, maxlength, "francis") :	strcopy(str, maxlength, "Biker");
+	else if (strncmp(cl_model, "models/survivors/survivor_manager.mdl", 37, false) == 0)		is_victim ? strcopy(str, maxlength, "louis") :		strcopy(str, maxlength, "Manager");
+	else	strcopy(str, maxlength, "Unknown");
 }
 
 /*bool IsZoey(int client)
 {
-	char cl_model[PLATFORM_MAX_PATH];
+	static char cl_model[PLATFORM_MAX_PATH];
 	if (IsValidClient(client))
 	{ GetClientModel(client, cl_model, sizeof(cl_model)); }
 	if (IsValidClient(client) && IsSurvivor(client) && (
 	GetEntProp(client, Prop_Send, "m_survivorCharacter") == 5 || // For Zoey in The Passing set
-	GetEntProp(client, Prop_Send, "m_survivorCharacter") == 1 && StrEqual(cl_model,"models/survivors/survivor_teenangst.mdl", false) ) ) // For Zoey in the L4D1 survivor set
+	GetEntProp(client, Prop_Send, "m_survivorCharacter") == 1 && strncmp(cl_model, "models/survivors/survivor_teenangst.mdl", 39, false) == 0 ) ) // For Zoey in the L4D1 survivor set
 	{
 		return true;
 	}
@@ -461,7 +453,7 @@ void GetSurvivorSceneName(int client, bool is_victim = false, char[] str, int ma
 
 /*bool RecognizesOther(int client, int other)
 {
-	if (!IsSurvivor(client) || !IsSurvivor(other)) return false;
+	if (!IsValidClient(client) || !IsSurvivor(client) || !IsValidClient(other) || !IsSurvivor(other)) return false;
 	
 	switch (IsClientL4D1Survivor(client))
 	{
@@ -478,28 +470,28 @@ void GetSurvivorSceneName(int client, bool is_victim = false, char[] str, int ma
 }*/
 
 bool IsSurvivor(int client)
-{
-	if (!IsValidClient(client)) return false;
-	if (GetClientTeam(client) == 2 || GetClientTeam(client) == 4) return true;
-	return false;
-}
+{ int team = GetClientTeam(client); return (team == 2 || team == 4); }
 
 bool IsClientL4D1Survivor(int client)
 {
-	if (!IsSurvivor(client)) return false;
+	if (!HasEntProp(client, Prop_Send, "m_survivorCharacter")) return false;
+	
 	int character = GetEntProp(client, Prop_Send, "m_survivorCharacter");
-	if (character >= 4 && character <= 7) return true;
+	return (character >= 4 && character <= 7);
+}
+
+bool IsValidClient(int client, bool replaycheck = true, bool isLoop = false)
+{
+	if ((isLoop || client > 0 && client <= MaxClients) && IsClientInGame(client))
+	{
+		if (replaycheck)
+		{
+			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		}
+		return true;
+	}
 	return false;
 }
 
-bool IsValidClient(int client, bool replaycheck = true)
-{
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	//if (GetEntProp(client, Prop_Send, "m_bIsCoaching")) return false;
-	if (replaycheck)
-	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
-	}
-	return true;
-}
+//bool RealValidEntity(int entity)
+//{ return (entity > 0 && IsValidEntity(entity)); }

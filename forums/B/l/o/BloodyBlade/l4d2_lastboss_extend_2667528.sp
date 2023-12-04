@@ -3,6 +3,7 @@
 *					Author: ztar
 * 			Web: http://ztar.blog7.fc2.com/
 *******************************************************/
+#pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
 #include <sdktools>
@@ -308,7 +309,7 @@ public void OnPluginStart()
 	
 	AutoExecConfig(true, "l4d2_lastboss_extend");
 	
-	force_default = GetConVarInt(FindConVar("z_tank_throw_force"));
+	force_default = FindConVar("z_tank_throw_force").IntValue;
 	if((g_iVelocity = FindSendPropInfo("CBasePlayer", "m_vecVelocity[0]")) == -1)
 		LogError("Could not find offset for CBasePlayer::m_vecVelocity[0]");
 }
@@ -396,7 +397,7 @@ public Action Event_Finale_Start(Event event, const char[] name, bool dontBroadc
 *******************************************************/
 public Action Event_Tank_Spawn(Event event, const char[] name, bool dontBroadcast)
 {
-	if(!GetConVarInt(sm_lbex_enable) || (!GetConVarInt(sm_lbex_enable_finale) && finaleflag))
+	if(!sm_lbex_enable.BoolValue || (!sm_lbex_enable_finale.BoolValue && finaleflag))
 		return;
 	
 	if(idTank[0] && idTank[1] && idTank[2] && idTank[3] && idTank[4] && idTank[5] && idTank[6] && idTank[7] && idTank[8] && idTank[9] && idTank[10])
@@ -433,103 +434,103 @@ public void SetTankStatus(int type)
 	/* Type-00[GHOST] */
 	if(type == TYPE_GHOST)
 	{
-		force = GetConVarInt(sm_lbex_force_type00);
-		health = GetConVarInt(sm_lbex_health_type00);
-		speed  = GetConVarFloat(sm_lbex_speed_type00);
-		GetConVarString(sm_lbex_color_type00, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type00.IntValue;
+		health = sm_lbex_health_type00.IntValue;
+		speed  = sm_lbex_speed_type00.FloatValue;
+		sm_lbex_color_type00.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN00);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 		/* Skill:Stealth Skin */
-		CreateTimer(GetConVarFloat(sm_lbex_stealth_type00), StealthTimer);
+		CreateTimer(sm_lbex_stealth_type00.FloatValue, StealthTimer);
 	}
 	/* Type-01[LAVA] */
 	else if(type == TYPE_LAVA)
 	{
-		force = GetConVarInt(sm_lbex_force_type01);
-		health = GetConVarInt(sm_lbex_health_type01);
-		speed = GetConVarFloat(sm_lbex_speed_type01);
-		GetConVarString(sm_lbex_color_type01, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type01.IntValue;
+		health = sm_lbex_health_type01.IntValue;
+		speed = sm_lbex_speed_type01.FloatValue;
+		sm_lbex_color_type01.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN01);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-02[GRAVITY] */
 	else if(type == TYPE_GRAVITY)
 	{
-		force = GetConVarInt(sm_lbex_force_type02);
-		health = GetConVarInt(sm_lbex_health_type02);
-		speed = GetConVarFloat(sm_lbex_speed_type02);
-		GetConVarString(sm_lbex_color_type02, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type02.IntValue;
+		health = sm_lbex_health_type02.IntValue;
+		speed = sm_lbex_speed_type02.FloatValue;
+		sm_lbex_color_type02.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN02);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 		/* Weight increase */
-		SetEntityGravity(idTank[type], GetConVarFloat(sm_lbex_weight_type02));	
+		SetEntityGravity(idTank[type], sm_lbex_weight_type02.FloatValue);	
 	}
 	/* Type-03[QUAKE] */
 	else if(type == TYPE_QUAKE)
 	{
-		force = GetConVarInt(sm_lbex_force_type03);
-		health = GetConVarInt(sm_lbex_health_type03);
-		speed = GetConVarFloat(sm_lbex_speed_type03);
-		GetConVarString(sm_lbex_color_type03, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type03.IntValue;
+		health = sm_lbex_health_type03.IntValue;
+		speed = sm_lbex_speed_type03.FloatValue;
+		sm_lbex_color_type03.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN03);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-04[LEAPER] */
 	else if(type == TYPE_LEAPER)
 	{
-		force = GetConVarInt(sm_lbex_force_type04);
-		health = GetConVarInt(sm_lbex_health_type04);
-		speed = GetConVarFloat(sm_lbex_speed_type04);
-		GetConVarString(sm_lbex_color_type04, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type04.IntValue;
+		health = sm_lbex_health_type04.IntValue;
+		speed = sm_lbex_speed_type04.FloatValue;
+		sm_lbex_color_type04.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN04);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 		/* Skill:Mad Spring */
-		CreateTimer(GetConVarFloat(sm_lbex_jumpinterval_type04), JumpingTimer, _, TIMER_REPEAT);
+		CreateTimer(sm_lbex_jumpinterval_type04.FloatValue, JumpingTimer, _, TIMER_REPEAT);
 
 		float Origin[3], Angles[3];
 		GetEntPropVector(idTank[TYPE_LEAPER], Prop_Send, "m_vecOrigin", Origin);
@@ -549,7 +550,7 @@ public void SetTankStatus(int type)
 				DispatchKeyValue(ent[count], "model", ENTITY_TIRE);
 				DispatchKeyValue(ent[count], "targetname", "TireEntity");
 				DispatchKeyValue(ent[count], "parentname", tName);
-				GetConVarString(sm_lbex_color_type04, color, sizeof(color));
+				sm_lbex_color_type04.GetString(color, sizeof(color));
 				DispatchKeyValue(ent[count], "rendercolor", color);
 				DispatchKeyValueVector(ent[count], "origin", Origin);
 				DispatchKeyValueVector(ent[count], "angles", Angles);
@@ -572,96 +573,96 @@ public void SetTankStatus(int type)
 	/* Type-05[DREAD] */
 	else if(type == TYPE_DREAD)
 	{
-		force = GetConVarInt(sm_lbex_force_type05);
-		health = GetConVarInt(sm_lbex_health_type05);
-		speed = GetConVarFloat(sm_lbex_speed_type05);
-		GetConVarString(sm_lbex_color_type05, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type05.IntValue;
+		health = sm_lbex_health_type05.IntValue;
+		speed = sm_lbex_speed_type05.FloatValue;
+		sm_lbex_color_type05.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN05);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-06[FREEZE] */
 	else if(type == TYPE_FREEZE)
 	{
-		force = GetConVarInt(sm_lbex_force_type06);
-		health = GetConVarInt(sm_lbex_health_type06);
-		speed = GetConVarFloat(sm_lbex_speed_type06);
-		GetConVarString(sm_lbex_color_type06, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type06.IntValue;
+		health = sm_lbex_health_type06.IntValue;
+		speed = sm_lbex_speed_type06.FloatValue;
+		sm_lbex_color_type06.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN06);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-07[LAZY] */
 	else if(type == TYPE_LAZY)
 	{
-		force = GetConVarInt(sm_lbex_force_type07);
-		health = GetConVarInt(sm_lbex_health_type07);
-		speed = GetConVarFloat(sm_lbex_speed_type07);
-		GetConVarString(sm_lbex_color_type07, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type07.IntValue;
+		health = sm_lbex_health_type07.IntValue;
+		speed = sm_lbex_speed_type07.FloatValue;
+		sm_lbex_color_type07.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN07);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-08[RABIES] */
 	else if(type == TYPE_RABIES)
 	{
-		force = GetConVarInt(sm_lbex_force_type08);
-		health = GetConVarInt(sm_lbex_health_type08);
-		speed = GetConVarFloat(sm_lbex_speed_type08);
-		GetConVarString(sm_lbex_color_type08, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type08.IntValue;
+		health = sm_lbex_health_type08.IntValue;
+		speed = sm_lbex_speed_type08.FloatValue;
+		sm_lbex_color_type08.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN08);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-09[BOMBARD] */
 	else if(type == TYPE_BOMBARD)
 	{
-		force = GetConVarInt(sm_lbex_force_type09);
-		health = GetConVarInt(sm_lbex_health_type09);
-		speed = GetConVarFloat(sm_lbex_speed_type09);
-		GetConVarString(sm_lbex_color_type09, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type09.IntValue;
+		health = sm_lbex_health_type09.IntValue;
+		speed = sm_lbex_speed_type09.FloatValue;
+		sm_lbex_color_type09.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN09);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 	}
 	/* Type-10[TREMOR] */
@@ -669,20 +670,20 @@ public void SetTankStatus(int type)
 	{
 		g_IsTremor = true;
 		
-		force = GetConVarInt(sm_lbex_force_type10);
-		health = GetConVarInt(sm_lbex_health_type10);
-		speed = GetConVarFloat(sm_lbex_speed_type10);
-		GetConVarString(sm_lbex_color_type10, color, sizeof(color));
-		if(GetConVarInt(sm_lbex_enable_announce))
+		force = sm_lbex_force_type10.IntValue;
+		health = sm_lbex_health_type10.IntValue;
+		speed = sm_lbex_speed_type10.FloatValue;
+		sm_lbex_color_type10.GetString(color, sizeof(color));
+		if(sm_lbex_enable_announce.BoolValue)
 		{
 			PrintToChatAll(MESSAGE_SPAWN10);
 			PrintToChatAll("  Helath:%d  SpeedRate:%.1f", health, speed);
 		}
-		if(GetConVarInt(sm_lbex_enable_warp))
+		if(sm_lbex_enable_warp.BoolValue)
 		{
 			/* Skill:Fatal Mirror (Teleport near the survivor) */
 			CreateTimer(3.0, GetSurvivorPosition, _, TIMER_REPEAT);
-			CreateTimer(GetConVarFloat(sm_lbex_warp_interval), FatalMirror, _, TIMER_REPEAT);
+			CreateTimer(sm_lbex_warp_interval.FloatValue, FatalMirror, _, TIMER_REPEAT);
 		}
 		
 		float Origin[3], Angles[3];
@@ -702,7 +703,7 @@ public void SetTankStatus(int type)
 				DispatchKeyValue(ent[count], "model", ENTITY_ROCK);
 				DispatchKeyValue(ent[count], "targetname", "RockEntity");
 				DispatchKeyValue(ent[count], "parentname", tName);
-				GetConVarString(sm_lbex_color_type10, color, sizeof(color));
+				sm_lbex_color_type10.GetString(color, sizeof(color));
 				DispatchKeyValue(ent[count], "rendercolor", color);
 				DispatchKeyValueVector(ent[count], "origin", Origin);
 				DispatchKeyValueVector(ent[count], "angles", Angles);
@@ -744,11 +745,11 @@ public void SetTankStatus(int type)
 
 public Action Event_Player_Death(Event event, const char[] name, bool dontBroadcast)
 {
-	int idTankDead = GetClientOfUserId(GetEventInt(event, "userid"));
+	int idTankDead = GetClientOfUserId(event.GetInt("userid"));
 
-	if(!GetConVarInt(sm_lbex_enable) || (!GetConVarInt(sm_lbex_enable_finale) && finaleflag))
+	if(!sm_lbex_enable.BoolValue || (!sm_lbex_enable_finale.BoolValue && finaleflag))
 		return;
-	if(idTankDead <= 0 || idTankDead > GetMaxClients())
+	if(idTankDead <= 0 || idTankDead > MaxClients)
 		return;
 	if(!IsValidEntity(idTankDead) || !IsClientInGame(idTankDead))
 		return;
@@ -824,7 +825,7 @@ public Action Event_Player_Death(Event event, const char[] name, bool dontBroadc
 
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
-	for (int target = 1; target<=MaxClients; target++)
+	for (int target = 1; target <= MaxClients; target++)
 	{
 		if (IsClientInGame(target) && GetClientTeam(target) == 2)
 		{
@@ -843,10 +844,10 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 *******************************************************/
 public Action Event_Player_Hurt(Event event, const char[] name, bool dontBroadcast)
 {
-	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-	int target = GetClientOfUserId(GetEventInt(event, "userid"));
+	int attacker = GetClientOfUserId(event.GetInt("attacker"));
+	int target = GetClientOfUserId(event.GetInt("userid"));
 	
-	if(!GetConVarInt(sm_lbex_enable) || (!GetConVarInt(sm_lbex_enable_finale) && finaleflag))
+	if(!sm_lbex_enable.BoolValue || (!sm_lbex_enable_finale.BoolValue && finaleflag))
 		return;
 	
 	char weapon[64];
@@ -978,11 +979,11 @@ void StartStarFall(int client)
 	GetClientEyePosition(client, pos);
 	pos[2] += 20.0;
 	
-	Handle h = CreateDataPack(); 
+	DataPack h = CreateDataPack(); 
 	int ent = CreateEntityByName("env_rock_launcher");
 	DispatchSpawn(ent); 
 	char damagestr[32];
-	GetConVarString(sm_multi_rock_damage, damagestr, 32);
+	sm_multi_rock_damage.GetString(damagestr, 32);
 	DispatchKeyValue(ent, "rockdamageoverride", damagestr);
 	
 	WritePackCell(h, client);
@@ -1045,7 +1046,7 @@ public Action UpdateStarFall(Handle timer, any h)
 		}
 	}
 	else quit = true;
-	if(GetEngineTime() - time > GetConVarFloat(sm_star_duration) || quit)
+	if(GetEngineTime() - time > sm_star_duration.FloatValue || quit)
 	{
 		starfalling=false;
 		CloseHandle(h); 
@@ -1067,7 +1068,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 				if (g_IsTremor && (idBoss == idTank[TYPE_TREMOR]))
 				{
 					float r = GetRandomFloat(0.0, 100.0); 
-					if(r < GetConVarFloat(sm_multi_rock_chance_throw))
+					if(r < sm_multi_rock_chance_throw.FloatValue)
 					{
 						int integer = GetRandomInt(1, 2);
 						switch (integer)
@@ -1075,7 +1076,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 							case 1:
 							{
 								float pos[3];
-								Handle h = CreateDataPack();
+								DataPack h = CreateDataPack();
 								WritePackFloat(h, GetEngineTime());
 								GetClientEyePosition(idBoss, pos);
 								WritePackFloat(h, pos[0]); 
@@ -1092,7 +1093,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 									} 
 								}
 								if(count==0.0)count=1.0; 
-								CreateTimer(GetConVarFloat(sm_multi_rock_intervual), TimerDeadTankMulitRock, h, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+								CreateTimer(sm_multi_rock_intervual.FloatValue, TimerDeadTankMulitRock, h, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
 								//PrintToChatAll("\x04Watch the tank's rock!");
 							}
 							
@@ -1132,12 +1133,12 @@ public Action SetStarVol(Handle timer, any star)
 		float v[3];
 		GetEntDataVector(star, g_iVelocity, v);
 		NormalizeVector(v,v);
-		ScaleVector(v, GetConVarFloat(sm_star_fall_speed));
+		ScaleVector(v, sm_star_fall_speed.FloatValue);
 		TeleportEntity(star, NULL_VECTOR, NULL_VECTOR, v);
 	}
 }
 
-public Action TimerDeadTankMulitRock(Handle timer, Handle h)
+public Action TimerDeadTankMulitRock(Handle timer, DataPack h)
 {
 	ResetPack(h, false);
 	float starttime = ReadPackFloat(h);
@@ -1147,7 +1148,7 @@ public Action TimerDeadTankMulitRock(Handle timer, Handle h)
 	eyepos[2] = ReadPackFloat(h);
 	int client = ReadPackCell(h); 
 	
-	if(starttime + GetConVarFloat(sm_multi_rock_durtation) < GetEngineTime())
+	if(starttime + sm_multi_rock_durtation.FloatValue < GetEngineTime())
 	{
 		CloseHandle(h);
 		return Plugin_Stop;
@@ -1160,7 +1161,7 @@ public Action TimerDeadTankMulitRock(Handle timer, Handle h)
 	
 	StartMultiRock2(eyepos, enemy);
 	
-	CloseHandle(h);
+	delete h;
 	return Plugin_Stop;
 }
 
@@ -1188,7 +1189,7 @@ Action StartMultiRock2(float eyePos[3], int enemy)
 	float eyepos[3];
 	CopyVector(eyePos, eyepos); 
 	char damagestr[32];
-	GetConVarString(sm_multi_rock_damage,damagestr, 32);
+	sm_multi_rock_damage.GetString(damagestr, 32);
 	
 	int ent = CreateEntityByName("env_rock_launcher");
 	DispatchSpawn(ent); 
@@ -1226,7 +1227,7 @@ public Action StartTimer(Handle timer, any ent)
 
 void StartRockTrace(int ent)
 { 
-	//new h = GetConVarInt(l4d_tracerock_health);
+	//int h = l4d_tracerock_health.IntValue;
 	//if(h > 0)SetEntProp(ent, Prop_Data, "m_iHealth", h);
 	SDKUnhook(ent, SDKHook_Think, PreThink);
 	SDKHook(ent, SDKHook_Think, PreThink);
@@ -1446,7 +1447,7 @@ void TraceMissile(int ent, float duration)
 	float newvelocitymissile[3];
 	AddVectors(velocitymissile, vfront, newvelocitymissile);
 	
-	float speed = GetConVarFloat(sm_tracerock_speed);
+	float speed = sm_tracerock_speed.FloatValue;
 	if(speed < 60.0) speed = 60.0;
 	NormalizeVector(newvelocitymissile, newvelocitymissile);
 	ScaleVector(newvelocitymissile,speed);
@@ -1700,7 +1701,7 @@ public void SkillEarthQuake(int target)
 
 	if(IsPlayerIncapped(target))
 	{
-		for(int i = 1; i <= GetMaxClients(); i++)
+		for(int i = 1; i <= MaxClients; i++)
 		{
 			if(i == idTank[TYPE_QUAKE])
 				continue;
@@ -1708,11 +1709,11 @@ public void SkillEarthQuake(int target)
 				continue;
 			GetClientAbsOrigin(idTank[TYPE_QUAKE], Pos);
 			GetClientAbsOrigin(i, tPos);
-			if(GetVectorDistance(tPos, Pos) < GetConVarFloat(sm_lbex_quakeradius_type03))
+			if(GetVectorDistance(tPos, Pos) < sm_lbex_quakeradius_type03.FloatValue)
 			{
 				EmitSoundToClient(i, SOUND_QUAKE);
 				ScreenShake(i, 50.0);
-				Smash(idTank[TYPE_QUAKE], i, GetConVarFloat(sm_lbex_quakeforce_type03), 1.0, 1.5);
+				Smash(idTank[TYPE_QUAKE], i, sm_lbex_quakeforce_type03.FloatValue, 1.0, 1.5);
 			}
 		}
 	}
@@ -1720,8 +1721,8 @@ public void SkillEarthQuake(int target)
 
 public void SkillDreadClaw(int target)
 {
-	visibility = GetConVarInt(sm_lbex_dreadrate_type05);
-	CreateTimer(GetConVarFloat(sm_lbex_dreadinterval_type05), DreadTimer, target);
+	visibility = sm_lbex_dreadrate_type05.IntValue;
+	CreateTimer(sm_lbex_dreadinterval_type05.FloatValue, DreadTimer, target);
 	EmitSoundToAll(SOUND_DCLAW, target);
 	ScreenFade(target, 0, 0, 0, visibility, 0, 0);
 }
@@ -1729,7 +1730,7 @@ public void SkillDreadClaw(int target)
 public void SkillGravityClaw(int target)
 {
 	SetEntityGravity(target, 0.3);
-	CreateTimer(GetConVarFloat(sm_lbex_gravityinterval_type02), GravityTimer, target);
+	CreateTimer(sm_lbex_gravityinterval_type02.FloatValue, GravityTimer, target);
 	EmitSoundToAll(SOUND_GCLAW, target);
 	ScreenFade(target, 0, 0, 100, 80, 4000, 1);
 	ScreenShake(target, 30.0);
@@ -1744,13 +1745,13 @@ public void SkillBurnClaw(int target)
 
 public void SkillFreezeClaw(int target)
 {
-	FreezePlayer(target, GetConVarFloat(sm_lbex_freeze_type06));
-	CreateTimer(GetConVarFloat(sm_lbex_freezeinterval_type06), FreezeTimer, target);
+	FreezePlayer(target, sm_lbex_freeze_type06.FloatValue);
+	CreateTimer(sm_lbex_freezeinterval_type06.FloatValue, FreezeTimer, target);
 }
 
 public void SkillLazyClaw(int target)
 {
-	for(int i = 1; i <= GetMaxClients(); i++)
+	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(i == idTank[TYPE_LAZY])
 			continue;
@@ -1765,9 +1766,9 @@ public void SkillLazyClaw(int target)
 
 public void SkillRabiesClaw(int target)
 {
-	Rabies[target] = (GetConVarInt(sm_lbex_rabies_type08));
+	Rabies[target] = sm_lbex_rabies_type08.IntValue;
 	CreateTimer(1.0, RabiesTimer, target);
-	Toxin[target] = (GetConVarInt(sm_lbex_rabies_type08));
+	Toxin[target] = sm_lbex_rabies_type08.IntValue;
 	CreateTimer(1.0, Toxin_Timer, target);
 	EmitSoundToAll(SOUND_ROAR, target);
 }
@@ -1776,16 +1777,16 @@ public void SkillBombClaw(int target)
 {
 	float Pos[3];
 
-	for(int i = 1; i <= GetMaxClients(); i++)
+	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(i == idTank[TYPE_BOMBARD])
 			continue;
 		if(!IsClientInGame(i) || GetClientTeam(i) != 2)
 			continue;
 		GetClientAbsOrigin(idTank[TYPE_BOMBARD], Pos);
-		if(GetVectorDistance(Pos, trsPos[target]) < GetConVarFloat(sm_lbex_bombardradius_type09))
+		if(GetVectorDistance(Pos, trsPos[target]) < sm_lbex_bombardradius_type09.FloatValue)
 		{
-			DamageEffect(idTank[TYPE_BOMBARD], GetConVarFloat(sm_lbex_bombard_type09));
+			DamageEffect(idTank[TYPE_BOMBARD], sm_lbex_bombard_type09.FloatValue);
 		}
 	}
 	EmitSoundToAll(SOUND_BOMBARD, target);
@@ -1795,7 +1796,7 @@ public void SkillBombClaw(int target)
 	LittleFlower(Pos, EXPLODE);
 
 	/* Push away */
-	PushAway(target, GetConVarFloat(sm_lbex_bombardforce_type09), GetConVarFloat(sm_lbex_bombardradius_type09), 0.5);
+	PushAway(target, sm_lbex_bombardforce_type09.FloatValue, sm_lbex_bombardradius_type09.FloatValue, 0.5);
 }
 
 public void SkillCometStrike(int target, int type)
@@ -1857,7 +1858,7 @@ public Action JumpingTimer(Handle timer)
 {
 	if(idTank[TYPE_LEAPER] && IsValidEntity(idTank[TYPE_LEAPER]) && IsClientInGame(idTank[TYPE_LEAPER]))
 	{
-		AddVelocity(idTank[TYPE_LEAPER], GetConVarFloat(sm_lbex_jumpheight_type04));
+		AddVelocity(idTank[TYPE_LEAPER], sm_lbex_jumpheight_type04.FloatValue);
 	}
 	else
 	{
@@ -1999,7 +2000,7 @@ public Action WarpTimer(Handle timer)
 	{
 		float pos[3];
 		
-		for(int i = 1; i <= GetMaxClients(); i++)
+		for(int i = 1; i <= MaxClients; i++)
 		{
 			if(idBoss == idTank[TYPE_GHOST] && idTank[TYPE_LAVA] && idTank[TYPE_GRAVITY] && idTank[TYPE_QUAKE] && idTank[TYPE_LEAPER] && idTank[TYPE_DREAD] 
 			&& idTank[TYPE_FREEZE] && idTank[TYPE_LAZY] && idTank[TYPE_RABIES] && idTank[TYPE_BOMBARD] && idTank[TYPE_TREMOR])
@@ -2128,15 +2129,15 @@ public void Smash(int client, int target, float power, float powHor, float powVe
 	float HeadingVector[3], AimVector[3];
 	GetClientEyeAngles(client, HeadingVector);
 	
-	AimVector[0] = FloatMul(Cosine(DegToRad(HeadingVector[1])) ,power * powHor);
-	AimVector[1] = FloatMul(Sine(DegToRad(HeadingVector[1])) ,power * powHor);
+	AimVector[0] = Cosine(DegToRad(HeadingVector[1])), power * powHor;
+	AimVector[1] = Sine(DegToRad(HeadingVector[1])), power * powHor;
 	
 	float current[3];
 	GetEntPropVector(target, Prop_Data, "m_vecVelocity", current);
 	
 	float resulting[3];
-	resulting[0] = FloatAdd(current[0], AimVector[0]);
-	resulting[1] = FloatAdd(current[1], AimVector[1]);
+	resulting[0] = current[0] + AimVector[0];
+	resulting[1] = current[1] + AimVector[1];
 	resulting[2] = power * powVec;
 	
 	TeleportEntity(target, NULL_VECTOR, NULL_VECTOR, resulting);
@@ -2188,8 +2189,8 @@ public void LazyPlayer(int target)
 	if (IsValidClient(target) && GetClientTeam(target) == 2 && !isSlowed[target])
 	{
 		isSlowed[target] = true;
-		CreateTimer(GetConVarFloat(sm_lbex_lazy_type07), Quick, target);
-		SetEntDataFloat(target, laggedMovementOffset, GetConVarFloat(sm_lbex_lazyspeed_type07), true);
+		CreateTimer(sm_lbex_lazy_type07.FloatValue, Quick, target);
+		SetEntDataFloat(target, laggedMovementOffset, sm_lbex_lazyspeed_type07.FloatValue, true);
 		SetEntityRenderColor(target, 255, 255, 255, 135);
 		EmitSoundToAll(SOUND_LAZY, target);
 	}
@@ -2211,7 +2212,7 @@ stock void RabiesDamage(int target)
 	char dmg_str[16];
 	char dmg_type_str[16];
 	IntToString((1 << 17),dmg_str,sizeof(dmg_type_str));
-	GetConVarString(FindConVar("sm_lbex_rabiesdamage_type08"), dmg_str, sizeof(dmg_str));
+	FindConVar("sm_lbex_rabiesdamage_type08").GetString(dmg_str, sizeof(dmg_str));
 	int pointHurt = CreateEntityByName("point_hurt");
 	DispatchKeyValue(target,"targetname","war3_hurtme");
 	DispatchKeyValue(pointHurt,"DamageTarget","war3_hurtme");
@@ -2229,7 +2230,7 @@ stock void LavaDamage(int target)
 	char dmg_lava[16];
 	char dmg_type_lava[16];
 	IntToString((1 << 17),dmg_lava,sizeof(dmg_type_lava));
-	GetConVarString(FindConVar("sm_lbex_lavadamage_type01"), dmg_lava, sizeof(dmg_lava));
+	FindConVar("sm_lbex_lavadamage_type01").GetString(dmg_lava, sizeof(dmg_lava));
 	int pointHurt = CreateEntityByName("point_hurt");
 	DispatchKeyValue(target,"targetname","war3_hurtme");
 	DispatchKeyValue(pointHurt,"DamageTarget","war3_hurtme");
@@ -2367,7 +2368,7 @@ public void OnClientDisconnect(int client)
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damageType, int &weapon, float damageForce[3], float damagePosition[3]) 
 {
-	if(GetConVarInt(sm_rock_damage_immunity))
+	if(sm_rock_damage_immunity.BoolValue)
 	{
 		if(IsValidEntity(victim) && IsClientInGame(victim) && victim != DEAD)
 		{
@@ -2405,7 +2406,7 @@ bool IsPlayerIgnited(int client)
 		return false;
 }
 
-public int IsValidClient(int client)
+bool IsValidClient(int client)
 {
 	if (client == 0 || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(client))
 	{

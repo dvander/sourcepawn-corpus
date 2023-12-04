@@ -59,48 +59,45 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_WEAPON_GASCAN       "weapon_gascan"
-
 #define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_CheckInterval;
-static ConVar g_hCvar_TeleportWaitTime;
-static ConVar g_hCvar_MinDistance;
-static ConVar g_hCvar_GlowColor;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_CheckInterval;
+ConVar g_hCvar_TeleportWaitTime;
+ConVar g_hCvar_MinDistance;
+ConVar g_hCvar_GlowColor;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_GlowColor;
+int g_iCvar_GlowColor;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fDefaultVelocity[3] = {0.0, 0.0, 0.01};
-static float  g_fCvar_CheckInterval;
-static float  g_fCvar_TeleportWaitTime;
-static float  g_fCvar_MinDistance;
+float g_fDefaultVelocity[3] = {0.0, 0.0, 0.01};
+float g_fCvar_CheckInterval;
+float g_fCvar_TeleportWaitTime;
+float g_fCvar_MinDistance;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_GlowColor[12];
+char g_sCvar_GlowColor[12];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static float  ge_fEntityStartPos[MAXENTITIES+1][3];
-static float  ge_fEntityStartAng[MAXENTITIES+1][3];
+float ge_fEntityStartPos[MAXENTITIES+1][3];
+float ge_fEntityStartAng[MAXENTITIES+1][3];
 
 // ====================================================================================================
 // Plugin Start
@@ -149,21 +146,19 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_CheckInterval = g_hCvar_CheckInterval.FloatValue;
@@ -171,18 +166,17 @@ public void GetCvars()
     g_fCvar_MinDistance = g_hCvar_MinDistance.FloatValue;
     g_hCvar_GlowColor.GetString(g_sCvar_GlowColor, sizeof(g_sCvar_GlowColor));
     TrimString(g_sCvar_GlowColor);
-    StringToLowerCase(g_sCvar_GlowColor);
     g_iCvar_GlowColor = ConvertRGBToInt(g_sCvar_GlowColor);
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_WEAPON_GASCAN)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "weapon_gascan")) != INVALID_ENT_REFERENCE)
     {
        OnSpawnPost(entity);
     }
@@ -192,16 +186,10 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 'w' && classname[1] != 'e') // weapon_*
-        return;
-
-    if (StrEqual(classname, CLASSNAME_WEAPON_GASCAN))
+    if (StrEqual(classname, "weapon_gascan"))
         SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
 }
 
@@ -209,10 +197,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 public void OnEntityDestroyed(int entity)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     ge_fEntityStartPos[entity] = NULL_VECTOR;
@@ -221,15 +206,18 @@ public void OnEntityDestroyed(int entity)
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
 {
     RequestFrame(OnNextFrame, EntIndexToEntRef(entity)); // 1 frame later required to get skin (m_nSkin) updated
 }
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+void OnNextFrame(int entityRef)
 {
+    if (!g_bCvar_Enabled)
+        return;
+
     int entity = EntRefToEntIndex(entityRef);
 
     if (entity == INVALID_ENT_REFERENCE)
@@ -238,15 +226,15 @@ public void OnNextFrame(int entityRef)
     if (!IsScavengeGascan(entity))
         return;
 
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", ge_fEntityStartPos[entity]);
-    GetEntPropVector(entity, Prop_Send, "m_angRotation", ge_fEntityStartAng[entity]);
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", ge_fEntityStartPos[entity]);
+    GetEntPropVector(entity, Prop_Data, "m_angAbsRotation", ge_fEntityStartAng[entity]);
 
     CreateTimer(g_fCvar_CheckInterval, TimerCheckInterval, EntIndexToEntRef(entity), TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /****************************************************************************************************/
 
-public Action TimerCheckInterval(Handle timer, int entityRef)
+Action TimerCheckInterval(Handle timer, int entityRef)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Stop;
@@ -256,11 +244,11 @@ public Action TimerCheckInterval(Handle timer, int entityRef)
     if (entity == INVALID_ENT_REFERENCE)
         return Plugin_Stop;
 
-    if (GetEntProp(entity, Prop_Send, "m_hOwner") != -1)
+    if (GetEntPropEnt(entity, Prop_Send, "m_hOwner") != -1)
         return Plugin_Continue;
 
     float vPosNow[3];
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPosNow);
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPosNow);
 
     if (GetVectorDistance(ge_fEntityStartPos[entity], vPosNow) < g_fCvar_MinDistance)
         return Plugin_Continue;
@@ -272,7 +260,7 @@ public Action TimerCheckInterval(Handle timer, int entityRef)
 
 /****************************************************************************************************/
 
-public Action TimerTeleportWaitTime(Handle timer, int entityRef)
+Action TimerTeleportWaitTime(Handle timer, int entityRef)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Stop;
@@ -282,7 +270,7 @@ public Action TimerTeleportWaitTime(Handle timer, int entityRef)
     if (entity == INVALID_ENT_REFERENCE)
         return Plugin_Stop;
 
-    if (GetEntProp(entity, Prop_Send, "m_hOwner") != -1)
+    if (GetEntPropEnt(entity, Prop_Send, "m_hOwner") != -1)
     {
         CreateTimer(g_fCvar_CheckInterval, TimerCheckInterval, entityRef, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 
@@ -290,7 +278,7 @@ public Action TimerTeleportWaitTime(Handle timer, int entityRef)
     }
 
     float vPosNow[3];
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPosNow);
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPosNow);
 
     if (GetVectorDistance(ge_fEntityStartPos[entity], vPosNow) < g_fCvar_MinDistance)
     {
@@ -312,7 +300,7 @@ public Action TimerTeleportWaitTime(Handle timer, int entityRef)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -321,9 +309,9 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_gascan_respawn_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_gascan_respawn_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_gascan_respawn_check_interval : %.2f", g_fCvar_CheckInterval);
-    PrintToConsole(client, "l4d2_gascan_respawn_teleport_wait_time : %.2f", g_fCvar_TeleportWaitTime);
-    PrintToConsole(client, "l4d2_gascan_respawn_min_distance : %.2f", g_fCvar_MinDistance);
+    PrintToConsole(client, "l4d2_gascan_respawn_check_interval : %.1f", g_fCvar_CheckInterval);
+    PrintToConsole(client, "l4d2_gascan_respawn_teleport_wait_time : %.1f", g_fCvar_TeleportWaitTime);
+    PrintToConsole(client, "l4d2_gascan_respawn_min_distance : %.1f", g_fCvar_MinDistance);
     PrintToConsole(client, "l4d2_gascan_respawn_glow_color : \"%s\" (%i)", g_sCvar_GlowColor, g_iCvar_GlowColor);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -336,19 +324,6 @@ public Action CmdPrintCvars(int client, int args)
 // Helpers
 // ====================================================================================================
 /**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
-/**
  * Returns if is a scavenge gascan based on its skin.
  * Works in L4D2 only.
  *
@@ -360,21 +335,6 @@ bool IsScavengeGascan(int entity)
     int skin = GetEntProp(entity, Prop_Send, "m_nSkin");
 
     return skin > 0;
-}
-
-/****************************************************************************************************/
-
-/**
- * Converts the string to lower case.
- *
- * @param input         Input string.
- */
-void StringToLowerCase(char[] input)
-{
-    for (int i = 0; i < strlen(input); i++)
-    {
-        input[i] = CharToLower(input[i]);
-    }
 }
 
 /****************************************************************************************************/

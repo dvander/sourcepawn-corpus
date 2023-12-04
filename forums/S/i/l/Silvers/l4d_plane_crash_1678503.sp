@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION		"1.7"
+/*
+*	Plane Crash
+*	Copyright (C) 2023 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,22 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (10-Jan-2023)
+	- Changed the method of calling a panic event to support some 3rd party maps with random director names. Thanks to "Qoo_" for reporting.
+	- Fixed Temp crashes also spawning the saved crash. Spawning a temporary crash will prevent the trigger box from spawning a saved crash.
+
+1.10 (20-Sep-2022)
+	- Added cvar "l4d_plane_crash_chance" to set the chance of a plane crash being created, either saved or using the random cvar. Requested by "Sam B".
+
+1.9 (04-Dec-2021)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+
+1.8 (19-Oct-2021)
+	- Small changes to set the damage cvar value to all of the plugins damage entites (some had their own value).
+
+1.7a (18-Sep-2021)
+	- L4D2: Data config edited. Changed the position of the "c3m1_plankcountry" crash site.
 
 1.7 (10-May-2020)
 	- Extra checks to prevent "IsAllowedGameMode" throwing errors.
@@ -39,7 +75,7 @@
 
 1.1 (01-Apr-2012)
 	- Added command "sm_crash_clear" to clear crashes from the map (does not delete from the config).
-	- Added cvar "l4d_plane_crash_angle" to control if the plane spawns infront or crashes infront.
+	- Added cvar "l4d_plane_crash_angle" to control if the plane spawns in front or crashes in front.
 	- Fixed cvar "l4d_plane_crash_damage" not working.
 
 1.0 (30-Mar-2012)
@@ -52,6 +88,8 @@
 
 #include <sourcemod>
 #include <sdktools>
+
+
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define CHAT_TAG			"\x03[PlaneCrash] \x05"
@@ -81,9 +119,9 @@
 
 Handle g_hTimerBeam;
 Menu g_hMenuPos, g_hMenuVMaxs, g_hMenuVMins;
-ConVar g_hCvarAllow, g_hCvarAngle, g_hCvarClear, g_hCvarDamage, g_hCvarHorde, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarTime;
-int g_iCvarAngle, g_iCvarClear, g_iCvarDamage, g_iCvarHorde, g_iEntities[MAX_ENTITIES], g_iHaloMaterial, g_iLaserMaterial, g_iPlayerSpawn, g_iRoundStart, g_iSaved, g_iTrigger;
-bool g_bCvarAllow, g_bMapStarted;
+ConVar g_hCvarAllow, g_hCvarAngle, g_hCvarClear, g_hCvarChance, g_hCvarDamage, g_hCvarHorde, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarTime;
+int g_iCvarAngle, g_iCvarClear, g_iCvarChance, g_iCvarDamage, g_iCvarHorde, g_iEntities[MAX_ENTITIES], g_iHaloMaterial, g_iLaserMaterial, g_iPlayerSpawn, g_iRoundStart, g_iSaved, g_iTrigger;
+bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2;
 float g_fCvarTime;
 
 
@@ -103,18 +141,22 @@ public Plugin myinfo =
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	EngineVersion test = GetEngineVersion();
-	if( test != Engine_Left4Dead && test != Engine_Left4Dead2 )
+	if( test == Engine_Left4Dead ) g_bLeft4Dead2 = false;
+	else if( test == Engine_Left4Dead2 ) g_bLeft4Dead2 = true;
+	else
 	{
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
 	g_hCvarAllow =			CreateConVar(	"l4d_plane_crash_allow",		"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
-	g_hCvarAngle =			CreateConVar(	"l4d_plane_crash_angle",		"1",			"0=Spawn the plane infront of you (crashes to the left), 1=Spawn so the plane crashes infront of you.", CVAR_FLAGS );
+	g_hCvarAngle =			CreateConVar(	"l4d_plane_crash_angle",		"1",			"0=Spawn the plane in front of you (crashes to the left), 1=Spawn so the plane crashes in front of you.", CVAR_FLAGS );
+	g_hCvarChance =			CreateConVar(	"l4d_plane_crash_chance",		"100",			"The percentage chance of a saved plane crash being created from the saved config.", CVAR_FLAGS );
 	g_hCvarClear =			CreateConVar(	"l4d_plane_crash_clear",		"0",			"0=Off, Remove the plane crash this many seconds after the plane hits the ground.", CVAR_FLAGS );
 	g_hCvarDamage =			CreateConVar(	"l4d_plane_crash_damage",		"20",			"0=Off, Other value will hurt players if they get crushed by some debris.", CVAR_FLAGS );
 	g_hCvarHorde =			CreateConVar(	"l4d_plane_crash_horde",		"24",			"0=Off, Trigger a panic event this many seconds after the plane spawns.", CVAR_FLAGS );
@@ -132,6 +174,7 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAngle.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarChance.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarClear.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDamage.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarHorde.AddChangeHook(ConVarChanged_Cvars);
@@ -256,13 +299,13 @@ void ResetPlugin()
 	{
 		SetVariantInt(0);
 		AcceptEntityInput(entity, "Volume");
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 	}
 
 	for( int i = 1; i < MAX_ENTITIES; i++ )
 	{
 		if( IsValidEntRef(g_iEntities[i]) )
-			AcceptEntityInput(g_iEntities[i], "Kill");
+			RemoveEntity(g_iEntities[i]);
 		g_iEntities[i] = 0;
 	}
 }
@@ -277,12 +320,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -290,6 +333,7 @@ public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char
 void GetCvars()
 {
 	g_iCvarAngle = g_hCvarAngle.IntValue;
+	g_iCvarChance = g_hCvarChance.IntValue;
 	g_iCvarClear = g_hCvarClear.IntValue;
 	g_iCvarDamage = g_hCvarDamage.IntValue;
 	g_iCvarHorde = g_hCvarHorde.IntValue;
@@ -308,6 +352,7 @@ void IsAllowed()
 		HookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 		HookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
 		HookEvent("round_end",			Event_RoundEnd,		EventHookMode_PostNoCopy);
+
 		CreateCrash(0);
 	}
 
@@ -327,14 +372,15 @@ bool IsAllowedGameMode()
 	if( g_hCvarMPGameMode == null )
 		return false;
 
+	if( g_bMapStarted == false )
+		return false;
+
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
+
+	g_iCurrentMode = 0;
+
 	if( iCvarModesTog != 0 )
 	{
-		if( g_bMapStarted == false )
-			return false;
-
-		g_iCurrentMode = 0;
-
 		int entity = CreateEntityByName("info_gamemode");
 		if( IsValidEntity(entity) )
 		{
@@ -379,7 +425,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -396,29 +442,33 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
+
+	// Saved position?
 	CreateCrash(0);
+
+	return Plugin_Continue;
 }
 
 
@@ -426,7 +476,7 @@ public Action tmrStart(Handle timer)
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdPlaneClear(int client, int args)
+Action CmdPlaneClear(int client, int args)
 {
 	ResetPlugin();
 	if( client )
@@ -436,7 +486,7 @@ public Action CmdPlaneClear(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdPlaneTime(int client, int args)
+Action CmdPlaneTime(int client, int args)
 {
 	if( !client )
 	{
@@ -492,7 +542,7 @@ public Action CmdPlaneTime(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdPlaneMenu(int client, int args)
+Action CmdPlaneMenu(int client, int args)
 {
 	if( !client )
 	{
@@ -539,7 +589,7 @@ void ShowMenuMain(int client)
 	hMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
+int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -565,15 +615,25 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
 			}
 			case 3:
 			{
+				ResetPlugin();
+
 				if( IsValidEntRef(g_iEntities[0]) )
+				{
+					PrintToChat(client, "%sSpawning saved plane crash", CHAT_TAG);
 					AcceptEntityInput(g_iEntities[0], "Trigger");
+				}
 				else
 				{
 					CreateCrash(0);
 					if( IsValidEntRef(g_iEntities[0]) )
+					{
+						PrintToChat(client, "%sSpawning saved plane crash", CHAT_TAG);
 						AcceptEntityInput(g_iEntities[0], "Trigger");
+					}
 					else
+					{
 						PrintToChat(client, "%sNo saved plane crash", CHAT_TAG);
+					}
 				}
 				ShowMenuMain(client);
 			}
@@ -605,9 +665,11 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int index)
 			case 9:			g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 		}
 	}
+
+	return 0;
 }
 
-public int VMaxsMenuHandler(Menu menu, MenuAction action, int client, int index)
+int VMaxsMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -629,9 +691,11 @@ public int VMaxsMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		ShowMenuMain(client);
 	}
+
+	return 0;
 }
 
-public int VMinsMenuHandler(Menu menu, MenuAction action, int client, int index)
+int VMinsMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -653,9 +717,11 @@ public int VMinsMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		ShowMenuMain(client);
 	}
+
+	return 0;
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -686,7 +752,7 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			char sPath[PLATFORM_MAX_PATH];
 			BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_SPAWNS);
 			if( !FileExists(sPath) )
-				return;
+				return 0;
 
 			KeyValues hFile = new KeyValues("crash");
 			hFile.ImportFromFile(sPath);
@@ -712,6 +778,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 void SaveCrash(int client)
@@ -795,7 +863,7 @@ void CreateTrigger(int client)
 {
 	if( IsValidEntRef(g_iTrigger) == true )
 	{
-		AcceptEntityInput(g_iTrigger, "Kill");
+		RemoveEntity(g_iTrigger);
 		g_iTrigger = 0;
 
 		char sPath[PLATFORM_MAX_PATH];
@@ -895,12 +963,17 @@ void CreateTriggerMultiple(float vPos[3], float vMaxs[3], float vMins[3])
 	g_iTrigger = EntIndexToEntRef(g_iTrigger);
 }
 
-public void OnStartTouch(const char[] output, int caller, int activator, float delay)
+void OnStartTouch(const char[] output, int caller, int activator, float delay)
 {
 	if( IsClientInGame(activator) && GetClientTeam(activator) == 2 && IsValidEntRef(g_iEntities[0]) )
 	{
-		AcceptEntityInput(g_iEntities[0], "Trigger");
 		AcceptEntityInput(caller, "Disable");
+
+		// Chance to spawn
+		if( g_iCvarChance == 100 || GetRandomInt(1, 100) <= g_iCvarChance )
+		{
+			AcceptEntityInput(g_iEntities[0], "Trigger");
+		}
 	}
 }
 
@@ -943,7 +1016,7 @@ void SaveMaxMin(int type, float vVec[3])
 	delete hFile;
 }
 
-public Action TimerBeam(Handle timer)
+Action TimerBeam(Handle timer)
 {
 	if( IsValidEntRef(g_iTrigger) == false )
 	{
@@ -1003,69 +1076,76 @@ void CreateCrash(int client)
 	int time;
 	int method;
 
-	if( client )
+	if( client > 0 )
 	{
+		// Manual spawned
 		method = g_iCvarAngle;
 		GetClientAbsOrigin(client, vPos);
 		GetClientEyeAngles(client, vAng);
+
+		ResetPlugin();
 	}
 	else
 	{
-		g_iSaved = 0;
-
-		char sPath[PLATFORM_MAX_PATH];
-		BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_SPAWNS);
-		if( !FileExists(sPath) )
-			return;
-
-		KeyValues hFile = new KeyValues("crash");
-		hFile.ImportFromFile(sPath);
-
-		char sMap[64];
-		GetCurrentMap(sMap, sizeof(sMap));
-
-		if( !hFile.JumpToKey(sMap) )
+		// Map config
+		if( !client )
 		{
-			delete hFile;
-			return;
-		}
+			g_iSaved = 0;
 
-		time = hFile.GetNum("time");
-		method = hFile.GetNum("method");
+			char sPath[PLATFORM_MAX_PATH];
+			BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_SPAWNS);
+			if( !FileExists(sPath) )
+				return;
 
-		if( time == 0 )
-		{
-			float vVec[3];
-			hFile.GetVector("vpos", vVec, view_as<float>({ 999.9, 999.9, 999.9 }));
+			KeyValues hFile = new KeyValues("crash");
+			hFile.ImportFromFile(sPath);
 
-			if( vVec[0] != 999.9 && vVec[1] != 999.9 )
+			char sMap[64];
+			GetCurrentMap(sMap, sizeof(sMap));
+
+			if( !hFile.JumpToKey(sMap) )
 			{
-				float vMaxs[3], vMins[3];
-				hFile.GetVector("vmax", vMaxs);
-				hFile.GetVector("vmin", vMins);
-
-				if( IsValidEntRef(g_iTrigger) )
-				{
-					AcceptEntityInput(g_iTrigger, "Kill");
-					g_iTrigger = 0;
-				}
-
-				CreateTriggerMultiple(vVec, vMaxs, vMins);
+				delete hFile;
+				return;
 			}
 
-			time = -1;
-		}
+			time = hFile.GetNum("time");
+			method = hFile.GetNum("method");
 
-		vAng[1] = hFile.GetFloat("ang");
-		hFile.GetVector("pos", vPos, view_as<float>({ 999.9, 999.9, 999.9 }));
+			if( time == 0 )
+			{
+				float vVec[3];
+				hFile.GetVector("vpos", vVec, view_as<float>({ 999.9, 999.9, 999.9 }));
 
-		if( vPos[0] == 999.9 && vPos[1] == 999.9 )
-		{
+				if( vVec[0] != 999.9 && vVec[1] != 999.9 )
+				{
+					float vMaxs[3], vMins[3];
+					hFile.GetVector("vmax", vMaxs);
+					hFile.GetVector("vmin", vMins);
+
+					if( IsValidEntRef(g_iTrigger) )
+					{
+						RemoveEntity(g_iTrigger);
+						g_iTrigger = 0;
+					}
+
+					CreateTriggerMultiple(vVec, vMaxs, vMins);
+				}
+
+				time = -1;
+			}
+
+			vAng[1] = hFile.GetFloat("ang");
+			hFile.GetVector("pos", vPos, view_as<float>({ 999.9, 999.9, 999.9 }));
+
+			if( vPos[0] == 999.9 && vPos[1] == 999.9 )
+			{
+				delete hFile;
+				return;
+			}
+
 			delete hFile;
-			return;
 		}
-
-		delete hFile;
 	}
 
 
@@ -1162,13 +1242,17 @@ void CreatePlaneCrash(float vPos[3], float vAng[3], int method)
 
 	if( g_iCvarHorde )
 	{
+		HookSingleEntityOutput(entity, "OnTrigger", OnTriggerCrash);
+
+		/* Some maps have different director names, so using hook above with different methods
 		char sTemp[64];
-		Format(sTemp, sizeof(sTemp), "OnTrigger director:ForcePanicEvent::%d:-1",g_iCvarHorde);
+		Format(sTemp, sizeof(sTemp), "OnTrigger director:ForcePanicEvent::%d:-1", g_iCvarHorde);
 		SetVariantString(sTemp);
 		AcceptEntityInput(entity, "AddOutput");
-		Format(sTemp, sizeof(sTemp), "OnTrigger @director:ForcePanicEvent::%d:-1",g_iCvarHorde);
+		Format(sTemp, sizeof(sTemp), "OnTrigger @director:ForcePanicEvent::%d:-1", g_iCvarHorde);
 		SetVariantString(sTemp);
 		AcceptEntityInput(entity, "AddOutput");
+		*/
 	}
 
 	SetVariantString("OnTrigger silver_planecrash_collision:FireUser2::27:-1");
@@ -1466,11 +1550,14 @@ void CreatePlaneCrash(float vPos[3], float vAng[3], int method)
 
 	if( g_iCvarDamage )
 	{
+		char sTemp[6];
+		IntToString(g_iCvarDamage, sTemp, sizeof(sTemp));
+
 		entity = CreateEntityByName("trigger_hurt");
 		DispatchKeyValue(entity, "targetname", "silver_planecrash_hurt_tail");
 		DispatchKeyValue(entity, "spawnflags", "3");
 		DispatchKeyValue(entity, "damagetype", "1");
-		DispatchKeyValue(entity, "damage", "20");
+		DispatchKeyValue(entity, "damage", sTemp);
 		DispatchSpawn(entity);
 		AcceptEntityInput(entity, "Disable");
 
@@ -1491,8 +1578,6 @@ void CreatePlaneCrash(float vPos[3], float vAng[3], int method)
 		DispatchKeyValue(entity, "targetname", "silver_planecrash_hurt_engine");
 		DispatchKeyValue(entity, "spawnflags", "3");
 		DispatchKeyValue(entity, "damagetype", "1");
-		char sTemp[6];
-		IntToString(g_iCvarDamage, sTemp, sizeof(sTemp));
 		DispatchKeyValue(entity, "damage", sTemp);
 		DispatchSpawn(entity);
 		AcceptEntityInput(entity, "Disable");
@@ -1514,7 +1599,7 @@ void CreatePlaneCrash(float vPos[3], float vAng[3], int method)
 		DispatchKeyValue(entity, "targetname", "silver_planecrash_hurt_wing");
 		DispatchKeyValue(entity, "spawnflags", "3");
 		DispatchKeyValue(entity, "damagetype", "1");
-		DispatchKeyValue(entity, "damage", "20");
+		DispatchKeyValue(entity, "damage", sTemp);
 		DispatchSpawn(entity);
 		AcceptEntityInput(entity, "Disable");
 
@@ -1532,7 +1617,53 @@ void CreatePlaneCrash(float vPos[3], float vAng[3], int method)
 	}
 }
 
-public void OnUserCollision(const char[] output, int caller, int activator, float delay)
+void OnTriggerCrash(const char[] output, int caller, int activator, float delay)
+{
+	if( g_iCvarHorde )
+	{
+		if( caller > 0 ) caller = EntIndexToEntRef(caller);
+
+		if( caller == g_iEntities[0] )
+		{
+			CreateTimer(float(g_iCvarHorde), TimerHorde, g_iEntities[2], TIMER_FLAG_NO_MAPCHANGE);
+		}
+	}
+}
+
+Action TimerHorde(Handle timer, int entity)
+{
+	if( EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
+	{
+		if( g_bLeft4Dead2 )
+		{
+			static int director = INVALID_ENT_REFERENCE;
+
+			if( director == INVALID_ENT_REFERENCE || EntRefToEntIndex(director) == INVALID_ENT_REFERENCE )
+			{
+				director = FindEntityByClassname(-1, "info_director");
+				if( director != INVALID_ENT_REFERENCE )
+				{
+					director = EntIndexToEntRef(director);
+				}
+			}
+
+			if( director != INVALID_ENT_REFERENCE )
+			{
+				AcceptEntityInput(director, "ForcePanicEvent");
+				return Plugin_Continue;
+			}
+		}
+
+		int flags = GetCommandFlags("director_force_panic_event");
+		SetCommandFlags("director_force_panic_event", flags & ~FCVAR_CHEAT);
+		ServerCommand("director_force_panic_event");
+		SetCommandFlags("director_force_panic_event", flags);
+	}
+
+	return Plugin_Continue;
+}
+
+void OnUserCollision(const char[] output, int caller, int activator, float delay)
 {
 	if( g_iCvarClear )
 		CreateTimer(float(g_iCvarClear), TimerReset);
@@ -1543,9 +1674,10 @@ public void OnUserCollision(const char[] output, int caller, int activator, floa
 	TeleportEntity(caller, vPos, NULL_VECTOR, NULL_VECTOR);
 }
 
-public Action TimerReset(Handle timer)
+Action TimerReset(Handle timer)
 {
 	ResetPlugin();
+	return Plugin_Continue;
 }
 
 bool IsValidEntRef(int entity)

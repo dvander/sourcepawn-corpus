@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.1.3 (24-July-2021)
+   - Fixed bar not showing up when the current HP is bigger than max HP.
+
 1.1.2 (03-May-2021)
     - Added cvar to control the timer interval for the rendering rules.
 
@@ -12,7 +15,7 @@ Change Log:
 1.1.0 (22-February-2021)
     - Added cvar to change the gradient color to default game colors on survivors. (Green 40HP+, Yellow 39HP~25HP, Red 24HP-)
     - Added menu and commands to hide/show the sprite.
-    - Added cvar to remove blur effect behind walls. (thanks "kadabra" for requesting)
+    - Added cvar to remove blur effect behind walls. (thanks "KadabraZz" for requesting)
     - Added cvar and Fast Wide Pulse FX for survivors when: incapacitated; black and white; low health (24HP-).
 
 1.0.9 (18-February-2021)
@@ -46,7 +49,7 @@ Change Log:
     - Moved visibility logic to timer handle.
 
 1.0.1 (30-January-2021)
-    - Public release.
+    - release.
 
 1.0.0 (21-April-2019)
     - Private version.
@@ -60,7 +63,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] HP Sprite"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Shows a sprite at the client head based on its HP"
-#define PLUGIN_VERSION                "1.1.2"
+#define PLUGIN_VERSION                "1.1.3"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=330370"
 
 // ====================================================================================================
@@ -103,14 +106,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_ENV_SPRITE          "env_sprite"
-#define CLASSNAME_ENV_TEXTURETOGGLE   "env_texturetoggle"
-#define CLASSNAME_INFO_TARGET         "info_target"
-
-#define CLASSNAME_TANK_ROCK           "tank_rock"
-#define CLASSNAME_INFECTED            "infected"
-#define CLASSNAME_WITCH               "witch"
-
 #define TEAM_SPECTATOR                1
 #define TEAM_SURVIVOR                 2
 #define TEAM_INFECTED                 3
@@ -161,129 +156,128 @@ public Plugin myinfo =
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_survivor_incap_health;
-static ConVar g_hCvar_survivor_max_incapacitated_count;
-static ConVar g_hCvar_pain_pills_decay_rate;
-static ConVar g_hCvar_survivor_limp_health;
+ConVar g_hCvar_survivor_incap_health;
+ConVar g_hCvar_survivor_max_incapacitated_count;
+ConVar g_hCvar_pain_pills_decay_rate;
+ConVar g_hCvar_survivor_limp_health;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Cookies;
-static ConVar g_hCvar_RenderInterval;
-static ConVar g_hCvar_ZAxis;
-static ConVar g_hCvar_FadeDistance;
-static ConVar g_hCvar_Sight;
-static ConVar g_hCvar_AttackDelay;
-static ConVar g_hCvar_GradientColor;
-static ConVar g_hCvar_AliveShow;
-static ConVar g_hCvar_AliveModel;
-static ConVar g_hCvar_AliveAlpha;
-static ConVar g_hCvar_AliveScale;
-static ConVar g_hCvar_DeadShow;
-static ConVar g_hCvar_DeadModel;
-static ConVar g_hCvar_DeadAlpha;
-static ConVar g_hCvar_DeadScale;
-static ConVar g_hCvar_DeadColor;
-static ConVar g_hCvar_RemoveBlur;
-static ConVar g_hCvar_Pulse;
-static ConVar g_hCvar_BlackAndWhite;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_SurvivorTeam;
-static ConVar g_hCvar_InfectedTeam;
-static ConVar g_hCvar_SpectatorTeam;
-static ConVar g_hCvar_MultiplyAlphaTeam;
-static ConVar g_hCvar_ClientAlphaMax;
-static ConVar g_hCvar_CustomModel;
-static ConVar g_hCvar_CustomModelVMT;
-static ConVar g_hCvar_CustomModelVTF;
-static ConVar g_hCvar_SI;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Cookies;
+ConVar g_hCvar_RenderInterval;
+ConVar g_hCvar_ZAxis;
+ConVar g_hCvar_FadeDistance;
+ConVar g_hCvar_Sight;
+ConVar g_hCvar_AttackDelay;
+ConVar g_hCvar_GradientColor;
+ConVar g_hCvar_AliveShow;
+ConVar g_hCvar_AliveModel;
+ConVar g_hCvar_AliveAlpha;
+ConVar g_hCvar_AliveScale;
+ConVar g_hCvar_DeadShow;
+ConVar g_hCvar_DeadModel;
+ConVar g_hCvar_DeadAlpha;
+ConVar g_hCvar_DeadScale;
+ConVar g_hCvar_DeadColor;
+ConVar g_hCvar_RemoveBlur;
+ConVar g_hCvar_Pulse;
+ConVar g_hCvar_BlackAndWhite;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_SurvivorTeam;
+ConVar g_hCvar_InfectedTeam;
+ConVar g_hCvar_SpectatorTeam;
+ConVar g_hCvar_MultiplyAlphaTeam;
+ConVar g_hCvar_ClientAlphaMax;
+ConVar g_hCvar_CustomModel;
+ConVar g_hCvar_CustomModelVMT;
+ConVar g_hCvar_CustomModelVTF;
+ConVar g_hCvar_SI;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_survivor_max_incapacitated_count;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Cookies;
-static bool   g_bCvar_Sight;
-static bool   g_bCvar_AttackDelay;
-static bool   g_bCvar_GradientColor;
-static bool   g_bCvar_AliveShow;
-static bool   g_bCvar_DeadShow;
-static bool   g_bCvar_RemoveBlur;
-static bool   g_bCvar_BlackAndWhite;
-static bool   g_bCvar_ClientAlphaMax;
-static bool   g_bCvar_CustomModel;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_survivor_max_incapacitated_count;
+bool g_bCvar_Enabled;
+bool g_bCvar_Cookies;
+bool g_bCvar_Sight;
+bool g_bCvar_AttackDelay;
+bool g_bCvar_GradientColor;
+bool g_bCvar_AliveShow;
+bool g_bCvar_DeadShow;
+bool g_bCvar_RemoveBlur;
+bool g_bCvar_BlackAndWhite;
+bool g_bCvar_ClientAlphaMax;
+bool g_bCvar_CustomModel;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_survivor_incap_health;
-static int    g_iCvar_survivor_max_incapacitated_count;
-static int    g_iCvar_survivor_limp_health;
-static int    g_iCvar_FadeDistance;
-static int    g_iCvar_AliveAlpha;
-static int    g_iCvar_DeadAlpha;
-static int    g_iCvar_Pulse;
-static int    g_iCvar_Team;
-static int    g_iCvar_SurvivorTeam;
-static int    g_iCvar_InfectedTeam;
-static int    g_iCvar_SpectatorTeam;
-static int    g_iCvar_MultiplyAlphaTeam;
-static int    g_iCvar_ClientAlphaMax;
-static int    g_iCvar_SI;
+int g_iCvar_survivor_incap_health;
+int g_iCvar_survivor_max_incapacitated_count;
+int g_iCvar_survivor_limp_health;
+int g_iCvar_FadeDistance;
+int g_iCvar_AliveAlpha;
+int g_iCvar_DeadAlpha;
+int g_iCvar_Pulse;
+int g_iCvar_Team;
+int g_iCvar_SurvivorTeam;
+int g_iCvar_InfectedTeam;
+int g_iCvar_SpectatorTeam;
+int g_iCvar_MultiplyAlphaTeam;
+int g_iCvar_ClientAlphaMax;
+int g_iCvar_SI;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fvPlayerMins[3] = {-16.0, -16.0,  0.0};
-static float  g_fvPlayerMaxs[3] = { 16.0,  16.0, 71.0};
-static float  g_fCvar_pain_pills_decay_rate;
-static float  g_fCvar_RenderInterval;
-static float  g_fCvar_ZAxis;
-static float  g_fCvar_AttackDelay;
-static float  g_fCvar_AliveScale;
-static float  g_fCvar_DeadScale;
+float g_fvPlayerMins[3] = {-16.0, -16.0,  0.0};
+float g_fvPlayerMaxs[3] = { 16.0,  16.0, 71.0};
+float g_fCvar_pain_pills_decay_rate;
+float g_fCvar_RenderInterval;
+float g_fCvar_ZAxis;
+float g_fCvar_AttackDelay;
+float g_fCvar_AliveScale;
+float g_fCvar_DeadScale;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_AliveModel[100];
-static char   g_sCvar_AliveAlpha[4];
-static char   g_sCvar_AliveScale[5];
-static char   g_sCvar_DeadModel[100];
-static char   g_sCvar_DeadAlpha[4];
-static char   g_sCvar_DeadScale[5];
-static char   g_sCvar_DeadColor[12];
-static char   g_sCvar_FadeDistance[5];
-static char   g_sCvar_CustomModelVMT[100];
-static char   g_sCvar_CustomModelVTF[100];
+char g_sCvar_AliveModel[PLATFORM_MAX_PATH];
+char g_sCvar_AliveAlpha[4];
+char g_sCvar_AliveScale[5];
+char g_sCvar_DeadModel[PLATFORM_MAX_PATH];
+char g_sCvar_DeadAlpha[4];
+char g_sCvar_DeadScale[5];
+char g_sCvar_DeadColor[12];
+char g_sCvar_FadeDistance[5];
+char g_sCvar_CustomModelVMT[PLATFORM_MAX_PATH];
+char g_sCvar_CustomModelVTF[PLATFORM_MAX_PATH];
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static bool   gc_bDisable[MAXPLAYERS+1];
-static bool   gc_bShouldRender[MAXPLAYERS+1];
-static int    gc_iSpriteEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
-static int    gc_iSpriteFrameEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
-static int    gc_iSpriteInfoTargetEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
-static bool   gc_bVisible[MAXPLAYERS+1][MAXPLAYERS+1];
-static float  gc_fLastAttack[MAXPLAYERS+1][MAXPLAYERS+1];
+bool gc_bDisable[MAXPLAYERS+1];
+bool gc_bShouldRender[MAXPLAYERS+1];
+int gc_iSpriteEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+int gc_iSpriteFrameEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+int gc_iSpriteInfoTargetEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+bool gc_bVisible[MAXPLAYERS+1][MAXPLAYERS+1];
+float gc_fLastAttack[MAXPLAYERS+1][MAXPLAYERS+1];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static bool   ge_bInvalidTrace[MAXENTITIES+1];
-static int    ge_iOwner[MAXENTITIES+1];
+bool ge_bInvalidTrace[MAXENTITIES+1];
+int ge_iOwner[MAXENTITIES+1];
 
 // ====================================================================================================
 // Cookies - Plugin Variables
 // ====================================================================================================
-static Cookie g_cbDisable;
+Cookie g_cbDisable;
 
 // ====================================================================================================
 // Timer - Plugin Variables
@@ -325,13 +319,13 @@ public void OnPluginStart()
     g_hCvar_FadeDistance      = CreateConVar("l4d_hp_sprite_fade_distance", "-1", "Minimum distance that a client must be from another client to see the sprite.\n-1 = Always visible.", CVAR_FLAGS, true, -1.0, true, 9999.0);
     g_hCvar_Sight             = CreateConVar("l4d_hp_sprite_sight", "1", "Show the sprite to the survivor only if the special infected is on sight.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_AttackDelay       = CreateConVar("l4d_hp_sprite_attack_delay", "0.0", "Show the sprite to the survivor attacker, by this amount of time in seconds, after hitting a special infected.\n0 = OFF.", CVAR_FLAGS, true, 0.0);
-    g_hCvar_GradientColor     = CreateConVar("l4d_hp_sprite_gradient_color", "0", "Should the sprite on survivors render in gradient color. \n0 = OFF. (Vanilla Colors: Green 100HP->40HP, Yellow 39HP->25HP, Red 25HP-), 1 = Gradient Mode.\nNote: The yellow color is defined by the \"survivor_limp_health\" game cvar.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_GradientColor     = CreateConVar("l4d_hp_sprite_gradient_color", "0", "Should the sprite on survivors render in gradient color. \n0 = OFF. (Vanilla Colors: Green 100HP->40HP, Yellow 39HP->25HP, Red 25HP-), 1 = Gradient Mode.\nNote: The Yellow color is defined by the \"survivor_limp_health\" game cvar.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_AliveShow         = CreateConVar("l4d_hp_sprite_alive_show", "1", "Show the alive sprite while client is alive.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_AliveModel        = CreateConVar("l4d_hp_sprite_alive_model", "materials/vgui/healthbar_white.vmt", "Model of alive sprite.");
+    g_hCvar_AliveModel        = CreateConVar("l4d_hp_sprite_alive_model", "vgui/healthbar_white.vmt", "Model of alive sprite.");
     g_hCvar_AliveAlpha        = CreateConVar("l4d_hp_sprite_alive_alpha", "200", "Alpha of alive sprite.\n0 = Invisible, 255 = Fully Visible.", CVAR_FLAGS, true, 0.0, true, 255.0);
     g_hCvar_AliveScale        = CreateConVar("l4d_hp_sprite_alive_scale", "0.25", "Scale of alive sprite (increases both height and width).\nNote: Some range values maintain the same size. (e.g. from 0.0 to 0.38 the size doesn't change).", CVAR_FLAGS, true, 0.0);
     g_hCvar_DeadShow          = CreateConVar("l4d_hp_sprite_dead_show", "1", "Show the dead sprite when a client dies.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_DeadModel         = CreateConVar("l4d_hp_sprite_dead_model", "materials/sprites/death_icon.vmt", "Model of dead sprite.");
+    g_hCvar_DeadModel         = CreateConVar("l4d_hp_sprite_dead_model", "sprites/death_icon.vmt", "Model of dead sprite.");
     g_hCvar_DeadAlpha         = CreateConVar("l4d_hp_sprite_dead_alpha", "200", "Alpha of dead sprite.\n0 = Invisible, 255 = Fully Visible", CVAR_FLAGS, true, 0.0, true, 255.0);
     g_hCvar_DeadScale         = CreateConVar("l4d_hp_sprite_dead_scale", "0.25", "Scale of dead sprite (increases both height and width).\nSome range values maintain the size the same.", CVAR_FLAGS, true, 0.0);
     g_hCvar_DeadColor         = CreateConVar("l4d_hp_sprite_dead_color", "225 0 0", "Color of dead sprite.\nUse three values between 0-255 separated by spaces (\"<0-255> <0-255> <0-255>\").", CVAR_FLAGS);
@@ -345,8 +339,8 @@ public void OnPluginStart()
     g_hCvar_MultiplyAlphaTeam = CreateConVar("l4d_hp_sprite_multiply_alpha_team", "2", "Which teams should multiply the sprite alpha based on the client render alpha.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
     g_hCvar_ClientAlphaMax    = CreateConVar("l4d_hp_sprite_client_alpha_max", "0", "Maximum render alpha that a client must be to hide the sprite.\nUseful to hide it on invisible/transparent clients.\n-1 = OFF.", CVAR_FLAGS, true, -1.0, true, 255.0);
     g_hCvar_CustomModel       = CreateConVar("l4d_hp_sprite_custom_model", "0", "Use a custom sprite for the alive model\nNote: This creates an extra entity for each sprite.\nNote: This requires the client downloading the custom model (.vmt and .vtf) to work.\nSearch for FastDL for more info.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_CustomModelVMT    = CreateConVar("l4d_hp_sprite_custom_model_vmt", "materials/mart/mart_custombar.vmt", "Custom sprite VMT path.");
-    g_hCvar_CustomModelVTF    = CreateConVar("l4d_hp_sprite_custom_model_vtf", "materials/mart/mart_custombar.vtf", "Custom sprite VTF path.");
+    g_hCvar_CustomModelVMT    = CreateConVar("l4d_hp_sprite_custom_model_vmt", "mart/mart_custombar.vmt", "Custom sprite VMT path.");
+    g_hCvar_CustomModelVTF    = CreateConVar("l4d_hp_sprite_custom_model_vtf", "mart/mart_custombar.vtf", "Custom sprite VTF path.");
 
     if (g_bL4D2)
         g_hCvar_SI            = CreateConVar("l4d_hp_sprite_si", "64", "Which special infected should have a sprite.\n1 = SMOKER, 2 = BOOMER, 4 = HUNTER, 8 = SPITTER, 16 = JOCKEY, 32 = CHARGER, 64 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"127\", enables sprite for all SI.", CVAR_FLAGS, true, 0.0, true, 127.0);
@@ -395,7 +389,7 @@ public void OnPluginStart()
     // Cookies
     g_cbDisable = new Cookie("l4d_hp_sprite_disable", "HP Sprite - Disable sprite HP", CookieAccess_Protected);
 
-    // Public Commands
+    // Commands
     RegConsoleCmd("sm_hpsprite", CmdHpMenu, "Open a menu to toogle the sprite HP for the client.");
     RegConsoleCmd("sm_hidehpsprite", CmdHideHp, "Disable sprite HP for the client.");
     RegConsoleCmd("sm_showhpsprite", CmdShowHp, "Enable sprite HP for the client.");
@@ -450,43 +444,35 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
-
-    delete g_tRenderInterval;
-    g_tRenderInterval = CreateTimer(g_fCvar_RenderInterval, TimerRender, _, TIMER_REPEAT);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
-
-    delete g_tRenderInterval;
-    g_tRenderInterval = CreateTimer(g_fCvar_RenderInterval, TimerRender, _, TIMER_REPEAT);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_iCvar_survivor_incap_health = g_hCvar_survivor_incap_health.IntValue;
     g_iCvar_survivor_max_incapacitated_count = g_hCvar_survivor_max_incapacitated_count.IntValue;
     g_bCvar_survivor_max_incapacitated_count = (g_iCvar_survivor_max_incapacitated_count > 0);
-    g_iCvar_survivor_limp_health = g_hCvar_survivor_limp_health.IntValue;
     g_fCvar_pain_pills_decay_rate = g_hCvar_pain_pills_decay_rate.FloatValue;
+    g_iCvar_survivor_limp_health = g_hCvar_survivor_limp_health.IntValue;
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_Cookies = g_hCvar_Cookies.BoolValue;
     g_fCvar_RenderInterval = g_hCvar_RenderInterval.FloatValue;
     g_fCvar_ZAxis = g_hCvar_ZAxis.FloatValue;
     g_iCvar_FadeDistance = g_hCvar_FadeDistance.IntValue;
-    FormatEx(g_sCvar_FadeDistance, sizeof(g_sCvar_FadeDistance), "%i", g_iCvar_FadeDistance);
+    IntToString(g_iCvar_FadeDistance, g_sCvar_FadeDistance, sizeof(g_sCvar_FadeDistance));
     g_bCvar_Sight = g_hCvar_Sight.BoolValue;
     g_fCvar_AttackDelay = g_hCvar_AttackDelay.FloatValue;
     g_bCvar_AttackDelay = (g_fCvar_AttackDelay > 0.0);
@@ -495,16 +481,16 @@ public void GetCvars()
     g_hCvar_AliveModel.GetString(g_sCvar_AliveModel, sizeof(g_sCvar_AliveModel));
     TrimString(g_sCvar_AliveModel);
     g_iCvar_AliveAlpha = g_hCvar_AliveAlpha.IntValue;
-    FormatEx(g_sCvar_AliveAlpha, sizeof(g_sCvar_AliveAlpha), "%i", g_iCvar_AliveAlpha);
+    IntToString(g_iCvar_AliveAlpha, g_sCvar_AliveAlpha, sizeof(g_sCvar_AliveAlpha));
     g_fCvar_AliveScale = g_hCvar_AliveScale.FloatValue;
-    FormatEx(g_sCvar_AliveScale, sizeof(g_sCvar_AliveScale), "%.2f", g_fCvar_AliveScale);
+    FloatToString(g_fCvar_AliveScale, g_sCvar_AliveScale, sizeof(g_sCvar_AliveScale));
     g_bCvar_DeadShow = g_hCvar_DeadShow.BoolValue;
     g_hCvar_DeadModel.GetString(g_sCvar_DeadModel, sizeof(g_sCvar_DeadModel));
     TrimString(g_sCvar_DeadModel);
     g_iCvar_DeadAlpha = g_hCvar_DeadAlpha.IntValue;
-    FormatEx(g_sCvar_DeadAlpha, sizeof(g_sCvar_DeadAlpha), "%i", g_iCvar_DeadAlpha);
+    IntToString(g_iCvar_DeadAlpha, g_sCvar_DeadAlpha, sizeof(g_sCvar_DeadAlpha));
     g_fCvar_DeadScale = g_hCvar_DeadScale.FloatValue;
-    FormatEx(g_sCvar_DeadScale, sizeof(g_sCvar_DeadScale), "%.2f", g_fCvar_DeadScale);
+    FloatToString(g_fCvar_DeadScale, g_sCvar_DeadScale, sizeof(g_sCvar_DeadScale));
     g_hCvar_DeadColor.GetString(g_sCvar_DeadColor, sizeof(g_sCvar_DeadColor));
     TrimString(g_sCvar_DeadColor);
     g_bCvar_RemoveBlur = g_hCvar_RemoveBlur.BoolValue;
@@ -540,11 +526,15 @@ public void GetCvars()
 
     if (g_bCvar_DeadShow)
         PrecacheModel(g_sCvar_DeadModel, true);
+
+    delete g_tRenderInterval;
+    if (g_bCvar_Enabled)
+        g_tRenderInterval = CreateTimer(g_fCvar_RenderInterval, TimerRender, _, TIMER_REPEAT);
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -559,11 +549,14 @@ public void LateLoad()
     }
 
     int entity;
+    char classname[36];
 
     entity = INVALID_ENT_REFERENCE;
     while ((entity = FindEntityByClassname(entity, "*")) != INVALID_ENT_REFERENCE)
     {
-        char classname[64];
+        if (entity < 0)
+            continue;
+
         GetEntityClassname(entity, classname, sizeof(classname));
         OnEntityCreated(entity, classname);
     }
@@ -576,25 +569,20 @@ public void OnClientCookiesCached(int client)
     if (IsFakeClient(client))
         return;
 
-    if (!g_bConfigLoaded)
-        return;
-
     if (!g_bCvar_Cookies)
         return;
 
-    char sValue[2];
+    char cookieDisable[2];
+    g_cbDisable.Get(client, cookieDisable, sizeof(cookieDisable));
 
-    g_cbDisable.Get(client, sValue, sizeof(sValue));
-    gc_bDisable[client] = (StringToInt(sValue) == 1 ? true : false);
+    if (cookieDisable[0] != 0)
+        gc_bDisable[client] = (StringToInt(cookieDisable) == 1 ? true : false);
 }
 
 /****************************************************************************************************/
 
 public void OnClientDisconnect(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     gc_bDisable[client] = false;
     gc_bShouldRender[client] = false;
     gc_iSpriteEntRef[client] = INVALID_ENT_REFERENCE;
@@ -610,12 +598,36 @@ public void OnClientDisconnect(int client)
 
 /****************************************************************************************************/
 
-public void OnEntityDestroyed(int entity)
+public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
+    switch (classname[0])
+    {
+        case 't':
+        {
+            if (StrEqual(classname, "tank_rock"))
+                ge_bInvalidTrace[entity] = true;
+        }
+        case 'i':
+        {
+            if (StrEqual(classname, "infected"))
+                ge_bInvalidTrace[entity] = true;
+        }
+        case 'w':
+        {
+            if (StrEqual(classname, "witch"))
+                ge_bInvalidTrace[entity] = true;
+        }
+    }
+}
+
+/****************************************************************************************************/
+
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
         return;
 
     ge_bInvalidTrace[entity] = false;
@@ -624,42 +636,9 @@ public void OnEntityDestroyed(int entity)
 
 /****************************************************************************************************/
 
-public void OnEntityCreated(int entity, const char[] classname)
+void HookEvents()
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    switch (classname[0])
-    {
-        case 't':
-        {
-            if (StrEqual(classname, CLASSNAME_TANK_ROCK))
-                ge_bInvalidTrace[entity] = true;
-        }
-        case 'i':
-        {
-            if (StrEqual(classname, CLASSNAME_INFECTED))
-                ge_bInvalidTrace[entity] = true;
-        }
-        case 'w':
-        {
-            if (classname[1] != 'i')
-                return;
-
-            if (StrEqual(classname, CLASSNAME_WITCH))
-                ge_bInvalidTrace[entity] = true;
-        }
-    }
-}
-
-/****************************************************************************************************/
-
-public void HookEvents(bool hook)
-{
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -668,7 +647,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -680,19 +659,15 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 {
     if (!g_bCvar_AttackDelay)
         return;
 
     int target = GetClientOfUserId(event.GetInt("userid"));
-
-    if (!IsValidClientIndex(target))
-        return;
-
     int attacker = GetClientOfUserId(event.GetInt("attacker"));
 
-    if (!IsValidClientIndex(attacker))
+    if (target == 0 || attacker == 0)
         return;
 
     gc_fLastAttack[target][attacker] = GetGameTime();
@@ -700,7 +675,7 @@ public void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public Action TimerRender(Handle timer)
+Action TimerRender(Handle timer)
 {
     RenderHealthBar();
 
@@ -709,7 +684,7 @@ public Action TimerRender(Handle timer)
 
 /****************************************************************************************************/
 
-public void RenderHealthBar()
+void RenderHealthBar()
 {
     for (int target = 1; target <= MaxClients; target++)
     {
@@ -739,12 +714,10 @@ public void RenderHealthBar()
 
             if (infoTarget == INVALID_ENT_REFERENCE)
             {
-                infoTarget = CreateEntityByName(CLASSNAME_INFO_TARGET);
+                infoTarget = CreateEntityByName("info_target");
                 gc_iSpriteInfoTargetEntRef[target] = EntIndexToEntRef(infoTarget);
                 DispatchKeyValue(infoTarget, "targetname", targetname);
-
                 DispatchSpawn(infoTarget);
-                ActivateEntity(infoTarget);
 
                 SetEntPropEnt(infoTarget, Prop_Send, "m_hOwnerEntity", target);
                 SetVariantString("!activator");
@@ -763,14 +736,14 @@ public void RenderHealthBar()
             GetClientAbsOrigin(target, targetPos);
             targetPos[2] += g_fCvar_ZAxis;
 
-            entity = CreateEntityByName(CLASSNAME_ENV_SPRITE);
+            entity = CreateEntityByName("env_sprite");
             gc_iSpriteEntRef[target] = EntIndexToEntRef(entity);
             ge_iOwner[entity] = target;
             DispatchKeyValue(entity, "targetname", targetname);
             DispatchKeyValue(entity, "spawnflags", "1");
-            SDKHook(entity, SDKHook_SetTransmit, OnSetTransmit);
+            DispatchKeyValueVector(entity, "origin", targetPos);
 
-            TeleportEntity(entity, targetPos, NULL_VECTOR, NULL_VECTOR);
+            SDKHook(entity, SDKHook_SetTransmit, OnSetTransmit);
         }
 
         bool isIncapacitated = IsPlayerIncapacitated(target);
@@ -788,9 +761,7 @@ public void RenderHealthBar()
                 DispatchKeyValue(entity, "renderamt", g_sCvar_DeadAlpha); // If renderamt goes before rendercolor, it doesn't render
                 DispatchKeyValue(entity, "scale", g_sCvar_DeadScale);
                 DispatchKeyValue(entity, "fademindist", g_sCvar_FadeDistance);
-
                 DispatchSpawn(entity);
-                ActivateEntity(entity);
 
                 SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", target);
                 SetVariantString("!activator");
@@ -829,7 +800,17 @@ public void RenderHealthBar()
             case TEAM_INFECTED:
             {
                 if (isIncapacitated)
+                {
                     maxHealth = 0;
+                }
+                else
+                {
+                    if (currentHealth > maxHealth)
+                    {
+                        maxHealth = currentHealth;
+                        SetEntProp(target, Prop_Data, "m_iMaxHealth", maxHealth); // Fix plugins that don't set the max HP for SI
+                    }
+                }
             }
         }
 
@@ -845,7 +826,7 @@ public void RenderHealthBar()
         if (g_bCvar_ClientAlphaMax && colorAlpha[3] <= g_iCvar_ClientAlphaMax)
             sAlpha = "0";
         else if (targetTeamFlag & g_iCvar_MultiplyAlphaTeam)
-            FormatEx(sAlpha, sizeof(sAlpha), "%i", RoundFloat(g_iCvar_AliveAlpha * colorAlpha[3] / 255.0));
+            IntToString(RoundFloat(g_iCvar_AliveAlpha * colorAlpha[3] / 255.0), sAlpha, sizeof(sAlpha));
         else
             sAlpha = g_sCvar_AliveAlpha;
 
@@ -894,9 +875,9 @@ public void RenderHealthBar()
         }
         else
         {
-            bool halhealth = (percentageHealth <= 0.5);
-            color[0] = halhealth ? 255 : RoundFloat(255.0 * ((1.0 - percentageHealth) * 2));
-            color[1] = halhealth ? RoundFloat(255.0 * (percentageHealth) * 2) : 255;
+            bool halfHealth = (percentageHealth < 0.5);
+            color[0] = halfHealth ? 255 : RoundFloat(255.0 * ((1.0 - percentageHealth) * 2));
+            color[1] = halfHealth ? RoundFloat(255.0 * (percentageHealth) * 2) : 255;
             color[2] = 0;
         }
 
@@ -906,12 +887,10 @@ public void RenderHealthBar()
         DispatchKeyValue(entity, "model", g_bCvar_CustomModel ? g_sCvar_CustomModelVMT : g_sCvar_AliveModel);
         DispatchKeyValue(entity, "rendercolor", rendercolor);
         DispatchKeyValue(entity, "renderamt", sAlpha); // If renderamt goes before rendercolor, it doesn't render
+        DispatchKeyValue(entity, "renderfx", pulse ? "4" : "0");
         DispatchKeyValue(entity, "scale", g_sCvar_AliveScale);
         DispatchKeyValue(entity, "fademindist", g_sCvar_FadeDistance);
-        DispatchKeyValue(entity, "renderfx", pulse ? "4" : "0");
-
         DispatchSpawn(entity);
-        ActivateEntity(entity);
 
         SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", target);
         SetVariantString("!activator");
@@ -928,13 +907,11 @@ public void RenderHealthBar()
 
         if (entityFrame == INVALID_ENT_REFERENCE)
         {
-            entityFrame = CreateEntityByName(CLASSNAME_ENV_TEXTURETOGGLE);
+            entityFrame = CreateEntityByName("env_texturetoggle");
             gc_iSpriteFrameEntRef[target] = EntIndexToEntRef(entityFrame);
             DispatchKeyValue(entityFrame, "targetname", targetname);
             DispatchKeyValue(entityFrame, "target", targetname);
-
             DispatchSpawn(entityFrame);
-            ActivateEntity(entityFrame);
 
             SetVariantString("!activator");
             AcceptEntityInput(entityFrame, "SetParent", entity);
@@ -964,9 +941,8 @@ bool ShouldRenderHP(int target)
         return false;
 
     int targetTeam = GetClientTeam(target);
-    int targetTeamFlag = GetTeamFlag(targetTeam);
 
-    if (!(targetTeamFlag & g_iCvar_Team))
+    if (!(GetTeamFlag(targetTeam) & g_iCvar_Team))
         return false;
 
     if (targetTeam == TEAM_INFECTED)
@@ -983,7 +959,7 @@ bool ShouldRenderHP(int target)
 
 /****************************************************************************************************/
 
-public Action OnSetTransmit(int entity, int client)
+Action OnSetTransmit(int entity, int client)
 {
     if (IsFakeClient(client))
         return Plugin_Handled;
@@ -1047,7 +1023,7 @@ void CheckVisibility(int target)
 
         if (targetTeamFlag == FLAG_TEAM_INFECTED && clientTeamFlag == FLAG_TEAM_SURVIVOR)
         {
-            if (g_bCvar_AttackDelay && (GetGameTime() - gc_fLastAttack[target][client] > g_fCvar_AttackDelay))
+            if (g_bCvar_AttackDelay && (gc_fLastAttack[target][client] == 0.0 || GetGameTime() - gc_fLastAttack[target][client] > g_fCvar_AttackDelay))
                 continue;
 
             if (g_bCvar_Sight && !IsVisibleTo(client, target))
@@ -1082,7 +1058,7 @@ bool IsVisibleTo(int client, int target)
 
         if (!isVisible)
         {
-            vEntityPos[2] -= 62.0; // results the same as GetClientAbsOrigin
+            vEntityPos[2] -= 62.0; // Results the same as GetClientAbsOrigin
 
             delete trace;
             trace = TR_TraceHullFilterEx(vClientPos, vEntityPos, g_fvPlayerMins, g_fvPlayerMaxs, MASK_PLAYERSOLID, TraceFilter, target);
@@ -1099,7 +1075,7 @@ bool IsVisibleTo(int client, int target)
 
 /****************************************************************************************************/
 
-public bool TraceFilter(int entity, int contentsMask, int client)
+bool TraceFilter(int entity, int contentsMask, int client)
 {
     if (entity == client)
         return true;
@@ -1159,7 +1135,7 @@ void KillSprite(int target)
 // ====================================================================================================
 // Menus
 // ====================================================================================================
-public void CreateToggleMenu(int client)
+void CreateToggleMenu(int client)
 {
     Menu menu = new Menu(HandleToggleMenu);
     menu.SetTitle("HP Sprite");
@@ -1174,14 +1150,16 @@ public void CreateToggleMenu(int client)
 
 /****************************************************************************************************/
 
-public int HandleToggleMenu(Menu menu, MenuAction action, int client, int args)
+int HandleToggleMenu(Menu menu, MenuAction action, int param1, int param2)
 {
     switch (action)
     {
         case MenuAction_Select:
         {
+            int client = param1;
+
             char sArg[2];
-            menu.GetItem(args, sArg, sizeof(sArg));
+            menu.GetItem(param2, sArg, sizeof(sArg));
 
             bool disable = (StringToInt(sArg) == 1 ? true : false);
             gc_bDisable[client] = disable;
@@ -1201,13 +1179,10 @@ public int HandleToggleMenu(Menu menu, MenuAction action, int client, int args)
 }
 
 // ====================================================================================================
-// Public Commands
+// Commands
 // ====================================================================================================
-public Action CmdHpMenu(int client, int args)
+Action CmdHpMenu(int client, int args)
 {
-    if (!g_bConfigLoaded)
-        return Plugin_Handled;
-
     if (!g_bCvar_Enabled)
         return Plugin_Handled;
 
@@ -1221,11 +1196,8 @@ public Action CmdHpMenu(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdHideHp(int client, int args)
+Action CmdHideHp(int client, int args)
 {
-    if (!g_bConfigLoaded)
-        return Plugin_Handled;
-
     if (!g_bCvar_Enabled)
         return Plugin_Handled;
 
@@ -1240,11 +1212,8 @@ public Action CmdHideHp(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdShowHp(int client, int args)
+Action CmdShowHp(int client, int args)
 {
-    if (!g_bConfigLoaded)
-        return Plugin_Handled;
-
     if (!g_bCvar_Enabled)
         return Plugin_Handled;
 
@@ -1260,7 +1229,7 @@ public Action CmdShowHp(int client, int args)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1270,40 +1239,54 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_hp_sprite_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_hp_sprite_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_cookies : %b (%s)", g_bCvar_Cookies, g_bCvar_Cookies ? "true" : "false");
-    PrintToConsole(client, "l4d_hp_sprite_render_interval : %.2f", g_fCvar_RenderInterval);
-    PrintToConsole(client, "l4d_hp_sprite_z_axis : %.2f", g_fCvar_ZAxis);
+    PrintToConsole(client, "l4d_hp_sprite_render_interval : %.1f", g_fCvar_RenderInterval);
+    PrintToConsole(client, "l4d_hp_sprite_z_axis : %.1f", g_fCvar_ZAxis);
     PrintToConsole(client, "l4d_hp_sprite_fade_distance : %i", g_iCvar_FadeDistance);
     PrintToConsole(client, "l4d_hp_sprite_sight : %b (%s)", g_bCvar_Sight, g_bCvar_Sight ? "true" : "false");
-    PrintToConsole(client, "l4d_hp_sprite_attack_delay : %.2f (%s)", g_fCvar_AttackDelay, g_bCvar_AttackDelay ? "true" : "false");
+    PrintToConsole(client, "l4d_hp_sprite_attack_delay : %.1f (%s)", g_fCvar_AttackDelay, g_bCvar_AttackDelay ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_gradient_color : %b (%s)", g_bCvar_GradientColor, g_bCvar_GradientColor ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_alive_show : %b (%s)", g_bCvar_AliveShow, g_bCvar_AliveShow ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_alive_model : \"%s\"", g_sCvar_AliveModel);
     PrintToConsole(client, "l4d_hp_sprite_alive_alpha : %i", g_iCvar_AliveAlpha);
-    PrintToConsole(client, "l4d_hp_sprite_alive_scale : %.2f", g_fCvar_AliveScale);
+    PrintToConsole(client, "l4d_hp_sprite_alive_scale : %.1f", g_fCvar_AliveScale);
     PrintToConsole(client, "l4d_hp_sprite_dead_show : %b (%s)", g_bCvar_DeadShow, g_bCvar_DeadShow ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_dead_model : \"%s\"", g_sCvar_DeadModel);
     PrintToConsole(client, "l4d_hp_sprite_dead_alpha : %i", g_iCvar_DeadAlpha);
-    PrintToConsole(client, "l4d_hp_sprite_dead_scale : %.2f", g_fCvar_DeadScale);
+    PrintToConsole(client, "l4d_hp_sprite_dead_scale : %.1f", g_fCvar_DeadScale);
     PrintToConsole(client, "l4d_hp_sprite_dead_color : \"%s\"", g_sCvar_DeadColor);
     PrintToConsole(client, "l4d_hp_sprite_pulse : %i", g_iCvar_Pulse);
     PrintToConsole(client, "l4d_hp_sprite_remove_blur : %b (%s)", g_bCvar_RemoveBlur, g_bCvar_RemoveBlur ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_black_and_white : %b (%s)", g_bCvar_BlackAndWhite, g_bCvar_BlackAndWhite ? "true" : "false");
-    PrintToConsole(client, "l4d_hp_sprite_team : %i", g_iCvar_Team);
-    PrintToConsole(client, "l4d_hp_sprite_survivor_team : %i", g_iCvar_SurvivorTeam);
-    PrintToConsole(client, "l4d_hp_sprite_infected_team : %i", g_iCvar_InfectedTeam);
-    PrintToConsole(client, "l4d_hp_sprite_spectator_team : %i", g_iCvar_SpectatorTeam);
+    PrintToConsole(client, "l4d_hp_sprite_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
+    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_hp_sprite_survivor_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_SurvivorTeam,
+    g_iCvar_SurvivorTeam & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_SurvivorTeam & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_SurvivorTeam & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_SurvivorTeam & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_hp_sprite_infected_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_InfectedTeam,
+    g_iCvar_InfectedTeam & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_InfectedTeam & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_InfectedTeam & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_InfectedTeam & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_hp_sprite_spectator_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_SpectatorTeam,
+    g_iCvar_SpectatorTeam & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_SpectatorTeam & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_SpectatorTeam & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_SpectatorTeam & FLAG_TEAM_HOLDOUT ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_multiply_alpha_team : %i", g_iCvar_MultiplyAlphaTeam);
     PrintToConsole(client, "l4d_hp_sprite_client_alpha_max : %i (%s)", g_iCvar_ClientAlphaMax, g_bCvar_ClientAlphaMax ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_custom_model : %b (%s)", g_bCvar_CustomModel, g_bCvar_CustomModel ? "true" : "false");
     PrintToConsole(client, "l4d_hp_sprite_custom_model_vmt : \"%s\"", g_sCvar_CustomModelVMT);
     PrintToConsole(client, "l4d_hp_sprite_custom_model_vtf : \"%s\"", g_sCvar_CustomModelVTF);
-    PrintToConsole(client, "l4d_hp_sprite_si : %i", g_iCvar_SI);
+    if (g_bL4D2)
+    {
+        PrintToConsole(client, "l4d_hp_sprite_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
+    else
+    {
+        PrintToConsole(client, "l4d_hp_sprite_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "survivor_incap_health : %i", g_iCvar_survivor_incap_health);
     PrintToConsole(client, "survivor_max_incapacitated_count : %i", g_iCvar_survivor_max_incapacitated_count);
-    PrintToConsole(client, "pain_pills_decay_rate : %.2f", g_fCvar_pain_pills_decay_rate);
+    PrintToConsole(client, "pain_pills_decay_rate : %.1f", g_fCvar_pain_pills_decay_rate);
     PrintToConsole(client, "survivor_limp_health : %i", g_iCvar_survivor_limp_health);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1337,19 +1320,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/

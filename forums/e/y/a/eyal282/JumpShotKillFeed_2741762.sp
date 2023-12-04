@@ -1,6 +1,9 @@
 #pragma semicolon 1
-#include sdktools
-#include sdkhooks
+#pragma newdecls required
+
+#include <sourcemod>
+#include <sdktools>
+#include <sdkhooks>
 
 #define JUMP_SHOT 1
 
@@ -14,9 +17,11 @@ public Plugin myinfo =
 	name = "Jump Shot Kill Feed",
 	description = "Отображает больше информации при убийстве",
 	author = "Plugin first made by Phoenix (˙·٠●Феникс●٠·˙), functionality added by Eyal282",
-	version = "1.2",
+	version = "1.3",
 	url = "zizt.ru hlmod.ru"
 };
+
+Handle fwJumpshot = INVALID_HANDLE;
 
 public void OnPluginStart()
 {
@@ -26,6 +31,8 @@ public void OnPluginStart()
 	{
 		OnClientPutInServer(i);
 	}
+
+	fwJumpshot = CreateGlobalForward("JumpShotKillFeed_OnDeathEventEdit", ET_Event, Param_Cell);
 }
 
 char sPath[] = "materials/panorama/images/icons/equipment/";
@@ -55,9 +62,12 @@ public void OnTakeDamageAlivePost(int iClient, int attacker, int inflictor, floa
 
 public Action Event_player_death(Event event, const char[] name, bool dontBroadcast)
 {
-	int userid = event.GetInt("userid"), attacker = event.GetInt("attacker"), iClient, iAttacker;
+	int userid = event.GetInt("userid");
+	int attacker = event.GetInt("attacker");
 	
-	if(userid != attacker && (iClient = GetClientOfUserId(userid)) && (iAttacker = GetClientOfUserId(attacker)))
+	int iAttacker;
+	
+	if(userid != attacker && GetClientOfUserId(userid) != 0 && (iAttacker = GetClientOfUserId(attacker)))
 	{
 		char sWeapon[64];
 		event.GetString("weapon", sWeapon, sizeof sWeapon);
@@ -79,6 +89,12 @@ public Action Event_player_death(Event event, const char[] name, bool dontBroadc
 				if(FileExists(sBuf))
 				{
 					event.SetString("weapon", sWeapon);
+
+					Call_StartForward(fwJumpshot);
+
+					Call_PushCell(event);
+
+					Call_Finish();
 
 					return Plugin_Changed;
 				}

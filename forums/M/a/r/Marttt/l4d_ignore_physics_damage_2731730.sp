@@ -91,27 +91,32 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Survivor;
-static ConVar g_hCvar_SI;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Survivor;
+ConVar g_hCvar_SI;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Survivor;
+bool g_bL4D2;
+bool g_bCvar_Enabled;
+bool g_bCvar_Survivor;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_SI;
+int g_iCvar_SI;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_Survivor;
+float g_fCvar_Survivor;
+
+// ====================================================================================================
+// client - Plugin Variables
+// ====================================================================================================
+bool gc_bTakeDamageHooked[MAXPLAYERS+1];
+
 // ====================================================================================================
 // Plugin Start
 // ====================================================================================================
@@ -160,21 +165,19 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_Survivor = g_hCvar_Survivor.FloatValue;
@@ -184,7 +187,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -199,15 +202,23 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
+    if (gc_bTakeDamageHooked[client])
         return;
 
+    gc_bTakeDamageHooked[client] = true;
     SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+public void OnClientDisconnect(int client)
+{
+    gc_bTakeDamageHooked[client] = false;
+}
+
+/****************************************************************************************************/
+
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
@@ -215,13 +226,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
     if (damagetype != DMG_CRUSH)
         return Plugin_Continue;
 
-    if (!IsValidEntityIndex(inflictor))
-        return Plugin_Continue;
-
     if (!IsValidEntity(inflictor))
         return Plugin_Continue;
 
-    if (!HasEntProp(inflictor, Prop_Send, "m_isCarryable")) // CPhysicsProp
+    if (!HasEntProp(inflictor, Prop_Send, "m_hasTankGlow")) // CPhysicsProp
         return Plugin_Continue;
 
     if (!IsValidClient(victim))
@@ -235,6 +243,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 return Plugin_Continue;
 
             damage = 0.0;
+
             return Plugin_Changed;
         }
         case TEAM_SURVIVOR, TEAM_HOLDOUT:
@@ -246,6 +255,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 return Plugin_Continue;
 
             damage = 0.0;
+
             return Plugin_Changed;
         }
     }
@@ -256,7 +266,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -265,8 +275,18 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_ignore_physics_damage_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_ignore_physics_damage_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_ignore_physics_damage_survivor : %.2f (%s)", g_fCvar_Survivor, g_bCvar_Survivor ? "true" : "false");
-    PrintToConsole(client, "l4d_ignore_physics_damage_si : %i (%s)", g_iCvar_SI, g_iCvar_SI > 0 ? "true" : "false");
+    PrintToConsole(client, "l4d_ignore_physics_damage_survivor : %.1f", g_fCvar_Survivor);
+    if (g_bL4D2)
+    {
+        PrintToConsole(client, "l4d_ignore_physics_damage_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
+    else
+    {
+        PrintToConsole(client, "l4d_ignore_physics_damage_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -299,19 +319,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/

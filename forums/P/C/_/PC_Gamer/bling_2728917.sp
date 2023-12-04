@@ -5,11 +5,12 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.7"
+#define PLUGIN_VERSION "1.8"
 
-bool g_bRTouched[MAXPLAYERS+1] = false;
+bool g_bRTouched[MAXPLAYERS+1] = {true, ...};
 bool g_bMedieval;
 ConVar g_hRHEnabled;
+ConVar g_hPreventRandomClass;
 Handle g_hEquipWearable;
 
 bool g_bIsBling[MAXPLAYERS + 1];
@@ -31,6 +32,7 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_nobling", Command_NoBling);	
 	
 	g_hRHEnabled = CreateConVar("sm_bling_enabled", "1", "Enables/disables this plugin", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_hPreventRandomClass = CreateConVar("sm_bling_prevent_random_class", "1", "Enables/disables random classes on spawn", FCVAR_NONE, true, 0.0, true, 1.0);
 
 	HookEvent("player_spawn", player_spawned);
 	HookEvent("post_inventory_application", player_inv);
@@ -50,7 +52,6 @@ public void OnPluginStart()
 	SetFailState("Failed to create call: CBasePlayer::EquipWearable");
 
 	delete hTF2; 
-	
 }
 
 public void OnEnabledChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -81,7 +82,7 @@ public void OnMapStart()
 	}	
 }
 
-public Action Command_StartBling(int client, int args) 
+Action Command_StartBling(int client, int args) 
 {
 	char arg1[32];
 	if (args < 1)
@@ -110,7 +111,10 @@ public Action Command_StartBling(int client, int args)
 	{
 		makerandom(target_list[i]);
 		PrintToChat(target_list[i], "Bling is Enabled!");
-		//PrintToChat(target_list[i], "You will have a random class whenever you spawn,");
+		if (!g_hPreventRandomClass.BoolValue)
+		{
+			PrintToChat(target_list[i], "You will have a random class whenever you spawn,");
+		}
 		PrintToChat(target_list[i], "You will have random weapons and cosmetics,");	
 		PrintToChat(target_list[i], "Touch a locker to change your weapons and cosmetics");
 		PrintToChat(target_list[i], "To enable or disable Bling type: !bling");	
@@ -119,7 +123,7 @@ public Action Command_StartBling(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_StopBling(int client, int args) 
+Action Command_StopBling(int client, int args) 
 {
 	char arg1[32];
 	if (args < 1)
@@ -153,7 +157,7 @@ public Action Command_StopBling(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_Bling(int client, int args) 
+Action Command_Bling(int client, int args) 
 {
 	if(g_bIsBling[client])
 	{
@@ -164,7 +168,10 @@ public Action Command_Bling(int client, int args)
 	{
 		makerandom(client);
 		PrintToChat(client, "Bling is enabled!");
-		//PrintToChat(client, "You will have a random class whenever you spawn.");
+		if(!g_hPreventRandomClass.BoolValue)
+		{
+			PrintToChat(client, "You will have a random class whenever you spawn.");
+		}
 		PrintToChat(client, "You will have random weapons and cosmetics.");	
 		PrintToChat(client, "Touch a locker to change your weapons and cosmetics.");
 		PrintToChat(client, "To enable or disable Bling mode type: !bling.");
@@ -173,7 +180,7 @@ public Action Command_Bling(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_NoBling(int client, int args) 
+Action Command_NoBling(int client, int args) 
 {
 	g_bIsBling[client] = false;
 	PrintToChat(client, "Bling is Disabled!");
@@ -181,7 +188,7 @@ public Action Command_NoBling(int client, int args)
 	return Plugin_Handled;
 }
 
-public void makerandom(int client)
+void makerandom(int client)
 {
 	if (!GetConVarInt(g_hRHEnabled))
 	{
@@ -190,9 +197,11 @@ public void makerandom(int client)
 
 	if (IsPlayerHere(client))
 	{
-		//int ID = GetRandomUInt(1,9);
-		//TF2_SetPlayerClass(client, view_as<TFClassType>(ID), true, true);
-
+		if(!g_hPreventRandomClass.BoolValue)
+		{
+			int ID = GetRandomUInt(1,9);
+			TF2_SetPlayerClass(client, view_as<TFClassType>(ID), true, true);
+		}
 		if (!g_bRTouched[client])
 		{
 			TF2_RegeneratePlayer(client);
@@ -244,13 +253,13 @@ public void player_inv(Handle event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public Action Timer_GiveHat(Handle timer, any data)
+Action Timer_GiveHat(Handle timer, any data)
 {
 	int client = GetClientOfUserId(data);
 	g_bRTouched[client] = false;
 	if (!GetConVarInt(g_hRHEnabled))
 	{
-		return;
+		return Plugin_Handled;
 	}
 	
 	if (IsPlayerHere(client))
@@ -260,13 +269,13 @@ public Action Timer_GiveHat(Handle timer, any data)
 		{
 			TF2_RemoveAllWearables(client);
 			GiveHat2(client);
-			return;
+			return Plugin_Handled;
 		}
 		
 		TF2_RemoveAllWearables(client);	
 		if (TF2_GetPlayerClass(client) == TFClass_Scout)
 		{
-			int rnd3 = GetRandomInt(1,37);
+			int rnd3 = GetRandomInt(1,45);
 			switch (rnd3)
 			{
 			case 1:
@@ -492,12 +501,60 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31117, 10, 6, 0); //California Cap			
 					CreateHat(client, 31118, 10, 6, 0); //Poolside Polo
 					CreateHat(client, 31119, 10, 6, 0); //Tools of the Tourist				
+				}
+			case 38:
+				{
+					CreateHat(client, 31195, 10, 6, 1); //Fast Food
+					CreateHat(client, 31196, 10, 6, 0); //Fried Batter			
+					CreateHat(client, 31197, 10, 6, 0); //Meal Dealer
+				}
+			case 39:
+				{
+					CreateHat(client, 765, 10, 6, 1); //Cross Com Express
+					CreateHat(client, 31138, 10, 6, 0); //Grounded Flyboy			
+					CreateHat(client, 30754, 10, 6, 0); //Hot Heels
+				}
+			case 40:
+				{
+					CreateHat(client, 31284, 10, 6, 1); //Boston Brain Bucket
+					CreateHat(client, 31283, 10, 6, 0); //Team Player			
+					CreateHat(client, 31285, 10, 6, 0); //Pests Pads
+				}
+			case 41:
+				{
+					CreateHat(client, 31284, 10, 6, 1); //Throttlehead
+					CreateHat(client, 31282, 10, 6, 0); //Ripped Rider	
+					CreateHat(client, 31339, 10, 6, 0); //Motley Sleeves					
+					CreateHat(client, 30561, 10, 6, 0); //Bootenkhamuns
+				}
+			case 42:
+				{
+					CreateHat(client, 652, 10, 6, 1); //Big Elfin Deal
+					CreateHat(client, 31258, 10, 6, 0); //Seasonal Employee		
+					CreateHat(client, 653, 10, 6, 0); //Bootie Time
+				}
+			case 43:
+				{
+					CreateHat(client, 31229, 10, 6, 1); //Batters Beak
+					CreateHat(client, 31133, 10, 6, 0); //Boom Boxers			
+					CreateHat(client, 30754, 10, 6, 0); //Hot Heels
+				}
+			case 44:
+				{
+					CreateHat(client, 31232, 10, 6, 1); //Computron 5000
+					CreateHat(client, 30888, 10, 6, 0); //Jungle Jersey			
+					CreateHat(client, 30890, 10, 6, 0); //Forest Footwear
+				}
+			case 45:
+				{
+					CreateHat(client, 31303, 10, 6, 1); //Masked Fiend
+					CreateHat(client, 31302, 10, 6, 0); //Imps Imprint		
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Soldier)
 		{
-			int rnd3 = GetRandomInt(1,41);
+			int rnd3 = GetRandomInt(1,47);
 			switch (rnd3)
 			{
 			case 1:
@@ -744,12 +801,42 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 30969, 10, 6, 1); //Brass Bucket
 					CreateHat(client, 30129, 10, 6, 0); //Hornblower		
 					CreateHat(client, 556, 10, 6, 0); //Steel Pipes
+				}
+			case 42:
+				{
+					CreateHat(client, 30984, 10, 6, 1); //Sky High Fly Guy
+					CreateHat(client, 31137, 10, 6, 0); //War Blunder		
+				}
+			case 43:
+				{
+					CreateHat(client, 31230, 10, 6, 1); //War Dog
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
+				}
+			case 44:
+				{
+					CreateHat(client, 31310, 10, 6, 1); //Firearm Protector
+					CreateHat(client, 31311, 10, 6, 0); //Safety Stripes		
+				}
+			case 45:
+				{
+					CreateHat(client, 31228, 10, 6, 1); //Poopy Doe
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
+				}
+			case 46:
+				{
+					CreateHat(client, 31277, 10, 6, 1); //Detective
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
+				}
+			case 47:
+				{
+					CreateHat(client, 31312, 10, 6, 1); //Cranial Cowl
+					CreateHat(client, 31276, 10, 6, 0); //Chaser		
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Pyro)
 		{
-			int rnd3 = GetRandomInt(1,42);
+			int rnd3 = GetRandomInt(1,50);
 			switch (rnd3)
 			{
 			case 1:
@@ -993,12 +1080,59 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 1014, 10, 6, 1); //Brutal Bouffant
 					CreateHat(client, 31060, 10, 6, 0); //Binoculus		
 					CreateHat(client, 30391, 10, 6, 0); //Sengoku Scorcher
+				}
+			case 43:
+				{
+					CreateHat(client, 31222, 10, 6, 1); //Smiling Somen
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi	
+					CreateHat(client, 30321, 10, 6, 0); //Tiny Timber
+				}
+			case 44:
+				{
+					CreateHat(client, 31221, 10, 6, 1); //Wandering Wraith
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi
+					CreateHat(client, 31220, 10, 6, 0); //Tricksters Treats						
+				}
+			case 45:
+				{
+					CreateHat(client, 31186, 10, 6, 1); //Reel Fly Hat
+					CreateHat(client, 31188, 10, 6, 0); //Water Waders
+					CreateHat(client, 31187, 10, 6, 0); //Hook Line Cinder					
+				}
+			case 46:
+				{
+					CreateHat(client, 31231, 10, 6, 1); //Miami Rooster
+					CreateHat(client, 31051, 10, 6, 0); //Wanderers Wear
+				}
+			case 47:
+				{
+					CreateHat(client, 31296, 10, 6, 1); //Propaniac
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi
+					CreateHat(client, 30020, 10, 6, 0); //Scrap Stack					
+				}
+			case 48:
+				{
+					CreateHat(client, 31317, 10, 6, 1); //Fire Breather
+					CreateHat(client, 31263, 10, 6, 0); //Kazan Karategi
+					CreateHat(client, 30020, 10, 6, 0); //Scrap Sack					
+				}
+			case 49:
+				{
+					CreateHat(client, 30928, 10, 6, 1); //Balloonihoodie
+					CreateHat(client, 31318, 10, 6, 0); //Magical Mount
+					CreateHat(client, 738, 10, 6, 0); //Balloonicorn					
+				}
+			case 50:
+				{
+					CreateHat(client, 30032, 10, 6, 1); //Rusty Reaper
+					CreateHat(client, 30020, 10, 6, 0); //Scrap Sack
+					CreateHat(client, 30584, 10, 6, 0); //Charred Chainmail					
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_DemoMan)
 		{
-			int rnd3 = GetRandomInt(1,35);
+			int rnd3 = GetRandomInt(1,37);
 			switch (rnd3)
 			{
 			case 1:
@@ -1213,12 +1347,24 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 30348, 10, 6, 0); //Bushi Dou
 					CreateHat(client, 30366, 10, 6, 0); //Sangu Sleeves
 					CreateHat(client, 30742, 10, 6, 0); //Shin Shredders					
+				}
+			case 36:
+				{
+					CreateHat(client, 30393, 10, 6, 1); //Razor Cut
+					CreateHat(client, 31274, 10, 6, 0); //Hawaiian Hangover		
+					CreateHat(client, 31275, 10, 6, 0); //Barefoot Brawler
+				}
+			case 37:
+				{
+					CreateHat(client, 31040, 10, 6, 1); //Unforgiven Glory
+					CreateHat(client, 31037, 10, 6, 0); //Dynamite Abs		
+					CreateHat(client, 31275, 10, 6, 0); //Barefoot Brawler
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Heavy)
 		{
-			int rnd3 = GetRandomInt(1,44);
+			int rnd3 = GetRandomInt(1,52);
 			switch (rnd3)
 			{
 			case 1:
@@ -1480,11 +1626,52 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31179, 10, 6, 0); //BedBug Protection
 					CreateHat(client, 31180, 10, 6, 0); //Bear Walker
 				}				
-			}
+			case 45:
+				{
+					CreateHat(client, 31267, 10, 6, 1); //Squatters Right
+					CreateHat(client, 31268, 10, 6, 0); //Combat Casual
+					CreateHat(client, 30563, 10, 6, 0); //Jungle Booty
+				}
+			case 46:
+				{
+					CreateHat(client, 31178, 10, 6, 1); //SandManns Brush
+					CreateHat(client, 31179, 10, 6, 0); //BedBug Protection
+					CreateHat(client, 31180, 10, 6, 0); //Bear Walker
+				}
+			case 47:
+				{
+					CreateHat(client, 31255, 10, 6, 1); //Mooshanka
+					CreateHat(client, 31268, 10, 6, 0); //Combat Casual
+				}
+			case 48:
+				{
+					CreateHat(client, 31029, 10, 6, 1); //Cool Capuchon
+					CreateHat(client, 31079, 10, 6, 0); //Soviet Strongmann
+					CreateHat(client, 31123, 10, 6, 0); //Momma Kiev
+				}
+			case 49:
+				{
+					CreateHat(client, 31232, 10, 6, 1); //Computron 5000
+					CreateHat(client, 777, 10, 6, 0); //Apparatchiks Apparel
+				}
+			case 50:
+				{
+					CreateHat(client, 31304, 10, 6, 1); //Horrow Shawl
+				}
+			case 51:
+				{
+					CreateHat(client, 31315, 10, 6, 1); //Mishas Maw
+				}
+			case 52:
+				{
+					CreateHat(client, 31305, 10, 6, 1); //Road Rage
+					CreateHat(client, 31306, 10, 6, 0); //Road Block						
+				}				
+			}		
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Engineer)
 		{
-			int rnd3 = GetRandomInt(1,36);
+			int rnd3 = GetRandomInt(1,43);
 			switch (rnd3)
 			{
 			case 1:
@@ -1705,11 +1892,53 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 30337, 10, 6, 0); //Trenchers Tunic					
 					CreateHat(client, 31013, 10, 6, 0); //Mini Engy
 				}
+			case 37:
+				{
+					CreateHat(client, 31150, 10, 6, 1); //Goblineer
+					CreateHat(client, 31151, 10, 6, 0); //Ghoul Box					
+					CreateHat(client, 31013, 10, 6, 0); //Mini Engy
+				}
+			case 38:
+				{
+					CreateHat(client, 31272, 10, 6, 1); //Lawnmaker
+					CreateHat(client, 31264, 10, 6, 0); //Western Wraps				
+					CreateHat(client, 386, 10, 6, 0); //Teddy Robobelt
+				}
+			case 39:
+				{
+					CreateHat(client, 31140, 10, 6, 1); //Pug Mug
+					CreateHat(client, 30785, 10, 6, 0); //Dad Duds			
+					CreateHat(client, 31032, 10, 6, 0); //Puggyback
+				}
+			case 40:
+				{
+					CreateHat(client, 31140, 10, 6, 1); //Computron 5000
+					CreateHat(client, 30508, 10, 6, 0); //Iron Fist			
+					CreateHat(client, 30821, 10, 6, 0); //Packable Provisions
+				}
+			case 41:
+				{
+					CreateHat(client, 31148, 10, 6, 1); //Wavefinder
+					CreateHat(client, 30402, 10, 6, 0); //Tools of the Trade		
+					CreateHat(client, 1089, 10, 6, 0); //Mister Bubbles
+				}
+			case 42:
+				{
+					CreateHat(client, 31097, 10, 6, 1); //Provisions Cap
+					CreateHat(client, 30821, 10, 6, 0); //Packable Provisions
+					CreateHat(client, 31013, 10, 6, 0); //Mini Engy					
+				}
+			case 43:
+				{
+					CreateHat(client, 31298, 10, 6, 1); //More Gun Marshal
+					CreateHat(client, 30635, 10, 6, 0); //Wild West Waistcoad
+					CreateHat(client, 31319, 10, 6, 0); //Pony Express					
+				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Medic)
 		{
-			int rnd3 = GetRandomInt(1,38);
+			int rnd3 = GetRandomInt(1,43);
 			switch (rnd3)
 			{
 			case 1:
@@ -1939,12 +2168,39 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31177, 10, 6, 0); //NightWard
 					CreateHat(client, 31163, 10, 6, 0); //Particulate Protector
 					CreateHat(client, 31078, 10, 6, 0); //Derangement Garment	
+				}
+			case 39:
+				{
+					CreateHat(client, 30862, 10, 6, 1); //Field Practice
+					CreateHat(client, 31139, 10, 6, 0); //Rolfe Copter
+				}
+			case 40:
+				{
+					CreateHat(client, 31265, 10, 6, 1); //Soda Cap
+					CreateHat(client, 31266, 10, 6, 0); //Fizzy Pharmacist			
+				}
+			case 41:
+				{
+					CreateHat(client, 31027, 10, 6, 1); //Misers Muttonchops
+					CreateHat(client, 31177, 10, 6, 0); //Night Ward	
+					CreateHat(client, 31033, 10, 6, 0); //Harry		
+				}
+			case 42:
+				{
+					CreateHat(client, 31232, 10, 6, 1); //Computron 5000
+					CreateHat(client, 30756, 10, 6, 0); //Bunnyhoppers Ballistics Vest	
+					CreateHat(client, 31019, 10, 6, 0); //Pocket Admin	
+				}
+			case 43:
+				{
+					CreateHat(client, 31300, 10, 6, 1); //Victorian Villainy
+					CreateHat(client, 31299, 10, 6, 0); //Lavish Labwear
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Sniper)
 		{
-			int rnd3 = GetRandomInt(1,40);
+			int rnd3 = GetRandomInt(1,44);
 			switch (rnd3)
 			{
 			case 1:
@@ -2185,12 +2441,35 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 344, 10, 6, 1); //Crocleather Slouch
 					CreateHat(client, 30317, 10, 6, 0); //Five Month Shadow		
 					CreateHat(client, 645, 10, 6, 0); //The Outback Intellectual
+				}
+			case 41:
+				{
+					CreateHat(client, 31192, 10, 6, 1); //Wild Brim Slouch
+					CreateHat(client, 31193, 10, 6, 0); //Crocodile Dandy	
+					CreateHat(client, 31269, 10, 6, 0); //Rocko
+				}
+			case 42:
+				{
+					CreateHat(client, 31271, 10, 6, 1); //Hawaiian Hunter
+					CreateHat(client, 31270, 10, 6, 0); //Tropical Camo
+					CreateHat(client, 824, 10, 6, 0); //Koala Compact
+				}
+			case 43:
+				{
+					CreateHat(client, 31101, 10, 6, 1); //Missing Piece
+					CreateHat(client, 31102, 10, 6, 0); //Mislaid Sweater
+					CreateHat(client, 30424, 10, 6, 0); //Triggermans Tacticals
+				}
+			case 44:
+				{
+					CreateHat(client, 31313, 10, 6, 1); //Headhunters Brim
+					CreateHat(client, 31314, 10, 6, 0); //Hunting Cloak
 				}				
 			}
 		}
 		if (TF2_GetPlayerClass(client) == TFClass_Spy)
 		{
-			int rnd3 = GetRandomInt(1,41);
+			int rnd3 = GetRandomInt(1,43);
 			switch (rnd3)
 			{
 			case 1:
@@ -2436,11 +2715,21 @@ public Action Timer_GiveHat(Handle timer, any data)
 					CreateHat(client, 31109, 10, 6, 1); //Crabe de Chapeau
 					CreateHat(client, 31110, 10, 6, 0); //Birds Eye Viewer			
 					CreateHat(client, 31124, 10, 6, 0); //Smoking Jacket
+				}
+			case 42:
+				{
+					CreateHat(client, 31279, 10, 6, 1); //Night Vision Gawkers
+					CreateHat(client, 31278, 10, 6, 0); //Tactical Turtleneck			
+				}
+			case 43:
+				{
+					CreateHat(client, 30404, 10, 6, 1); //Aviator Assassin
+					CreateHat(client, 31301, 10, 6, 0); //Turncoat		
 				}				
 			}
-		}		
+		}			
 	}
-	return;
+	return Plugin_Handled;
 }
 
 public Action GiveHat2(int client)
@@ -2448,12 +2737,12 @@ public Action GiveHat2(int client)
 	g_bRTouched[client] = false;
 	if (!GetConVarInt(g_hRHEnabled))
 	{
-		return;
+		return Plugin_Handled;
 	}
 	
 	if (IsPlayerHere(client))
 	{
-		int rnd3 = GetRandomInt(1,26);
+		int rnd3 = GetRandomInt(1,29);
 		switch (rnd3)
 		{
 			//ALLCLASS
@@ -2612,10 +2901,25 @@ public Action GiveHat2(int client)
 				CreateHat(client, 31173, 10, 6, 1); //Towering Pile of Presents
 				CreateHat(client, 31093, 10, 6, 0); //Glittering Garland
 				CreateHat(client, 31167, 10, 6, 0); //Festive Flip Thwomps
-			}			
+			}
+		case 27:
+			{
+				CreateHat(client, 31245, 10, 6, 1); //Oh Deer
+				CreateHat(client, 30972, 10, 6, 0); //Pocket Santa
+			}
+		case 28:
+			{
+				CreateHat(client, 31259, 10, 6, 1); //Hat Chocolate
+				CreateHat(client, 30972, 10, 6, 0); //Pocket Santa
+			}
+		case 29:
+			{
+				CreateHat(client, 31183, 10, 6, 1); //Ballooniphones
+				CreateHat(client, 30929, 10, 6, 0); //Pocket Yeti
+			}				
 		}
 	}
-	return;
+	return Plugin_Handled;
 }
 
 bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
@@ -2661,7 +2965,7 @@ bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
 		if (GetRandomInt(1,3) == 1)
 		{
 			SetEntData(hat, FindSendPropInfo(entclass, "m_iEntityQuality"), 5);	
-			TF2Attrib_SetByDefIndex(hat, 134, GetRandomInt(1,174) + 0.0);
+			TF2Attrib_SetByDefIndex(hat, 134, GetRandomInt(1,278) + 0.0);
 		}
 	}
 
@@ -2673,7 +2977,7 @@ bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
 	
 	if(itemindex == 1158 || itemindex == 1173)
 	{
-		TF2Attrib_SetByDefIndex(hat, 134, GetRandomUInt(1,174) + 0.0);
+		TF2Attrib_SetByDefIndex(hat, 134, GetRandomUInt(1,278) + 0.0);
 	}
 	
 	if (GetRandomUInt(1,3) == 1)
@@ -2836,13 +3140,13 @@ bool CreateHat(int client, int itemindex, int level, int quality, int unusual)
 	return true;
 } 
 
-public Action Timer_GiveWeapons(Handle timer, any data)
+Action Timer_GiveWeapons(Handle timer, any data)
 {
 	int client = GetClientOfUserId(data);
 	
 	if (!GetConVarBool(g_hRHEnabled) || !IsPlayerHere(client))
 	{
-		return;
+		return Plugin_Handled;
 	}
 
 	g_bRTouched[client] = false;
@@ -4016,7 +4320,7 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 					}
 				case 9:
 					{
-						CreateWeapon(client, "tf_weapon_parachute", 1101, 6);
+						CreateWeapon(client, "tf_weapon_parachute_secondary", 1101, 6);
 					}
 				case 10:
 					{
@@ -4189,7 +4493,7 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 		{
 			if (!g_bMedieval)
 			{
-				int rnd = GetRandomUInt(1,6); 
+				int rnd = GetRandomUInt(1,9); 
 				TF2_RemoveWeaponSlot(client, 0);
 				
 				switch (rnd)
@@ -4241,11 +4545,11 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 					}
 				case 4:
 					{
-						CreateWeapon(client, "tf_weapon_parachute", 1101, 6);
+						CreateWeapon(client, "tf_weapon_parachute_primary", 1101, 6);
 					}
 				case 5:
 					{
-						int rnd9 = GetRandomUInt(1,2);
+						int rnd9 = GetRandomUInt(1,3);
 						switch (rnd9)
 						{
 						case 1:
@@ -4256,74 +4560,63 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 							{
 								CreateWeapon(client, "tf_weapon_cannon", 996, 16);
 							}
+						case 3:
+							{
+								CreateWeapon(client, "tf_weapon_cannon", 996, 16);
+							}							
 						}
 					}
 				case 6:
 					{
-						int rnd7 = GetRandomUInt(1,6);
+						int rnd7 = GetRandomUInt(1,8);
 						switch (rnd7)
 						{
 						case 1:
 							{
-								CreateWeapon(client, "tf_weapon_grenadelauncher", 19, 5);
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15077, 15);
 							}
 						case 2:
 							{
-								CreateWeapon(client, "tf_weapon_grenadelauncher", 1007, 6);
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15079, 15);
 							}
 						case 3:
 							{
-								int rnd11 = GetRandomUInt(1,8);
-								switch (rnd11)
-								{
-								case 1:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15077, 15);
-									}
-								case 2:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15079, 15);
-									}
-								case 3:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15091, 15);
-									}
-								case 4:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15092, 15);
-									}
-								case 5:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15116, 15);
-									}
-								case 6:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15117, 15);
-									}
-								case 7:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15142, 15);
-									}
-								case 8:
-									{
-										CreateWeapon(client, "tf_weapon_grenadelauncher", 15158, 15);
-									}
-								}
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15091, 15);
 							}
 						case 4:
 							{
-								CreateWeapon(client, "tf_weapon_grenadelauncher", 206, 11);
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15092, 15);
 							}
 						case 5:
 							{
-								CreateWeapon(client, "tf_weapon_grenadelauncher", 206, 9);
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15116, 15);
 							}
 						case 6:
 							{
-								CreateWeapon(client, "tf_weapon_grenadelauncher", 206, 16);
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15117, 15);
+							}
+						case 7:
+							{
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15142, 15);
+							}
+						case 8:
+							{
+								CreateWeapon(client, "tf_weapon_grenadelauncher", 15158, 15);
 							}
 						}
-					}	
+					}
+				case 7:
+					{
+						CreateWeapon(client, "tf_weapon_grenadelauncher", 206, 16);
+					}
+				case 8:
+					{
+						CreateWeapon(client, "tf_weapon_grenadelauncher", 206, 16);
+					}
+				case 9:
+					{
+						CreateWeapon(client, "tf_weapon_grenadelauncher", 206, 16);
+					}					
 				}
 				
 				int rnd2 = GetRandomUInt(1,7); 
@@ -5407,40 +5700,18 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 		{
 			if (!g_bMedieval)
 			{
-				int rnd = GetRandomUInt(1,5);
+				int rnd = GetRandomUInt(1,13);
 				TF2_RemoveWeaponSlot(client, 0);
 
 				switch (rnd)
 				{
 				case 1:
 					{
-						int rnd5 = GetRandomUInt(1,2);
-						switch (rnd5)
-						{
-						case 1:
-							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 40, 6);
-							}
-						case 2:
-							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 1146, 6);
-							}
-						}
+						CreateWeapon(client, "tf_weapon_flamethrower", 40, 6);
 					}
 				case 2:
 					{
-						int rnd9 = GetRandomUInt(1,2);
-						switch (rnd9)
-						{
-						case 1:
-							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 215, 6);
-							}
-						case 2:
-							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 215, 16);
-							}
-						}
+						CreateWeapon(client, "tf_weapon_flamethrower", 215, 16);
 					}
 				case 3:
 					{
@@ -5452,137 +5723,130 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 					}
 				case 5:
 					{
-						int rnd4 = GetRandomUInt(1,9);
-						switch (rnd4)
+						CreateWeapon(client, "tf_weapon_flamethrower", 741, 6);
+					}
+				case 6:
+					{
+						CreateWeapon(client, "tf_weapon_flamethrower", 30474, 6);
+					}
+				case 7:
+					{
+						int rnd15 = GetRandomUInt(1,8);
+						switch (rnd15)
 						{
 						case 1:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 21, 5);
+								CreateWeapon(client, "tf_weapon_flamethrower", 798, 11);
 							}
 						case 2:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 741, 6);
+								CreateWeapon(client, "tf_weapon_flamethrower", 807, 11);
 							}
 						case 3:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 30474, 6);
+								CreateWeapon(client, "tf_weapon_flamethrower", 887, 11);
 							}
 						case 4:
 							{
-								int rnd15 = GetRandomUInt(1,8);
-								switch (rnd15)
-								{
-								case 1:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 798, 11);
-									}
-								case 2:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 807, 11);
-									}
-								case 3:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 887, 11);
-									}
-								case 4:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 896, 11);
-									}
-								case 5:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 905, 11);
-									}
-								case 6:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 914, 11);
-									}
-								case 7:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 963, 11);
-									}
-								case 8:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 972, 11);
-									}
-								}
+								CreateWeapon(client, "tf_weapon_flamethrower", 896, 11);
 							}
 						case 5:
 							{
-								int rnd12 = GetRandomUInt(1,13);
-								switch (rnd12)
-								{
-								case 1:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15005, 15);
-									}
-								case 2:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15017, 15);
-									}
-								case 3:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15030, 15);
-									}
-								case 4:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15034, 15);
-									}
-								case 5:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15049, 15);
-									}
-								case 6:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15054, 15);
-									}
-								case 7:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15066, 15);
-									}
-								case 8:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15067, 15);
-									}
-								case 9:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15068, 15);
-									}
-								case 10:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15089, 15);
-									}
-								case 11:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15090, 15);
-									}
-								case 12:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15115, 15);
-									}
-								case 13:
-									{
-										CreateWeapon(client, "tf_weapon_flamethrower", 15141, 15);
-									}
-								}
+								CreateWeapon(client, "tf_weapon_flamethrower", 905, 11);
 							}
 						case 6:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 659, 6);
+								CreateWeapon(client, "tf_weapon_flamethrower", 914, 11);
 							}
 						case 7:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 208, 11);
+								CreateWeapon(client, "tf_weapon_flamethrower", 963, 11);
 							}
 						case 8:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 208, 9);
+								CreateWeapon(client, "tf_weapon_flamethrower", 972, 11);
+							}
+						}
+					}
+				case 8:
+					{
+						int rnd12 = GetRandomUInt(1,13);
+						switch (rnd12)
+						{
+						case 1:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15005, 15);
+							}
+						case 2:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15017, 15);
+							}
+						case 3:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15030, 15);
+							}
+						case 4:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15034, 15);
+							}
+						case 5:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15049, 15);
+							}
+						case 6:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15054, 15);
+							}
+						case 7:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15066, 15);
+							}
+						case 8:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15067, 15);
 							}
 						case 9:
 							{
-								CreateWeapon(client, "tf_weapon_flamethrower", 208, 16);
+								CreateWeapon(client, "tf_weapon_flamethrower", 15068, 15);
+							}
+						case 10:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15089, 15);
+							}
+						case 11:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15090, 15);
+							}
+						case 12:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15115, 15);
+							}
+						case 13:
+							{
+								CreateWeapon(client, "tf_weapon_flamethrower", 15141, 15);
 							}
 						}
-					}	
+					}
+				case 9:
+					{
+						CreateWeapon(client, "tf_weapon_flamethrower", 208, 9);
+					}
+				case 10:
+					{
+						CreateWeapon(client, "tf_weapon_flamethrower", 208, 16);
+					}
+				case 11:
+					{
+						CreateWeapon(client, "tf_weapon_flamethrower", 208, 16);
+					}
+				case 12:
+					{
+						CreateWeapon(client, "tf_weapon_flamethrower", 208, 16);
+					}
+				case 13:
+					{
+						CreateWeapon(client, "tf_weapon_flamethrower", 208, 16);
+					}					
 				}
 				
 				int rnd2 = GetRandomUInt(1,9);
@@ -6643,6 +6907,8 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 		}
 	}
 	CreateTimer(0.1, TimerHealth, client);
+	
+	return Plugin_Handled;	
 }
 
 bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int level = 0)
@@ -6779,10 +7045,17 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 	if (quality == 16)
 	{
 		quality = 14;
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 		TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(paint));
 
@@ -6835,7 +7108,7 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 		}
 	}
 	
-	if (itemindex == 405 || itemindex == 608 || itemindex == 1101 || itemindex == 133 || itemindex == 444 || itemindex == 57 || itemindex == 231 || itemindex == 642 || itemindex == 131 || itemindex == 406 || itemindex == 1099 || itemindex == 1144)
+	if (itemindex == 405 || itemindex == 608 || itemindex == 133 || itemindex == 444 || itemindex == 57 || itemindex == 231 || itemindex == 642 || itemindex == 131 || itemindex == 406 || itemindex == 1099 || itemindex == 1144)
 	{
 		DispatchSpawn(weapon);
 		SDKCall(g_hEquipWearable, client, weapon);
@@ -6924,7 +7197,7 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 				}				
 			}				
 		}
-		
+
 		int iRand2 = GetRandomUInt(1,2);
 		if (iRand2 == 1)
 		{			
@@ -6936,11 +7209,11 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 			TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(paint));
 			SetEntData(weapon, FindSendPropInfo(entclass, "m_iEntityQuality"), 5);
 		}
-		
+
 		DispatchSpawn(weapon);
 		EquipPlayerWeapon(client, weapon); 		
-		
 	}
+	
 	TF2_SwitchtoSlot(client, 0);
 	return true;
 }
@@ -6972,6 +7245,8 @@ Action TimerHealth(Handle timer, any client)
 	{
 		SetEntityHealth(client, hp);
 	}
+	
+	return Plugin_Handled;
 }
 
 int GetPlayerMaxHp(int client)

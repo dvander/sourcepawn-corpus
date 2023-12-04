@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.1"
+/*
+*	Special Infected Ignite Explosives
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.2"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.2 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.1 (04-Jun-2020)
 	- Added cvar "l4d_special_explosives_fire" to control if Special Infected need to be on fire.
@@ -212,7 +235,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -294,7 +317,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-public void OnSpawn(int entity)
+void OnSpawn(int entity)
 {
 	static char sTemp[45];
 	GetEntPropString(entity, Prop_Data, "m_ModelName", sTemp, sizeof(sTemp));
@@ -316,7 +339,7 @@ public void OnSpawn(int entity)
 	}
 }
 
-public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype == DMG_CLUB && attacker > 0 && attacker <= MaxClients && GetClientTeam(attacker) == 3 )
 	{
@@ -324,12 +347,14 @@ public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &dam
 		{
 			int class = GetEntProp(attacker, Prop_Send, "m_zombieClass") - 1;
 			if( class == g_iClassTank ) class = 6;
-			if( g_iCvarTypes & (1 << class) == 0 ) return;
+			if( g_iCvarTypes & (1 << class) == 0 ) return Plugin_Continue;
 		}
 
-		if( g_iCvarFire && GetEntPropEnt(attacker, Prop_Send, "m_hEffectEntity") == -1 ) return;
+		if( g_iCvarFire && GetEntPropEnt(attacker, Prop_Send, "m_hEffectEntity") == -1 ) return Plugin_Continue;
 
 		AcceptEntityInput(entity, "Ignite");
 		SDKUnhook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
 	}
+
+	return Plugin_Continue;
 }

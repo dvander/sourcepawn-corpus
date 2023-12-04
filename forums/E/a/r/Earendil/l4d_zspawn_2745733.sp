@@ -3,18 +3,18 @@
 ----------------------------------------------------------------------------------------------
 *	Author	:	Eärendil
 *	Descrp	:	Zombie Spawn manager with admin command, autospawn and director control
-*	Version	:	1.2.1
+*	Version	:	1.2.5
 *	Link	:	https://forums.alliedmods.net/showthread.php?t=332272
 ----------------------------------------------------------------------------------------------
 *	Table of contents:
 		- ConVars																		(101)
-		- ConVar Logic																	(246)
-		- Events & Left 4 DHooks														(567)
-		- Admin Commands																(768)
-		- RayTrace																		(1015)
-		- Timers																		(1083)
-		- Logic																			(1214)
-		- Changelog																		(1533)
+		- ConVar Logic																	(250)
+		- Events & Left 4 DHooks														(586)
+		- Admin Commands																(839)
+		- RayTrace																		(1087)
+		- Timers																		(1156)
+		- Logic																			(1303)
+		- Changelog																		(1634)
 ==============================================================================================*/
 #pragma semicolon 1
 #pragma newdecls required
@@ -22,7 +22,7 @@
 #include <sdktools>
 #include <left4dhooks>
 
-#define PLUGIN_VERSION		"1.2.1"
+#define PLUGIN_VERSION		"1.2.5"
 #define WEIGHT_L4D2			"1000,1000,1000,1000,1000,1000"
 #define LIMIT_L4D2			"1,1,1,1,1,1"
 #define WEIGHT_L4D			"1000,1000,1000"
@@ -31,7 +31,7 @@
 #define CHAT_TAG			"\x04[\x05ZSpawn\x04] \x01"
 
 bool	g_bL4D2, g_bAllow, g_bPluginOn, g_bAllowTank, g_bAllowWitch, g_bAllowMob, g_bGameStarted, g_bIsPanicEvent, g_bPluginSpawnRequest, g_bAutoSEnable, g_bAutoSFlowBlock, g_bAutoSTankBlock,
-		g_bAutoSpawnBlocked, g_bAutoMEnable, g_bIsFinale, g_bBossPlaced, g_bWeightScale, g_bMapStarted;
+		g_bAutoSpawnBlocked, g_bAutoMEnable, g_bIsFinale, g_bBossPlaced, g_bWeightScale, g_bMapStarted, g_bFinaleTank;
 
 int		g_iFlowToken, g_iNextMobSize, g_iMobAmountMin, g_iMobAmountMax, g_iVomitAmountMin, g_iVomitAmountMax, g_iTanksForRound,
 		g_iTanksSpawned, g_iWitchesForRound, g_iWitchesSPawned, g_iAutoSTMod, g_iAutoSPanic, g_iArWeights[6], g_iArLimits[6], g_iSpecialLimit,
@@ -40,12 +40,12 @@ int		g_iFlowToken, g_iNextMobSize, g_iMobAmountMin, g_iMobAmountMax, g_iVomitAmo
 ConVar	g_hAllow, g_hGameModes, g_hCurrGameMode, g_hAllowSI, g_hAllowTank, g_hAllowWitch, g_hAllowMob, g_hMobAmountMin, g_hMobAmountMax, g_hVomitAmountMin, g_hVomitAmountMax, 
 		g_hTankMax, g_hTankMin, g_hWitchMax, g_hWitchMin, g_hAutoSEnable, g_hAutoSWeight, g_hAutoSTMin, g_hAutoSTMax, g_hAutoSTMod, g_hAutoSTDel, g_hAutoSFlowBlock, 
 		g_hAutoSTankBlock, g_hAutoSPanic, g_hAutoSLimits, g_hSpecialLimit, g_hAutoMEnable, g_hAutoMTMin, g_hAutoMTMax, g_hAutoSAmount, g_hSurvStLimit,
-		g_hSurvStTimeMin, g_hSurvStTimeMax, g_hSurvTime, g_hWeightScale, g_hGameModeOverride, g_hTankScav;
+		g_hSurvStTimeMin, g_hSurvStTimeMax, g_hSurvTime, g_hWeightScale, g_hGameModeOverride, g_hTankScav, g_hAutoKick, g_hFinDuration;
 		
 float	g_fMapFlow, g_fLastValidTFlow, g_fMaxMapProgress, g_fNextProgressTank, g_fNextProgressWitch, g_fAutoSTMin, g_fAutoSTMax, g_fAutoSTDel, g_fAutoMTMin,
-		g_fAutoMTMax, g_fSurvStTimeMin, g_fSurvStTimeMax, g_fSurvTime, g_fSurvStart, g_fArTankFlow[64], g_fArWitchFlow[64];
+		g_fAutoMTMax, g_fSurvStTimeMin, g_fSurvStTimeMax, g_fSurvTime, g_fSurvStart, g_fArTankFlow[64], g_fArWitchFlow[64], g_fFinDuration;
 
-Handle	g_hFlowTimer, g_hSpawnTimer, g_hMobTimer, g_hPanicTimer;
+Handle	g_hFlowTimer, g_hSpawnTimer, g_hMobTimer, g_hPanicTimer, g_hFinaleTimer;
 
 char	g_sAutoSWeight[64], g_sAutoSLimits[64], g_sAllowSI[64], g_sArWeights[7][16], g_sArLimits[6][16], g_sArAllowSI[8][16], g_sGameMode[64];
 //Store the zombie names for calling zspawn and zauto
@@ -141,6 +141,8 @@ public void OnPluginStart()
 	g_hAutoMEnable		= CreateConVar("zspawn_automob_enable",			"1",		"Allow Plugin to automatically call mobs over time (0 = deny, 1 = allow).", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hAutoMTMin		= CreateConVar("zspawn_automob_time_min",		"90.0",		"Minimum amount of time in seconds between auto mob spawns.", FCVAR_NOTIFY, true, 0.1);
 	g_hAutoMTMax		= CreateConVar("zspawn_automob_time_max",		"240.0",	"Maximum amount of time in seconds between auto mob spawns.", FCVAR_NOTIFY, true, 1.0);
+	// ConVar to fix errors when spawn rates are high
+	g_hAutoKick			= CreateConVar("zspawn_autokick",				"1",		"Automatically kick special infected bots after death, recomended if spawn rate is high (spitter and tanks are excluded from kick).", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	if (g_bL4D2)
 	{
 		g_hGameModeOverride	= CreateConVar("zspawn_gamemode_override",		"0",		"Force plugin to work in the gamemode that you choose.\nUse this convar if your gamemode or mutation is not detected correctly.\n0 = do not override, 1 = coop, 2 = versus, 3 = survival, 4 = Scavenge.", FCVAR_NOTIFY, true, 0.0, true, 4.0);
@@ -148,6 +150,7 @@ public void OnPluginStart()
 		g_hAutoSWeight		= CreateConVar("zspawn_autosp_weights",		WEIGHT_L4D2,	"Autospawn zombie weights, it determines the chance that each special infected is spawned respect to the others.\nChance of special spawn = Weight/sum of all Weights.\nMust place 6 values, separated by comma, no spaces.\n<smoker>,<boomer>,<hunter>,<spitter>,<jockey>,<charger>", FCVAR_NOTIFY);
 		g_hAutoSLimits		= CreateConVar("zspawn_autosp_limit_class",	LIMIT_L4D2,		"Limit of each special infected class alive, put the limits separated with commas, no spaces. \n <smoker>,<boomer>,<hunter>,<spitter>,<jockey>,<charger>", FCVAR_NOTIFY);
 		g_hTankScav			= CreateConVar("zspawn_autotank_scav_score",	"10",		"Determines the required score in scavenge to spawn a tank.\nWhen a tank has spawned, the plugin will count again to spawn another one.\nThis works in scavenge gamemode and in campaing scavenge finales.\n0 = No tanks on scavenge.", FCVAR_NOTIFY, true, 0.0);
+		g_hFinDuration		= CreateConVar("zspawn_finale_duration",		"300.0",	"Max time in seconds for finale fights, after this time a finale Tank will be forced to spawn. \nThis forces tanks to spawn when zombie spawn rate is very high.", FCVAR_NOTIFY, true, 120.0);
 		RegAdminCmd("sm_zspawn",	ZSpawnView,		ADMFLAG_KICK,	"Spawn an infected at your cursor position. Usage: sm_zspawn <zombietype> <amount>.\nValid zombietypes: hunter, smoker, boomer, charger, jockey, spitter, tank, witch.\nAmount: 1-16 zombies, if amount is not assigned, this command will spawn 1 zombie.");
 		RegAdminCmd("sm_zauto",		ZSpawnAuto,		ADMFLAG_KICK,	"Spawn an infected in an automatic position. Usage: sm_zauto <zombietype> <amount>.\nValid zombietypes: hunter, smoker, boomer, charger, jockey, spitter, tank, witch.\nAmount: 1-16 zombies, if amount is not assigned, this command will spawn 1 zombie.");
 	}
@@ -189,7 +192,11 @@ public void OnPluginStart()
 	g_hSurvTime.AddChangeHook(CVarChange_CVars);
 	g_hSurvStLimit.AddChangeHook(CVarChange_CVars);
 	g_hWeightScale.AddChangeHook(CVarChange_CVars);
-	if (g_bL4D2) g_hTankScav.AddChangeHook(CVarChange_CVars);
+	if (g_bL4D2)
+	{
+		g_hTankScav.AddChangeHook(CVarChange_CVars);
+		g_hFinDuration.AddChangeHook(CVarChange_Timers);
+	}
 	
 	g_hAutoMEnable.AddChangeHook(CVarChange_Timers);
 	g_hAutoSEnable.AddChangeHook(CVarChange_Timers);
@@ -282,6 +289,7 @@ void CVarTimers()
 			UnblockSpecials();
 		}
 	}
+	
 	if (g_bAutoMEnable != g_hAutoMEnable.BoolValue)
 	{
 		g_bAutoMEnable = g_hAutoMEnable.BoolValue;
@@ -292,6 +300,15 @@ void CVarTimers()
 		}
 		if (!g_bAutoMEnable && g_bGameStarted)
 			delete g_hMobTimer;
+	}
+	if( g_bL4D2 )
+	{
+		if( g_bIsFinale && g_hFinDuration.FloatValue < g_fFinDuration )
+		{
+			delete g_hFinaleTimer;
+			g_hFinaleTimer = CreateTimer(g_hFinDuration.FloatValue, Finale_Timer);
+		}
+		g_fFinDuration = g_hFinDuration.FloatValue;	
 	}
 }
 
@@ -390,13 +407,16 @@ void SwitchPlugin()
 	{
 		g_bPluginOn = true;
 		SetMaxSpecials();
-		HookEvent("create_panic_event", 	Event_Panic_Start);
-		HookEvent("finale_start",			Event_Finale_Start);
-		HookEvent("round_end",				Event_Round_End);
+		HookEvent("create_panic_event", 	Event_Panic_Start, EventHookMode_PostNoCopy);
+		HookEvent("finale_start",			Event_Finale_Start, EventHookMode_PostNoCopy);
+		HookEvent("round_end",				Event_Round_End, EventHookMode_PostNoCopy);
+		HookEvent("player_death",			Event_Player_Death);
 		if (g_bL4D2)
 		{
-			HookEvent("panic_event_finished", 	Event_Panic_End);	// This event does not exist on L4D
-			HookEvent("gascan_pour_completed",	Event_Gascan);
+			HookEvent("panic_event_finished", 	Event_Panic_End, EventHookMode_PostNoCopy);	// This event does not exist on L4D
+			HookEvent("gascan_pour_completed",	Event_Gascan, EventHookMode_PostNoCopy);
+			HookEvent("tank_spawn",				Event_Tank_Spawn, EventHookMode_PostNoCopy);
+			HookEvent("tank_killed",			Event_Tank_Killed, EventHookMode_PostNoCopy);
 		}
 	}
 	if (g_bPluginOn == true && (g_bAllow == false || g_iGameMode == 0))
@@ -407,10 +427,13 @@ void SwitchPlugin()
 		UnhookEvent("create_panic_event", 		Event_Panic_Start);
 		UnhookEvent("finale_start",				Event_Finale_Start);
 		UnhookEvent("round_end",				Event_Round_End);
+		UnhookEvent("player_death",				Event_Player_Death);
 		if (g_bL4D2)
 		{
-			UnhookEvent("panic_event_finished", Event_Panic_End);
+			UnhookEvent("panic_event_finished", 	Event_Panic_End);
 			UnhookEvent("gascan_pour_completed",	Event_Gascan);
+			UnhookEvent("tank_spawn",				Event_Tank_Spawn);
+			UnhookEvent("tank_killed",				Event_Tank_Killed);
 		}
 	}
 }
@@ -563,6 +586,7 @@ void UnblockSpecials()
 		ResetConVar(FindConVar("holdout_max_hunters"), true, false);
 	}
 }
+
 //==========================================================================================
 //								Events & Left 4 DHooks
 //==========================================================================================
@@ -613,12 +637,44 @@ public Action Event_Panic_End(Event event, const char[] name, bool dontBroadcast
 public Action Event_Finale_Start(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bIsFinale = true;
+	delete g_hFinaleTimer;
+	if( g_bL4D2 ) g_hFinaleTimer = CreateTimer(g_fFinDuration, Finale_Timer);
 }
 
 public Action Event_Round_End(Event event, const char[] name, bool dontBroadcast)
 {
 	EndGame();
 	UnblockSpecials();
+}
+
+public Action Event_Player_Death(Event event, const char[] name, bool dontBroadcast)
+{
+	if( g_hAutoKick.BoolValue == false )
+		return Plugin_Continue;
+
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if(!client || !IsClientInGame(client) || !IsFakeClient(client) )
+		return Plugin_Continue;
+		
+	if( GetClientTeam(client) == 3 )
+	{
+		int class = GetEntProp(client, Prop_Send, "m_zombieClass");
+		if( g_bL4D2 )
+		{
+			if( class ==  4 || class == 8 )	// Ignore spitter and tank (kicking them upon death causes bugs)
+				return Plugin_Continue;
+				
+			KickClient(client);
+		}
+		else
+		{
+			if( class == 5 )
+				return Plugin_Continue;
+				
+			KickClient(client);
+		}
+	}
+	return Plugin_Continue;
 }
 
 public Action Event_Gascan(Event event, const char[] name, bool dontBroadcast)
@@ -637,6 +693,23 @@ public Action Event_Gascan(Event event, const char[] name, bool dontBroadcast)
 		PrintToServer("[ZSspawn] Couldn't find a valid spawn position in 5 tries.");
 	}
 }
+
+public Action Event_Tank_Spawn(Event event, const char[] name, bool dontBroadcast)
+{
+	if( !g_bIsFinale ) return;
+	
+	g_bFinaleTank = true;
+}
+
+public Action Event_Tank_Killed(Event event, const char[] name, bool dontBroadcast)
+{
+	if( !g_bIsFinale ) return;
+	
+	g_bFinaleTank = false;
+	delete g_hFinaleTimer;
+	g_hFinaleTimer = CreateTimer(g_fFinDuration, Finale_Timer);
+}
+
 public Action L4D_OnFirstSurvivorLeftSafeArea(int client)
 {
 
@@ -766,6 +839,7 @@ public Action L4D_OnGetScriptValueInt(const char[] key, int &retVal)	// Change D
 	}
 	return Plugin_Continue;
 }
+
 //==========================================================================================
 //									Admin Commands
 //==========================================================================================
@@ -1013,6 +1087,7 @@ public Action ZSpawnMob (int client, int args)
 	}
 	return Plugin_Handled;
 }
+
 //==========================================================================================
 //										RayTrace
 //==========================================================================================
@@ -1081,6 +1156,7 @@ bool _TraceFilter(int entity, int contentsMask)
 		return false;
 	return entity > MaxClients || !entity;
 }
+
 //==========================================================================================
 //										Timers
 //==========================================================================================
@@ -1195,10 +1271,13 @@ public Action Mob_Timer(Handle timer)
 		return;
 	}
 	int iClient;
-	for (iClient = 1; iClient < MaxClients; iClient++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(iClient) && IsClientConnected(iClient))
+		if( IsClientInGame(i) )
+		{
+			iClient = i;
 			break;
+		}
 	}
 	int iFlags = GetCommandFlags("z_spawn_old");
 	SetCommandFlags("z_spawn_old", iFlags & ~FCVAR_CHEAT);
@@ -1212,6 +1291,19 @@ public Action Panic_Timer(Handle timer)
 	g_bIsPanicEvent = false;
 	g_hPanicTimer = null;
 }
+
+public Action Finale_Timer(Handle timer)
+{
+	g_hFinaleTimer = null;
+	if( !g_bIsFinale || !g_bGameStarted ) return;
+	
+	if( L4D2_GetCurrentFinaleStage() == 6 || g_bFinaleTank ) return;	// Don't change game to tank mode if the vehicle is ready to leave with survivors or is already in tank mode
+	
+	// Force the stage to spawn a finale tank if the game is struggling to spawn one
+	char nullchar[4];
+	L4D2_ChangeFinaleStage(8, nullchar);
+}
+
 //==========================================================================================
 //										Logic
 //==========================================================================================
@@ -1379,12 +1471,15 @@ void NextSpecialSpawn()	// v1.1: Optimized function to try to prevent server lag
 		// Get a random special infected based on the weights
 		int iRoll = GetRandomInt(0, iTotalWeight);
 		int iSum, iClass;
-		for (iClass = 0; iClass < g_iZClassAm; iClass++)
+		for (int k = 0; k < g_iZClassAm; k++)
 		{
-			if (iArWeights[iClass] + iSum > iRoll)
+			if (iArWeights[k] + iSum > iRoll)
+			{
+				iClass = k;
 				break;
+			}
 				
-			iSum += iArWeights[iClass];
+			iSum += iArWeights[k];
 		}
 
 		g_iArClassQueue[i] = iClass;	// Add the zombie class to the queue
@@ -1539,19 +1634,22 @@ int GetWitchAm()
 	}
 	return amount;
 }
+
 /*============================================================================================
 									Changelog
 ----------------------------------------------------------------------------------------------
-* 1.0	(03-May-2021)
-	- Initial release.
-* 1.1	(05-May-2021)
-	- Improved zombie spawn performance to decrease lag when spawning high amount of infected at once.
-	- Prevent plugin errors when trying to use commands via server console.
-	- Modified ConVar description and fixed some gramatical errors, ConVars are not affected, is not needed to update the cfg.
-	- Fixed bug in sm_zspawn command which found witches or common infected as obstacles to spawn zombies.
-	- "sm_zspawn" and "sm_zauto" now accept as an optional argument the amount of zombies to spawn (max 16), if not specified, the commands will spawn 1 zombie.
-	- Admin commands now return messages via ReplyToCommand() instead of PrintToChat().
-	- Addmin commmands return a message if a spawn was succeful.
+* 1.2.5 (09-Mar-2022)
+	- Fixed load error in L4D due to invalid ConVar.
+* 1.2.4 (23-Sep-2021)
+	- Fixed finale tanks unable to spawn in L4D2 with ConVar (thanks to Mr. Man for the report).
+* 1.2.3 (05-Aug-2021)
+	- Fixed "array out of bounds" error in special infected spawn (thanks to ricksfishin and Mr. Man for the report).	
+* 1.2.2 (03-Aug-2021)
+	- Fixed code error in mob autospawn timer.
+	- Special infected can be kicked instantly when dead (new ConVar).
+* 1.2.1 (09-May-2021)
+	- Added extra check if plugin was able to find a valid location for auto spawning and prevent spawn errors.
+	- Deleted PrintToServer() functions used as debugging.	
 * 1.2	(09-May-2021)
 	- Added support for Left 4 Dead.
 	- Plugin uses "info_gamemode" to check current gamemode (thanks to Silvers for the suggestion).
@@ -1562,12 +1660,19 @@ int GetWitchAm()
 	- Solved CloseHandle errors with timers.
 	- Fixed the error getting invalid client (Client index 65 is invalid).
 	- Solved bug in scavenge that stopped autospawn if "zspawn_autosp_stop_notmoving" was set to 1.
-	- Plugin now can spawn tanks in scavenge when survivors reach specific scores (new ConVar "zspawn_autotank_scav_amount").
+	- Plugin now can spawn tanks in scavenge when survivors reach specific scores (new ConVar "zspawn_autotank_scav_score").
 	- Admin spawn commands now report the amount of infected spawned, if no infected could be spawned it will report an error.
 	- Autospawn of tanks and witches now uses the survivor closest to the end of map to get the spawn position.
 	- If admins try to spawn more than 16 zombies the value will be clamped to 16.
 	- Added tags in plugin messages.
-* 1.2.1 (09-May-2021)
-	- Added extra check if plugin was able to find a valid location for auto spawning and prevent spawn errors.
-	- Deleted PrintToServer() functions used as debugging.
+* 1.1	(05-May-2021)
+	- Improved zombie spawn performance to decrease lag when spawning high amount of infected at once.
+	- Prevent plugin errors when trying to use commands via server console.
+	- Modified ConVar description and fixed some gramatical errors, ConVars are not affected, is not needed to update the cfg.
+	- Fixed bug in sm_zspawn command which found witches or common infected as obstacles to spawn zombies.
+	- "sm_zspawn" and "sm_zauto" now accept as an optional argument the amount of zombies to spawn (max 16), if not specified, the commands will spawn 1 zombie.
+	- Admin commands now return messages via ReplyToCommand() instead of PrintToChat().
+	- Addmin commmands return a message if a spawn was succeful.
+* 1.0	(03-May-2021)
+	- Initial release.
 ==============================================================================================*/

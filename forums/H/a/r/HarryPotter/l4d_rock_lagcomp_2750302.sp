@@ -56,7 +56,6 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
-#include <smlib>
 
 #define GAMEDATA "rock_lagcomp"
 
@@ -144,7 +143,7 @@ public Plugin myinfo =
     name = "L4D(2) Tank Rock Lag Compensation",
     author = "Luckylockm,HarryPotter,Silvers",
     description = "Provides lag compensation for tank rock entities",
-    version = "1.13",
+    version = "1.14",
     url = "https://github.com/LuckyServ/"
 };
 
@@ -413,7 +412,7 @@ public Action ProcessRockHitboxes(Event event, const char[] name,
 /*
  * Apply damage on rock depending on weapon and distance.
  */
-public void ApplyDamageOnRock(int rockIndex, int client, float[3] eyePos, float[3] c, Event event, int rockEntity)
+public void ApplyDamageOnRock(int rockIndex, int client, float eyePos[3], float c[3], Event event, int rockEntity)
 {
 	char weaponName[MAX_STR_LEN]; 
 	event.GetString("weapon", weaponName, MAX_STR_LEN);
@@ -602,7 +601,7 @@ void CTankRock__Detonate(int rock)
  * Vector functions
  */
 
-public void Vector_Print(float[3] v)
+public void Vector_Print(float v[3])
 {
 	PrintToChatAll("(%.2f, %.2f, %.2f)", v[0],v[1],v[2]);
 }

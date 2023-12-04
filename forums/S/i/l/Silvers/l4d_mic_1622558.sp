@@ -1,6 +1,6 @@
 /*
 *	Mic Stand
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.7"
+#define PLUGIN_VERSION		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (11-Dec-2022)
+	- Various changes to tidy up code.
 
 1.7 (29-Jun-2021)
 	- L4D2: Fixed the Mic Stand not loading after restarting a round.
@@ -174,8 +177,10 @@ void ResetPlugin()
 
 	for( int i = 1; i < MAXPLAYERS; i++ )
 	{
-		if( IsValidEntRef(g_iMicrophones[i][0]) )		AcceptEntityInput(g_iMicrophones[i][0], "Kill");
-		if( IsValidEntRef(g_iMicrophones[i][1]) )		AcceptEntityInput(g_iMicrophones[i][1], "Kill");
+		if( IsValidEntRef(g_iMicrophones[i][0]) )
+			RemoveEntity(g_iMicrophones[i][0]);
+		if( IsValidEntRef(g_iMicrophones[i][1]) )
+			RemoveEntity(g_iMicrophones[i][1]);
 
 		g_iMicrophones[i][0] = 0;
 		g_iMicrophones[i][1] = 0;
@@ -185,9 +190,12 @@ void ResetPlugin()
 
 	for( int i = 0; i < MAX_ALLOWED; i++ )
 	{
-		if( IsValidEntRef(g_iStands[i][0]) )			AcceptEntityInput(g_iStands[i][0], "Kill");
-		if( IsValidEntRef(g_iStands[i][1]) )			AcceptEntityInput(g_iStands[i][1], "Kill");
-		if( IsValidEntRef(g_iStands[i][2]) )			AcceptEntityInput(g_iStands[i][2], "Kill");
+		if( IsValidEntRef(g_iStands[i][0]) )
+			RemoveEntity(g_iStands[i][0]);
+		if( IsValidEntRef(g_iStands[i][1]) )
+			RemoveEntity(g_iStands[i][1]);
+		if( IsValidEntRef(g_iStands[i][2]) )
+			RemoveEntity(g_iStands[i][2]);
 
 		g_iStands[i][0] = 0;
 		g_iStands[i][1] = 0;
@@ -205,12 +213,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -301,7 +309,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -334,7 +342,7 @@ void UnhookEvents()
 	UnhookEvent("player_spawn",			Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 
@@ -343,7 +351,7 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_bLeft4Dead2 == false ) return;
 
@@ -352,7 +360,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		LoadMics();
@@ -457,7 +465,7 @@ void SetupMic(int client, float vAng[3] = NULL_VECTOR, float vPos[3] = NULL_VECT
 	delete trace;
 }
 
-public bool TraceFilter(int entity, int contentsMask, any client)
+bool TraceFilter(int entity, int contentsMask, any client)
 {
 	if( entity == client )
 		return false;
@@ -472,8 +480,10 @@ void SpawnMic(float vAng[3], float vPos[3])
 	{
 		if( !IsValidEntRef(g_iStands[i][0]) )
 		{
-			if( IsValidEntRef(g_iStands[i][1]) )			AcceptEntityInput(g_iStands[i][1], "Kill");
-			if( IsValidEntRef(g_iStands[i][2]) )			AcceptEntityInput(g_iStands[i][2], "Kill");
+			if( IsValidEntRef(g_iStands[i][1]) )
+				RemoveEntity(g_iStands[i][1]);
+			if( IsValidEntRef(g_iStands[i][2]) )
+				RemoveEntity(g_iStands[i][2]);
 
 			g_iStands[i][1] = 0;
 			g_iStands[i][2] = 0;
@@ -503,11 +513,11 @@ void SpawnMic(float vAng[3], float vPos[3])
 void ToggleMic(int client, int clientchat, int mic = 0, int index = -1)
 {
 	if( client && IsValidEntRef(g_iMicrophones[client][1]) )
-			AcceptEntityInput(g_iMicrophones[client][1], "Kill");
+			RemoveEntity(g_iMicrophones[client][1]);
 
 	if( client && IsValidEntRef(g_iMicrophones[client][0]) )
 	{
-		AcceptEntityInput(g_iMicrophones[client][0], "Kill");
+		RemoveEntity(g_iMicrophones[client][0]);
 		if( client && clientchat )
 			PrintToChat(clientchat, "%s%N \x05Off", CHAT_TAG, client);
 		return;
@@ -602,7 +612,7 @@ void ToggleMic(int client, int clientchat, int mic = 0, int index = -1)
 // ====================================================================================================
 //					sm_mic
 // ====================================================================================================
-public Action CmdMic(int client, int args)
+Action CmdMic(int client, int args)
 {
 	if( args == 0 )
 		ToggleMic(client, client);
@@ -643,7 +653,7 @@ public Action CmdMic(int client, int args)
 // ====================================================================================================
 //					sm_micstand
 // ====================================================================================================
-public Action CmdMicStand(int client, int args)
+Action CmdMicStand(int client, int args)
 {
 	float vAng[3], vPos[3];
 	SetupMic(client, vAng, vPos);
@@ -653,7 +663,7 @@ public Action CmdMicStand(int client, int args)
 // ====================================================================================================
 //					sm_micsave
 // ====================================================================================================
-public Action CmdMicSave(int client, int args)
+Action CmdMicSave(int client, int args)
 {
 	if( !g_bAllow )
 	{
@@ -728,7 +738,7 @@ public Action CmdMicSave(int client, int args)
 // ====================================================================================================
 //					sm_miclist
 // ====================================================================================================
-public Action CmdMicList(int client, int args)
+Action CmdMicList(int client, int args)
 {
 	float vPos[3];
 	int i, ent, count;
@@ -758,7 +768,7 @@ public Action CmdMicList(int client, int args)
 // ====================================================================================================
 //					sm_micdel
 // ====================================================================================================
-public Action CmdMicDelete(int client, int args)
+Action CmdMicDelete(int client, int args)
 {
 	if( !g_bAllow )
 	{
@@ -799,11 +809,11 @@ public Action CmdMicDelete(int client, int args)
 	}
 
 	if( IsValidEntRef(g_iStands[index][0]) )
-		AcceptEntityInput(g_iStands[index][0], "Kill");
+		RemoveEntity(g_iStands[index][0]);
 	if( IsValidEntRef(g_iStands[index][1]) )
-		AcceptEntityInput(g_iStands[index][1], "Kill");
+		RemoveEntity(g_iStands[index][1]);
 	if( IsValidEntRef(g_iStands[index][2]) )
-		AcceptEntityInput(g_iStands[index][2], "Kill");
+		RemoveEntity(g_iStands[index][2]);
 
 	// Load config
 	char sPath[PLATFORM_MAX_PATH];
@@ -898,7 +908,7 @@ public Action CmdMicDelete(int client, int args)
 // ====================================================================================================
 //					sm_micclear
 // ====================================================================================================
-public Action CmdMicClear(int client, int args)
+Action CmdMicClear(int client, int args)
 {
 	if( !g_bAllow )
 	{
@@ -914,7 +924,7 @@ public Action CmdMicClear(int client, int args)
 // ====================================================================================================
 //					sm_micwipe
 // ====================================================================================================
-public Action CmdMicWipe(int client, int args)
+Action CmdMicWipe(int client, int args)
 {
 	if( !g_bAllow )
 	{

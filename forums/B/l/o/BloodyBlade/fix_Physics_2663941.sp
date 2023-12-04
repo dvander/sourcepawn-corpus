@@ -55,7 +55,7 @@ ___2¶¶¶¶8¶¶¶6_____26_______________16___¶¶¶¶¶¶¶¶¶6          __  
 
 */
 
-#pragma	semicolon 0
+#pragma	semicolon 1
 #pragma newdecls required
 #include <sourcemod>
 #include <sdktools>
@@ -82,23 +82,21 @@ public Plugin myinfo =
 	url = "http://steamcommunity.com/id/raziEiL"
 }
 
-Handle g_hCvarBarrowFix;
-Handle g_hCvarTimer;
-bool g_bCvarBarrowFix;
+ConVar g_hCvarBarrowFix, g_hCvarTimer;
+bool g_bCvarBarrowFix, g_bAllowHook;
 float g_fCvarTimer;
-bool g_bAllowHook;
 
 public void OnPluginStart()
 {
-	CreateConVar("physics_version", PLUGIN_VERSION, "Physics plugin version", FCVAR_NONE|FCVAR_SPONLY|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("physics_version", PLUGIN_VERSION, "Physics plugin version", FCVAR_NOTIFY|FCVAR_SPONLY|FCVAR_DONTRECORD);
 
-	g_hCvarBarrowFix	=	CreateConVar("physics_barrow", "1", "WheelBarrow Fix: 1: Enable, 0: Disable", FCVAR_NONE, true, 0.0, true, 1.0);
-	g_hCvarTimer			=	CreateConVar("physics_timer", "0.01", "Time interval when the fix is triggered after oxygentank/fireworkcrate/propanetank created, 0.0: Disable Physics Fix", FCVAR_NONE, true, 0.0, true, 2.0);
+	g_hCvarBarrowFix	=	CreateConVar("physics_barrow", "1", "WheelBarrow Fix: 1: Enable, 0: Disable", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_hCvarTimer			=	CreateConVar("physics_timer", "0.01", "Time interval when the fix is triggered after oxygentank/fireworkcrate/propanetank created, 0.0: Disable Physics Fix", FCVAR_NOTIFY, true, 0.0, true, 2.0);
 	AutoExecConfig(true, "fix_Physics");
 
 	PF_GetCVars();
-	HookConVarChange(g_hCvarBarrowFix, OnCVarChange);
-	HookConVarChange(g_hCvarTimer, OnCVarChange);
+	g_hCvarBarrowFix.AddChangeHook(OnCVarChange);
+	g_hCvarTimer.AddChangeHook(OnCVarChange);
 }
 
 public void OnMapStart()
@@ -186,7 +184,7 @@ void PhysicsFixFunc(int entity, char[] sModel, bool bOverride = false)
 	}
 }
 
-public void OnCVarChange(Handle convar_hndl, const char[] oldValue, const char[] newValue)
+public void OnCVarChange(ConVar convar_hndl, const char[] oldValue, const char[] newValue)
 {
 	PF_GetCVars();
 }
@@ -198,8 +196,8 @@ public void OnConfigsExecuted()
 
 void PF_GetCVars()
 {
-	g_bCvarBarrowFix = GetConVarBool(g_hCvarBarrowFix);
-	g_fCvarTimer = GetConVarFloat(g_hCvarTimer);
+	g_bCvarBarrowFix = g_hCvarBarrowFix.BoolValue;
+	g_fCvarTimer = g_hCvarTimer.FloatValue;
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)

@@ -1,6 +1,6 @@
 /*
 *	Gamedata Offset Tester
-*	Copyright (C) 2021 Silvers and Dragokas
+*	Copyright (C) 2022 Silvers and Dragokas
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.3.3"
+#define PLUGIN_VERSION		"1.4"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.4 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.3.3 (24-Feb-2021) Dragokas
 	- Added ability to enter address in reverse order, e.g. sm_ptr "03 02 01 00" to access sm_ptr 0x010203.
@@ -112,7 +115,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_ptr",		CmdPtr, ADMFLAG_ROOT, "Prints 250 bytes from the specified memory address. Usage: sm_ptr <address> [offset] [bytes]");
 }
 
-public Action CmdPtr(int client, int args)
+Action CmdPtr(int client, int args)
 {
 	if( args == 0 )
 	{
@@ -157,7 +160,7 @@ public Action CmdPtr(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdSig(int client, int args)
+Action CmdSig(int client, int args)
 {
 	// Validate args
 	if( args < 2 )
@@ -436,7 +439,7 @@ int HexToDec(char[] bytes)
 	return value;
 }
 
-bool CopyFile(char[] SourceFile, char[] TargetFile)
+void CopyFile(char[] SourceFile, char[] TargetFile)
 {
 	Handle hr = OpenFile(SourceFile, "rb", false);	
 	if( hr )

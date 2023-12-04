@@ -353,13 +353,13 @@ public void OnClientDisconnect(int client) {
     if (IsValidClient(client)) {
         ResetCam(client);
         TerminateEmote(client);
-
-        if (CooldownTimers[client] != null) {
-            KillTimer(CooldownTimers[client]);
-            CooldownTimers[client] = null;
-            g_bEmoteCooldown[client] = false;
-        }
     }
+    if (CooldownTimers[client] != null) {
+        KillTimer(CooldownTimers[client]);
+        CooldownTimers[client] = null;
+        g_bEmoteCooldown[client] = false;
+    }
+
     g_bHooked[client] = false;
 }
 
@@ -467,7 +467,8 @@ Action CreateEmote(int client,
     int EmoteEnt = CreateEntityByName("prop_dynamic");
     if (IsValidEntity(EmoteEnt)) {
         SetEntityMoveType(client, MOVETYPE_NONE);
-        if (L4D) SetEntityRenderMode(client, RENDER_TRANSALPHA);
+        if (L4D){ SetEntityRenderMode(client, RENDER_TRANSALPHA);
+        }
         WeaponBlock(client);
 
         float vec[3],
@@ -644,7 +645,7 @@ void StopEmote(int client) {
         ResetCam(client);
         WeaponUnblock(client);
         SetEntityMoveType(client, MOVETYPE_WALK);
-        if (L4D) SetEntityRenderMode(client, RENDER_NORMAL);
+        if (L4D){ SetEntityRenderMode(client, RENDER_NORMAL);}
 
         g_iEmoteEnt[client] = 0;
         g_bClientDancing[client] = false;
@@ -753,26 +754,32 @@ public Action SetTransmit(int entity, int client) {
     return Plugin_Continue;
 }
 
-
 void SetCam(int client) {
+    if (L4D) {
+        SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", 0);
+        SetEntProp(client, Prop_Send, "m_iObserverMode", 1);
+        SetEntProp(client, Prop_Send, "m_bDrawViewmodel", 0);
+    } else {
+        SetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView", 99999.3);
+    }
 
     SetEntProp(client, Prop_Send, "m_iHideHUD", GetEntProp(client, Prop_Send, "m_iHideHUD") | HIDEHUD_CROSSHAIR);
-    SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", 0);
-    SetEntProp(client, Prop_Send, "m_iObserverMode", 1);
-    SetEntProp(client, Prop_Send, "m_bDrawViewmodel", 0);
-    //SetEntProp(client, Prop_Send, "m_iFOV", 120);
 
 }
 
 void ResetCam(int client) {
+    if (L4D) {
 
-    SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", -1);
-    SetEntProp(client, Prop_Send, "m_iObserverMode", 0);
-    SetEntProp(client, Prop_Send, "m_bDrawViewmodel", 1);
-    //SetEntProp(client, Prop_Send, "m_iFOV", 90);
+        SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", -1);
+        SetEntProp(client, Prop_Send, "m_iObserverMode", 0);
+        SetEntProp(client, Prop_Send, "m_bDrawViewmodel", 1);
+
+    } else {
+        SetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView", 0.0);
+    }
+
     SetEntProp(client, Prop_Send, "m_iHideHUD", GetEntProp(client, Prop_Send, "m_iHideHUD") & ~HIDEHUD_CROSSHAIR);
 }
-
 
 Action ResetCooldown(Handle timer, any client) {
     CooldownTimers[client] = null;

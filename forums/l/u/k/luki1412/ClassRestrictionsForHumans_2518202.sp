@@ -4,7 +4,7 @@
 #pragma newdecls required
 #pragma semicolon 1
 
-#define PLUGIN_VERSION "3.01"
+#define PLUGIN_VERSION "3.04"
 
 #define TF_CLASS_DEMOMAN		4
 #define TF_CLASS_ENGINEER		9
@@ -22,13 +22,14 @@
 
 public Plugin myinfo =
 {
-	name        = "TF2 Class Restrictions for Humans",
+	name        = "Class Restrictions for Humans",
 	author      = "luki1412",
 	description = "Restrict classes in TF2 for human players.",
 	version     = PLUGIN_VERSION,
 	url         = "https://forums.alliedmods.net/member.php?u=43109"
 }
 
+bool g_bLateLoad;
 ConVar g_hCvEnabled;
 ConVar g_hCvFlags;
 ConVar g_hCvImmunity;
@@ -47,17 +48,18 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_Failure;
 	}
 	
+	g_bLateLoad = late;
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-	ConVar g_hCvVersion = CreateConVar("sm_crh_version", PLUGIN_VERSION, "TF2 Class Restrictions for Humans version cvar", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	ConVar hCvVersion = CreateConVar("sm_crh_version", PLUGIN_VERSION, "TF2 Class Restrictions for Humans version cvar", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	g_hCvEnabled                                = CreateConVar("sm_crh_enabled",       "1",  "Enables/disables restricting classes in TF2 for Human players", FCVAR_NOTIFY);
 	g_hCvFlags                                  = CreateConVar("sm_crh_flags",         "b",   "Admin flag/s for immunity to restricting classes. If multiple flags are provided, one validated flag is enough to be immune.");
 	g_hCvImmunity                               = CreateConVar("sm_crh_immunity",      "0",  "Enables/disables admins being immune to restricting classes");
-	g_hCvClassMenu                              = CreateConVar("sm_crh_classmenu",       "0",  "Enables/disables the class menu popping up when you pick the wrong class");
-	g_hCvSounds                                 = CreateConVar("sm_crh_sounds",       "0",  "Enables/disables the Nope sound when you pick the wrong class");
+	g_hCvClassMenu                              = CreateConVar("sm_crh_classmenu",     "0",  "Enables/disables the class menu popping up when you pick the wrong class");
+	g_hCvSounds                                 = CreateConVar("sm_crh_sounds",        "0",  "Enables/disables the Nope sound when you pick the wrong class");
 	g_hCvLimits[TF_TEAM_BLU][TF_CLASS_DEMOMAN]  = CreateConVar("sm_crh_blu_demomen",   "-1", "Limits BLU human demomen");
 	g_hCvLimits[TF_TEAM_BLU][TF_CLASS_ENGINEER] = CreateConVar("sm_crh_blu_engineers", "-1", "Limits BLU human engineers");
 	g_hCvLimits[TF_TEAM_BLU][TF_CLASS_HEAVY]    = CreateConVar("sm_crh_blu_heavies",   "-1", "Limits BLU human heavies");
@@ -76,16 +78,23 @@ public void OnPluginStart()
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SNIPER]   = CreateConVar("sm_crh_red_snipers",   "-1", "Limits RED human snipers");
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SOLDIER]  = CreateConVar("sm_crh_red_soldiers",  "-1", "Limits RED human soldiers");
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SPY]      = CreateConVar("sm_crh_red_spies",     "-1", "Limits RED human spies");	
-
-	HookEvent("player_spawn", Event_PlayerSpawn);
 	
 	AutoExecConfig(true, "Class_Restrictions_For_Humans");
-	SetConVarString(g_hCvVersion, PLUGIN_VERSION);
+	if (g_bLateLoad)
+	{
+		OnConfigsExecuted();
+	}
+
+	HookEvent("player_spawn", Event_PlayerSpawn);
+	SetConVarString(hCvVersion, PLUGIN_VERSION);
 }
 //built in class limit needs to be disabled
 public void OnConfigsExecuted() 
 {
 	SetConVarInt(FindConVar("tf_classlimit"), 0);
+	char mapName[PLATFORM_MAX_PATH];
+	GetCurrentMap(mapName, sizeof(mapName));
+	ServerCommand("exec \"sourcemod/Class_Restrictions_For_Humans/%s.cfg\"", mapName);
 }
 //there is no space, so the server admins set up the cvars incorrectly. lets warn them through logs
 void NoSpace()
@@ -394,7 +403,7 @@ bool IsImmune(int iClient)
 int SelectFreeClass(int iTeam)
 {
 	int x = 0;
-	int classes[9] = 0;
+	int classes[9] = {0, ...};
 
 	for(int i = 1; i <= 9; i++)
 	{
@@ -426,5 +435,5 @@ int GetRandomUInt(int min, int max)
 //basic check for players
 bool IsPlayerHereLoop(int client)
 {
-	return (IsClientConnected(client) && IsClientInGame(client) && !IsFakeClient(client));
+	return (IsClientInGame(client) && !IsFakeClient(client));
 }

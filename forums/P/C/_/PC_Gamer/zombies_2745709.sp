@@ -4,12 +4,11 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.4"
 #define SPAWN	"/player/taunt_yeti_roar_first.wav"
 
-Handle g_hWearableEquip;
-Handle g_hGameConfig;
-bool g_bZombie[MAXPLAYERS+1] = false;
+Handle g_hEquipWearable;
+bool g_bZombie[MAXPLAYERS+1] = {false, ... };
 
 public Plugin myinfo = 
 {
@@ -31,22 +30,20 @@ public void OnPluginStart()
 
 	HookEvent("post_inventory_application", player_inv);
 	
-	g_hGameConfig = LoadGameConfigFile("zombies");
-	
-	if (!g_hGameConfig)
-	{
-		SetFailState("Failed to find zombies.txt gamedata! Can't continue.");
-	}	
-	
+	GameData hTF2 = new GameData("sm-tf2.games"); // sourcemod's tf2 gamedata
+
+	if (!hTF2)
+	SetFailState("This plugin is designed for a TF2 dedicated server only.");
+
 	StartPrepSDKCall(SDKCall_Player);
-	PrepSDKCall_SetFromConf(g_hGameConfig, SDKConf_Virtual, "EquipWearable");
+	PrepSDKCall_SetVirtual(hTF2.GetOffset("RemoveWearable") - 1);    // EquipWearable offset is always behind RemoveWearable, subtract its value by 1
 	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
-	g_hWearableEquip = EndPrepSDKCall();
-	
-	if (!g_hWearableEquip)
-	{
-		SetFailState("Failed to prepare the SDKCall for giving cosmetics. Try updating zombies gamedata or restarting your server.");
-	}
+	g_hEquipWearable = EndPrepSDKCall();
+
+	if (!g_hEquipWearable)
+	SetFailState("Failed to create call: CBasePlayer::EquipWearable");
+
+	delete hTF2;
 }
 
 public void OnMapStart()
@@ -100,6 +97,8 @@ public Action Zombie_Mode(int client, int args)
 		PrintToChat(client, "Zombie mode enabled");
 		Makezombie(client);		
 	}
+	
+	return Plugin_Handled;
 }
 
 public Action Makezombie(int client)
@@ -120,6 +119,8 @@ public Action Makezombie(int client)
 	g_bZombie[client] = true;	
 	
 	CreateTimer(0.1, Timer_Makezombie2, client, TIMER_FLAG_NO_MAPCHANGE);
+	
+	return Plugin_Handled;	
 }
 
 public Action Timer_Makezombie2(Handle timer, int client)	
@@ -156,7 +157,9 @@ public Action Timer_Makezombie2(Handle timer, int client)
 		SetEntProp(client, Prop_Send, "m_bForcedSkin", 1);
 		SetEntProp(client, Prop_Send, "m_nForcedSkin", 23);
 	}
-	PrintToChat(client, "You are now a zombie.");		
+	PrintToChat(client, "You are now a zombie.");
+
+	return Plugin_Handled;	
 }
 
 public void player_inv(Handle event, const char[] name, bool dontBroadcast) 
@@ -164,9 +167,33 @@ public void player_inv(Handle event, const char[] name, bool dontBroadcast)
 	int userd = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userd);
 	
-	if (g_bZombie[client])
+	if(g_bZombie[client])
 	{
-		Makezombie(client);
+		if(!TF2_IsPlayerInCondition(client, TFCond_Disguised))
+		{	
+			Makezombie(client);
+		}
+	}
+}
+
+public void TF2_OnConditionAdded(int client, TFCond cond)
+{
+	if(g_bZombie[client] && cond == TFCond_Disguised)
+	{
+		TF2Attrib_SetByName(client, "player skin override", 0.0);
+		TF2Attrib_SetByName(client, "zombiezombiezombiezombie", 0.0);
+		TF2Attrib_SetByName(client, "SPELL: Halloween voice modulation", 0.0);			
+		SetEntProp(client, Prop_Send, "m_bForcedSkin", 0);
+		SetEntProp(client, Prop_Send, "m_nForcedSkin", 0);		
+	}
+	
+}
+
+public void TF2_OnConditionRemoved(int client, TFCond cond)
+{
+	if(g_bZombie[client] && cond == TFCond_Disguised)
+	{
+		Makezombie(client);	
 	}
 }
 
@@ -211,11 +238,14 @@ public Action Makenozombie(int client)
 		TF2Attrib_SetByName(client, "zombiezombiezombiezombie", 0.0);
 		TF2Attrib_SetByName(client, "SPELL: Halloween voice modulation", 0.0);			
 		SetEntProp(client, Prop_Send, "m_bForcedSkin", 0);
+		SetEntProp(client, Prop_Send, "m_nForcedSkin", 0);			
 
 		g_bZombie[client] = false;
 		PrintToChat(client, "You are no longer a zombie.");
 		ForcePlayerSuicide(client);		
 	}
+	
+	return Plugin_Handled;	
 }
 
 stock bool IsValidClient(int client)
@@ -243,6 +273,6 @@ bool GiveVoodooItem(int client, int itemindex)
 	SetEntProp(soul, Prop_Send, "m_bValidatedAttachedEntity", 1);		
 	
 	DispatchSpawn(soul);
-	SDKCall(g_hWearableEquip, client, soul);
+	SDKCall(g_hEquipWearable, client, soul);
 	return true;
 } 

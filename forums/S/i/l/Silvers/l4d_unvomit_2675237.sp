@@ -1,6 +1,6 @@
 /*
 *	UnVomit - Remove Boomer Screen Effect
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.4"
+#define PLUGIN_VERSION 		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -26,10 +26,24 @@
 *	Name	:	[L4D & L4D2] UnVomit - Remove Boomer Screen Effect
 *	Author	:	SilverShot
 *	Descrp	:	Removes the visual vomit effect from a survivor.
-*	Link	:	http://forums.alliedmods.net/showthread.php?t=320025
+*	Link	:	https://forums.alliedmods.net/showthread.php?t=320025
+*	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
 
 ========================================================================================
 	Change Log:
+
+1.8 (14-Jul-2022)
+	- Fixed not removing the effect on players when taking over a bot who has been covered in vomit. Thanks to "hefiwhfcds2" for reporting.
+
+1.7 (20-Jun-2022)
+	- Fixed the glow not removing on player death. Thanks to "hefiwhfcds2" for reporting.
+
+1.6 (14-Nov-2021)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+	- Updated GameData signatures to avoid breaking when detoured by the "Left4DHooks" plugin.
+
+1.5 (12-Sep-2021)
+	- Added cvar "l4d_unvomit_flags" to specify users with certain flags to allow unvomit.
 
 1.4 (28-Apr-2021) - Update by "Dragokas"
 	- Added cvar "l4d_unvomit_particle" to delay removing the vomit particle effect.
@@ -58,9 +72,9 @@
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarChase, g_hCvarDuration, g_hCvarGlowC, g_hCvarGlowV, g_hCvarParticle;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarChase, g_hCvarDuration, g_hCvarFlags, g_hCvarGlowC, g_hCvarGlowV, g_hCvarParticle;
 bool g_bCvarAllow, g_bMapStarted, g_bCvarChase, g_bLeft4Dead2;
-int g_iCvarGlowC, g_iCvarGlowV, g_iChase[MAXPLAYERS+1];
+int g_iCvarFlags, g_iCvarGlowC, g_iCvarGlowV, g_iChase[MAXPLAYERS+1];
 float g_fCvarDuration, g_fCvarParticle, g_fLastVomit[MAXPLAYERS+1];
 Handle g_hSDKVomit, g_hSDKUnVomit;
 
@@ -75,7 +89,7 @@ public Plugin myinfo =
 	author = "SilverShot",
 	description = "Removes the visual vomit effect from a survivor.",
 	version = PLUGIN_VERSION,
-	url = "http://forums.alliedmods.net/showthread.php?t=320025"
+	url = "https://forums.alliedmods.net/showthread.php?t=320025"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -96,20 +110,20 @@ public void OnPluginStart()
 	// ====================================================================================================
 	// SDKCALLS
 	// ====================================================================================================
-	Handle hGameData = LoadGameConfigFile("l4d_unvomit");
-	if( hGameData == INVALID_HANDLE ) SetFailState("Failed to load gamedata: l4d_unvomit.txt");
+	GameData hGameData = new GameData("l4d_unvomit");
+	if( hGameData == null ) SetFailState("Failed to load gamedata: l4d_unvomit.txt");
 
 	StartPrepSDKCall(SDKCall_Player);
 	if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CTerrorPlayer::OnVomitedUpon") == false ) SetFailState("Failed to find signature: CTerrorPlayer::OnVomitedUpon");
 	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer);
 	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);
 	g_hSDKVomit = EndPrepSDKCall();
-	if( g_hSDKVomit == INVALID_HANDLE ) SetFailState("Failed to create SDKCall: CTerrorPlayer::OnVomitedUpon");
+	if( g_hSDKVomit == null ) SetFailState("Failed to create SDKCall: CTerrorPlayer::OnVomitedUpon");
 
 	StartPrepSDKCall(SDKCall_Player);
 	if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CTerrorPlayer::OnITExpired") == false ) SetFailState("Failed to find signature: CTerrorPlayer::OnITExpired");
 	g_hSDKUnVomit = EndPrepSDKCall();
-	if( g_hSDKUnVomit == INVALID_HANDLE ) SetFailState("Failed to create SDKCall: CTerrorPlayer::OnITExpired");
+	if( g_hSDKUnVomit == null ) SetFailState("Failed to create SDKCall: CTerrorPlayer::OnITExpired");
 
 	delete hGameData;
 
@@ -121,11 +135,12 @@ public void OnPluginStart()
 	g_hCvarAllow =			CreateConVar(	"l4d_unvomit_allow",			"1",				"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
 	g_hCvarChase =			CreateConVar(	"l4d_unvomit_chase",			"1",				"0=Off. 1=Attach a info_goal_infected_chase to players for common infected to chase them.", CVAR_FLAGS );
 	g_hCvarDuration =		CreateConVar(	"l4d_unvomit_duration",			"20",				"Duration of the effect (game default: 20). How long to keep the chase and glow enabled.", CVAR_FLAGS );
+	g_hCvarFlags =			CreateConVar(	"l4d_unvomit_flags",			"",					"Only users with these flags will be unvomited. Empty = allow all players.", CVAR_FLAGS );
 	g_hCvarParticle =		CreateConVar(	"l4d_unvomit_particle",			"0.0",				"0.0=Instant. Duration of the particle effect (game default: 10.0). How long to keep the on-screen green effect enabled.", CVAR_FLAGS );
 	if( g_bLeft4Dead2 )
 	{
-		g_hCvarGlowC =		CreateConVar(	"l4d_unvomit_glow_color",		"255 100 0",		"0=Off. L4D2 only: glow outline on players until vomit reset time. Three values between 0-255 separated by spaces. RGB: Red Green Blue.", CVAR_FLAGS );
-		g_hCvarGlowV =		CreateConVar(	"l4d_unvomit_glow_versus",		"201 18 184",		"0=Off. L4D2 only: glow outline in Versus gamemode. Displays the same color to both teams.", CVAR_FLAGS );
+		g_hCvarGlowC =		CreateConVar(	"l4d_unvomit_glow_color",		"255 102 0",		"0=Off. L4D2 only: glow outline on players until vomit reset time. Three values between 0-255 separated by spaces. RGB: Red Green Blue.", CVAR_FLAGS );
+		g_hCvarGlowV =		CreateConVar(	"l4d_unvomit_glow_versus",		"201 17 183",		"0=Off. L4D2 only: glow outline in Versus gamemode. Displays the same color to both teams.", CVAR_FLAGS );
 	}
 	g_hCvarModes =			CreateConVar(	"l4d_unvomit_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff =		CreateConVar(	"l4d_unvomit_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
@@ -141,6 +156,7 @@ public void OnPluginStart()
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarChase.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDuration.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFlags.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarParticle.AddChangeHook(ConVarChanged_Cvars);
 	if( g_bLeft4Dead2 )
 	{
@@ -182,18 +198,21 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
 void GetCvars()
 {
+	char sTemp[32];
+	g_hCvarFlags.GetString(sTemp, sizeof(sTemp));
+	g_iCvarFlags = ReadFlagString(sTemp);
 	g_bCvarChase = g_hCvarChase.BoolValue;
 	g_fCvarDuration = g_hCvarDuration.FloatValue;
 	g_fCvarParticle = g_hCvarParticle.FloatValue;
@@ -226,13 +245,19 @@ void IsAllowed()
 
 	if( g_bCvarAllow == false && bCvarAllow == true && bAllowMode == true )
 	{
-		HookEvent("player_now_it",			Event_IsIt, EventHookMode_Pre);
+		if( g_bLeft4Dead2 )
+			HookEvent("player_death",			Event_PlayerDeath);
+		HookEvent("player_now_it",				Event_IsIt, EventHookMode_Pre);
+		HookEvent("bot_player_replace",			Event_PlayerReplace);
 		g_bCvarAllow = true;
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
 	{
-		UnhookEvent("player_now_it",		Event_IsIt, EventHookMode_Pre);
+		if( g_bLeft4Dead2 )
+			UnhookEvent("player_death",			Event_PlayerDeath);
+		UnhookEvent("player_now_it",			Event_IsIt, EventHookMode_Pre);
+		UnhookEvent("bot_player_replace",		Event_PlayerReplace);
 		g_bCvarAllow = false;
 	}
 }
@@ -259,7 +284,7 @@ bool IsAllowedGameMode()
 		HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
 		ActivateEntity(entity);
 		AcceptEntityInput(entity, "PostSpawnActivate");
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 
 		if( g_iCurrentMode == 0 )
 			return false;
@@ -291,7 +316,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -308,13 +333,13 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					COMMAND
 // ====================================================================================================
-public Action CmdVomit(int client, int args)
+Action CmdVomit(int client, int args)
 {
 	VomitCommand(client, args, false);
 	return Plugin_Handled;
 }
 
-public Action CmdUnVomit(int client, int args)
+Action CmdUnVomit(int client, int args)
 {
 	VomitCommand(client, args, true);
 	return Plugin_Handled;
@@ -384,74 +409,137 @@ Action Timer_Unvomit( Handle timer, int UserId )
 	{
 		SDKCall(g_hSDKUnVomit, client);
 	}
+
+	return Plugin_Continue;
 }
 
-public Action Event_IsIt(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerReplace(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("player"));
+	if( client && IsClientInGame(client) )
+	{
+		if( GetEntPropFloat(client, Prop_Send, "m_vomitStart") + 20.0 >= GetGameTime() )
+		{
+			int bot = GetClientOfUserId(event.GetInt("bot"));
+
+			EventIsIt(client, 20.0 - (GetGameTime() - g_fLastVomit[bot]));
+
+			int entity = g_iChase[bot];
+			g_iChase[bot] = 0;
+
+			if( entity && EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
+			{
+				RemoveEntity(entity);
+			}
+		}
+	}
+}
+
+Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+{
+	int userid = event.GetInt("userid");
+	int client = GetClientOfUserId(userid);
+	if( client && (g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC) )
+	{
+		if( GetEntProp(client, Prop_Send, "m_iGlowType") == 3 && GetEntProp(client, Prop_Send, "m_glowColorOverride") == (g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC) )
+		{
+			SetEntProp(client, Prop_Send, "m_glowColorOverride", 0);
+			SetEntProp(client, Prop_Send, "m_iGlowType", 0);
+		}
+	}
+
+	return Plugin_Continue;
+}
+
+Action Event_IsIt(Event event, const char[] name, bool dontBroadcast)
 {
 	int userid = event.GetInt("userid");
 	int client = GetClientOfUserId(userid);
 	if( client && IsFakeClient(client) == false )
 	{
-		// Remove vomit
-		if( g_fCvarParticle )
-		{
-			CreateTimer(g_fCvarParticle, Timer_Unvomit, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-		} else {
-			SDKCall(g_hSDKUnVomit, client);
-		}
-
-		// Otherwise event fires over and over
-		if( GetGameTime() - g_fLastVomit[client] < g_fCvarDuration )
-		{
-			// Block event
-			return Plugin_Handled;
-		} else {
-			g_fLastVomit[client] = GetGameTime();
-
-			// Reset glow / fire event
-			CreateTimer(g_fCvarDuration, TimerUnvomit, userid);
-
-			// Glow
-			if ( g_bLeft4Dead2 )
-			{
-				int glow = g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC;
-				if( glow )
-				{
-					SetEntProp(client, Prop_Send, "m_iGlowType", 3);
-					SetEntProp(client, Prop_Send, "m_glowColorOverride", glow);
-				}
-			}
-
-			// Chase
-			if( g_bCvarChase )
-			{
-				int entity = CreateEntityByName("info_goal_infected_chase");
-				if( entity != -1 )
-				{
-					g_iChase[client] = EntIndexToEntRef(entity);
-
-					DispatchSpawn(entity);
-					float vPos[3];
-					GetClientAbsOrigin(client, vPos);
-					vPos[2] += 20.0;
-					TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
-
-					SetVariantString("!activator");
-					AcceptEntityInput(entity, "SetParent", client);
-
-					static char temp[32];
-					Format(temp, sizeof temp, "OnUser4 !self:Kill::%f:-1", g_fCvarDuration);
-					SetVariantString(temp);
-					AcceptEntityInput(entity, "AddOutput");
-					AcceptEntityInput(entity, "FireUser4");
-				}
-			}
-		}
+		return EventIsIt(client, g_fCvarDuration);
 	}
+	else
+	{
+		g_fLastVomit[client] = GetGameTime();
+	}
+
 	return Plugin_Continue;
 }
 
-public Action TimerUnvomit(Handle timer, any userid)
+Action EventIsIt(int client, float time)
+{
+	// Flags - specified users only
+	if( g_iCvarFlags != 0 )
+	{
+		int flags = GetUserFlagBits(client);
+
+		if( !(flags & ADMFLAG_ROOT) && !(flags & g_iCvarFlags) )
+		{
+			return Plugin_Continue;
+		}
+	}
+
+	// Remove vomit
+	if( g_fCvarParticle )
+	{
+		CreateTimer(g_fCvarParticle, Timer_Unvomit, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+	} else {
+		SDKCall(g_hSDKUnVomit, client);
+	}
+
+	// Otherwise event fires over and over
+	if( GetGameTime() - g_fLastVomit[client] < time )
+	{
+		// Block event
+		return Plugin_Handled;
+	} else {
+		g_fLastVomit[client] = GetGameTime();
+
+		// Reset glow / fire event
+		CreateTimer(time, Timer_Reset, GetClientUserId(client));
+
+		// Glow
+		if ( g_bLeft4Dead2 )
+		{
+			int glow = g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC;
+			if( glow )
+			{
+				SetEntProp(client, Prop_Send, "m_iGlowType", 3);
+				SetEntProp(client, Prop_Send, "m_glowColorOverride", glow);
+			}
+		}
+
+		// Chase
+		if( g_bCvarChase )
+		{
+			int entity = CreateEntityByName("info_goal_infected_chase");
+			if( entity != -1 )
+			{
+				g_iChase[client] = EntIndexToEntRef(entity);
+
+				DispatchSpawn(entity);
+				float vPos[3];
+				GetClientAbsOrigin(client, vPos);
+				vPos[2] += 20.0;
+				TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+
+				SetVariantString("!activator");
+				AcceptEntityInput(entity, "SetParent", client);
+
+				static char temp[32];
+				Format(temp, sizeof temp, "OnUser4 !self:Kill::%f:-1", time);
+				SetVariantString(temp);
+				AcceptEntityInput(entity, "AddOutput");
+				AcceptEntityInput(entity, "FireUser4");
+			}
+		}
+	}
+
+	return Plugin_Continue;
+}
+
+Action Timer_Reset(Handle timer, any userid)
 {
 	int client = GetClientOfUserId(userid);
 	if( client && IsClientInGame(client) )
@@ -459,9 +547,7 @@ public Action TimerUnvomit(Handle timer, any userid)
 		// Glow
 		if( g_bLeft4Dead2 && g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC )
 		{
-			if( GetEntProp(client, Prop_Send, "m_iGlowType") == 3 &&
-				GetEntProp(client, Prop_Send, "m_glowColorOverride") == (g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC)
-			)
+			if( GetEntProp(client, Prop_Send, "m_iGlowType") == 3 && GetEntProp(client, Prop_Send, "m_glowColorOverride") == (g_iCurrentMode == 4 ? g_iCvarGlowV : g_iCvarGlowC) )
 			{
 				SetEntProp(client, Prop_Send, "m_glowColorOverride", 0);
 				SetEntProp(client, Prop_Send, "m_iGlowType", 0);
@@ -472,11 +558,13 @@ public Action TimerUnvomit(Handle timer, any userid)
 		int entity = g_iChase[client];
 		g_iChase[client] = 0;
 		if( entity && EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
-			AcceptEntityInput(entity, "Kill");
+			RemoveEntity(entity);
 
 		// Fire event - if other plugins require
 		Event event = CreateEvent("player_no_longer_it", true);
 		event.SetInt("userid", userid);
 		event.Fire(false);
 	}
+
+	return Plugin_Continue;
 }

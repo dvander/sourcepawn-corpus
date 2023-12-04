@@ -56,38 +56,44 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_SURVIVOR_DEATH_MODEL         "survivor_death_model"
-
 #define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Interval;
-static ConVar g_hCvar_Count;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Interval;
+ConVar g_hCvar_Count;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Count;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Count;
+int g_iCvar_Count;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_Interval;
+float g_fCvar_Interval;
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static int    ge_iRepeatCount[MAXENTITIES+1];
+int ge_iRepeatCount[MAXENTITIES+1];
+
+// ====================================================================================================
+// ArrayList - Plugin Variables
+// ====================================================================================================
+ArrayList g_alPluginEntities;
+
+// ====================================================================================================
+// Timer - Plugin Variables
+// ====================================================================================================
+Handle g_tShockInterval;
 
 // ====================================================================================================
 // Plugin Start
@@ -109,10 +115,12 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    g_alPluginEntities = new ArrayList();
+
     CreateConVar("l4d2_dead_bodies_spasm_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled  = CreateConVar("l4d2_dead_bodies_spasm_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Interval = CreateConVar("l4d2_dead_bodies_spasm_interval", "1.0", "How often (in seconds) should apply a shock to the survivors dead bodies.", CVAR_FLAGS, true, 0.1);
-    g_hCvar_Count    = CreateConVar("l4d2_dead_bodies_spasm_count", "0", "How many times should should apply a shock to the survivors dead bodies.\n0 = Unlimited", CVAR_FLAGS, true, 0.0);
+    g_hCvar_Count    = CreateConVar("l4d2_dead_bodies_spasm_count", "0", "How many times should apply a shock to survivors dead bodies.\n0 = Unlimited.", CVAR_FLAGS, true, 0.0);
 
     // Hook plugin ConVars change
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
@@ -132,38 +140,39 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_Interval = g_hCvar_Interval.FloatValue;
     g_iCvar_Count = g_hCvar_Count.IntValue;
-    g_bCvar_Count = (g_iCvar_Count > 0);
+
+    delete g_tShockInterval;
+    if (g_bCvar_Enabled)
+        g_tShockInterval = CreateTimer(g_fCvar_Interval, TimerShock, _, TIMER_REPEAT);
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_SURVIVOR_DEATH_MODEL)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "survivor_death_model")) != INVALID_ENT_REFERENCE)
     {
-       CreateTimer(g_fCvar_Interval, TimerShock, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+        AddEntityToArrayList(entity);
     }
 }
 
@@ -171,84 +180,85 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 's' && classname[1] != 'u') // survivor_death_model
-        return;
-
-    if (StrEqual(classname, CLASSNAME_SURVIVOR_DEATH_MODEL))
-        CreateTimer(g_fCvar_Interval, TimerShock, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+    if (StrEqual(classname, "survivor_death_model"))
+        AddEntityToArrayList(entity);
 }
 
 /****************************************************************************************************/
 
 public void OnEntityDestroyed(int entity)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     ge_iRepeatCount[entity] = 0;
+
+    int find = g_alPluginEntities.FindValue(EntIndexToEntRef(entity));
+    if (find != -1)
+        g_alPluginEntities.Erase(find);
 }
 
 /****************************************************************************************************/
 
-public Action TimerShock(Handle timer, int entityRef)
+void AddEntityToArrayList(int entity)
 {
-    if (!g_bCvar_Enabled)
-        return;
+    if (g_alPluginEntities.FindValue(EntIndexToEntRef(entity)) == -1)
+        g_alPluginEntities.Push(EntIndexToEntRef(entity));
+}
 
-    int entity = EntRefToEntIndex(entityRef);
+/****************************************************************************************************/
 
-    if (entity == INVALID_ENT_REFERENCE)
-        return;
+Action TimerShock(Handle timer)
+{
+    int entity;
 
-    CreateTimer(g_fCvar_Interval, TimerShock, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+    for (int i = 0; i < g_alPluginEntities.Length; i++)
+    {
+        entity = EntRefToEntIndex(g_alPluginEntities.Get(i));
 
-    if (g_bCvar_Count && ge_iRepeatCount[entity] >= g_iCvar_Count)
-        return;
+        if (entity == INVALID_ENT_REFERENCE)
+            continue;
 
-    AcceptEntityInput(entity, "Shock");
-    ge_iRepeatCount[entity]++;
+        if (g_iCvar_Count > 0)
+        {
+            if (ge_iRepeatCount[entity] >= g_iCvar_Count)
+                continue;
+
+            ge_iRepeatCount[entity]++;
+            if (ge_iRepeatCount[entity] < 0) // int.MaxValue fix
+                ge_iRepeatCount[entity] = 0;
+        }
+
+        AcceptEntityInput(entity, "Shock");
+    }
+
+    return Plugin_Continue;
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
-    PrintToConsole(client, "---------------- Plugin Cvars (l4d2_dead_bodies_spasm) -----------------");
+    PrintToConsole(client, "--------------- Plugin Cvars (l4d2_dead_bodies_spasm) ----------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_dead_bodies_spasm_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_dead_bodies_spasm_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_dead_bodies_spasm_interval : %.2f", g_fCvar_Interval);
-    PrintToConsole(client, "l4d2_dead_bodies_spasm_count : %i (%s)", g_iCvar_Count, g_bCvar_Count ? "true" : "false");
+    PrintToConsole(client, "l4d2_dead_bodies_spasm_interval : %.1f", g_fCvar_Interval);
+    PrintToConsole(client, "l4d2_dead_bodies_spasm_count : %i", g_iCvar_Count);
+    PrintToConsole(client, "");
+    PrintToConsole(client, "----------------------------- Array List -----------------------------");
+    PrintToConsole(client, "");
+    PrintToConsole(client, "g_alPluginEntities count : %i", g_alPluginEntities.Length);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

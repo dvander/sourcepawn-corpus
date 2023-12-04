@@ -1,11 +1,10 @@
-#include <sourcemod>
 #include <sdktools>
 #include <morecolors>
 
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.2"
+#define PLUGIN_VERSION "1.3"
 
 #define WILLSPIN	"/vo/halloween_merasmus/sf12_wheel_spin04.mp3" //I spin the wheel
 #define SPINNING	"/misc/halloween/hwn_wheel_of_fate.wav"  //wheel spinning
@@ -84,7 +83,7 @@ public Action Command_pickplayer(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_getwait2(Handle timer)
+Action Command_getwait2(Handle timer)
 { 
 	int AllPlayers;
 	AllPlayers = MaxClients;
@@ -100,12 +99,16 @@ public Action Command_getwait2(Handle timer)
 	CreateTimer(5.0, Command_SpinWheel);
 	
 	CPrintToChatAll("{legendary}[Wheel of Fate]{darkturquoise} Selecting a random player...");
+	
+	return Plugin_Handled;
 }
 
 public Action Command_SpinWheel(Handle timer)
 {
 	EmitSoundToAll(SPINNING);
 	CreateTimer(9.0, Command_GetRandom);
+	
+	return Plugin_Handled;
 }
 public Action Command_GetRandom(Handle timer)
 {
@@ -152,12 +155,15 @@ public Action Command_GetRandom(Handle timer)
 public Action Command_GetRandom2(Handle timer)
 {
 	EmitSoundToAll(GETREADY);
-	CreateTimer(10.0, Command_GetRandom3);		
+	CreateTimer(10.0, Command_GetRandom3);
+	
+	return Plugin_Handled;
 }
 public Action Command_GetRandom3(Handle timer)
 {
 	PrintToServer("A 20 second countdown was started for the randomly selected player.");	
 	CreateTimer(0.1, Prepare_CountDown);
+	
 	return Plugin_Handled;	
 }	
 
@@ -198,6 +204,7 @@ public Action Timer_KillEntity(Handle timer, any prop)
 {
 	if (IsValidEntity(prop))
 	AcceptEntityInput(prop, "Kill");
+
 	return Plugin_Continue;
 }
 
@@ -206,6 +213,7 @@ public Action Prepare_CountDown(Handle timer)
 	EmitSoundToAll("vo/announcer_attention.mp3");
 	iAmount = 20;
 	CreateTimer(1.0, RPTimer_CountDown, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+	
 	return Plugin_Handled;
 }
 
@@ -223,6 +231,7 @@ public Action RPTimer_CountDown(Handle timer)
             PrintCenterTextAll("Done!");
             EmitSoundToAll("/player/taunt_bell.wav");
             PrintToServer("Countdown complete.");
+			
             return Plugin_Stop;
         }
     }

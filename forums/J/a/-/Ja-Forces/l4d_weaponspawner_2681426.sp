@@ -93,20 +93,21 @@
 #pragma newdecls required
 
 #define VERSION "0.7"
+#define CVAR_FLAGS	FCVAR_NOTIFY
 
 /* TopMenu Handle */
-Handle hAdminMenu = INVALID_HANDLE;
+TopMenu hAdminMenu = null;
 
 /* ConVar Handle */
-Handle AssaultMaxAmmo = INVALID_HANDLE;
-Handle SMGMaxAmmo = INVALID_HANDLE;
-Handle ShotgunMaxAmmo = INVALID_HANDLE;
-Handle AutoShotgunMaxAmmo = INVALID_HANDLE;
-Handle HRMaxAmmo = INVALID_HANDLE;
-//Handle SniperRifleMaxAmmo = INVALID_HANDLE;
-//Handle GrenadeLauncherMaxAmmo = INVALID_HANDLE;
-//Handle AllowAllMeleeWeapons = INVALID_HANDLE;
-Handle DebugInformations = INVALID_HANDLE;
+ConVar AssaultMaxAmmo = null;
+ConVar SMGMaxAmmo = null;
+ConVar ShotgunMaxAmmo = null;
+ConVar AutoShotgunMaxAmmo = null;
+ConVar HRMaxAmmo = null;
+//ConVar SniperRifleMaxAmmo = null;
+//ConVar GrenadeLauncherMaxAmmo = null;
+//ConVar AllowAllMeleeWeapons = null;
+ConVar DebugInformations = null;
 
 char ChoosedWeapon[MAXPLAYERS+1][56];
 char ChoosedMenuSpawn[MAXPLAYERS+1][56];
@@ -126,7 +127,7 @@ public Plugin myinfo =
 public void OnPluginStart()
 {
 	/* ConVars */
-	CreateConVar("sm_weaponspawner_version", VERSION, "Plugin Version", 0|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
+	CreateConVar("sm_weaponspawner_version", VERSION, "Plugin Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	/* Admin Commands */
 	RegAdminCmd("sm_spawnweapon", Command_SpawnWeapon, ADMFLAG_SLAY, "Spawn weapon where you are looking.");
@@ -143,23 +144,23 @@ public void OnPluginStart()
 
 
 	/* Max Ammo ConVars */
-	AssaultMaxAmmo = CreateConVar("sm_spawnweapon_assaultammo", "360", "How much Ammo for AK74, M4A1, SG552 and Desert Rifle.", 0, true, 0.0, true, 360.0);
-	SMGMaxAmmo = CreateConVar("sm_spawnweapon_smgammo", "650", "How much Ammo for SMG, Silenced SMG and MP5", 0, true, 0.0, true, 650.0);
-	ShotgunMaxAmmo = CreateConVar("sm_spawnweapon_shotgunammo", "56", "How much Ammo for Shotgun and Chrome Shotgun.", 0, true, 0.0, true, 56.0);
-	AutoShotgunMaxAmmo = CreateConVar("sm_spawnweapon_autoshotgunammo", "90", "How much Ammo for Autoshotgun and SPAS.", 0, true, 0.0, true, 90.0);
-	HRMaxAmmo = CreateConVar("sm_spawnweapon_huntingrifleammo", "150", "How much Ammo for the Hunting Rifle.", 0, true, 0.0, true, 150.0);
-	//SniperRifleMaxAmmo = CreateConVar("sm_spawnweapon_sniperrifleammo", "180", "How much Ammo for the Military Sniper Rifle, AWP and Scout.", 0, true, 0.0, true, 180.0);
-	//GrenadeLauncherMaxAmmo = CreateConVar("sm_spawnweapon_grenadelauncherammo", "30", "How much Ammo for the Grenade Launcher.", 0, true, 0.0, true, 30.0);
+	AssaultMaxAmmo = CreateConVar("sm_spawnweapon_assaultammo", "360", "How much Ammo for AK74, M4A1, SG552 and Desert Rifle.", CVAR_FLAGS, true, 0.0, true, 360.0);
+	SMGMaxAmmo = CreateConVar("sm_spawnweapon_smgammo", "650", "How much Ammo for SMG, Silenced SMG and MP5", CVAR_FLAGS, true, 0.0, true, 650.0);
+	ShotgunMaxAmmo = CreateConVar("sm_spawnweapon_shotgunammo", "56", "How much Ammo for Shotgun and Chrome Shotgun.", CVAR_FLAGS, true, 0.0, true, 56.0);
+	AutoShotgunMaxAmmo = CreateConVar("sm_spawnweapon_autoshotgunammo", "90", "How much Ammo for Autoshotgun and SPAS.", CVAR_FLAGS, true, 0.0, true, 90.0);
+	HRMaxAmmo = CreateConVar("sm_spawnweapon_huntingrifleammo", "150", "How much Ammo for the Hunting Rifle.", CVAR_FLAGS, true, 0.0, true, 150.0);
+	//SniperRifleMaxAmmo = CreateConVar("sm_spawnweapon_sniperrifleammo", "180", "How much Ammo for the Military Sniper Rifle, AWP and Scout.", CVAR_FLAGS, true, 0.0, true, 180.0);
+	//GrenadeLauncherMaxAmmo = CreateConVar("sm_spawnweapon_grenadelauncherammo", "30", "How much Ammo for the Grenade Launcher.", CVAR_FLAGS, true, 0.0, true, 30.0);
 
-	//AllowAllMeleeWeapons = CreateConVar("sm_spawnweapon_allowallmeleeweapons", "0", "Allow or Disallow all melee weapons on all campaigns.", 0, true, 0.0, true, 1.0);
-	DebugInformations = CreateConVar("sm_spawnweapon_debug", "0", "Enable or Disable Debug Informations.", 0, true, 0.0, true, 1.0);
+	//AllowAllMeleeWeapons = CreateConVar("sm_spawnweapon_allowallmeleeweapons", "0", "Allow or Disallow all melee weapons on all campaigns.", CVAR_FLAGS, true, 0.0, true, 1.0);
+	DebugInformations = CreateConVar("sm_spawnweapon_debug", "0", "Enable or Disable Debug Informations.", CVAR_FLAGS, true, 0.0, true, 1.0);
 
 	/* Config File */
 	AutoExecConfig(true, "l4d_weaponspawner");
 	
 	/*Menu Handler */
-	Handle topmenu;
-	if (LibraryExists("adminmenu") && ((topmenu = GetAdminTopMenu()) != INVALID_HANDLE))
+	TopMenu topmenu;
+	if (LibraryExists("adminmenu") && ((topmenu = GetAdminTopMenu()) != null))
 	{
 		OnAdminMenuReady(topmenu);
 	}
@@ -167,6 +168,14 @@ public void OnPluginStart()
 	/* Load translations */
 	LoadTranslations("common.phrases");
 	LoadTranslations("weaponspawner.phrases");
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+	if (StrEqual(name, "adminmenu"))
+	{
+		hAdminMenu = null;
+	}
 }
 
 public void OnMapStart()
@@ -429,27 +438,29 @@ public void RemoveMiniGun(int client)
 /* >>> end of Minigun */
 
 /* Menu */
-public void OnAdminMenuReady(Handle topmenu)
+public void OnAdminMenuReady(Handle aTopMenu)
 {
+	TopMenu topmenu = TopMenu.FromHandle(aTopMenu);
+	
 	if (topmenu == hAdminMenu)
 	{
 		return;
 	}
-
+	
 	hAdminMenu = topmenu;
-
-	TopMenuObject menu_category = AddToTopMenu(hAdminMenu, "sm_ws_topmenu", TopMenuObject_Category, Handle_Category, INVALID_TOPMENUOBJECT);
+	
+	TopMenuObject menu_category = hAdminMenu.AddCategory("sm_ws_topmenu", Handle_Category);
 
 	if (menu_category != INVALID_TOPMENUOBJECT)
 	{
-		AddToTopMenu(hAdminMenu, "sm_sw_menu", TopMenuObject_Item, AdminMenu_WeaponSpawner, menu_category, "sm_sw_menu", ADMFLAG_SLAY);
-		AddToTopMenu(hAdminMenu, "sm_gw_menu", TopMenuObject_Item, AdminMenu_WeaponGive, menu_category, "sm_gw_menu", ADMFLAG_SLAY);
-		AddToTopMenu(hAdminMenu, "sm_spawn_menu", TopMenuObject_Item, AdminMenu_ZombieSpawnMenu, menu_category, "sm_spawn_menu", ADMFLAG_SLAY);
-		AddToTopMenu(hAdminMenu, "sm_smg_menu", TopMenuObject_Item, AdminMenu_MachineGunSpawnMenu, menu_category, "sm_smg_menu", ADMFLAG_SLAY);
+		hAdminMenu.AddItem("sm_sw_menu", AdminMenu_WeaponSpawner, menu_category, "sm_sw_menu", ADMFLAG_SLAY);
+		hAdminMenu.AddItem("sm_gw_menu", AdminMenu_WeaponGive, menu_category, "sm_gw_menu", ADMFLAG_SLAY);
+		hAdminMenu.AddItem("sm_spawn_menu", AdminMenu_ZombieSpawnMenu, menu_category, "sm_spawn_menu", ADMFLAG_SLAY);
+		hAdminMenu.AddItem("sm_smg_menu", AdminMenu_MachineGunSpawnMenu, menu_category, "sm_smg_menu", ADMFLAG_SLAY);
 	}
 }
 
-public void Handle_Category(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+public void Handle_Category(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
 {
 	switch(action)
 	{
@@ -461,7 +472,7 @@ public void Handle_Category(Handle topmenu, TopMenuAction action, TopMenuObject 
 }
 
 /* Weapon Spawn Menu */
-public void AdminMenu_WeaponSpawner(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+public void AdminMenu_WeaponSpawner(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
 {
 	if (action == TopMenuAction_DisplayOption)
 	{
@@ -725,7 +736,7 @@ stock void ChoosedSpawnMenuHistory(int param1)
 /* >>> end of Weapon Spawn Menu */
 
 /* Weapon Give Menu */
-public void AdminMenu_WeaponGive(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+public void AdminMenu_WeaponGive(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
 {
 	switch(action)
 	{
@@ -1004,7 +1015,7 @@ stock void ChoosedGiveMenuHistory(int param1)
 /* >>> end of Weapon Give Menu */
 
 /* Spawn Special Zombie Menu */
-public void AdminMenu_ZombieSpawnMenu(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+public void AdminMenu_ZombieSpawnMenu(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
 {
 	if (action == TopMenuAction_DisplayOption)
 	{
@@ -1066,7 +1077,7 @@ public int MenuHandler_SpecialZombie(Menu menu, MenuAction action, int param1, i
 
 /* Minigun Menu */
 
-public void AdminMenu_MachineGunSpawnMenu (Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+public void AdminMenu_MachineGunSpawnMenu (TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
 {
 	if (action == TopMenuAction_DisplayOption)
 	{

@@ -137,7 +137,7 @@ public Action Event_BotReplacedPlayer(Event event, const char[] name, bool dontB
 	{
 		if(client)
 		{
-			if(IsClientConnected(client) && IsClientInGame(client))
+			if(IsClientInGame(client))
 			{
 				Handle datapack;
 				CreateDataTimer(0.5, Timer_ActivateFix, datapack, TIMER_FLAG_NO_MAPCHANGE);

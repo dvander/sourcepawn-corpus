@@ -62,15 +62,19 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_IgnoreWithoutAmmo;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_IgnoreWithoutAmmo;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_IgnoreWithoutAmmo;
+bool g_bCvar_Enabled;
+bool g_bCvar_IgnoreWithoutAmmo;
+
+// ====================================================================================================
+// client - Plugin Variables
+// ====================================================================================================
+bool gc_bWeaponEquipPostHooked[MAXPLAYERS+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -113,21 +117,19 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_IgnoreWithoutAmmo = g_hCvar_IgnoreWithoutAmmo.BoolValue;
@@ -135,7 +137,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -148,20 +150,28 @@ public void LateLoad()
 
 /****************************************************************************************************/
 
+public void OnClientDisconnect(int client)
+{
+    gc_bWeaponEquipPostHooked[client] = false;
+}
+
+/****************************************************************************************************/
+
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     if (IsFakeClient(client))
         return;
 
+    if (gc_bWeaponEquipPostHooked[client])
+        return;
+
+    gc_bWeaponEquipPostHooked[client] = true;
     SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
 }
 
 /****************************************************************************************************/
 
-public void OnWeaponEquipPost(int client, int weapon)
+void OnWeaponEquipPost(int client, int weapon)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -195,7 +205,7 @@ public void OnWeaponEquipPost(int client, int weapon)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");

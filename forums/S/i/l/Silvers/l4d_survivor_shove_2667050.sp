@@ -1,6 +1,6 @@
 /*
 *	Survivor Shove
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.9"
+#define PLUGIN_VERSION 		"1.16"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,34 @@
 
 ========================================================================================
 	Change Log:
+
+1.16 (02-Oct-2023)
+	- Changed cvar "l4d_survivor_shove_bots" to allow setting bots to not push humans. Requested by "Automage".
+
+1.15 (04-Aug-2022)
+	- Added cvar "l4d_survivor_shove_vocal_type" to control the type of vocalization. Thanks to "Shadowysn" for adding.
+
+1.14 (14-Jul-2022)
+	- Added cvar "l4d_survivor_shove_keys" to control the keybind used for shoving. Requested by "yabi".
+
+1.13 (23-Apr-2022)
+	- Fixed an error when the "Gear Transfer" plugin is not used.
+
+1.12 (01-Mar-2022)
+	- Added cvar "l4d_survivor_shove_bots" to target who can be shoved. Requested by "TrueDarkness".
+
+1.11 (18-Sep-2021)
+	- Now blocks shoving when holding a "First Aid Kit", "Pain Pills" or "Adrenaline". Requested by "Eocene".
+	- May sometimes still be shoved when transferring "Pain Pills" or "Adrenaline" since the game delays the event based on distance.
+	- The only solution would be adding a delay into the plugin, and this would be very noticeable visually.
+
+	- Now blocks shoving when holding a Grenade, Upgrade Ammo or a Defibrillator when allowed to transfer in "Gear Transfer" plugins "l4d_gear_transfer_types_real" cvar list.
+
+	- When using "Gear Transfer" plugin recommend updating to 2.17 or newer to fix compatibility issues.
+
+1.10 (25-Jul-2021)
+	- Now automatically detects "Gear Transfer" plugin and prevents shoving if using an item that can be transferred. Requested by "AI0702".
+	- Plugin compatibility with "Gear Transfer" plugin (version 1.14 or newer).
 
 1.9 (12-May-2021)
 	- Added cvar "l4d_survivor_shove_start" to set shoving on/off by default when joining the server.
@@ -90,10 +118,33 @@
 #define GAMEDATA			"l4d_survivor_shove"
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDelay, g_hCvarFlags, g_hCvarStart, g_hCvarVoca;
-bool g_bCvarAllow, g_bMapStarted, g_bLateLoad, g_bLeft4Dead2, g_bCanShove[MAXPLAYERS + 1] = {true, ...};
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarBots, g_hCvarDelay, g_hCvarFlags, g_hCvarKey, g_hCvarStart, g_hCvarVoca, g_hCvarVocaType, g_hGearTransferReal;
+bool g_bCvarAllow, g_bMapStarted, g_bLateLoad, g_bLeft4Dead2, g_bGearTransfer, g_bCanShove[MAXPLAYERS + 1] = {true, ...};
 float g_fTimeout[MAXPLAYERS + 1];
 Handle g_hConfStagger;
+StringMap g_smBlocked;
+
+// From Gear Transfer
+int g_iGearTypes;
+enum
+{
+	TYPE_ADREN	= (1<<0),
+	TYPE_PILLS	= (1<<1),
+	TYPE_MOLO	= (1<<2),
+	TYPE_PIPE	= (1<<3),
+	TYPE_VOMIT	= (1<<4),
+	TYPE_FIRST	= (1<<5),
+	TYPE_EXPLO	= (1<<6),
+	TYPE_INCEN	= (1<<7),
+	TYPE_DEFIB	= (1<<8)
+}
+
+enum
+{
+	ONLY_BOTS	= (1<<0),
+	ONLY_HUMAN	= (1<<1),
+	ONLY_FOUR	= (1<<2)
+}
 
 
 
@@ -173,7 +224,7 @@ public void OnPluginStart()
 		BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
 		if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
 
-		Handle hGameData = LoadGameConfigFile(GAMEDATA);
+		GameData hGameData = new GameData(GAMEDATA);
 		if( hGameData == null ) SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
 
 		StartPrepSDKCall(SDKCall_Entity);
@@ -191,10 +242,13 @@ public void OnPluginStart()
 
 	// CVARS
 	g_hCvarAllow = CreateConVar(	"l4d_survivor_shove_allow",			"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
-	g_hCvarDelay = CreateConVar(	"l4d_survivor_shove_delay",			"0",			"0=No timeout. How many seconds until someone can shove again.", CVAR_FLAGS );
+	g_hCvarBots = CreateConVar(		"l4d_survivor_shove_bots",			"0",			"Who can be shoved. 0=Everyone. 1=Bots only. 2-Humans only. 4=Bots cannot push humans. Add numbers together (7 will block all).", CVAR_FLAGS );
+	g_hCvarDelay = CreateConVar(	"l4d_survivor_shove_delay",			"0",			"0=No timeout. How many seconds until someone can shove again.", CVAR_FLAGS, true, 0.0 );
 	g_hCvarFlags = CreateConVar(	"l4d_survivor_shove_flags",			"z",			"Empty string = All. Players with one of these flags have access to the shove feature.", CVAR_FLAGS );
+	g_hCvarKey = CreateConVar(		"l4d_survivor_shove_keys",			"1",			"1=Shove. 2=Shove + Use. Which keys to shove players.", CVAR_FLAGS );
 	g_hCvarStart = CreateConVar(	"l4d_survivor_shove_start",			"1",			"0=Off. 1=On. Should shoving be turned on or off for players when they join.", CVAR_FLAGS );
 	g_hCvarVoca = CreateConVar(		"l4d_survivor_shove_vocalize",		"50",			"0=Off. The chance out of 100 for the survivor being shoved to scream.", CVAR_FLAGS );
+	g_hCvarVocaType = CreateConVar(	"l4d_survivor_shove_vocal_type",	"1",			"0=Death scream. 1=Pain scream. The type of vocalization the survivors will do.", CVAR_FLAGS );
 	g_hCvarModes = CreateConVar(	"l4d_survivor_shove_modes",			"",				"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff = CreateConVar(	"l4d_survivor_shove_modes_off",		"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog = CreateConVar(	"l4d_survivor_shove_modes_tog",		"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
@@ -225,7 +279,7 @@ public void OnPluginStart()
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdShove(int client, int args)
+Action CmdShove(int client, int args)
 {
 	if( !client )
 	{
@@ -336,10 +390,77 @@ public void OnMapEnd()
 
 public void OnConfigsExecuted()
 {
+	// Detected Gear Transfer plugin.
+	if( g_bGearTransfer == false )
+	{
+		g_bGearTransfer = FindConVar("l4d_gear_transfer_version") != null;
+	}
+
+	// Get Gear Transfer types allowed
+	if( g_hGearTransferReal == null )
+	{
+		g_hGearTransferReal = FindConVar("l4d_gear_transfer_types_real");
+		if( g_hGearTransferReal != null ) g_hGearTransferReal.AddChangeHook(ConVarChanged_Gear);
+	}
+
 	IsAllowed();
+	GetGearTransferCvar();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Gear(Handle convar, const char[] oldValue, const char[] newValue)
+{
+	GetGearTransferCvar();
+}
+
+void GetGearTransferCvar()
+{
+	delete g_smBlocked;
+	g_smBlocked = new StringMap();
+
+	// Always block these
+	if( g_bLeft4Dead2 )
+		g_smBlocked.SetValue("weapon_adrenaline", true);
+	g_smBlocked.SetValue("weapon_pain_pills", true);
+	g_smBlocked.SetValue("weapon_first_aid_kit", true);
+
+	// Block items Gear Transfer allows to transfer
+	if( g_hGearTransferReal != null )
+	{
+		g_iGearTypes = GetEnum(g_hGearTransferReal);
+
+		if( g_iGearTypes )
+		{
+			if( g_iGearTypes & TYPE_MOLO )			g_smBlocked.SetValue("weapon_molotov", true);
+			if( g_iGearTypes & TYPE_PIPE )			g_smBlocked.SetValue("weapon_pipe_bomb", true);
+
+			if( g_bLeft4Dead2 )
+			{
+				if( g_iGearTypes & TYPE_VOMIT )		g_smBlocked.SetValue("weapon_vomitjar", true);
+				if( g_iGearTypes & TYPE_EXPLO )		g_smBlocked.SetValue("weapon_upgradepack_explosive", true);
+				if( g_iGearTypes & TYPE_INCEN )		g_smBlocked.SetValue("weapon_upgradepack_incendiary", true);
+				if( g_iGearTypes & TYPE_DEFIB )		g_smBlocked.SetValue("weapon_defibrillator", true);
+			}
+		}
+	}
+}
+
+int GetEnum(ConVar cvar)
+{
+	int val;
+	static char num[2], temp[10];
+	cvar.GetString(temp, sizeof(temp));
+
+	for( int i = 0; i < strlen(temp); i++ )
+	{
+		num[0] = temp[i];
+		if( StringToInt(num) != 0 )
+			val += (1<<StringToInt(num)-1);
+	}
+
+	return val;
+}
+
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
@@ -352,13 +473,27 @@ void IsAllowed()
 	if( g_bCvarAllow == false && bCvarAllow == true && bAllowMode == true )
 	{
 		g_bCvarAllow = true;
-		HookEvent("player_shoved", Event_PlayerShoved);
+		HookEvent("player_shoved",		Event_PlayerShoved);
+
+		if( g_bLeft4Dead2 )
+		{
+			HookEvent("weapon_drop",	Event_WeaponDrop); // L4D2 only event
+		} else {
+			HookEvent("weapon_given",	Event_WeaponGiven); // L4D1 event
+		}
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
 	{
 		g_bCvarAllow = false;
-		UnhookEvent("player_shoved", Event_PlayerShoved);
+		UnhookEvent("player_shoved",	Event_PlayerShoved);
+
+		if( g_bLeft4Dead2 )
+		{
+			UnhookEvent("weapon_drop",	Event_WeaponDrop); // L4D2 only event
+		} else {
+			UnhookEvent("weapon_given",	Event_WeaponGiven); // L4D1 event
+		}
 	}
 }
 
@@ -420,7 +555,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -435,18 +570,108 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 
 
 // ====================================================================================================
+//					FORWARDS - From "Gear Transfer" plugin
+// ====================================================================================================
+public void GearTransfer_OnWeaponGive(int client, int target, int item)
+{
+	g_fTimeout[client] = GetGameTime() + 0.5;
+}
+
+public void GearTransfer_OnWeaponGrab(int client, int target, int item)
+{
+	g_fTimeout[client] = GetGameTime() + 0.5;
+}
+
+public void GearTransfer_OnWeaponSwap(int client, int target, int itemGiven, int itemTaken)
+{
+	g_fTimeout[client] = GetGameTime() + 0.5;
+}
+
+
+
+// ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
+// L4D1: Block shove when transfer of pills
+void Event_WeaponGiven(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(event.GetInt("attacker"));
+	int client = GetClientOfUserId(event.GetInt("giver"));
+	if( client )
+	{
+		g_fTimeout[client] = GetGameTime() + 0.5;
+	}
+}
+
+// L4D2: Block shove when transfer of pills/adrenaline
+void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if( client )
+	{
+		static char sTemp[8];
+		event.GetString("item", sTemp, sizeof(sTemp));
+		if( strncmp(sTemp, "pain", 4) == 0 || strncmp(sTemp, "adre", 4) == 0 )
+		{
+			g_fTimeout[client] = GetGameTime() + 0.5;
+		}
+	}
+}
+
+void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
+{
+	int user_target = event.GetInt("userid");
+	int user_client = event.GetInt("attacker");
+	int client = GetClientOfUserId(user_client);
+
+	int bots = g_hCvarBots.IntValue;
+	if( bots )
+	{
+		int target = GetClientOfUserId(user_target);
+		if( IsFakeClient(target) )
+		{
+			if( bots & ONLY_HUMAN ) return; // Push humans only
+		} else {
+			if( bots & ONLY_BOTS ) return; // Push bots only
+			if( bots & ONLY_FOUR && IsFakeClient(client) ) return; // Bots cannot push humans
+		}
+	}
+
+	if( g_hCvarKey.IntValue == 2 )
+	{
+		int buttons = GetClientButtons(client);
+		if( buttons & IN_USE != IN_USE )
+		{
+			return;
+		}
+	}
+
+	DataPack hPack = new DataPack();
+	hPack.WriteCell(user_client);
+	hPack.WriteCell(user_target);
+
+	RequestFrame(OnFramShove, hPack);
+}
+
+void OnFramShove(DataPack hPack)
+{
+	hPack.Reset();
+
+	int client = hPack.ReadCell();
+	int userid = hPack.ReadCell();
+
+	delete hPack;
+
+	client = GetClientOfUserId(client);
+	int target = GetClientOfUserId(userid);
+
+	if( !client || !target || !IsClientInGame(client) || !IsClientInGame(target) )
+		return;
 
 	// Turned off.
 	if( !g_bCanShove[client] ) return;
 
 	// Timeout
-	float fTime = g_hCvarDelay.FloatValue;
-	if( fTime && g_fTimeout[client] > GetGameTime() )
+	if( g_fTimeout[client] > GetGameTime() )
 		return;
 
 	g_fTimeout[client] = 0.0;
@@ -478,12 +703,23 @@ public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcas
 	if( access == false )
 		return;
 
+	// Block shoving for transferable items or allowed Gear Transfer items.
+	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+	if( weapon != -1 )
+	{
+		GetEdictClassname(weapon, sTemp, sizeof(sTemp));
+
+		int aNull;
+		if( g_smBlocked.GetValue(sTemp, aNull) )
+		{
+			return;
+		}
+	}
+
 	// Event
-	int userid = event.GetInt("userid");
-	int target = GetClientOfUserId(userid);
 	if( GetClientTeam(client) == 2 && GetClientTeam(target) == 2 )
 	{
-		g_fTimeout[client] = GetGameTime() + fTime;
+		g_fTimeout[client] = GetGameTime() + g_hCvarDelay.FloatValue;
 
 		float vPos[3];
 		GetClientAbsOrigin(client, vPos);
@@ -497,21 +733,44 @@ public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcas
 		int chance = g_hCvarVoca.IntValue;
 		if( chance && GetRandomInt(1, 100) <= chance )
 		{
-			static char model[40];
-
-			// Get survivor model
-			GetEntPropString(target, Prop_Data, "m_ModelName", model, sizeof(model));
-
-			switch( model[29] )
+			switch ( g_hCvarVocaType.IntValue )
 			{
-				case 'c': VocalizeScene(target, g_Coach[GetRandomInt(0, sizeof(g_Coach) - 1)]);
-				case 'b': VocalizeScene(target, g_Nick[GetRandomInt(0, sizeof(g_Nick) - 1)]);
-				case 'h': VocalizeScene(target, g_Ellis[GetRandomInt(0, sizeof(g_Ellis) - 1)]);
-				case 'd': VocalizeScene(target, g_Rochelle[GetRandomInt(0, sizeof(g_Rochelle) - 1)]);
-				case 'v': VocalizeScene(target, g_Bill[GetRandomInt(0, sizeof(g_Bill) - 1)]);
-				case 'e': VocalizeScene(target, g_Francis[GetRandomInt(0, sizeof(g_Francis) - 1)]);
-				case 'a': VocalizeScene(target, g_Louis[GetRandomInt(0, sizeof(g_Louis) - 1)]);
-				case 'n': VocalizeScene(target, g_Zoey[GetRandomInt(0, sizeof(g_Zoey) - 1)]);
+				case 1:
+				{
+					int health = GetClientHealth(target);
+					if( health < 40 )
+					{
+						SetVariantString("PainLevel:Major:0.1");
+					}
+					else
+					{
+						SetVariantString("PainLevel:Minor:0.1");
+					}
+
+					AcceptEntityInput(target, "AddContext");
+
+					SetVariantString("Pain");
+					AcceptEntityInput(target, "SpeakResponseConcept");
+				}
+				default:
+				{
+					static char model[40];
+
+					// Get survivor model
+					GetEntPropString(target, Prop_Data, "m_ModelName", model, sizeof(model));
+
+					switch( model[29] )
+					{
+						case 'c': VocalizeScene(target, g_Coach[GetRandomInt(0, sizeof(g_Coach) - 1)]);
+						case 'b': VocalizeScene(target, g_Nick[GetRandomInt(0, sizeof(g_Nick) - 1)]);
+						case 'h': VocalizeScene(target, g_Ellis[GetRandomInt(0, sizeof(g_Ellis) - 1)]);
+						case 'd': VocalizeScene(target, g_Rochelle[GetRandomInt(0, sizeof(g_Rochelle) - 1)]);
+						case 'v': VocalizeScene(target, g_Bill[GetRandomInt(0, sizeof(g_Bill) - 1)]);
+						case 'e': VocalizeScene(target, g_Francis[GetRandomInt(0, sizeof(g_Francis) - 1)]);
+						case 'a': VocalizeScene(target, g_Louis[GetRandomInt(0, sizeof(g_Louis) - 1)]);
+						case 'n': VocalizeScene(target, g_Zoey[GetRandomInt(0, sizeof(g_Zoey) - 1)]);
+					}
+				}
 			}
 		}
 	}
@@ -534,7 +793,7 @@ void StaggerClient(int userid, const float vPos[3])
 	Format(sBuffer, sizeof(sBuffer), "GetPlayerFromUserID(%d).Stagger(Vector(%d,%d,%d))", userid, RoundFloat(vPos[0]), RoundFloat(vPos[1]), RoundFloat(vPos[2]));
 	SetVariantString(sBuffer);
 	AcceptEntityInput(iScriptLogic, "RunScriptCode");
-	AcceptEntityInput(iScriptLogic, "Kill");
+	RemoveEntity(iScriptLogic);
 }
 
 // Taken from:

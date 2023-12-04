@@ -1,210 +1,3 @@
-/*
------------------------------------------------------------------------------
-LEFT 4 DEAD STATS - SOURCEMOD PLUGIN
------------------------------------------------------------------------------
-Initial Code for Left 4 Dead 1 Written By msleeper (c) 2009
------------------------------------------------------------------------------
-Major Part Of The Code Written By muukis (c) 2010-2012
------------------------------------------------------------------------------
-This is a ranking/stat tracking system for Left 4 Dead Co-op. It will track
-certain actions, such as giving a teammate Pills or rescuing them from a
-Hunter, as well as tracking kills of the types of Infected. The goal of the
-stats is both to rank players against one another, but also to promote
-teamwork by awarding more points for completing team-specific goals rather
-than simply basing on kills.
-
-You can access your basic rank information by typing "rank" or "/rank" in
-the chat area. You can access the Top 10 Players by typing "top10" or
-"/top10" in the chat area.
-
-The plugin ONLY works in Co-op mode, in every difficulty but Easy. Stats
-will automatically stop tracking if any of these conditions are met:
- . Game is in Easy difficulty
- . sv_cheats is set to "1"
- . There are not enough Human players, as determined by a Cvar
- . The Database connection has failed
-
-The webstats portion provides more in-depth stat information, both for
-individual players as well as the server as a whole, with full campaign and
-map stat info. More information about webstats can be found in the webstats
-ZIP file.
-
-Special thanks to DopeFish, Icettiflow, jasonfrog, and liv3d for helping me
-beta test prior to full public release.
-
-Thank you and enjoy!
-- msleeper
------------------------------------------------------------------------------
-A little notice on my behalf as well:
-
-I'd like to send my special thanks to Harm and Titan for the testing done
-when adding support to L4D2. This would not have been possible to accomplish
-in this timeframe, if it wasn't for them! Planetsize thanks guys!
-
-- muukis
------------------------------------------------------------------------------
-To Do List (Minor)
- . Fix minor bug with Campaign tracking
- . Add multilingual support
-
-To Do List (Major)
- . Add "Squad" system
- . Add grace period and cooldown to Friendly Fire
- . Add achievement system
- . Add Survival support
- . Versus statistics
-   . Smoker pull award (length)
-   . Tank incapacitated or killed all players
------------------------------------------------------------------------------
-Version History
-
--- 0.1.0 (1/8/09)
- . Initial closed beta release!
-
--- 0.1.1 (1/9/09)
- . Silenced plugin disable alerts, except "not enough Human players" alert.
- . Removed misc debug message.
- . Fixed misc error log messages.
-
--- 0.1.2 (1/12/09)
- . Testing new interstitial SQL method for Common Infected kill tracking.
-   Instead of sending a SQL transaction after each kill, only send SQL during
-   the update period when Common Infected points are displayed. The high
-   amount of SQL traffic causes noticible lag during high combat periods,
-   such as when a mob attacks.
-
--- 0.1.6 (1/13/09)
- . Fully implimented interstitial SQL update for Common Infected. Added
-   check to send update when a player disconnects, so no points are lost if
-   they disconnect between interstitial updates.
- . Cleaned up code a bit.
- . Improved player name sanitation.
- . Changed new players playtime to init at 1 instead of 0.
- . Changed point amounts from static values to Cvar values.
- . Added Cvar to control how stats messages are displayed to players:
-    0 = Stats messages are off
-    1 = Messages sent to the player who earned them only
-    2 = Same as 1, but Headshots on Special Infected are globally anounced
-    3 = All messages are global. Warning: This is VERY annoying!
- . Added Cvar to control whether Medkit points are given based on the amount
-   healed, or a static amount set by Cvar. Amount healed is 0.5x in Normal,
-   1x in Advanced, and 2x in Expert.
- . Added check to disable stats if the Database connection has failed.
-
--- 0.1.8 (1/15/09)
- . Further cleaned up code.
- . Optimized UTF8 character support.
- . Removed log message on successful database connection.
- . Added threaded query to player inserting, to check if the player already
-   exists and if so, don't attempt to INSERT IGNORE them.
- . Reformatted rank panels.
- . Added Cvar to list community site for more information in "rank" panel.
- . Removed table generation from the plugin. This will be handled by a
-   setup script provided with webstats.
-
--- 0.1.9 (1/16/09)
- . Changed all updates to threaded queries, to fix lag caused by updates and
-   server timeouts in rare cases.
-
--- 1.0.0 (1/18/09)
- . Initial public release!
-
--- 1.1.0 (1/25/09)
- . Fixed change in update/Common Infected announcement timer not obeying
-   changes to the cvar, except when in the config file and the plugin/server
-   is restarted.
- . Fixed team chat not picking up chat triggers.
- . Added invalid database connection checking to rank/top10 panel display.
- . Fixed bug where players would be inserted into the database, but their
-   user data would not get updated and they would appear blank.
- . Removed plugin version from showing up in the config file.
- . Removed "Not enough Humans" message when in Versus.
- . Made rank panel display after client connect at the start of each map,
-   and added cvar to enable/disable this.
- . Made "Playtime" display hours if the playtime is longer than 60 minutes.
- . Added cvar to hide the display of public chat triggers.
--- 1.1.1 (4/22/09)
- . Changed "IsVersus()" function to "InvalidGameMode()" to fix deadstop bug
-   with the Survival update. This is part of paving the way to Survival
-   and Versus stats in a future release.
- . Fixed various error messages in error logs.
- . Fixed stats panel to now work properly for people with certain characters
-   in their name not making it display.
- . Fixed (again) a certain case where blank users would be inserted.
- . Added cvar to enable/disable showing of the rank panel when not in a valid
-   gamemode, showing of disabled messages, and letting players use the chat
-   commands.
- . Added some stat whoring checks to the plugin:
-    . A maximum amount of points can be earned in a single map
-    . Only 3 Tanks may be awarded during a single map
- . Fixed minor bug with Healthpack point award not giving full amount.
- . Added a few currently unused cvars for future features:
-   . sm_l4dstats_dbprefix -- Prefix to be used for database tables
-   . sm_l4dstats_enablecoop -- Enable stats for Coop mode
-   . sm_l4dstats_enablesv -- Enable stats for Survival mode
-   . sm_l4dstats_enableversus -- Enable stats for Versus mode
-   . sm_l4dstats_leaderboardtime -- Duration in days to show players top
-     times on the Survival leaderboards
-
--- 1.1.1C (8/19/09) Customized by muukis
- . Added support for custom maps.
-
--- 1.2AXXX (9/23/09) Alpha versions from Versus support
- . Started implementing the Versus support. (IT COMPILES!!!1)
-
--- 1.2BXXX (10/16/09) Beta versions from Versus support
- . All new major features that I could come up with are now implemeted:
-   . Survivor friendly fire cooldown mode.
-   . Survivor medkit use penalty (score reduction.)
-   . Spam protection allowing team gain and loss information to be shown
-     for the team only.
-   . Infected score:
-     . General: Damage done to the survivors.
-     . General: Damage done by normal infected is forwarded to the specials
-       that have influence over the victim (blinded, lunged or paralyzed.)
-     . General: Incapacitate and kill a survivor.
-     . Hunter pounces.
-     . Boomer blindings.
-     . Tank rock sniper.
-
--- 1.2B90 (12/07/09) "Conversion" to Left 4 Dead 2
-
--- 1.3AXXX (12/11/09) Alpha versions from L4D2 support
-
--- 1.3BXXX (12/11/09) Beta versions from L4D2 support
- . Support for L4D2:
-   . Support for Realism and Team Versus gamemodes.
-   . Adrenalines given.
-   . Defibrillators used.
-   . New stats for every new Special Infected (in addition to spawned counter and damage counter):
-     . Jockey:
-       . Ride length (time)
- . Survivor damage based friendly fire mode.
- . "Player Stats" object in Admin Menu.
- . New console command "sm_rank_clear" to clear database.
-
--- 1.4AXXX (12/11/09) Alpha versions from Survival and Scavenge support
-
--- 1.4BXXX (X/X/10) Beta versions from Survival and Scavenge support
- . Support for all gamemodes!
- . Support for L4D2:
-   . Gas canister poured.
-   . Ammo upgrade deployed.
- . New console commands:
-   . sm_rank_shuffle -- Shuffle teams (Versus / Scavenge) with player PPM (Points Per Minute).
-   . sm_rankvote -- Initiate team shuffle vote ("rankvote").
-   . sm_top10ppm -- Show Top10 players with highest PPM (Points Per Minute).
-   . sm_showrank -- Show currently playing players stats.
-   . sm_showppm -- Show currently playing players PPM (Points Per Minute).
-   . sm_timedmaps -- Show all map timings.
-   . sm_maptimes -- Show current map timings.
-   . sm_rankmenu -- Show rank menu.
-   . sm_rankmute <0|1> -- Set client rank mute (hide plugin messages)
-   . sm_rankmutetoggle -- Toggle client rank mute (hide plugin messages)
-
------------------------------------------------------------------------------
-*/
-
 #pragma semicolon 1
 
 #include <sourcemod>
@@ -214,7 +7,7 @@ Version History
 #include <adminmenu>
 
 #define PLUGIN_NAME "Custom Player Stats"
-#define PLUGIN_VERSION "1.4B121"
+#define PLUGIN_VERSION "1.5"
 #define PLUGIN_DESCRIPTION "Player Stats and Ranking for Left 4 Dead and Left 4 Dead 2."
 
 #define MAX_LINE_WIDTH 64
@@ -250,9 +43,6 @@ Version History
 
 #define INF_WEAROFF_TIME 0.5
 
-#define SERVER_VERSION_L4D1 40
-#define SERVER_VERSION_L4D2 50
-
 #define CLEAR_DATABASE_CONFIRMTIME 10.0
 
 #define CM_UNKNOWN -1
@@ -280,194 +70,194 @@ Version History
 #define RANKVOTE_NO 0
 #define RANKVOTE_YES 1
 
-new String:TM_MENU_CURRENT[4] = " <<";
+char TM_MENU_CURRENT[4] = " <<";
 
-new String:DB_PLAYERS_TOTALPOINTS[1024] = "points + points_survivors + points_infected + points_realism + points_survival + points_scavenge_survivors + points_scavenge_infected + points_realism_survivors + points_realism_infected + points_mutations";
-new String:DB_PLAYERS_TOTALPLAYTIME[1024] = "playtime + playtime_versus + playtime_realism + playtime_survival + playtime_scavenge + playtime_realismversus + playtime_mutations";
+char DB_PLAYERS_TOTALPOINTS[1024] = "points + points_survivors + points_infected + points_realism + points_survival + points_scavenge_survivors + points_scavenge_infected + points_realism_survivors + points_realism_infected + points_mutations";
+char DB_PLAYERS_TOTALPLAYTIME[1024] = "playtime + playtime_versus + playtime_realism + playtime_survival + playtime_scavenge + playtime_realismversus + playtime_mutations";
 
-new String:RANKVOTE_QUESTION[128] = "Do you want to shuffle teams by player PPM?";
+char RANKVOTE_QUESTION[128] = "Do you want to shuffle teams by player PPM?";
 
 // Message of the day
-new String:MOTD_TITLE[32] = "Message Of The Day";
-new String:MessageOfTheDay[1024];
+char MOTD_TITLE[32] = "Message Of The Day";
+char MessageOfTheDay[1024];
 
 // Set to false when stats seem to work properly
-new bool:DEBUG = true;
+bool DEBUG = false;
 
-new bool:CommandsRegistered = false;
+bool CommandsRegistered = false;
 
 // Sounds
-new bool:EnableSounds_Rankvote = true;
-new bool:EnableSounds_Maptime_Start = true;
-new bool:EnableSounds_Maptime_Improve = true;
-new bool:EnableSounds_Rankmenu_Show = true;
-new bool:EnableSounds_Boomer_Vomit = true;
-new bool:EnableSounds_Hunter_Perfect = true;
-new bool:EnableSounds_Tank_Bulldozer = true;
-new bool:EnableSounds_Charger_Ram = true;
-new String:StatsSound_MapTime_Start[32];
-new String:StatsSound_MapTime_Improve[32];
-new String:StatsSound_Rankmenu_Show[32];
-new String:StatsSound_Boomer_Vomit[32];
-new String:StatsSound_Hunter_Perfect[32];
-new String:StatsSound_Tank_Bulldozer[32];
+bool EnableSounds_Rankvote = true;
+bool EnableSounds_Maptime_Start = true;
+bool EnableSounds_Maptime_Improve = true;
+bool EnableSounds_Rankmenu_Show = true;
+bool EnableSounds_Boomer_Vomit = true;
+bool EnableSounds_Hunter_Perfect = true;
+bool EnableSounds_Tank_Bulldozer = true;
+bool EnableSounds_Charger_Ram = true;
+char StatsSound_MapTime_Start[32];
+char StatsSound_MapTime_Improve[32];
+char StatsSound_Rankmenu_Show[32];
+char StatsSound_Boomer_Vomit[32];
+char StatsSound_Hunter_Perfect[32];
+char StatsSound_Tank_Bulldozer[32];
 
 // Server version
-new ServerVersion = SERVER_VERSION_L4D1;
+EngineVersion ServerVersion = Engine_Left4Dead;
 
 // Database handle
-new Handle:db = INVALID_HANDLE;
-new String:DbPrefix[MAX_LINE_WIDTH] = "";
+Handle db = INVALID_HANDLE;
+char DbPrefix[MAX_LINE_WIDTH] = "";
 
 // Update Timer handle
-new Handle:UpdateTimer = INVALID_HANDLE;
+Handle UpdateTimer = INVALID_HANDLE;
 
 // Gamemode
-new String:CurrentGamemode[MAX_LINE_WIDTH];
-new String:CurrentGamemodeLabel[MAX_LINE_WIDTH];
-new CurrentGamemodeID = GAMEMODE_UNKNOWN;
-new String:CurrentMutation[MAX_LINE_WIDTH];
+char CurrentGamemode[MAX_LINE_WIDTH];
+char CurrentGamemodeLabel[MAX_LINE_WIDTH];
+int CurrentGamemodeID = GAMEMODE_UNKNOWN;
+char CurrentMutation[MAX_LINE_WIDTH];
 
 // Disable check Cvar handles
-new Handle:cvar_Difficulty = INVALID_HANDLE;
-new Handle:cvar_Gamemode = INVALID_HANDLE;
-new Handle:cvar_Cheats = INVALID_HANDLE;
+Handle cvar_Difficulty = INVALID_HANDLE;
+Handle cvar_Gamemode = INVALID_HANDLE;
+Handle cvar_Cheats = INVALID_HANDLE;
 
-new Handle:cvar_SurvivorLimit = INVALID_HANDLE;
-new Handle:cvar_InfectedLimit = INVALID_HANDLE;
+Handle cvar_SurvivorLimit = INVALID_HANDLE;
+Handle cvar_InfectedLimit = INVALID_HANDLE;
 
 // Game event booleans
-new bool:PlayerVomited = false;
-new bool:PlayerVomitedIncap = false;
-new bool:PanicEvent = false;
-new bool:PanicEventIncap = false;
-new bool:CampaignOver = false;
-new bool:WitchExists = false;
-new bool:WitchDisturb = false;
+bool PlayerVomited = false;
+bool PlayerVomitedIncap = false;
+bool PanicEvent = false;
+bool PanicEventIncap = false;
+bool CampaignOver = false;
+bool WitchExists = false;
+bool WitchDisturb = false;
 
 // Anti-Stat Whoring vars
 new CurrentPoints[MAXPLAYERS + 1];
-new TankCount = 0;
+int TankCount = 0;
 
-new bool:ClientRankMute[MAXPLAYERS + 1];
+bool ClientRankMute[MAXPLAYERS + 1];
 
 // Cvar handles
-new Handle:cvar_EnableRankVote = INVALID_HANDLE;
-new Handle:cvar_HumansNeeded = INVALID_HANDLE;
-new Handle:cvar_UpdateRate = INVALID_HANDLE;
-//new Handle:cvar_AnnounceRankMinChange = INVALID_HANDLE;
-new Handle:cvar_AnnounceRankChange = INVALID_HANDLE;
-new Handle:cvar_AnnouncePlayerJoined = INVALID_HANDLE;
-new Handle:cvar_AnnounceMotd = INVALID_HANDLE;
-new Handle:cvar_AnnounceMode = INVALID_HANDLE;
-new Handle:cvar_AnnounceRankChangeIVal = INVALID_HANDLE;
-new Handle:cvar_AnnounceToTeam = INVALID_HANDLE;
-//new Handle:cvar_AnnounceSpecial = INVALID_HANDLE;
-new Handle:cvar_MedkitMode = INVALID_HANDLE;
-new Handle:cvar_SiteURL = INVALID_HANDLE;
-new Handle:cvar_RankOnJoin = INVALID_HANDLE;
-new Handle:cvar_SilenceChat = INVALID_HANDLE;
-new Handle:cvar_DisabledMessages = INVALID_HANDLE;
-//new Handle:cvar_MaxPoints = INVALID_HANDLE;
-new Handle:cvar_DbPrefix = INVALID_HANDLE;
-//new Handle:cvar_LeaderboardTime = INVALID_HANDLE;
-new Handle:cvar_EnableNegativeScore = INVALID_HANDLE;
-new Handle:cvar_FriendlyFireMode = INVALID_HANDLE;
-new Handle:cvar_FriendlyFireMultiplier = INVALID_HANDLE;
-new Handle:cvar_FriendlyFireCooldown = INVALID_HANDLE;
-new Handle:cvar_FriendlyFireCooldownMode = INVALID_HANDLE;
-new Handle:FriendlyFireTimer[MAXPLAYERS + 1][MAXPLAYERS + 1];
-new bool:FriendlyFireCooldown[MAXPLAYERS + 1][MAXPLAYERS + 1];
+Handle cvar_EnableRankVote = INVALID_HANDLE;
+Handle cvar_HumansNeeded = INVALID_HANDLE;
+Handle cvar_UpdateRate = INVALID_HANDLE;
+//Handle cvar_AnnounceRankMinChange = INVALID_HANDLE;
+Handle cvar_AnnounceRankChange = INVALID_HANDLE;
+Handle cvar_AnnouncePlayerJoined = INVALID_HANDLE;
+Handle cvar_AnnounceMotd = INVALID_HANDLE;
+Handle cvar_AnnounceMode = INVALID_HANDLE;
+Handle cvar_AnnounceRankChangeIVal = INVALID_HANDLE;
+Handle cvar_AnnounceToTeam = INVALID_HANDLE;
+//Handle cvar_AnnounceSpecial = INVALID_HANDLE;
+Handle cvar_MedkitMode = INVALID_HANDLE;
+Handle cvar_SiteURL = INVALID_HANDLE;
+Handle cvar_RankOnJoin = INVALID_HANDLE;
+Handle cvar_SilenceChat = INVALID_HANDLE;
+Handle cvar_DisabledMessages = INVALID_HANDLE;
+//Handle cvar_MaxPoints = INVALID_HANDLE;
+Handle cvar_DbPrefix = INVALID_HANDLE;
+//Handle cvar_LeaderboardTime = INVALID_HANDLE;
+Handle cvar_EnableNegativeScore = INVALID_HANDLE;
+Handle cvar_FriendlyFireMode = INVALID_HANDLE;
+Handle cvar_FriendlyFireMultiplier = INVALID_HANDLE;
+Handle cvar_FriendlyFireCooldown = INVALID_HANDLE;
+Handle cvar_FriendlyFireCooldownMode = INVALID_HANDLE;
+Handle FriendlyFireTimer[MAXPLAYERS + 1][MAXPLAYERS + 1];
+bool FriendlyFireCooldown[MAXPLAYERS + 1][MAXPLAYERS + 1];
 new FriendlyFirePrm[MAXPLAYERS][2];
-new Handle:FriendlyFireDamageTrie = INVALID_HANDLE;
-new FriendlyFirePrmCounter = 0;
+Handle FriendlyFireDamageTrie = INVALID_HANDLE;
+int FriendlyFirePrmCounter = 0;
 
-new Handle:cvar_Enable = INVALID_HANDLE;
-new Handle:cvar_EnableCoop = INVALID_HANDLE;
-new Handle:cvar_EnableSv = INVALID_HANDLE;
-new Handle:cvar_EnableVersus = INVALID_HANDLE;
-new Handle:cvar_EnableTeamVersus = INVALID_HANDLE;
-new Handle:cvar_EnableRealism = INVALID_HANDLE;
-new Handle:cvar_EnableScavenge = INVALID_HANDLE;
-new Handle:cvar_EnableTeamScavenge = INVALID_HANDLE;
-new Handle:cvar_EnableRealismVersus = INVALID_HANDLE;
-new Handle:cvar_EnableTeamRealismVersus = INVALID_HANDLE;
-new Handle:cvar_EnableMutations = INVALID_HANDLE;
+Handle cvar_Enable = INVALID_HANDLE;
+Handle cvar_EnableCoop = INVALID_HANDLE;
+Handle cvar_EnableSv = INVALID_HANDLE;
+Handle cvar_EnableVersus = INVALID_HANDLE;
+Handle cvar_EnableTeamVersus = INVALID_HANDLE;
+Handle cvar_EnableRealism = INVALID_HANDLE;
+Handle cvar_EnableScavenge = INVALID_HANDLE;
+Handle cvar_EnableTeamScavenge = INVALID_HANDLE;
+Handle cvar_EnableRealismVersus = INVALID_HANDLE;
+Handle cvar_EnableTeamRealismVersus = INVALID_HANDLE;
+Handle cvar_EnableMutations = INVALID_HANDLE;
 
-new Handle:cvar_RealismMultiplier = INVALID_HANDLE;
-new Handle:cvar_RealismVersusSurMultiplier = INVALID_HANDLE;
-new Handle:cvar_RealismVersusInfMultiplier = INVALID_HANDLE;
-new Handle:cvar_EnableSvMedicPoints = INVALID_HANDLE;
+Handle cvar_RealismMultiplier = INVALID_HANDLE;
+Handle cvar_RealismVersusSurMultiplier = INVALID_HANDLE;
+Handle cvar_RealismVersusInfMultiplier = INVALID_HANDLE;
+Handle cvar_EnableSvMedicPoints = INVALID_HANDLE;
 
-new Handle:cvar_Infected = INVALID_HANDLE;
-new Handle:cvar_Hunter = INVALID_HANDLE;
-new Handle:cvar_Smoker = INVALID_HANDLE;
-new Handle:cvar_Boomer = INVALID_HANDLE;
-new Handle:cvar_Spitter = INVALID_HANDLE;
-new Handle:cvar_Jockey = INVALID_HANDLE;
-new Handle:cvar_Charger = INVALID_HANDLE;
+Handle cvar_Infected = INVALID_HANDLE;
+Handle cvar_Hunter = INVALID_HANDLE;
+Handle cvar_Smoker = INVALID_HANDLE;
+Handle cvar_Boomer = INVALID_HANDLE;
+Handle cvar_Spitter = INVALID_HANDLE;
+Handle cvar_Jockey = INVALID_HANDLE;
+Handle cvar_Charger = INVALID_HANDLE;
 
-new Handle:cvar_Pills = INVALID_HANDLE;
-new Handle:cvar_Adrenaline = INVALID_HANDLE;
-new Handle:cvar_Medkit = INVALID_HANDLE;
-new Handle:cvar_Defib = INVALID_HANDLE;
-new Handle:cvar_SmokerDrag = INVALID_HANDLE;
-new Handle:cvar_ChokePounce = INVALID_HANDLE;
-new Handle:cvar_JockeyRide = INVALID_HANDLE;
-new Handle:cvar_ChargerPlummel = INVALID_HANDLE;
-new Handle:cvar_ChargerCarry = INVALID_HANDLE;
-new Handle:cvar_Revive = INVALID_HANDLE;
-new Handle:cvar_Rescue = INVALID_HANDLE;
-new Handle:cvar_Protect = INVALID_HANDLE;
+Handle cvar_Pills = INVALID_HANDLE;
+Handle cvar_Adrenaline = INVALID_HANDLE;
+Handle cvar_Medkit = INVALID_HANDLE;
+Handle cvar_Defib = INVALID_HANDLE;
+Handle cvar_SmokerDrag = INVALID_HANDLE;
+Handle cvar_ChokePounce = INVALID_HANDLE;
+Handle cvar_JockeyRide = INVALID_HANDLE;
+Handle cvar_ChargerPlummel = INVALID_HANDLE;
+Handle cvar_ChargerCarry = INVALID_HANDLE;
+Handle cvar_Revive = INVALID_HANDLE;
+Handle cvar_Rescue = INVALID_HANDLE;
+Handle cvar_Protect = INVALID_HANDLE;
 
-new Handle:cvar_Tank = INVALID_HANDLE;
-new Handle:cvar_Panic = INVALID_HANDLE;
-new Handle:cvar_BoomerMob = INVALID_HANDLE;
-new Handle:cvar_SafeHouse = INVALID_HANDLE;
-new Handle:cvar_Witch = INVALID_HANDLE;
-new Handle:cvar_WitchCrowned = INVALID_HANDLE;
-new Handle:cvar_VictorySurvivors = INVALID_HANDLE;
-new Handle:cvar_VictoryInfected = INVALID_HANDLE;
+Handle cvar_Tank = INVALID_HANDLE;
+Handle cvar_Panic = INVALID_HANDLE;
+Handle cvar_BoomerMob = INVALID_HANDLE;
+Handle cvar_SafeHouse = INVALID_HANDLE;
+Handle cvar_Witch = INVALID_HANDLE;
+Handle cvar_WitchCrowned = INVALID_HANDLE;
+Handle cvar_VictorySurvivors = INVALID_HANDLE;
+Handle cvar_VictoryInfected = INVALID_HANDLE;
 
-new Handle:cvar_FFire = INVALID_HANDLE;
-new Handle:cvar_FIncap = INVALID_HANDLE;
-new Handle:cvar_FKill = INVALID_HANDLE;
-new Handle:cvar_InSafeRoom = INVALID_HANDLE;
-new Handle:cvar_Restart = INVALID_HANDLE;
-new Handle:cvar_CarAlarm = INVALID_HANDLE;
-new Handle:cvar_BotScoreMultiplier = INVALID_HANDLE;
+Handle cvar_FFire = INVALID_HANDLE;
+Handle cvar_FIncap = INVALID_HANDLE;
+Handle cvar_FKill = INVALID_HANDLE;
+Handle cvar_InSafeRoom = INVALID_HANDLE;
+Handle cvar_Restart = INVALID_HANDLE;
+Handle cvar_CarAlarm = INVALID_HANDLE;
+Handle cvar_BotScoreMultiplier = INVALID_HANDLE;
 
-new Handle:cvar_SurvivorDeath = INVALID_HANDLE;
-new Handle:cvar_SurvivorIncap = INVALID_HANDLE;
+Handle cvar_SurvivorDeath = INVALID_HANDLE;
+Handle cvar_SurvivorIncap = INVALID_HANDLE;
 
 // L4D2 misc
-new Handle:cvar_AmmoUpgradeAdded = INVALID_HANDLE;
-new Handle:cvar_GascanPoured = INVALID_HANDLE;
+Handle cvar_AmmoUpgradeAdded = INVALID_HANDLE;
+Handle cvar_GascanPoured = INVALID_HANDLE;
 
-new MaxPounceDistance;
-new MinPounceDistance;
-new MaxPounceDamage;
-new Handle:cvar_HunterDamageCap = INVALID_HANDLE;
-new Float:HunterPosition[MAXPLAYERS + 1][3];
-new Handle:cvar_HunterPerfectPounceDamage = INVALID_HANDLE;
-new Handle:cvar_HunterPerfectPounceSuccess = INVALID_HANDLE;
-new Handle:cvar_HunterNicePounceDamage = INVALID_HANDLE;
-new Handle:cvar_HunterNicePounceSuccess = INVALID_HANDLE;
+int MaxPounceDistance;
+int MinPounceDistance;
+int MaxPounceDamage;
+Handle cvar_HunterDamageCap = INVALID_HANDLE;
+float HunterPosition[MAXPLAYERS + 1][3];
+Handle cvar_HunterPerfectPounceDamage = INVALID_HANDLE;
+Handle cvar_HunterPerfectPounceSuccess = INVALID_HANDLE;
+Handle cvar_HunterNicePounceDamage = INVALID_HANDLE;
+Handle cvar_HunterNicePounceSuccess = INVALID_HANDLE;
 
 new BoomerHitCounter[MAXPLAYERS + 1];
-new bool:BoomerVomitUpdated[MAXPLAYERS + 1];
-new Handle:cvar_BoomerSuccess = INVALID_HANDLE;
-new Handle:cvar_BoomerPerfectHits = INVALID_HANDLE;
-new Handle:cvar_BoomerPerfectSuccess = INVALID_HANDLE;
-new Handle:TimerBoomerPerfectCheck[MAXPLAYERS + 1];
+bool BoomerVomitUpdated[MAXPLAYERS + 1];
+Handle cvar_BoomerSuccess = INVALID_HANDLE;
+Handle cvar_BoomerPerfectHits = INVALID_HANDLE;
+Handle cvar_BoomerPerfectSuccess = INVALID_HANDLE;
+Handle TimerBoomerPerfectCheck[MAXPLAYERS + 1];
 
 new InfectedDamageCounter[MAXPLAYERS + 1];
-new Handle:cvar_InfectedDamage = INVALID_HANDLE;
-new Handle:TimerInfectedDamageCheck[MAXPLAYERS + 1];
+Handle cvar_InfectedDamage = INVALID_HANDLE;
+Handle TimerInfectedDamageCheck[MAXPLAYERS + 1];
 
-new Handle:cvar_TankDamageCap = INVALID_HANDLE;
-new Handle:cvar_TankDamageTotal = INVALID_HANDLE;
-new Handle:cvar_TankDamageTotalSuccess = INVALID_HANDLE;
+Handle cvar_TankDamageCap = INVALID_HANDLE;
+Handle cvar_TankDamageTotal = INVALID_HANDLE;
+Handle cvar_TankDamageTotalSuccess = INVALID_HANDLE;
 
 new ChargerCarryVictim[MAXPLAYERS + 1];
 new ChargerPlummelVictim[MAXPLAYERS + 1];
@@ -479,17 +269,17 @@ new SpitterDamageCounter[MAXPLAYERS + 1];
 new JockeyDamageCounter[MAXPLAYERS + 1];
 new ChargerDamageCounter[MAXPLAYERS + 1];
 new ChargerImpactCounter[MAXPLAYERS + 1];
-new Handle:ChargerImpactCounterTimer[MAXPLAYERS + 1];
-new Handle:cvar_ChargerRamHits = INVALID_HANDLE;
-new Handle:cvar_ChargerRamSuccess = INVALID_HANDLE;
+Handle ChargerImpactCounterTimer[MAXPLAYERS + 1];
+Handle cvar_ChargerRamHits = INVALID_HANDLE;
+Handle cvar_ChargerRamSuccess = INVALID_HANDLE;
 new TankDamageCounter[MAXPLAYERS + 1];
 new TankDamageTotalCounter[MAXPLAYERS + 1];
 new TankPointsCounter[MAXPLAYERS + 1];
 new TankSurvivorKillCounter[MAXPLAYERS + 1];
-new Handle:cvar_TankThrowRockSuccess = INVALID_HANDLE;
+Handle cvar_TankThrowRockSuccess = INVALID_HANDLE;
 
-new Handle:cvar_PlayerLedgeSuccess = INVALID_HANDLE;
-new Handle:cvar_Matador = INVALID_HANDLE;
+Handle cvar_PlayerLedgeSuccess = INVALID_HANDLE;
+Handle cvar_Matador = INVALID_HANDLE;
 
 new ClientInfectedType[MAXPLAYERS + 1];
 
@@ -501,11 +291,11 @@ new PlayerCarried[MAXPLAYERS + 1][2];
 new PlayerJockied[MAXPLAYERS + 1][2];
 
 // Rank panel vars
-new RankTotal = 0;
+int RankTotal = 0;
 new ClientRank[MAXPLAYERS + 1];
 new ClientNextRank[MAXPLAYERS + 1];
 new ClientPoints[MAXPLAYERS + 1];
-new GameModeRankTotal = 0;
+int GameModeRankTotal = 0;
 new ClientGameModeRank[MAXPLAYERS + 1];
 new ClientGameModePoints[MAXPLAYERS + 1][GAMEMODES];
 
@@ -516,8 +306,8 @@ new TimerHeadshots[MAXPLAYERS + 1];
 new Pills[4096];
 new Adrenaline[4096];
 
-new String:QueryBuffer[MAX_QUERY_COUNTER][MAX_QUERY_COUNTER];
-new QueryCounter = 0;
+char QueryBuffer[MAX_QUERY_COUNTER][MAX_QUERY_COUNTER];
+int QueryCounter = 0;
 
 new AnnounceCounter[MAXPLAYERS + 1];
 new PostAdminCheckRetryCounter[MAXPLAYERS + 1];
@@ -525,69 +315,69 @@ new PostAdminCheckRetryCounter[MAXPLAYERS + 1];
 // For every medkit used the points earned by the Survivor team is calculated with this formula:
 // NormalPointsEarned * (1 - MedkitsUsedCounter * cvar_MedkitUsedPointPenalty)
 // Minimum formula result = 0 (Cannot be negative)
-new MedkitsUsedCounter = 0;
-new Handle:cvar_MedkitUsedPointPenalty = INVALID_HANDLE;
-new Handle:cvar_MedkitUsedPointPenaltyMax = INVALID_HANDLE;
-new Handle:cvar_MedkitUsedFree = INVALID_HANDLE;
-new Handle:cvar_MedkitUsedRealismFree = INVALID_HANDLE;
-new Handle:cvar_MedkitBotMode = INVALID_HANDLE;
+int MedkitsUsedCounter = 0;
+Handle cvar_MedkitUsedPointPenalty = INVALID_HANDLE;
+Handle cvar_MedkitUsedPointPenaltyMax = INVALID_HANDLE;
+Handle cvar_MedkitUsedFree = INVALID_HANDLE;
+Handle cvar_MedkitUsedRealismFree = INVALID_HANDLE;
+Handle cvar_MedkitBotMode = INVALID_HANDLE;
 
 new ProtectedFriendlyCounter[MAXPLAYERS + 1];
-new Handle:TimerProtectedFriendly[MAXPLAYERS + 1];
+Handle TimerProtectedFriendly[MAXPLAYERS + 1];
 
 // Announce rank
-new Handle:TimerRankChangeCheck[MAXPLAYERS + 1];
+Handle TimerRankChangeCheck[MAXPLAYERS + 1];
 new RankChangeLastRank[MAXPLAYERS + 1];
-new bool:RankChangeFirstCheck[MAXPLAYERS + 1];
+bool RankChangeFirstCheck[MAXPLAYERS + 1];
 
 // MapTiming
-new Float:MapTimingStartTime = -1.0;
-new bool:MapTimingBlocked = false;
-new Handle:MapTimingSurvivors = INVALID_HANDLE; // Survivors at the beginning of the map
-new Handle:MapTimingInfected = INVALID_HANDLE; // Survivors at the beginning of the map
-new String:MapTimingMenuInfo[MAXPLAYERS + 1][MAX_LINE_WIDTH];
+float MapTimingStartTime = -1.0;
+bool MapTimingBlocked = false;
+Handle MapTimingSurvivors = INVALID_HANDLE; // Survivors at the beginning of the map
+Handle MapTimingInfected = INVALID_HANDLE; // Survivors at the beginning of the map
+char MapTimingMenuInfo[MAXPLAYERS + 1][MAX_LINE_WIDTH];
 
 // When an admin calls for clear database, the client id is stored here for a period of time.
 // The admin must then call the clear command again to confirm the call. After the second call
 // the database is cleared. The confirm must be done in the time set by CLEAR_DATABASE_CONFIRMTIME.
-new ClearDatabaseCaller = -1;
-new Handle:ClearDatabaseTimer = INVALID_HANDLE;
-//new Handle:ClearPlayerMenu = INVALID_HANDLE;
+int ClearDatabaseCaller = -1;
+Handle ClearDatabaseTimer = INVALID_HANDLE;
+//Handle ClearPlayerMenu = INVALID_HANDLE;
 
 // Create handle for the admin menu
-new Handle:RankAdminMenu = INVALID_HANDLE;
-new TopMenuObject:MenuClear = INVALID_TOPMENUOBJECT;
-new TopMenuObject:MenuClearPlayers = INVALID_TOPMENUOBJECT;
-new TopMenuObject:MenuClearMaps = INVALID_TOPMENUOBJECT;
-new TopMenuObject:MenuClearAll = INVALID_TOPMENUOBJECT;
-new TopMenuObject:MenuRemoveCustomMaps = INVALID_TOPMENUOBJECT;
-new TopMenuObject:MenuCleanPlayers = INVALID_TOPMENUOBJECT;
-new TopMenuObject:MenuClearTimedMaps = INVALID_TOPMENUOBJECT;
+Handle RankAdminMenu = INVALID_HANDLE;
+TopMenuObject MenuClear = INVALID_TOPMENUOBJECT;
+TopMenuObject MenuClearPlayers = INVALID_TOPMENUOBJECT;
+TopMenuObject MenuClearMaps = INVALID_TOPMENUOBJECT;
+TopMenuObject MenuClearAll = INVALID_TOPMENUOBJECT;
+TopMenuObject MenuRemoveCustomMaps = INVALID_TOPMENUOBJECT;
+TopMenuObject MenuCleanPlayers = INVALID_TOPMENUOBJECT;
+TopMenuObject MenuClearTimedMaps = INVALID_TOPMENUOBJECT;
 
 // Administrative Cvars
-new Handle:cvar_AdminPlayerCleanLastOnTime = INVALID_HANDLE;
-new Handle:cvar_AdminPlayerCleanPlatime = INVALID_HANDLE;
+Handle cvar_AdminPlayerCleanLastOnTime = INVALID_HANDLE;
+Handle cvar_AdminPlayerCleanPlatime = INVALID_HANDLE;
 
 // Players can request a vote for team shuffle based on the player ranks ONCE PER MAP
 new PlayerRankVote[MAXPLAYERS + 1];
-new Handle:RankVoteTimer = INVALID_HANDLE;
-new Handle:PlayerRankVoteTrie = INVALID_HANDLE; // Survivors at the beginning of the map
-new Handle:cvar_RankVoteTime = INVALID_HANDLE;
+Handle RankVoteTimer = INVALID_HANDLE;
+Handle PlayerRankVoteTrie = INVALID_HANDLE; // Survivors at the beginning of the map
+Handle cvar_RankVoteTime = INVALID_HANDLE;
 
-new Handle:cvar_Top10PPMMin = INVALID_HANDLE;
+Handle cvar_Top10PPMMin = INVALID_HANDLE;
 
-new bool:SurvivalStarted = false;
+bool SurvivalStarted = false;
 
-new Handle:L4DStatsConf = INVALID_HANDLE;
-new Handle:L4DStatsSHS = INVALID_HANDLE;
-new Handle:L4DStatsTOB = INVALID_HANDLE;
+Handle L4DStatsConf = INVALID_HANDLE;
+Handle L4DStatsSHS = INVALID_HANDLE;
+Handle L4DStatsTOB = INVALID_HANDLE;
 
-new Float:ClientMapTime[MAXPLAYERS + 1];
+float ClientMapTime[MAXPLAYERS + 1];
 
-new Handle:cvar_Lan = INVALID_HANDLE;
-new Handle:cvar_SoundsEnabled = INVALID_HANDLE;
+Handle cvar_Lan = INVALID_HANDLE;
+Handle cvar_SoundsEnabled = INVALID_HANDLE;
 
-new Handle:MeleeKillTimer[MAXPLAYERS + 1];
+Handle MeleeKillTimer[MAXPLAYERS + 1];
 new MeleeKillCounter[MAXPLAYERS + 1];
 
 // Plugin Info
@@ -606,7 +396,7 @@ public OnPluginStart()
 	CommandsRegistered = false;
 
 	// Require Left 4 Dead (2)
-	decl String:game_name[64];
+	char game_name[64];
 	GetGameFolderName(game_name, sizeof(game_name));
 
 	if (!StrEqual(game_name, "left4dead", false) &&
@@ -616,9 +406,9 @@ public OnPluginStart()
 		return;
 	}
 
-	ServerVersion = GuessSDKVersion();
+	ServerVersion = GetEngineVersion();
 
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		strcopy(StatsSound_MapTime_Start, sizeof(StatsSound_MapTime_Start), SOUND_MAPTIME_START_L4D1);
 		strcopy(StatsSound_MapTime_Improve, sizeof(StatsSound_MapTime_Improve), SOUND_MAPTIME_IMPROVE_L4D1);
@@ -638,7 +428,7 @@ public OnPluginStart()
 	}
 
 	// Plugin version public Cvar
-	CreateConVar("l4d_stats_version", PLUGIN_VERSION, "Custom Player Stats Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("l4d_stats_version", PLUGIN_VERSION, "Custom Player Stats Version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	// Disable setting Cvars
 	cvar_Difficulty = FindConVar("z_difficulty");
@@ -655,116 +445,116 @@ public OnPluginStart()
 	cvar_InfectedLimit = FindConVar("z_max_player_zombies");
 
 	// Administrative Cvars
-	cvar_AdminPlayerCleanLastOnTime = CreateConVar("l4d_stats_adm_cleanoldplayers", "2", "How many months old players (last online time) will be cleaned. 0 = Disabled", FCVAR_PLUGIN, true, 0.0);
-	cvar_AdminPlayerCleanPlatime = CreateConVar("l4d_stats_adm_cleanplaytime", "30", "How many minutes of playtime to not get cleaned from stats. 0 = Disabled", FCVAR_PLUGIN, true, 0.0);
+	cvar_AdminPlayerCleanLastOnTime = CreateConVar("l4d_stats_adm_cleanoldplayers", "2", "How many months old players (last online time) will be cleaned. 0 = Disabled", _, true, 0.0);
+	cvar_AdminPlayerCleanPlatime = CreateConVar("l4d_stats_adm_cleanplaytime", "30", "How many minutes of playtime to not get cleaned from stats. 0 = Disabled", _, true, 0.0);
 
 	// Config/control Cvars
-	cvar_EnableRankVote = CreateConVar("l4d_stats_enablerankvote", "1", "Enable voting of team shuffle by player PPM (Points Per Minute)", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_HumansNeeded = CreateConVar("l4d_stats_minhumans", "2", "Minimum Human players before stats will be enabled", FCVAR_PLUGIN, true, 1.0, true, 4.0);
-	cvar_UpdateRate = CreateConVar("l4d_stats_updaterate", "90", "Number of seconds between Common Infected point earn announcement/update", FCVAR_PLUGIN, true, 30.0);
-	//cvar_AnnounceRankMinChange = CreateConVar("l4d_stats_announcerankminpoint", "500", "Minimum change to points before rank change announcement", FCVAR_PLUGIN, true, 0.0);
-	cvar_AnnounceRankChange = CreateConVar("l4d_stats_announcerank", "1", "Chat announcment for rank change", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_AnnounceRankChangeIVal = CreateConVar("l4d_stats_announcerankinterval", "60", "Rank change check interval", FCVAR_PLUGIN, true, 10.0);
-	cvar_AnnouncePlayerJoined = CreateConVar("l4d_stats_announceplayerjoined", "1", "Chat announcment for player joined.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_AnnounceMotd = CreateConVar("l4d_stats_announcemotd", "1", "Chat announcment for the message of the day.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_AnnounceMode = CreateConVar("l4d_stats_announcemode", "1", "Chat announcment mode. 0 = Off, 1 = Player Only, 2 = Player Only w/ Public Headshots, 3 = All Public", FCVAR_PLUGIN, true, 0.0, true, 3.0);
-	cvar_AnnounceToTeam = CreateConVar("l4d_stats_announceteam", "2", "Chat announcment team messages to the team only mode. 0 = Print messages to all teams, 1 = Print messages to own team only, 2 = Print messages to own team and spectators only", FCVAR_PLUGIN, true, 0.0, true, 2.0);
-	//cvar_AnnounceSpecial = CreateConVar("l4d_stats_announcespecial", "1", "Chat announcment mode for special events. 0 = Off, 1 = Player Only, 2 = Print messages to all teams, 3 = Print messages to own team only, 4 = Print messages to own team and spectators only", FCVAR_PLUGIN, true, 0.0, true, 4.0);
-	cvar_MedkitMode = CreateConVar("l4d_stats_medkitmode", "0", "Medkit point award mode. 0 = Based on amount healed, 1 = Static amount", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_SiteURL = CreateConVar("l4d_stats_siteurl", "", "Community site URL, for rank panel display", FCVAR_PLUGIN);
-	cvar_RankOnJoin = CreateConVar("l4d_stats_rankonjoin", "1", "Display player's rank when they connect. 0 = Disable, 1 = Enable", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_SilenceChat = CreateConVar("l4d_stats_silencechat", "0", "Silence chat triggers. 0 = Show chat triggers, 1 = Silence chat triggers", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_DisabledMessages = CreateConVar("l4d_stats_disabledmessages", "1", "Show 'Stats Disabled' messages, allow chat commands to work when stats disabled. 0 = Hide messages/disable chat, 1 = Show messages/allow chat", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	//cvar_MaxPoints = CreateConVar("l4d_stats_maxpoints", "500", "Maximum number of points that can be earned in a single map. Normal = x1, Adv = x2, Expert = x3", FCVAR_PLUGIN, true, 500.0);
-	cvar_DbPrefix = CreateConVar("l4d_stats_dbprefix", "", "Prefix for your stats tables", FCVAR_PLUGIN);
-	//cvar_LeaderboardTime = CreateConVar("l4d_stats_leaderboardtime", "14", "Time in days to show Survival Leaderboard times", FCVAR_PLUGIN, true, 1.0);
-	cvar_EnableNegativeScore = CreateConVar("l4d_stats_enablenegativescore", "1", "Enable point losses (negative score)", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_FriendlyFireMode = CreateConVar("l4d_stats_ffire_mode", "2", "Friendly fire mode. 0 = Normal, 1 = Cooldown, 2 = Damage based", FCVAR_PLUGIN, true, 0.0, true, 2.0);
-	cvar_FriendlyFireMultiplier = CreateConVar("l4d_stats_ffire_multiplier", "1.5", "Friendly fire damage multiplier (Formula: Score = Damage * Multiplier)", FCVAR_PLUGIN, true, 0.0);
-	cvar_FriendlyFireCooldown = CreateConVar("l4d_stats_ffire_cooldown", "10.0", "Time in seconds for friendly fire cooldown", FCVAR_PLUGIN, true, 1.0);
-	cvar_FriendlyFireCooldownMode = CreateConVar("l4d_stats_ffire_cooldownmode", "1", "Friendly fire cooldown mode. 0 = Disable, 1 = Player specific, 2 = General", FCVAR_PLUGIN, true, 0.0, true, 2.0);
+	cvar_EnableRankVote = CreateConVar("l4d_stats_enablerankvote", "1", "Enable voting of team shuffle by player PPM (Points Per Minute)", _, true, 0.0, true, 1.0);
+	cvar_HumansNeeded = CreateConVar("l4d_stats_minhumans", "2", "Minimum Human players before stats will be enabled", _, true, 1.0, true, 4.0);
+	cvar_UpdateRate = CreateConVar("l4d_stats_updaterate", "90", "Number of seconds between Common Infected point earn announcement/update", _, true, 30.0);
+	//cvar_AnnounceRankMinChange = CreateConVar("l4d_stats_announcerankminpoint", "500", "Minimum change to points before rank change announcement", _, true, 0.0);
+	cvar_AnnounceRankChange = CreateConVar("l4d_stats_announcerank", "1", "Chat announcment for rank change", _, true, 0.0, true, 1.0);
+	cvar_AnnounceRankChangeIVal = CreateConVar("l4d_stats_announcerankinterval", "60", "Rank change check interval", _, true, 10.0);
+	cvar_AnnouncePlayerJoined = CreateConVar("l4d_stats_announceplayerjoined", "1", "Chat announcment for player joined.", _, true, 0.0, true, 1.0);
+	cvar_AnnounceMotd = CreateConVar("l4d_stats_announcemotd", "1", "Chat announcment for the message of the day.", _, true, 0.0, true, 1.0);
+	cvar_AnnounceMode = CreateConVar("l4d_stats_announcemode", "1", "Chat announcment mode. 0 = Off, 1 = Player Only, 2 = Player Only w/ Public Headshots, 3 = All Public", _, true, 0.0, true, 3.0);
+	cvar_AnnounceToTeam = CreateConVar("l4d_stats_announceteam", "2", "Chat announcment team messages to the team only mode. 0 = Print messages to all teams, 1 = Print messages to own team only, 2 = Print messages to own team and spectators only", _, true, 0.0, true, 2.0);
+	//cvar_AnnounceSpecial = CreateConVar("l4d_stats_announcespecial", "1", "Chat announcment mode for special events. 0 = Off, 1 = Player Only, 2 = Print messages to all teams, 3 = Print messages to own team only, 4 = Print messages to own team and spectators only", _, true, 0.0, true, 4.0);
+	cvar_MedkitMode = CreateConVar("l4d_stats_medkitmode", "0", "Medkit point award mode. 0 = Based on amount healed, 1 = Static amount", _, true, 0.0, true, 1.0);
+	cvar_SiteURL = CreateConVar("l4d_stats_siteurl", "", "Community site URL, for rank panel display", _);
+	cvar_RankOnJoin = CreateConVar("l4d_stats_rankonjoin", "1", "Display player's rank when they connect. 0 = Disable, 1 = Enable", _, true, 0.0, true, 1.0);
+	cvar_SilenceChat = CreateConVar("l4d_stats_silencechat", "0", "Silence chat triggers. 0 = Show chat triggers, 1 = Silence chat triggers", _, true, 0.0, true, 1.0);
+	cvar_DisabledMessages = CreateConVar("l4d_stats_disabledmessages", "1", "Show 'Stats Disabled' messages, allow chat commands to work when stats disabled. 0 = Hide messages/disable chat, 1 = Show messages/allow chat", _, true, 0.0, true, 1.0);
+	//cvar_MaxPoints = CreateConVar("l4d_stats_maxpoints", "500", "Maximum number of points that can be earned in a single map. Normal = x1, Adv = x2, Expert = x3", _, true, 500.0);
+	cvar_DbPrefix = CreateConVar("l4d_stats_dbprefix", "", "Prefix for your stats tables", _);
+	//cvar_LeaderboardTime = CreateConVar("l4d_stats_leaderboardtime", "14", "Time in days to show Survival Leaderboard times", _, true, 1.0);
+	cvar_EnableNegativeScore = CreateConVar("l4d_stats_enablenegativescore", "1", "Enable point losses (negative score)", _, true, 0.0, true, 1.0);
+	cvar_FriendlyFireMode = CreateConVar("l4d_stats_ffire_mode", "2", "Friendly fire mode. 0 = Normal, 1 = Cooldown, 2 = Damage based", _, true, 0.0, true, 2.0);
+	cvar_FriendlyFireMultiplier = CreateConVar("l4d_stats_ffire_multiplier", "1.5", "Friendly fire damage multiplier (Formula: Score = Damage * Multiplier)", _, true, 0.0);
+	cvar_FriendlyFireCooldown = CreateConVar("l4d_stats_ffire_cooldown", "10.0", "Time in seconds for friendly fire cooldown", _, true, 1.0);
+	cvar_FriendlyFireCooldownMode = CreateConVar("l4d_stats_ffire_cooldownmode", "1", "Friendly fire cooldown mode. 0 = Disable, 1 = Player specific, 2 = General", _, true, 0.0, true, 2.0);
 
 	// Game mode Cvars
-	cvar_Enable = CreateConVar("l4d_stats_enable", "1", "Enable/Disable all stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableCoop = CreateConVar("l4d_stats_enablecoop", "1", "Enable/Disable coop stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableSv = CreateConVar("l4d_stats_enablesv", "1", "Enable/Disable survival stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableVersus = CreateConVar("l4d_stats_enableversus", "1", "Enable/Disable versus stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableTeamVersus = CreateConVar("l4d_stats_enableteamversus", "1", "[L4D2] Enable/Disable team versus stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableRealism = CreateConVar("l4d_stats_enablerealism", "1", "[L4D2] Enable/Disable realism stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableScavenge = CreateConVar("l4d_stats_enablescavenge", "1", "[L4D2] Enable/Disable scavenge stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableTeamScavenge = CreateConVar("l4d_stats_enableteamscavenge", "1", "[L4D2] Enable/Disable team scavenge stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableRealismVersus = CreateConVar("l4d_stats_enablerealismvs", "1", "[L4D2] Enable/Disable realism versus stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableTeamRealismVersus = CreateConVar("l4d_stats_enableteamrealismvs", "1", "[L4D2] Enable/Disable team realism versus stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableMutations = CreateConVar("l4d_stats_enablemutations", "1", "[L4D2] Enable/Disable mutations stat tracking", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	cvar_Enable = CreateConVar("l4d_stats_enable", "1", "Enable/Disable all stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableCoop = CreateConVar("l4d_stats_enablecoop", "1", "Enable/Disable coop stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableSv = CreateConVar("l4d_stats_enablesv", "1", "Enable/Disable survival stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableVersus = CreateConVar("l4d_stats_enableversus", "1", "Enable/Disable versus stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableTeamVersus = CreateConVar("l4d_stats_enableteamversus", "1", "[L4D2] Enable/Disable team versus stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableRealism = CreateConVar("l4d_stats_enablerealism", "1", "[L4D2] Enable/Disable realism stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableScavenge = CreateConVar("l4d_stats_enablescavenge", "1", "[L4D2] Enable/Disable scavenge stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableTeamScavenge = CreateConVar("l4d_stats_enableteamscavenge", "1", "[L4D2] Enable/Disable team scavenge stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableRealismVersus = CreateConVar("l4d_stats_enablerealismvs", "1", "[L4D2] Enable/Disable realism versus stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableTeamRealismVersus = CreateConVar("l4d_stats_enableteamrealismvs", "1", "[L4D2] Enable/Disable team realism versus stat tracking", _, true, 0.0, true, 1.0);
+	cvar_EnableMutations = CreateConVar("l4d_stats_enablemutations", "1", "[L4D2] Enable/Disable mutations stat tracking", _, true, 0.0, true, 1.0);
 
 	// Game mode depended Cvars
-	cvar_RealismMultiplier = CreateConVar("l4d_stats_realismmultiplier", "1.4", "[L4D2] Realism score multiplier for coop score", FCVAR_PLUGIN, true, 1.0);
-	cvar_RealismVersusSurMultiplier = CreateConVar("l4d_stats_realismvsmultiplier_s", "1.4", "[L4D2] Realism score multiplier for survivors versus score", FCVAR_PLUGIN, true, 1.0);
-	cvar_RealismVersusInfMultiplier = CreateConVar("l4d_stats_realismvsmultiplier_i", "0.6", "[L4D2] Realism score multiplier for infected versus score", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_EnableSvMedicPoints = CreateConVar("l4d_stats_medicpointssv", "0", "Survival medic points enabled", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	cvar_RealismMultiplier = CreateConVar("l4d_stats_realismmultiplier", "1.4", "[L4D2] Realism score multiplier for coop score", _, true, 1.0);
+	cvar_RealismVersusSurMultiplier = CreateConVar("l4d_stats_realismvsmultiplier_s", "1.4", "[L4D2] Realism score multiplier for survivors versus score", _, true, 1.0);
+	cvar_RealismVersusInfMultiplier = CreateConVar("l4d_stats_realismvsmultiplier_i", "0.6", "[L4D2] Realism score multiplier for infected versus score", _, true, 0.0, true, 1.0);
+	cvar_EnableSvMedicPoints = CreateConVar("l4d_stats_medicpointssv", "0", "Survival medic points enabled", _, true, 0.0, true, 1.0);
 
 	// Infected point Cvars
-	cvar_Infected = CreateConVar("l4d_stats_infected", "1", "Base score for killing a Common Infected", FCVAR_PLUGIN, true, 1.0);
-	cvar_Hunter = CreateConVar("l4d_stats_hunter", "2", "Base score for killing a Hunter", FCVAR_PLUGIN, true, 1.0);
-	cvar_Smoker = CreateConVar("l4d_stats_smoker", "3", "Base score for killing a Smoker", FCVAR_PLUGIN, true, 1.0);
-	cvar_Boomer = CreateConVar("l4d_stats_boomer", "5", "Base score for killing a Boomer", FCVAR_PLUGIN, true, 1.0);
-	cvar_Spitter = CreateConVar("l4d_stats_spitter", "5", "[L4D2] Base score for killing a Spitter", FCVAR_PLUGIN, true, 1.0);
-	cvar_Jockey = CreateConVar("l4d_stats_jockey", "5", "[L4D2] Base score for killing a Jockey", FCVAR_PLUGIN, true, 1.0);
-	cvar_Charger = CreateConVar("l4d_stats_charger", "5", "[L4D2] Base score for killing a Charger", FCVAR_PLUGIN, true, 1.0);
-	cvar_InfectedDamage = CreateConVar("l4d_stats_infected_damage", "2", "The amount of damage inflicted to Survivors to earn 1 point", FCVAR_PLUGIN, true, 1.0);
+	cvar_Infected = CreateConVar("l4d_stats_infected", "1", "Base score for killing a Common Infected", _, true, 1.0);
+	cvar_Hunter = CreateConVar("l4d_stats_hunter", "2", "Base score for killing a Hunter", _, true, 1.0);
+	cvar_Smoker = CreateConVar("l4d_stats_smoker", "3", "Base score for killing a Smoker", _, true, 1.0);
+	cvar_Boomer = CreateConVar("l4d_stats_boomer", "5", "Base score for killing a Boomer", _, true, 1.0);
+	cvar_Spitter = CreateConVar("l4d_stats_spitter", "5", "[L4D2] Base score for killing a Spitter", _, true, 1.0);
+	cvar_Jockey = CreateConVar("l4d_stats_jockey", "5", "[L4D2] Base score for killing a Jockey", _, true, 1.0);
+	cvar_Charger = CreateConVar("l4d_stats_charger", "5", "[L4D2] Base score for killing a Charger", _, true, 1.0);
+	cvar_InfectedDamage = CreateConVar("l4d_stats_infected_damage", "2", "The amount of damage inflicted to Survivors to earn 1 point", _, true, 1.0);
 
 	// Misc personal gain Cvars
-	cvar_Pills = CreateConVar("l4d_stats_pills", "15", "Base score for giving Pills to a friendly", FCVAR_PLUGIN, true, 1.0);
-	cvar_Adrenaline = CreateConVar("l4d_stats_adrenaline", "15", "[L4D2] Base score for giving Adrenaline to a friendly", FCVAR_PLUGIN, true, 1.0);
-	cvar_Medkit = CreateConVar("l4d_stats_medkit", "20", "Base score for using a Medkit on a friendly", FCVAR_PLUGIN, true, 1.0);
-	cvar_Defib = CreateConVar("l4d_stats_defib", "20", "[L4D2] Base score for using a Defibrillator on a friendly", FCVAR_PLUGIN, true, 1.0);
-	cvar_SmokerDrag = CreateConVar("l4d_stats_smokerdrag", "5", "Base score for saving a friendly from a Smoker Tongue Drag", FCVAR_PLUGIN, true, 1.0);
-	cvar_JockeyRide = CreateConVar("l4d_stats_jockeyride", "10", "[L4D2] Base score for saving a friendly from a Jockey Ride", FCVAR_PLUGIN, true, 1.0);
-	cvar_ChargerPlummel = CreateConVar("l4d_stats_chargerplummel", "10", "[L4D2] Base score for saving a friendly from a Charger Plummel", FCVAR_PLUGIN, true, 1.0);
-	cvar_ChargerCarry = CreateConVar("l4d_stats_chargercarry", "15", "[L4D2] Base score for saving a friendly from a Charger Carry", FCVAR_PLUGIN, true, 1.0);
-	cvar_ChokePounce = CreateConVar("l4d_stats_chokepounce", "10", "Base score for saving a friendly from a Hunter Pounce / Smoker Choke", FCVAR_PLUGIN, true, 1.0);
-	cvar_Revive = CreateConVar("l4d_stats_revive", "15", "Base score for Revive a friendly from Incapacitated state", FCVAR_PLUGIN, true, 1.0);
-	cvar_Rescue = CreateConVar("l4d_stats_rescue", "10", "Base score for Rescue a friendly from a closet", FCVAR_PLUGIN, true, 1.0);
-	cvar_Protect = CreateConVar("l4d_stats_protect", "3", "Base score for Protect a friendly in combat", FCVAR_PLUGIN, true, 1.0);
-	cvar_PlayerLedgeSuccess = CreateConVar("l4d_stats_ledgegrap", "15", "Base score for causing a survivor to grap a ledge", FCVAR_PLUGIN, true, 1.0);
-	cvar_Matador = CreateConVar("l4d_stats_matador", "30", "[L4D2] Base score for killing a charging Charger with a melee weapon", FCVAR_PLUGIN, true, 1.0);
-	cvar_WitchCrowned = CreateConVar("l4d_stats_witchcrowned", "30", "Base score for Crowning a Witch", FCVAR_PLUGIN, true, 1.0);
+	cvar_Pills = CreateConVar("l4d_stats_pills", "15", "Base score for giving Pills to a friendly", _, true, 1.0);
+	cvar_Adrenaline = CreateConVar("l4d_stats_adrenaline", "15", "[L4D2] Base score for giving Adrenaline to a friendly", _, true, 1.0);
+	cvar_Medkit = CreateConVar("l4d_stats_medkit", "20", "Base score for using a Medkit on a friendly", _, true, 1.0);
+	cvar_Defib = CreateConVar("l4d_stats_defib", "20", "[L4D2] Base score for using a Defibrillator on a friendly", _, true, 1.0);
+	cvar_SmokerDrag = CreateConVar("l4d_stats_smokerdrag", "5", "Base score for saving a friendly from a Smoker Tongue Drag", _, true, 1.0);
+	cvar_JockeyRide = CreateConVar("l4d_stats_jockeyride", "10", "[L4D2] Base score for saving a friendly from a Jockey Ride", _, true, 1.0);
+	cvar_ChargerPlummel = CreateConVar("l4d_stats_chargerplummel", "10", "[L4D2] Base score for saving a friendly from a Charger Plummel", _, true, 1.0);
+	cvar_ChargerCarry = CreateConVar("l4d_stats_chargercarry", "15", "[L4D2] Base score for saving a friendly from a Charger Carry", _, true, 1.0);
+	cvar_ChokePounce = CreateConVar("l4d_stats_chokepounce", "10", "Base score for saving a friendly from a Hunter Pounce / Smoker Choke", _, true, 1.0);
+	cvar_Revive = CreateConVar("l4d_stats_revive", "15", "Base score for Revive a friendly from Incapacitated state", _, true, 1.0);
+	cvar_Rescue = CreateConVar("l4d_stats_rescue", "10", "Base score for Rescue a friendly from a closet", _, true, 1.0);
+	cvar_Protect = CreateConVar("l4d_stats_protect", "3", "Base score for Protect a friendly in combat", _, true, 1.0);
+	cvar_PlayerLedgeSuccess = CreateConVar("l4d_stats_ledgegrap", "15", "Base score for causing a survivor to grap a ledge", _, true, 1.0);
+	cvar_Matador = CreateConVar("l4d_stats_matador", "30", "[L4D2] Base score for killing a charging Charger with a melee weapon", _, true, 1.0);
+	cvar_WitchCrowned = CreateConVar("l4d_stats_witchcrowned", "30", "Base score for Crowning a Witch", _, true, 1.0);
 
 	// Team gain Cvars
-	cvar_Tank = CreateConVar("l4d_stats_tank", "25", "Base team score for killing a Tank", FCVAR_PLUGIN, true, 1.0);
-	cvar_Panic = CreateConVar("l4d_stats_panic", "25", "Base team score for surviving a Panic Event with no Incapacitations", FCVAR_PLUGIN, true, 1.0);
-	cvar_BoomerMob = CreateConVar("l4d_stats_boomermob", "10", "Base team score for surviving a Boomer Mob with no Incapacitations", FCVAR_PLUGIN, true, 1.0);
-	cvar_SafeHouse = CreateConVar("l4d_stats_safehouse", "10", "Base score for reaching a Safe House", FCVAR_PLUGIN, true, 1.0);
-	cvar_Witch = CreateConVar("l4d_stats_witch", "10", "Base score for Not Disturbing a Witch", FCVAR_PLUGIN, true, 1.0);
-	cvar_VictorySurvivors = CreateConVar("l4d_stats_campaign", "5", "Base score for Completing a Campaign", FCVAR_PLUGIN, true, 1.0);
-	cvar_VictoryInfected = CreateConVar("l4d_stats_infected_win", "30", "Base victory score for Infected Team", FCVAR_PLUGIN, true, 1.0);
+	cvar_Tank = CreateConVar("l4d_stats_tank", "25", "Base team score for killing a Tank", _, true, 1.0);
+	cvar_Panic = CreateConVar("l4d_stats_panic", "25", "Base team score for surviving a Panic Event with no Incapacitations", _, true, 1.0);
+	cvar_BoomerMob = CreateConVar("l4d_stats_boomermob", "10", "Base team score for surviving a Boomer Mob with no Incapacitations", _, true, 1.0);
+	cvar_SafeHouse = CreateConVar("l4d_stats_safehouse", "10", "Base score for reaching a Safe House", _, true, 1.0);
+	cvar_Witch = CreateConVar("l4d_stats_witch", "10", "Base score for Not Disturbing a Witch", _, true, 1.0);
+	cvar_VictorySurvivors = CreateConVar("l4d_stats_campaign", "5", "Base score for Completing a Campaign", _, true, 1.0);
+	cvar_VictoryInfected = CreateConVar("l4d_stats_infected_win", "30", "Base victory score for Infected Team", _, true, 1.0);
 
 	// Point loss Cvars
-	cvar_FFire = CreateConVar("l4d_stats_ffire", "25", "Base score for Friendly Fire", FCVAR_PLUGIN, true, 1.0);
-	cvar_FIncap = CreateConVar("l4d_stats_fincap", "75", "Base score for a Friendly Incap", FCVAR_PLUGIN, true, 1.0);
-	cvar_FKill = CreateConVar("l4d_stats_fkill", "250", "Base score for a Friendly Kill", FCVAR_PLUGIN, true, 1.0);
-	cvar_InSafeRoom = CreateConVar("l4d_stats_insaferoom", "5", "Base score for letting Infected in the Safe Room", FCVAR_PLUGIN, true, 1.0);
-	cvar_Restart = CreateConVar("l4d_stats_restart", "100", "Base score for a Round Restart", FCVAR_PLUGIN, true, 1.0);
-	cvar_MedkitUsedPointPenalty = CreateConVar("l4d_stats_medkitpenalty", "0.1", "Score reduction for all Survivor earned points for each used Medkit (Formula: Score = NormalPoints * (1 - MedkitsUsed * MedkitPenalty))", FCVAR_PLUGIN, true, 0.0, true, 0.5);
-	cvar_MedkitUsedPointPenaltyMax = CreateConVar("l4d_stats_medkitpenaltymax", "1.0", "Maximum score reduction (the score reduction will not go over this value when a Medkit is used)", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_MedkitUsedFree = CreateConVar("l4d_stats_medkitpenaltyfree", "0", "Team Survivors can use this many Medkits for free without any reduction to the score", FCVAR_PLUGIN, true, 0.0);
-	cvar_MedkitUsedRealismFree = CreateConVar("l4d_stats_medkitpenaltyfree_r", "4", "Team Survivors can use this many Medkits for free without any reduction to the score when playing in Realism gamemodes (-1 = use the value in l4d_stats_medkitpenaltyfree)", FCVAR_PLUGIN, true, -1.0);
-	cvar_MedkitBotMode = CreateConVar("l4d_stats_medkitbotmode", "1", "Add score reduction when bot uses a medkit. 0 = No, 1 = Bot uses a Medkit to a human player, 2 = Bot uses a Medkit to other than itself, 3 = Yes", FCVAR_PLUGIN, true, 0.0, true, 2.0);
-	cvar_CarAlarm = CreateConVar("l4d_stats_caralarm", "50", "[L4D2] Base score for a Triggering Car Alarm", FCVAR_PLUGIN, true, 1.0);
-	cvar_BotScoreMultiplier = CreateConVar("l4d_stats_botscoremultiplier", "1.0", "Multiplier to use when receiving bot related score penalty. 0 = Disable", FCVAR_PLUGIN, true, 0.0);
+	cvar_FFire = CreateConVar("l4d_stats_ffire", "25", "Base score for Friendly Fire", _, true, 1.0);
+	cvar_FIncap = CreateConVar("l4d_stats_fincap", "75", "Base score for a Friendly Incap", _, true, 1.0);
+	cvar_FKill = CreateConVar("l4d_stats_fkill", "250", "Base score for a Friendly Kill", _, true, 1.0);
+	cvar_InSafeRoom = CreateConVar("l4d_stats_insaferoom", "5", "Base score for letting Infected in the Safe Room", _, true, 1.0);
+	cvar_Restart = CreateConVar("l4d_stats_restart", "100", "Base score for a Round Restart", _, true, 1.0);
+	cvar_MedkitUsedPointPenalty = CreateConVar("l4d_stats_medkitpenalty", "0.1", "Score reduction for all Survivor earned points for each used Medkit (Formula: Score = NormalPoints * (1 - MedkitsUsed * MedkitPenalty))", _, true, 0.0, true, 0.5);
+	cvar_MedkitUsedPointPenaltyMax = CreateConVar("l4d_stats_medkitpenaltymax", "1.0", "Maximum score reduction (the score reduction will not go over this value when a Medkit is used)", _, true, 0.0, true, 1.0);
+	cvar_MedkitUsedFree = CreateConVar("l4d_stats_medkitpenaltyfree", "0", "Team Survivors can use this many Medkits for free without any reduction to the score", _, true, 0.0);
+	cvar_MedkitUsedRealismFree = CreateConVar("l4d_stats_medkitpenaltyfree_r", "4", "Team Survivors can use this many Medkits for free without any reduction to the score when playing in Realism gamemodes (-1 = use the value in l4d_stats_medkitpenaltyfree)", _, true, -1.0);
+	cvar_MedkitBotMode = CreateConVar("l4d_stats_medkitbotmode", "1", "Add score reduction when bot uses a medkit. 0 = No, 1 = Bot uses a Medkit to a human player, 2 = Bot uses a Medkit to other than itself, 3 = Yes", _, true, 0.0, true, 2.0);
+	cvar_CarAlarm = CreateConVar("l4d_stats_caralarm", "50", "[L4D2] Base score for a Triggering Car Alarm", _, true, 1.0);
+	cvar_BotScoreMultiplier = CreateConVar("l4d_stats_botscoremultiplier", "1.0", "Multiplier to use when receiving bot related score penalty. 0 = Disable", _, true, 0.0);
 
 	// Survivor point Cvars
-	cvar_SurvivorDeath = CreateConVar("l4d_stats_survivor_death", "40", "Base score for killing a Survivor", FCVAR_PLUGIN, true, 1.0);
-	cvar_SurvivorIncap = CreateConVar("l4d_stats_survivor_incap", "15", "Base score for incapacitating a Survivor", FCVAR_PLUGIN, true, 1.0);
+	cvar_SurvivorDeath = CreateConVar("l4d_stats_survivor_death", "40", "Base score for killing a Survivor", _, true, 1.0);
+	cvar_SurvivorIncap = CreateConVar("l4d_stats_survivor_incap", "15", "Base score for incapacitating a Survivor", _, true, 1.0);
 
 	// Hunter point Cvars
-	cvar_HunterPerfectPounceDamage = CreateConVar("l4d_stats_perfectpouncedamage", "25", "The amount of damage from a pounce to earn Perfect Pounce (Death From Above) success points", FCVAR_PLUGIN, true, 1.0);
-	cvar_HunterPerfectPounceSuccess = CreateConVar("l4d_stats_perfectpouncesuccess", "25", "Base score for a successful Perfect Pounce", FCVAR_PLUGIN, true, 1.0);
-	cvar_HunterNicePounceDamage = CreateConVar("l4d_stats_nicepouncedamage", "15", "The amount of damage from a pounce to earn Nice Pounce (Pain From Above) success points", FCVAR_PLUGIN, true, 1.0);
-	cvar_HunterNicePounceSuccess = CreateConVar("l4d_stats_nicepouncesuccess", "10", "Base score for a successful Nice Pounce", FCVAR_PLUGIN, true, 1.0);
-	cvar_HunterDamageCap = CreateConVar("l4d_stats_hunterdamagecap", "25", "Hunter stored damage cap", FCVAR_PLUGIN, true, 25.0);
+	cvar_HunterPerfectPounceDamage = CreateConVar("l4d_stats_perfectpouncedamage", "25", "The amount of damage from a pounce to earn Perfect Pounce (Death From Above) success points", _, true, 1.0);
+	cvar_HunterPerfectPounceSuccess = CreateConVar("l4d_stats_perfectpouncesuccess", "25", "Base score for a successful Perfect Pounce", _, true, 1.0);
+	cvar_HunterNicePounceDamage = CreateConVar("l4d_stats_nicepouncedamage", "15", "The amount of damage from a pounce to earn Nice Pounce (Pain From Above) success points", _, true, 1.0);
+	cvar_HunterNicePounceSuccess = CreateConVar("l4d_stats_nicepouncesuccess", "10", "Base score for a successful Nice Pounce", _, true, 1.0);
+	cvar_HunterDamageCap = CreateConVar("l4d_stats_hunterdamagecap", "25", "Hunter stored damage cap", _, true, 25.0);
 
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		MaxPounceDistance = GetConVarInt(FindConVar("z_pounce_damage_range_max"));
 		MinPounceDistance = GetConVarInt(FindConVar("z_pounce_damage_range_min"));
@@ -777,29 +567,29 @@ public OnPluginStart()
 	MaxPounceDamage = GetConVarInt(FindConVar("z_hunter_max_pounce_bonus_damage"));
 
 	// Boomer point Cvars
-	cvar_BoomerSuccess = CreateConVar("l4d_stats_boomersuccess", "5", "Base score for a successfully vomiting on survivor", FCVAR_PLUGIN, true, 1.0);
-	cvar_BoomerPerfectHits = CreateConVar("l4d_stats_boomerperfecthits", "4", "The number of survivors that needs to get blinded to earn Boomer Perfect Vomit Award and success points", FCVAR_PLUGIN, true, 4.0);
-	cvar_BoomerPerfectSuccess = CreateConVar("l4d_stats_boomerperfectsuccess", "30", "Base score for a successful Boomer Perfect Vomit", FCVAR_PLUGIN, true, 1.0);
+	cvar_BoomerSuccess = CreateConVar("l4d_stats_boomersuccess", "5", "Base score for a successfully vomiting on survivor", _, true, 1.0);
+	cvar_BoomerPerfectHits = CreateConVar("l4d_stats_boomerperfecthits", "4", "The number of survivors that needs to get blinded to earn Boomer Perfect Vomit Award and success points", _, true, 4.0);
+	cvar_BoomerPerfectSuccess = CreateConVar("l4d_stats_boomerperfectsuccess", "30", "Base score for a successful Boomer Perfect Vomit", _, true, 1.0);
 
 	// Tank point Cvars
-	cvar_TankDamageCap = CreateConVar("l4d_stats_tankdmgcap", "500", "Maximum inflicted damage done by Tank to earn Infected damagepoints", FCVAR_PLUGIN, true, 150.0);
-	cvar_TankDamageTotal = CreateConVar("l4d_stats_bulldozer", "200", "Damage inflicted by Tank to earn Bulldozer Award and success points", FCVAR_PLUGIN, true, 200.0);
-	cvar_TankDamageTotalSuccess = CreateConVar("l4d_stats_bulldozersuccess", "50", "Base score for Bulldozer Award", FCVAR_PLUGIN, true, 1.0);
-	cvar_TankThrowRockSuccess = CreateConVar("l4d_stats_tankthrowrocksuccess", "5", "Base score for a Tank thrown rock hit", FCVAR_PLUGIN, true, 0.0);
+	cvar_TankDamageCap = CreateConVar("l4d_stats_tankdmgcap", "500", "Maximum inflicted damage done by Tank to earn Infected damagepoints", _, true, 150.0);
+	cvar_TankDamageTotal = CreateConVar("l4d_stats_bulldozer", "200", "Damage inflicted by Tank to earn Bulldozer Award and success points", _, true, 200.0);
+	cvar_TankDamageTotalSuccess = CreateConVar("l4d_stats_bulldozersuccess", "50", "Base score for Bulldozer Award", _, true, 1.0);
+	cvar_TankThrowRockSuccess = CreateConVar("l4d_stats_tankthrowrocksuccess", "5", "Base score for a Tank thrown rock hit", _, true, 0.0);
 
 	// Charger point Cvars
-	cvar_ChargerRamSuccess = CreateConVar("l4d_stats_chargerramsuccess", "40", "Base score for a successful Charger Scattering Ram", FCVAR_PLUGIN, true, 1.0);
-	cvar_ChargerRamHits = CreateConVar("l4d_stats_chargerramhits", "4", "The number of impacts on survivors to earn Scattering Ram Award and success points", FCVAR_PLUGIN, true, 2.0);
+	cvar_ChargerRamSuccess = CreateConVar("l4d_stats_chargerramsuccess", "40", "Base score for a successful Charger Scattering Ram", _, true, 1.0);
+	cvar_ChargerRamHits = CreateConVar("l4d_stats_chargerramhits", "4", "The number of impacts on survivors to earn Scattering Ram Award and success points", _, true, 2.0);
 
 	// Misc L4D2 Cvars
-	cvar_AmmoUpgradeAdded = CreateConVar("l4d_stats_deployammoupgrade", "10", "[L4D2] Base score for deploying ammo upgrade pack", FCVAR_PLUGIN, true, 0.0);
-	cvar_GascanPoured = CreateConVar("l4d_stats_gascanpoured", "5", "[L4D2] Base score for successfully pouring a gascan", FCVAR_PLUGIN, true, 0.0);
+	cvar_AmmoUpgradeAdded = CreateConVar("l4d_stats_deployammoupgrade", "10", "[L4D2] Base score for deploying ammo upgrade pack", _, true, 0.0);
+	cvar_GascanPoured = CreateConVar("l4d_stats_gascanpoured", "5", "[L4D2] Base score for successfully pouring a gascan", _, true, 0.0);
 
 	// Other Cvars
-	cvar_Top10PPMMin = CreateConVar("l4d_stats_top10ppmplaytime", "30", "Minimum playtime (minutes) to show in top10 ppm list", FCVAR_PLUGIN, true, 1.0);
-	cvar_RankVoteTime = CreateConVar("l4d_stats_rankvotetime", "20", "Time to wait people to vote", FCVAR_PLUGIN, true, 10.0);
+	cvar_Top10PPMMin = CreateConVar("l4d_stats_top10ppmplaytime", "30", "Minimum playtime (minutes) to show in top10 ppm list", _, true, 1.0);
+	cvar_RankVoteTime = CreateConVar("l4d_stats_rankvotetime", "20", "Time to wait people to vote", _, true, 10.0);
 
-	cvar_SoundsEnabled = CreateConVar("l4d_stats_soundsenabled", "1", "Play sounds on certain events", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	cvar_SoundsEnabled = CreateConVar("l4d_stats_soundsenabled", "1", "Play sounds on certain events", _, true, 0.0, true, 1.0);
 
 	// Make that config!
 	AutoExecConfig(true, "l4d_stats");
@@ -808,7 +598,7 @@ public OnPluginStart()
 	HookEvent("player_death", event_PlayerDeath);
 	HookEvent("infected_death", event_InfectedDeath);
 	HookEvent("tank_killed", event_TankKilled);
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		HookEvent("weapon_given", event_GivePills);
 	}
@@ -838,7 +628,7 @@ public OnPluginStart()
 	HookEvent("player_no_longer_it", event_PlayerBlindEnd);
 
 	// Team Loss Events / Misc. Events
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		HookEvent("award_earned", event_Award_L4D1);
 	}
@@ -863,7 +653,7 @@ public OnPluginStart()
 	// Smoker stats
 	HookEvent("tongue_grab", event_SmokerGrap);
 	HookEvent("tongue_release", event_SmokerRelease);
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		HookEvent("tongue_broke_victim_died", event_SmokerRelease);
 	}
@@ -876,7 +666,7 @@ public OnPluginStart()
 	// Hunter stats
 	HookEvent("pounce_end", event_HunterRelease);
 
-	if (ServerVersion != SERVER_VERSION_L4D1)
+	if (ServerVersion != Engine_Left4Dead)
 	{
 		// Spitter stats
 		//HookEvent("spitter_killed", event_SpitterKilled);
@@ -932,7 +722,7 @@ public OnPluginStart()
 	FriendlyFireDamageTrie = CreateTrie();
 	PlayerRankVoteTrie = CreateTrie();
 
-	new Handle:topmenu;
+	Handle topmenu;
 	if (LibraryExists("adminmenu") && ((topmenu = GetAdminTopMenu()) != INVALID_HANDLE))
 		OnAdminMenuReady(topmenu);
 
@@ -963,79 +753,17 @@ public OnPluginStart()
 	}
 
 	// Sounds
-	if (!IsSoundPrecached(SOUND_RANKVOTE))
-	{
-		EnableSounds_Rankvote = PrecacheSound(SOUND_RANKVOTE); // Sound from rankvote team switch
-	}
-	else
-	{
-		EnableSounds_Rankvote = true;
-	}
+	EnableSounds_Rankvote = PrecacheSound(SOUND_RANKVOTE); // Sound from rankvote team switch
+	EnableSounds_Maptime_Start = PrecacheSound(StatsSound_MapTime_Start); // Sound map timer start
+	EnableSounds_Maptime_Improve = PrecacheSound(StatsSound_MapTime_Improve); // Sound from improving personal map timing
+	EnableSounds_Rankmenu_Show = PrecacheSound(StatsSound_Rankmenu_Show); // Sound from showing the rankmenu
+	EnableSounds_Boomer_Vomit = PrecacheSound(StatsSound_Boomer_Vomit); // Sound from a successful boomer vomit (Perfect Blindness)
+	EnableSounds_Hunter_Perfect = PrecacheSound(StatsSound_Hunter_Perfect); // Sound from a hunter perfect pounce (Death From Above)
+	EnableSounds_Tank_Bulldozer = PrecacheSound(StatsSound_Tank_Bulldozer); // Sound from a tank bulldozer
 
-	if (!IsSoundPrecached(StatsSound_MapTime_Start))
+	if (ServerVersion != Engine_Left4Dead)
 	{
-		EnableSounds_Maptime_Start = PrecacheSound(StatsSound_MapTime_Start); // Sound map timer start
-	}
-	else
-	{
-		EnableSounds_Maptime_Start = true;
-	}
-
-	if (!IsSoundPrecached(StatsSound_MapTime_Improve))
-	{
-		EnableSounds_Maptime_Improve = PrecacheSound(StatsSound_MapTime_Improve); // Sound from improving personal map timing
-	}
-	else
-	{
-		EnableSounds_Maptime_Improve = true;
-	}
-
-	if (!IsSoundPrecached(StatsSound_Rankmenu_Show))
-	{
-		EnableSounds_Rankmenu_Show = PrecacheSound(StatsSound_Rankmenu_Show); // Sound from showing the rankmenu
-	}
-	else
-	{
-		EnableSounds_Rankmenu_Show = true;
-	}
-
-	if (!IsSoundPrecached(StatsSound_Boomer_Vomit))
-	{
-		EnableSounds_Boomer_Vomit = PrecacheSound(StatsSound_Boomer_Vomit); // Sound from a successful boomer vomit (Perfect Blindness)
-	}
-	else
-	{
-		EnableSounds_Boomer_Vomit = true;
-	}
-
-	if (!IsSoundPrecached(StatsSound_Hunter_Perfect))
-	{
-		EnableSounds_Hunter_Perfect = PrecacheSound(StatsSound_Hunter_Perfect); // Sound from a hunter perfect pounce (Death From Above)
-	}
-	else
-	{
-		EnableSounds_Hunter_Perfect = true;
-	}
-
-	if (!IsSoundPrecached(StatsSound_Tank_Bulldozer))
-	{
-		EnableSounds_Tank_Bulldozer = PrecacheSound(StatsSound_Tank_Bulldozer); // Sound from a tank bulldozer
-	}
-	else
-	{
-		EnableSounds_Tank_Bulldozer = true;
-	}
-
-	if (ServerVersion != SERVER_VERSION_L4D1)
-	{
-		if (!IsSoundPrecached(SOUND_CHARGER_RAM))
-		{
-			EnableSounds_Charger_Ram = PrecacheSound(SOUND_CHARGER_RAM); // Sound from a charger scattering ram
-		}
-		else
-		{
-			EnableSounds_Charger_Ram = true;
-		}
+		EnableSounds_Charger_Ram = PrecacheSound(SOUND_CHARGER_RAM); // Sound from a charger scattering ram
 	}
 	else
 	{
@@ -1092,23 +820,27 @@ public OnConfigsExecuted()
 
 // Load our categories and menus
 
-public OnAdminMenuReady(Handle:TopMenu)
+public OnAdminMenuReady(Handle TopMenuHandle)
 {
 	// Block us from being called twice
-	if (TopMenu == RankAdminMenu)
+	if (TopMenuHandle == RankAdminMenu)
+	{
 		return;
+	}
 
-	RankAdminMenu = TopMenu;
+	RankAdminMenu = TopMenuHandle;
 
 	// Add a category to the SourceMod menu called "Player Stats"
 	AddToTopMenu(RankAdminMenu, "Player Stats", TopMenuObject_Category, ClearRankCategoryHandler, INVALID_TOPMENUOBJECT);
 
 	// Get a handle for the catagory we just added so we can add items to it
-	new TopMenuObject:statscommands = FindTopMenuCategory(RankAdminMenu, "Player Stats");
+	TopMenuObject statscommands = FindTopMenuCategory(RankAdminMenu, "Player Stats");
 
 	// Don't attempt to add items to the catagory if for some reason the catagory doesn't exist
 	if (statscommands == INVALID_TOPMENUOBJECT)
+	{
 		return;
+	}
 
 	// The order that items are added to menus has no relation to the order that they appear. Items are sorted alphabetically automatically
 	// Assign the menus to global values so we can easily check what a menu is when it is chosen
@@ -1121,7 +853,7 @@ public OnAdminMenuReady(Handle:TopMenu)
 	MenuClear = AddToTopMenu(RankAdminMenu, "sm_rank_admin_clear", TopMenuObject_Item, ClearRankTopItemHandler, statscommands, "sm_rank_admin_clear", ADMFLAG_ROOT);
 }
 
-public OnLibraryRemoved(const String:name[])
+public OnLibraryRemoved(const char[] name)
 {
 	if (StrEqual(name, "adminmenu"))
 		RankAdminMenu = INVALID_HANDLE;
@@ -1129,7 +861,7 @@ public OnLibraryRemoved(const String:name[])
 
 // This handles the top level "Player Stats" category and how it is displayed on the core admin menu
 
-public ClearRankCategoryHandler(Handle:topmenu, TopMenuAction:action, TopMenuObject:object_id, client, String:buffer[], maxlength)
+public ClearRankCategoryHandler(Handle topmenu, TopMenuAction:action, TopMenuObject:object_id, client, char[] buffer, maxlength)
 {
 	if (action == TopMenuAction_DisplayOption)
 		Format(buffer, maxlength, "Player Stats");
@@ -1139,7 +871,7 @@ public ClearRankCategoryHandler(Handle:topmenu, TopMenuAction:action, TopMenuObj
 
 public Action:Menu_CreateClearMenu(client, args)
 {
-	new Handle:menu = CreateMenu(Menu_CreateClearMenuHandler);
+	Handle menu = CreateMenu(Menu_CreateClearMenuHandler);
 
 	SetMenuTitle(menu, "Clear:");
 	SetMenuExitBackButton(menu, true);
@@ -1153,7 +885,7 @@ public Action:Menu_CreateClearMenu(client, args)
 	return Plugin_Handled;
 }
 
-public Menu_CreateClearMenuHandler(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateClearMenuHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	switch (action)
 	{
@@ -1185,7 +917,7 @@ public Menu_CreateClearMenuHandler(Handle:menu, MenuAction:action, param1, param
 
 public Action:Menu_CreateClearTMMenu(client, args)
 {
-	new Handle:menu = CreateMenu(Menu_CreateClearTMMenuHandler);
+	Handle menu = CreateMenu(Menu_CreateClearTMMenuHandler);
 
 	SetMenuTitle(menu, "Clear Timed Maps:");
 	SetMenuExitBackButton(menu, true);
@@ -1202,7 +934,7 @@ public Action:Menu_CreateClearTMMenu(client, args)
 	return Plugin_Handled;
 }
 
-public Menu_CreateClearTMMenuHandler(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateClearTMMenuHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	switch (action)
 	{
@@ -1247,7 +979,7 @@ public Menu_CreateClearTMMenuHandler(Handle:menu, MenuAction:action, param1, par
 }
 
 // This deals with what happens someone opens the "Player Stats" category from the menu
-public ClearRankTopItemHandler(Handle:topmenu, TopMenuAction:action, TopMenuObject:object_id, client, String:buffer[], maxlength)
+public ClearRankTopItemHandler(Handle topmenu, TopMenuAction:action, TopMenuObject:object_id, client, char[] buffer, maxlength)
 {
 	// When an item is displayed to a player tell the menu to format the item
 	if (action == TopMenuAction_DisplayOption)
@@ -1346,7 +1078,7 @@ public OnClientPostAdminCheck(client)
 	CreateTimer(1.0, ClientPostAdminCheck, client);
 }
 
-public Action:ClientPostAdminCheck(Handle:timer, any:client)
+public Action:ClientPostAdminCheck(Handle timer, any client)
 {
 	if (!IsClientInGame(client))
 	{
@@ -1360,7 +1092,7 @@ public Action:ClientPostAdminCheck(Handle:timer, any:client)
 
 	StartRankChangeCheck(client);
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	CheckPlayerDB(client);
@@ -1380,9 +1112,9 @@ public OnPluginEnd()
 	if (db == INVALID_HANDLE)
 		return;
 
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -1410,7 +1142,7 @@ public OnPluginEnd()
 
 // Show rank on connect.
 
-public Action:RankConnect(Handle:timer, any:value)
+public Action:RankConnect(Handle timer, any value)
 {
 	if (GetConVarBool(cvar_RankOnJoin) && !InvalidGameMode())
 	{
@@ -1420,7 +1152,7 @@ public Action:RankConnect(Handle:timer, any:value)
 
 // Announce on player connect!
 
-public Action:AnnounceConnect(Handle:timer, any:client)
+public Action:AnnounceConnect(Handle timer, any client)
 {
 	if (!GetConVarBool(cvar_AnnounceMode))
 	{
@@ -1467,7 +1199,7 @@ public OnClientDisconnect(client)
 
 	if (MapTimingStartTime >= 0.0)
 	{
-		decl String:ClientID[MAX_LINE_WIDTH];
+		char ClientID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(client, ClientID, sizeof(ClientID));
 
 		RemoveFromTrie(MapTimingSurvivors, ClientID);
@@ -1485,9 +1217,9 @@ public OnClientDisconnect(client)
 		}
 	}
 
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (i != client && IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 			return;
@@ -1503,7 +1235,7 @@ public OnClientDisconnect(client)
 	}
 }
 
-public action_LanChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public action_LanChanged(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	if (GetConVarInt(cvar_Lan))
 		LogMessage("ATTENTION! %s in LAN environment is based on IP address rather than Steam ID. The statistics are not reliable when they are base on IP!", PLUGIN_NAME);
@@ -1511,7 +1243,7 @@ public action_LanChanged(Handle:convar, const String:oldValue[], const String:ne
 
 // Update the Database prefix when the Cvar is changed.
 
-public action_DbPrefixChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public action_DbPrefixChanged(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == cvar_DbPrefix)
 	{
@@ -1530,7 +1262,7 @@ public action_DbPrefixChanged(Handle:convar, const String:oldValue[], const Stri
 
 // Update the Update Timer when the Cvar is changed.
 
-public action_TimerChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public action_TimerChanged(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == cvar_UpdateRate)
 	{
@@ -1543,7 +1275,7 @@ public action_TimerChanged(Handle:convar, const String:oldValue[], const String:
 
 // Update the CurrentGamemode when the Cvar is changed.
 
-public action_DifficultyChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public action_DifficultyChanged(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == cvar_Difficulty)
 	{
@@ -1554,7 +1286,7 @@ public action_DifficultyChanged(Handle:convar, const String:oldValue[], const St
 
 // Update the CurrentGamemode when the Cvar is changed.
 
-public action_GamemodeChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public action_GamemodeChanged(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == cvar_Gamemode)
 	{
@@ -1614,7 +1346,7 @@ public SetCurrentGamemodeName()
 
 // Scavenge round start event (occurs when door opens or players leave the start area)
 
-public Action:event_ScavengeRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ScavengeRoundStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	event_RoundStart(event, name, dontBroadcast);
 
@@ -1623,7 +1355,7 @@ public Action:event_ScavengeRoundStart(Handle:event, const String:name[], bool:d
 
 // Called after the connection to the database is established
 
-public Action:event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_RoundStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	ResetVars();
 	CheckCurrentMapDB();
@@ -1636,14 +1368,14 @@ public Action:event_RoundStart(Handle:event, const String:name[], bool:dontBroad
 
 // Make connection to database.
 
-bool:ConnectDB()
+bool ConnectDB()
 {
 	if (db != INVALID_HANDLE)
 		return true;
 
 	if (SQL_CheckConfig(DB_CONF_NAME))
 	{
-		new String:Error[256];
+		char Error[256];
 		db = SQL_Connect(DB_CONF_NAME, true, Error, sizeof(Error));
 
 		if (db == INVALID_HANDLE)
@@ -1674,7 +1406,7 @@ bool:ConnectDB()
 	return true;
 }
 
-bool:CheckDatabaseValidity(const String:Prefix[])
+bool CheckDatabaseValidity(const char[] Prefix)
 {
 	if (!DoFastQuery(0, "SELECT * FROM %splayers WHERE 1 = 2", Prefix) ||
 			!DoFastQuery(0, "SELECT * FROM %smaps WHERE 1 = 2", Prefix) ||
@@ -1687,24 +1419,24 @@ bool:CheckDatabaseValidity(const String:Prefix[])
 	return true;
 }
 
-public Action:timer_ProtectedFriendly(Handle:timer, any:data)
+public Action:timer_ProtectedFriendly(Handle timer, any data)
 {
 	TimerProtectedFriendly[data] = INVALID_HANDLE;
-	new ProtectedFriendlies = ProtectedFriendlyCounter[data];
+	int ProtectedFriendlies = ProtectedFriendlyCounter[data];
 	ProtectedFriendlyCounter[data] = 0;
 
 	if (data == 0 || !IsClientConnected(data) || !IsClientInGame(data) || IsClientBot(data))
 		return;
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_Protect) * ProtectedFriendlies, 2, 3, TEAM_SURVIVORS);
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_Protect) * ProtectedFriendlies, 2, 3, TEAM_SURVIVORS);
 	AddScore(data, Score);
 
 	UpdateMapStat("points", Score);
 
-	decl String:UpdatePoints[32];
-	decl String:UserID[MAX_LINE_WIDTH];
+	char UpdatePoints[32];
+	char UserID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(data, UserID, sizeof(UserID));
-	decl String:UserName[MAX_LINE_WIDTH];
+	char UserName[MAX_LINE_WIDTH];
 	GetClientName(data, UserName, sizeof(UserName));
 
 	switch (CurrentGamemodeID)
@@ -1739,7 +1471,7 @@ public Action:timer_ProtectedFriendly(Handle:timer, any:data)
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_protect = award_protect + %i WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, ProtectedFriendlies, UserID);
 	SendSQLUpdate(query);
 
@@ -1755,17 +1487,17 @@ public Action:timer_ProtectedFriendly(Handle:timer, any:data)
 }
 // Team infected damage score
 
-public Action:timer_InfectedDamageCheck(Handle:timer, any:data)
+public Action:timer_InfectedDamageCheck(Handle timer, any data)
 {
 	TimerInfectedDamageCheck[data] = INVALID_HANDLE;
 
 	if (data == 0 || IsClientBot(data))
 		return;
 
-	new InfectedDamage = GetConVarInt(cvar_InfectedDamage);
+	int InfectedDamage = GetConVarInt(cvar_InfectedDamage);
 
-	new Score = 0;
-	new DamageCounter = 0;
+	int Score = 0;
+	int DamageCounter = 0;
 
 	if (InfectedDamage > 1)
 	{
@@ -1795,8 +1527,8 @@ public Action:timer_InfectedDamageCheck(Handle:timer, any:data)
 
 		new Mode = GetConVarInt(cvar_AnnounceMode);
 
-		decl String:query[1024];
-		decl String:iID[MAX_LINE_WIDTH];
+		char query[1024];
+		char iID[MAX_LINE_WIDTH];
 
 		GetClientRankAuthString(data, iID, sizeof(iID));
 
@@ -1830,7 +1562,7 @@ public Action:timer_InfectedDamageCheck(Handle:timer, any:data)
 		}
 		else if (Mode == 3)
 		{
-			decl String:Name[MAX_LINE_WIDTH];
+			char Name[MAX_LINE_WIDTH];
 			GetClientName(data, Name, sizeof(Name));
 			if (InfectedDamage > 1)
 				StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for doing \x04%i \x01points of damage to the Survivors!", Name, Score, DamageCounter);
@@ -1852,7 +1584,7 @@ GetBoomerPoints(VictimCount)
 
 // Calculate Boomer vomit hits and check Boomer Perfect Blindness award
 
-public Action:timer_BoomerBlindnessCheck(Handle:timer, any:data)
+public Action:timer_BoomerBlindnessCheck(Handle timer, any data)
 {
 	TimerBoomerPerfectCheck[data] = INVALID_HANDLE;
 
@@ -1880,8 +1612,8 @@ public Action:timer_BoomerBlindnessCheck(Handle:timer, any:data)
 		//PrintToConsole(0, "timer_BoomerBlindnessCheck -> Total Score = %i", Score);
 		Score = ModifyScoreDifficultyFloat(Score, 0.75, 0.5, TEAM_INFECTED);
 
-		decl String:query[1024];
-		decl String:iID[MAX_LINE_WIDTH];
+		char query[1024];
+		char iID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(data, iID, sizeof(iID));
 
 		if (CurrentGamemodeID == GAMEMODE_VERSUS)
@@ -1916,7 +1648,7 @@ public Action:timer_BoomerBlindnessCheck(Handle:timer, any:data)
 			}
 			else if (Mode == 3)
 			{
-				decl String:Name[MAX_LINE_WIDTH];
+				char Name[MAX_LINE_WIDTH];
 				GetClientName(data, Name, sizeof(Name));
 				if (AwardCounter > 0)
 					StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points from \x05Perfect Blindness\x01!", Name, Score);
@@ -1933,18 +1665,18 @@ public Action:timer_BoomerBlindnessCheck(Handle:timer, any:data)
 
 // Perform player init.
 
-public Action:InitPlayers(Handle:timer)
+public Action:InitPlayers(Handle timer)
 {
 	if (db == INVALID_HANDLE)
 		return;
 
-	decl String:query[64];
+	char query[64];
 	Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers", DbPrefix);
 	SQL_TQuery(db, GetRankTotal, query);
 
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -1960,27 +1692,27 @@ public Action:InitPlayers(Handle:timer)
 
 QueryClientPoints(Client, SQLTCallback:callback=INVALID_FUNCTION)
 {
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 
 	GetClientRankAuthString(Client, SteamID, sizeof(SteamID));
 	QueryClientPointsSteamID(Client, SteamID, callback);
 }
 
-QueryClientPointsSteamID(Client, const String:SteamID[], SQLTCallback:callback=INVALID_FUNCTION)
+QueryClientPointsSteamID(Client, const char[] SteamID, SQLTCallback:callback=INVALID_FUNCTION)
 {
 	if (callback == INVALID_FUNCTION)
 		callback = GetClientPoints;
 
-	decl String:query[512];
+	char query[512];
 
 	Format(query, sizeof(query), "SELECT %s FROM %splayers WHERE steamid = '%s'", DB_PLAYERS_TOTALPOINTS, DbPrefix, SteamID);
 
 	SQL_TQuery(db, callback, query, Client);
 }
 
-QueryClientPointsDP(Handle:dp, SQLTCallback:callback)
+QueryClientPointsDP(Handle dp, SQLTCallback:callback)
 {
-	decl String:query[1024], String:SteamID[MAX_LINE_WIDTH];
+	char query[1024], SteamID[MAX_LINE_WIDTH];
 
 	ResetPack(dp);
 
@@ -1997,20 +1729,20 @@ QueryClientRank(Client, SQLTCallback:callback=INVALID_FUNCTION)
 	if (callback == INVALID_FUNCTION)
 		callback = GetClientRank;
 
-	decl String:query[256];
+	char query[256];
 
 	Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers WHERE %s >= %i", DbPrefix, DB_PLAYERS_TOTALPOINTS, ClientPoints[Client]);
 
 	SQL_TQuery(db, callback, query, Client);
 }
 
-QueryClientRankDP(Handle:dp, SQLTCallback:callback)
+QueryClientRankDP(Handle dp, SQLTCallback:callback)
 {
-	decl String:query[256];
+	char query[256];
 
 	ResetPack(dp);
 
-	new Client = ReadPackCell(dp);
+	int Client = ReadPackCell(dp);
 
 	Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers WHERE %s >= %i", DbPrefix, DB_PLAYERS_TOTALPOINTS, ClientPoints[Client]);
 
@@ -2024,7 +1756,7 @@ QueryClientGameModeRank(Client, SQLTCallback:callback=INVALID_FUNCTION)
 		if (callback == INVALID_HANDLE)
 			callback = GetClientGameModeRank;
 
-		decl String:query[256];
+		char query[256];
 
 		switch (CurrentGamemodeID)
 		{
@@ -2062,11 +1794,11 @@ QueryClientGameModeRank(Client, SQLTCallback:callback=INVALID_FUNCTION)
 	}
 }
 */
-QueryClientGameModeRankDP(Handle:dp, SQLTCallback:callback)
+QueryClientGameModeRankDP(Handle dp, SQLTCallback:callback)
 {
 	if (!InvalidGameMode())
 	{
-		decl String:query[1024];
+		char query[1024];
 
 		ResetPack(dp);
 
@@ -2110,27 +1842,27 @@ QueryClientGameModeRankDP(Handle:dp, SQLTCallback:callback)
 /*
 QueryClientGameModePoints(Client, SQLTCallback:callback=INVALID_FUNCTION)
 {
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 
 	GetClientRankAuthString(Client, SteamID, sizeof(SteamID));
 	QueryClientGameModePointsStmID(Client, SteamID, callback);
 }
 
-QueryClientGameModePointsStmID(Client, const String:SteamID[], SQLTCallback:callback=INVALID_FUNCTION)
+QueryClientGameModePointsStmID(Client, const char[] SteamID, SQLTCallback:callback=INVALID_FUNCTION)
 {
 	if (cbGetRankTotal == INVALID_HANDLE)
 		callback = GetClientGameModePoints;
 
-	decl String:query[1024];
+	char query[1024];
 
 	Format(query, sizeof(query), "SELECT points, points_survivors + points_infected, points_realism, points_survival, points_scavenge_survivors + points_scavenge_infected + points_realism_survivors + points_realism_infected, points_mutations FROM %splayers WHERE steamid = '%s'", DbPrefix, SteamID);
 
 	SQL_TQuery(db, callback, query, Client);
 }
 */
-QueryClientGameModePointsDP(Handle:dp, SQLTCallback:callback)
+QueryClientGameModePointsDP(Handle dp, SQLTCallback:callback)
 {
-	decl String:query[1024], String:SteamID[MAX_LINE_WIDTH];
+	char query[1024], SteamID[MAX_LINE_WIDTH];
 
 	ResetPack(dp);
 
@@ -2148,24 +1880,24 @@ QueryRanks()
 	QueryRank_2();
 }
 */
-QueryRank_1(Handle:dp=INVALID_HANDLE, SQLTCallback:callback=INVALID_FUNCTION)
+QueryRank_1(Handle dp=INVALID_HANDLE, SQLTCallback:callback=INVALID_FUNCTION)
 {
 	if (callback == INVALID_FUNCTION)
 		callback = GetRankTotal;
 
-	decl String:query[1024];
+	char query[1024];
 
 	Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers", DbPrefix);
 
 	SQL_TQuery(db, callback, query, dp);
 }
 
-QueryRank_2(Handle:dp=INVALID_HANDLE, SQLTCallback:callback=INVALID_FUNCTION)
+QueryRank_2(Handle dp=INVALID_HANDLE, SQLTCallback:callback=INVALID_FUNCTION)
 {
 	if (callback == INVALID_FUNCTION)
 		callback = GetGameModeRankTotal;
 
-	decl String:query[1024];
+	char query[1024];
 
 	switch (CurrentGamemodeID)
 	{
@@ -2204,15 +1936,15 @@ QueryRank_2(Handle:dp=INVALID_HANDLE, SQLTCallback:callback=INVALID_FUNCTION)
 
 QueryClientStats(Client, CallingMethod=CM_UNKNOWN)
 {
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 
 	GetClientRankAuthString(Client, SteamID, sizeof(SteamID));
 	QueryClientStatsSteamID(Client, SteamID, CallingMethod);
 }
 
-QueryClientStatsSteamID(Client, const String:SteamID[], CallingMethod=CM_UNKNOWN)
+QueryClientStatsSteamID(Client, const char[] SteamID, CallingMethod=CM_UNKNOWN)
 {
-	new Handle:dp = CreateDataPack();
+	Handle dp = CreateDataPack();
 
 	WritePackCell(dp, Client);
 	WritePackString(dp, SteamID);
@@ -2221,12 +1953,12 @@ QueryClientStatsSteamID(Client, const String:SteamID[], CallingMethod=CM_UNKNOWN
 	QueryClientStatsDP(dp);
 }
 
-QueryClientStatsDP(Handle:dp)
+QueryClientStatsDP(Handle dp)
 {
 	QueryClientGameModePointsDP(dp, QueryClientStatsDP_1);
 }
 
-public QueryClientStatsDP_1(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public QueryClientStatsDP_1(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -2240,7 +1972,7 @@ public QueryClientStatsDP_1(Handle:owner, Handle:hndl, const String:error[], any
 	QueryClientPointsDP(dp, QueryClientStatsDP_2);
 }
 
-public QueryClientStatsDP_2(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public QueryClientStatsDP_2(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -2254,7 +1986,7 @@ public QueryClientStatsDP_2(Handle:owner, Handle:hndl, const String:error[], any
 	QueryClientGameModeRankDP(dp, QueryClientStatsDP_3);
 }
 
-public QueryClientStatsDP_3(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public QueryClientStatsDP_3(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -2268,7 +2000,7 @@ public QueryClientStatsDP_3(Handle:owner, Handle:hndl, const String:error[], any
 	QueryClientRankDP(dp, QueryClientStatsDP_4);
 }
 
-public QueryClientStatsDP_4(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public QueryClientStatsDP_4(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -2282,7 +2014,7 @@ public QueryClientStatsDP_4(Handle:owner, Handle:hndl, const String:error[], any
 	QueryRank_1(dp, QueryClientStatsDP_5);
 }
 
-public QueryClientStatsDP_5(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public QueryClientStatsDP_5(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -2296,7 +2028,7 @@ public QueryClientStatsDP_5(Handle:owner, Handle:hndl, const String:error[], any
 	QueryRank_2(dp, QueryClientStatsDP_6);
 }
 
-public QueryClientStatsDP_6(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public QueryClientStatsDP_6(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -2307,13 +2039,13 @@ public QueryClientStatsDP_6(Handle:owner, Handle:hndl, const String:error[], any
 		return;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 
 	ResetPack(dp);
 
-	new Client = ReadPackCell(dp);
+	int Client = ReadPackCell(dp);
 	ReadPackString(dp, SteamID, sizeof(SteamID));
-	new CallingMethod = ReadPackCell(dp);
+	int CallingMethod = ReadPackCell(dp);
 
 	GetGameModeRankTotal(owner, hndl, error, Client);
 
@@ -2340,23 +2072,23 @@ public QueryClientStatsDP_6(Handle:owner, Handle:hndl, const String:error[], any
 	dp = INVALID_HANDLE;
 }
 
-QueryClientStatsDP_Rank(Client, const String:SteamID[])
+QueryClientStatsDP_Rank(Client, const char[] SteamID)
 {
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "SELECT name, %s, %s, kills, versus_kills_survivors + scavenge_kills_survivors + realism_kills_survivors + mutations_kills_survivors, headshots FROM %splayers WHERE steamid = '%s'", DB_PLAYERS_TOTALPLAYTIME, DB_PLAYERS_TOTALPOINTS, DbPrefix, SteamID);
 	SQL_TQuery(db, DisplayRank, query, Client);
 }
 
-QueryClientStatsDP_Top10(Client, const String:SteamID[])
+QueryClientStatsDP_Top10(Client, const char[] SteamID)
 {
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "SELECT name, %s, %s, kills, versus_kills_survivors + scavenge_kills_survivors + realism_kills_survivors + mutations_kills_survivors, headshots FROM %splayers WHERE steamid = '%s'", DB_PLAYERS_TOTALPLAYTIME, DB_PLAYERS_TOTALPOINTS, DbPrefix, SteamID);
 	SQL_TQuery(db, DisplayRank, query, Client);
 }
 
-QueryClientStatsDP_NextRank(Client, const String:SteamID[])
+QueryClientStatsDP_NextRank(Client, const char[] SteamID)
 {
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "SELECT (%s + 1) - %i FROM %splayers WHERE (%s) >= %i AND steamid <> '%s' ORDER BY (%s) ASC LIMIT 1", DB_PLAYERS_TOTALPOINTS, ClientPoints[Client], DbPrefix, DB_PLAYERS_TOTALPOINTS, ClientPoints[Client], SteamID, DB_PLAYERS_TOTALPOINTS);
 	SQL_TQuery(db, DisplayClientNextRank, query, Client);
 
@@ -2364,13 +2096,13 @@ QueryClientStatsDP_NextRank(Client, const String:SteamID[])
 		TriggerTimer(TimerRankChangeCheck[Client], true);
 }
 
-QueryClientStatsDP_NextRankFull(Client, const String:SteamID[])
+QueryClientStatsDP_NextRankFull(Client, const char[] SteamID)
 {
-	decl String:query[2048];
+	char query[2048];
 	Format(query, sizeof(query), "SELECT (%s + 1) - %i FROM %splayers WHERE (%s) >= %i AND steamid <> '%s' ORDER BY (%s) ASC LIMIT 1", DB_PLAYERS_TOTALPOINTS, ClientPoints[Client], DbPrefix, DB_PLAYERS_TOTALPOINTS, ClientPoints[Client], SteamID, DB_PLAYERS_TOTALPOINTS);
 	SQL_TQuery(db, GetClientNextRank, query, Client);
 
-	decl String:query1[1024], String:query2[256], String:query3[1024];
+	char query1[1024], query2[256], query3[1024];
 	Format(query1, sizeof(query1), "SELECT name, (%s) AS totalpoints FROM %splayers WHERE (%s) >= %i AND steamid <> '%s' ORDER BY totalpoints ASC LIMIT 3", DB_PLAYERS_TOTALPOINTS, DbPrefix, DB_PLAYERS_TOTALPOINTS, ClientPoints[Client], SteamID);
 	Format(query2, sizeof(query2), "SELECT name, %i AS totalpoints FROM %splayers WHERE steamid = '%s'", ClientPoints[Client], DbPrefix, SteamID);
 	Format(query3, sizeof(query3), "SELECT name, (%s) as totalpoints FROM %splayers WHERE (%s) < %i ORDER BY totalpoints DESC LIMIT 3", DB_PLAYERS_TOTALPOINTS, DbPrefix, DB_PLAYERS_TOTALPOINTS, ClientPoints[Client]);
@@ -2388,10 +2120,10 @@ CheckCurrentMapDB()
 	if (StatsDisabled(true))
 		return;
 
-	decl String:MapName[MAX_LINE_WIDTH];
+	char MapName[MAX_LINE_WIDTH];
 	GetCurrentMap(MapName, sizeof(MapName));
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "SELECT name FROM %smaps WHERE LOWER(name) = LOWER('%s') AND gamemode = %i AND mutation = '%s'", DbPrefix, MapName, GetCurrentGamemodeID(), CurrentMutation);
 
 	SQL_TQuery(db, InsertMapDB, query);
@@ -2399,7 +2131,7 @@ CheckCurrentMapDB()
 
 // Insert a map into the database if they do not already exist.
 
-public InsertMapDB(Handle:owner, Handle:hndl, const String:error[], any:data)
+public InsertMapDB(Handle owner, Handle hndl, const char[] error, any data)
 {
 	if (db == INVALID_HANDLE)
 		return;
@@ -2409,10 +2141,10 @@ public InsertMapDB(Handle:owner, Handle:hndl, const String:error[], any:data)
 
 	if (!SQL_GetRowCount(hndl))
 	{
-		decl String:MapName[MAX_LINE_WIDTH];
+		char MapName[MAX_LINE_WIDTH];
 		GetCurrentMap(MapName, sizeof(MapName));
 
-		decl String:query[512];
+		char query[512];
 		Format(query, sizeof(query), "INSERT IGNORE INTO %smaps SET name = LOWER('%s'), custom = 1, gamemode = %i", DbPrefix, MapName, GetCurrentGamemodeID());
 
 		SQL_TQuery(db, SQLErrorCheckCallback, query);
@@ -2429,10 +2161,10 @@ CheckPlayerDB(client)
 	if (IsClientBot(client))
 		return;
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "SELECT steamid FROM %splayers WHERE steamid = '%s'", DbPrefix, SteamID);
 	SQL_TQuery(db, InsertPlayerDB, query, client);
 
@@ -2443,24 +2175,24 @@ ReadClientRankMute(Client)
 {
 	// Check stats disabled and is client bot before calling this method!
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, SteamID, sizeof(SteamID));
 
 	ReadClientRankMuteSteamID(Client, SteamID);
 }
 
-ReadClientRankMuteSteamID(Client, const String:SteamID[])
+ReadClientRankMuteSteamID(Client, const char[] SteamID)
 {
 	// Check stats disabled and is client bot before calling this method!
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "SELECT mute FROM %ssettings WHERE steamid = '%s'", DbPrefix, SteamID);
 	SQL_TQuery(db, GetClientRankMute, query, Client);
 }
 
 // Insert a player into the database if they do not already exist.
 
-public InsertPlayerDB(Handle:owner, Handle:hndl, const String:error[], any:client)
+public InsertPlayerDB(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (db == INVALID_HANDLE || IsClientBot(client))
 	{
@@ -2480,10 +2212,10 @@ public InsertPlayerDB(Handle:owner, Handle:hndl, const String:error[], any:clien
 
 	if (!SQL_GetRowCount(hndl))
 	{
-		new String:SteamID[MAX_LINE_WIDTH];
+		char SteamID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
-		new String:query[512];
+		char query[512];
 		Format(query, sizeof(query), "INSERT IGNORE INTO %splayers SET steamid = '%s'", DbPrefix, SteamID);
 		SQL_TQuery(db, SQLErrorCheckCallback, query);
 	}
@@ -2493,7 +2225,7 @@ public InsertPlayerDB(Handle:owner, Handle:hndl, const String:error[], any:clien
 
 // Insert a player into the settings database if they do not already exist.
 
-public SetClientRankMute(Handle:owner, Handle:hndl, const String:error[], any:client)
+public SetClientRankMute(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (db == INVALID_HANDLE || IsClientBot(client))
 		return;
@@ -2519,7 +2251,7 @@ public SetClientRankMute(Handle:owner, Handle:hndl, const String:error[], any:cl
 
 // Insert a player into the settings database if they do not already exist.
 
-public GetClientRankMute(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientRankMute(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (db == INVALID_HANDLE || IsClientBot(client))
 	{
@@ -2539,10 +2271,10 @@ public GetClientRankMute(Handle:owner, Handle:hndl, const String:error[], any:cl
 
 	if (!SQL_GetRowCount(hndl))
 	{
-		new String:SteamID[MAX_LINE_WIDTH];
+		char SteamID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
-		new String:query[512];
+		char query[512];
 		Format(query, sizeof(query), "INSERT IGNORE INTO %ssettings SET steamid = '%s'", DbPrefix, SteamID);
 		SQL_TQuery(db, SetClientRankMute, query, client);
 	}
@@ -2557,7 +2289,7 @@ public GetClientRankMute(Handle:owner, Handle:hndl, const String:error[], any:cl
 
 // Run a SQL query, used for UPDATE's only.
 
-SendSQLUpdate(const String:query[], SQLTCallback:callback=INVALID_FUNCTION)
+SendSQLUpdate(const char[] query, SQLTCallback:callback=INVALID_FUNCTION)
 {
 	if (db == INVALID_HANDLE)
 	{
@@ -2590,7 +2322,7 @@ SendSQLUpdate(const String:query[], SQLTCallback:callback=INVALID_FUNCTION)
 
 // Report error on sql query;
 
-public SQLErrorCheckCallback(Handle:owner, Handle:hndl, const String:error[], any:queryid)
+public SQLErrorCheckCallback(Handle owner, Handle hndl, const char[] error, any queryid)
 {
 	if (db == INVALID_HANDLE)
 	{
@@ -2619,10 +2351,10 @@ public UpdatePlayer(client)
 		return;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
-	decl String:Name[MAX_LINE_WIDTH];
+	char Name[MAX_LINE_WIDTH];
 	GetClientName(client, Name, sizeof(Name));
 
 	ReplaceString(Name, sizeof(Name), "<?php", "");
@@ -2640,11 +2372,11 @@ public UpdatePlayer(client)
 
 // Perform player update of name, playtime, and timestamp.
 
-public UpdatePlayerFull(Client, const String:SteamID[], const String:Name[])
+public UpdatePlayerFull(Client, const char[] SteamID, const char[] Name)
 {
 	// Client can be ZERO! Look at UpdatePlayerCallback.
 
-	decl String:Playtime[32];
+	char Playtime[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -2678,17 +2410,17 @@ public UpdatePlayerFull(Client, const String:SteamID[], const String:Name[])
 		}
 	}
 
-	decl String:IP[16];
+	char IP[16];
 	GetClientIP(Client, IP, sizeof(IP));
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "UPDATE %splayers SET lastontime = UNIX_TIMESTAMP(), %s = %s + 1, lastgamemode = %i, name = '%s', ip = '%s' WHERE steamid = '%s'", DbPrefix, Playtime, Playtime, CurrentGamemodeID, Name, IP, SteamID);
 	SQL_TQuery(db, UpdatePlayerCallback, query, Client);
 }
 
 // Report error on sql query;
 
-public UpdatePlayerCallback(Handle:owner, Handle:hndl, const String:error[], any:client)
+public UpdatePlayerCallback(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (db == INVALID_HANDLE)
 	{
@@ -2699,7 +2431,7 @@ public UpdatePlayerCallback(Handle:owner, Handle:hndl, const String:error[], any
 	{
 		if (client > 0)
 		{
-			decl String:SteamID[MAX_LINE_WIDTH];
+			char SteamID[MAX_LINE_WIDTH];
 			GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 			UpdatePlayerFull(0, SteamID, "INVALID_CHARACTERS");
@@ -2712,18 +2444,18 @@ public UpdatePlayerCallback(Handle:owner, Handle:hndl, const String:error[], any
 }
 
 // Perform a map stat update.
-public UpdateMapStat(const String:Field[], Score)
+public UpdateMapStat(const char[] Field, Score)
 {
 	if (Score <= 0)
 	{
 		return;
 	}
 
-	decl String:MapName[64];
+	char MapName[64];
 	GetCurrentMap(MapName, sizeof(MapName));
 
-	decl String:DiffSQL[MAX_LINE_WIDTH];
-	decl String:Difficulty[MAX_LINE_WIDTH];
+	char DiffSQL[MAX_LINE_WIDTH];
+	char Difficulty[MAX_LINE_WIDTH];
 	GetConVarString(cvar_Difficulty, Difficulty, sizeof(Difficulty));
 
 	if (StrEqual(Difficulty, "normal", false)) Format(DiffSQL, sizeof(DiffSQL), "nor");
@@ -2731,27 +2463,27 @@ public UpdateMapStat(const String:Field[], Score)
 	else if (StrEqual(Difficulty, "impossible", false)) Format(DiffSQL, sizeof(DiffSQL), "exp");
 	else return;
 
-	decl String:FieldSQL[MAX_LINE_WIDTH];
+	char FieldSQL[MAX_LINE_WIDTH];
 	Format(FieldSQL, sizeof(FieldSQL), "%s_%s", Field, DiffSQL);
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "UPDATE %smaps SET %s = %s + %i WHERE LOWER(name) = LOWER('%s') and gamemode = %i", DbPrefix, FieldSQL, FieldSQL, Score, MapName, GetCurrentGamemodeID());
 	SendSQLUpdate(query);
 }
 
 // Perform a map stat update.
-public UpdateMapStatFloat(const String:Field[], Float:Value)
+public UpdateMapStatFloat(const char[] Field, float Value)
 {
 	if (Value <= 0)
 	{
 		return;
 	}
 
-	decl String:MapName[64];
+	char MapName[64];
 	GetCurrentMap(MapName, sizeof(MapName));
 
-	decl String:DiffSQL[MAX_LINE_WIDTH];
-	decl String:Difficulty[MAX_LINE_WIDTH];
+	char DiffSQL[MAX_LINE_WIDTH];
+	char Difficulty[MAX_LINE_WIDTH];
 	GetConVarString(cvar_Difficulty, Difficulty, sizeof(Difficulty));
 
 	if (StrEqual(Difficulty, "normal", false)) Format(DiffSQL, sizeof(DiffSQL), "nor");
@@ -2759,17 +2491,17 @@ public UpdateMapStatFloat(const String:Field[], Float:Value)
 	else if (StrEqual(Difficulty, "impossible", false)) Format(DiffSQL, sizeof(DiffSQL), "exp");
 	else return;
 
-	decl String:FieldSQL[MAX_LINE_WIDTH];
+	char FieldSQL[MAX_LINE_WIDTH];
 	Format(FieldSQL, sizeof(FieldSQL), "%s_%s", Field, DiffSQL);
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "UPDATE %smaps SET %s = %s + %f WHERE LOWER(name) = LOWER('%s') and gamemode = %i", DbPrefix, FieldSQL, FieldSQL, Value, MapName, GetCurrentGamemodeID());
 	SendSQLUpdate(query);
 }
 
 // End blinded state.
 
-public Action:timer_EndBoomerBlinded(Handle:timer, any:data)
+public Action:timer_EndBoomerBlinded(Handle timer, any data)
 {
 	PlayerBlinded[data][0] = 0;
 	PlayerBlinded[data][1] = 0;
@@ -2777,7 +2509,7 @@ public Action:timer_EndBoomerBlinded(Handle:timer, any:data)
 
 // End blinded state.
 
-public Action:timer_EndSmokerParalyzed(Handle:timer, any:data)
+public Action:timer_EndSmokerParalyzed(Handle timer, any data)
 {
 	PlayerParalyzed[data][0] = 0;
 	PlayerParalyzed[data][1] = 0;
@@ -2785,7 +2517,7 @@ public Action:timer_EndSmokerParalyzed(Handle:timer, any:data)
 
 // End lunging state.
 
-public Action:timer_EndHunterLunged(Handle:timer, any:data)
+public Action:timer_EndHunterLunged(Handle timer, any data)
 {
 	PlayerLunged[data][0] = 0;
 	PlayerLunged[data][1] = 0;
@@ -2793,7 +2525,7 @@ public Action:timer_EndHunterLunged(Handle:timer, any:data)
 
 // End plummel state.
 
-public Action:timer_EndChargerPlummel(Handle:timer, any:data)
+public Action:timer_EndChargerPlummel(Handle timer, any data)
 {
 	ChargerPlummelVictim[PlayerPlummeled[data][1]] = 0;
 	PlayerPlummeled[data][0] = 0;
@@ -2802,14 +2534,14 @@ public Action:timer_EndChargerPlummel(Handle:timer, any:data)
 
 // End charge impact counter state.
 
-public Action:timer_EndCharge(Handle:timer, any:data)
+public Action:timer_EndCharge(Handle timer, any data)
 {
 	ChargerImpactCounterTimer[data] = INVALID_HANDLE;
-	new Counter = ChargerImpactCounter[data];
+	int Counter = ChargerImpactCounter[data];
 	ChargerImpactCounter[data] = 0;
 
-	new Score = 0;
-	new String:ScoreSet[256] = "";
+	int Score = 0;
+	char ScoreSet[256] = "";
 
 	if (Counter >= GetConVarInt(cvar_ChargerRamHits))
 	{
@@ -2839,10 +2571,10 @@ public Action:timer_EndCharge(Handle:timer, any:data)
 	}
 	//UPDATE players SET points_infected = points_infected + 40, award_scatteringram = acharger_impacts = charger_impacts + 4 WHERE steamid = 'STEAM_1:1:12345678'
 
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(data, AttackerID, sizeof(AttackerID));
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "UPDATE %splayers SET %scharger_impacts = charger_impacts + %i WHERE steamid = '%s'", DbPrefix, ScoreSet, Counter, AttackerID);
 	SendSQLUpdate(query);
 
@@ -2852,7 +2584,7 @@ public Action:timer_EndCharge(Handle:timer, any:data)
 	if (Counter > 0)
 		UpdateMapStat("charger_impacts", Counter);
 
-	new Mode = 0;
+	int Mode = 0;
 	if (Score > 0)
 		Mode = GetConVarInt(cvar_AnnounceMode);
 
@@ -2860,7 +2592,7 @@ public Action:timer_EndCharge(Handle:timer, any:data)
 		StatsPrintToChat(data, "You have earned \x04%i \x01points for charging a \x05Scattering Ram \x01on \x03%i \x01victims!", Score, Counter);
 	else if (Mode == 3)
 	{
-		decl String:AttackerName[MAX_LINE_WIDTH];
+		char AttackerName[MAX_LINE_WIDTH];
 		GetClientName(data, AttackerName, sizeof(AttackerName));
 		StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for charging a \x05Scattering Ram \x01on \x03%i \x01victims!", AttackerName, Score, Counter);
 	}
@@ -2868,7 +2600,7 @@ public Action:timer_EndCharge(Handle:timer, any:data)
 
 // End carried state.
 
-public Action:timer_EndChargerCarry(Handle:timer, any:data)
+public Action:timer_EndChargerCarry(Handle timer, any data)
 {
 	ChargerCarryVictim[PlayerCarried[data][1]] = 0;
 	PlayerCarried[data][0] = 0;
@@ -2877,7 +2609,7 @@ public Action:timer_EndChargerCarry(Handle:timer, any:data)
 
 // End jockey ride state.
 
-public Action:timer_EndJockeyRide(Handle:timer, any:data)
+public Action:timer_EndJockeyRide(Handle timer, any data)
 {
 	JockeyVictim[PlayerCarried[data][1]] = 0;
 	PlayerJockied[data][0] = 0;
@@ -2886,20 +2618,20 @@ public Action:timer_EndJockeyRide(Handle:timer, any:data)
 
 // End friendly fire damage counter.
 
-public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
+public Action:timer_FriendlyFireDamageEnd(Handle timer, any dp)
 {
 	ResetPack(dp);
 
-	new HumanDamage = ReadPackCell(dp);
-	new BotDamage = ReadPackCell(dp);
-	new Attacker = ReadPackCell(dp);
+	int HumanDamage = ReadPackCell(dp);
+	int BotDamage = ReadPackCell(dp);
+	int Attacker = ReadPackCell(dp);
 
 	// This may fail! What happens when a player skips and another joins with the same Client ID (is this even possible in such short time?)
 	FriendlyFireTimer[Attacker][0] = INVALID_HANDLE;
 
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	ReadPackString(dp, AttackerID, sizeof(AttackerID));
-	decl String:AttackerName[MAX_LINE_WIDTH];
+	char AttackerName[MAX_LINE_WIDTH];
 	ReadPackString(dp, AttackerName, sizeof(AttackerName));
 
 	// The damage is read and turned into lost points...
@@ -2910,7 +2642,7 @@ public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
 	if (HumanDamage <= 0 && BotDamage <= 0)
 		return;
 
-	new Score = 0;
+	int Score = 0;
 	
 	if (GetConVarBool(cvar_EnableNegativeScore))
 	{
@@ -2919,14 +2651,14 @@ public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
 
 		if (BotDamage > 0)
 		{
-			new Float:BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
+			float BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
 
 			if (BotScoreMultiplier > 0.0)
 				Score += ModifyScoreDifficultyNR(RoundToNearest(GetConVarFloat(cvar_FriendlyFireMultiplier) * BotDamage), 2, 4, TEAM_SURVIVORS);
 		}
 	}
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -2960,11 +2692,11 @@ public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_friendlyfire = award_friendlyfire + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
 	SendSQLUpdate(query);
 
-	new Mode = 0;
+	int Mode = 0;
 	if (Score > 0)
 		Mode = GetConVarInt(cvar_AnnounceMode);
 
@@ -2976,19 +2708,19 @@ public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
 
 // Start team shuffle.
 
-public Action:timer_ShuffleTeams(Handle:timer, any:data)
+public Action:timer_ShuffleTeams(Handle timer, any data)
 {
 	if (CheckHumans())
 		return;
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "SELECT steamid FROM %splayers WHERE ", DbPrefix);
 
-	new maxplayers = GetMaxClients();
-	decl String:SteamID[MAX_LINE_WIDTH], String:where[512];
-	new counter = 0, team;
+	int maxplayers = MaxClients;
+	char SteamID[MAX_LINE_WIDTH], where[512];
+	int counter = 0, team;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientBot(i) || !IsClientConnected(i) || !IsClientInGame(i))
 			continue;
@@ -3020,7 +2752,7 @@ public Action:timer_ShuffleTeams(Handle:timer, any:data)
 
 // End of RANKVOTE.
 
-public Action:timer_RankVote(Handle:timer, any:data)
+public Action:timer_RankVote(Handle timer, any data)
 {
 	RankVoteTimer = INVALID_HANDLE;
 
@@ -3041,7 +2773,7 @@ public Action:timer_RankVote(Handle:timer, any:data)
 
 // End friendly fire cooldown.
 
-public Action:timer_FriendlyFireCooldownEnd(Handle:timer, any:data)
+public Action:timer_FriendlyFireCooldownEnd(Handle timer, any data)
 {
 	FriendlyFireCooldown[FriendlyFirePrm[data][0]][FriendlyFirePrm[data][1]] = false;
 	FriendlyFireTimer[FriendlyFirePrm[data][0]][FriendlyFirePrm[data][1]] = INVALID_HANDLE;
@@ -3049,16 +2781,16 @@ public Action:timer_FriendlyFireCooldownEnd(Handle:timer, any:data)
 
 // End friendly fire cooldown.
 
-public Action:timer_MeleeKill(Handle:timer, any:data)
+public Action:timer_MeleeKill(Handle timer, any data)
 {
 	MeleeKillTimer[data] = INVALID_HANDLE;
-	new Counter = MeleeKillCounter[data];
+	int Counter = MeleeKillCounter[data];
 	MeleeKillCounter[data] = 0;
 
 	if (Counter <= 0 || IsClientBot(data) || !IsClientConnected(data) || !IsClientInGame(data) || GetClientTeam(data) != TEAM_SURVIVORS)
 		return;
 
-	decl String:query[512], String:clientID[MAX_LINE_WIDTH];
+	char query[512], clientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(data, clientID, sizeof(clientID));
 	Format(query, sizeof(query), "UPDATE %splayers SET melee_kills = melee_kills + %i WHERE steamid = '%s'", DbPrefix, Counter, clientID);
 	SendSQLUpdate(query);
@@ -3067,7 +2799,7 @@ public Action:timer_MeleeKill(Handle:timer, any:data)
 // Perform minutely updates of player database.
 // Reports Disabled message if in Versus, Easy mode, not enough Human players, and if cheats are active.
 
-public Action:timer_UpdatePlayers(Handle:timer, Handle:hndl)
+public Action:timer_UpdatePlayers(Handle timer, Handle hndl)
 {
 	if (CheckHumans())
 	{
@@ -3084,8 +2816,8 @@ public Action:timer_UpdatePlayers(Handle:timer, Handle:hndl)
 
 	UpdateMapStat("playtime", 1);
 
-	new maxplayers = GetMaxClients();
-	for (new i = 1; i <= maxplayers; i++)
+	int maxplayers = MaxClients;
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 			CheckPlayerDB(i);
@@ -3094,7 +2826,7 @@ public Action:timer_UpdatePlayers(Handle:timer, Handle:hndl)
 
 // Display rank change.
 
-public Action:timer_ShowRankChange(Handle:timer, any:client)
+public Action:timer_ShowRankChange(Handle timer, any client)
 {
 	DoShowRankChange(client);
 }
@@ -3104,7 +2836,7 @@ public DoShowRankChange(Client)
 	if (StatsDisabled())
 		return;
 
-	decl String:ClientID[MAX_LINE_WIDTH];
+	char ClientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
 	QueryClientPointsSteamID(Client, ClientID, GetClientPointsRankChange);
@@ -3112,7 +2844,7 @@ public DoShowRankChange(Client)
 
 // Display player rank.
 
-public Action:timer_ShowPlayerJoined(Handle:timer, any:client)
+public Action:timer_ShowPlayerJoined(Handle timer, any client)
 {
 	DoShowPlayerJoined(client);
 }
@@ -3124,7 +2856,7 @@ public DoShowPlayerJoined(client)
 		return;
 	}
 
-	decl String:clientId[MAX_LINE_WIDTH];
+	char clientId[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, clientId, sizeof(clientId));
 
 	QueryClientPointsSteamID(client, clientId, GetClientPointsPlayerJoined);
@@ -3132,16 +2864,16 @@ public DoShowPlayerJoined(client)
 
 // Display common Infected scores to each player.
 
-public Action:timer_ShowTimerScore(Handle:timer, Handle:hndl)
+public Action:timer_ShowTimerScore(Handle timer, Handle hndl)
 {
 	if (StatsDisabled())
 		return;
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	decl String:Name[MAX_LINE_WIDTH];
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	char Name[MAX_LINE_WIDTH];
 
-	new maxplayers = GetMaxClients();
-	for (new i = 1; i <= maxplayers; i++)
+	int maxplayers = MaxClients;
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -3177,10 +2909,10 @@ public Action:timer_ShowTimerScore(Handle:timer, Handle:hndl)
 
 public InterstitialPlayerUpdate(client)
 {
-	decl String:ClientID[MAX_LINE_WIDTH];
+	char ClientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, ClientID, sizeof(ClientID));
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -3214,8 +2946,8 @@ public InterstitialPlayerUpdate(client)
 		}
 	}
 
-	new len = 0;
-	decl String:query[1024];
+	int len = 0;
+	char query[1024];
 	len += Format(query[len], sizeof(query)-len, "UPDATE %splayers SET %s = %s + %i, ", DbPrefix, UpdatePoints, UpdatePoints, TimerPoints[client]);
 	len += Format(query[len], sizeof(query)-len, "kills = kills + %i, kill_infected = kill_infected + %i, ", TimerKills[client], TimerKills[client]);
 	len += Format(query[len], sizeof(query)-len, "headshots = headshots + %i ", TimerHeadshots[client]);
@@ -3231,16 +2963,16 @@ public InterstitialPlayerUpdate(client)
 // Player Death event. Used for killing AI Infected. +2 on headshot, and global announcement.
 // Team Kill code is in the awards section. Tank Kill code is in Tank section.
 
-public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
-	new bool:AttackerIsBot = GetEventBool(event, "attackerisbot");
-	new bool:VictimIsBot = GetEventBool(event, "victimisbot");
-	new VictimTeam = -1;
+	int Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	bool AttackerIsBot = GetEventBool(event, "attackerisbot");
+	bool VictimIsBot = GetEventBool(event, "victimisbot");
+	int VictimTeam = -1;
 
 	// Self inflicted death does not count
 	if (Attacker == Victim)
@@ -3272,13 +3004,13 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		return;
 	}
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	new AttackerTeam = GetClientTeam(Attacker);
-	decl String:AttackerName[MAX_LINE_WIDTH];
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	int AttackerTeam = GetClientTeam(Attacker);
+	char AttackerName[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
-	decl String:VictimName[MAX_LINE_WIDTH];
-	new VictimInfType = -1;
+	char VictimName[MAX_LINE_WIDTH];
+	int VictimInfType = -1;
 
 	if (Victim > 0)
 	{
@@ -3347,7 +3079,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 				Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_FKill), 2, 4, TEAM_SURVIVORS);
 			else
 			{
-				new Float:BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
+				float BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
 
 				if (BotScoreMultiplier > 0.0)
 					Score = RoundToNearest(ModifyScoreDifficultyNR(GetConVarInt(cvar_FKill), 2, 4, TEAM_SURVIVORS) * BotScoreMultiplier);
@@ -3356,7 +3088,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		else
 			Mode = 0;
 
-		decl String:UpdatePoints[32];
+		char UpdatePoints[32];
 
 		switch (CurrentGamemodeID)
 		{
@@ -3390,7 +3122,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 			}
 		}
 
-		decl String:query[1024];
+		char query[1024];
 		Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_teamkill = award_teamkill + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
 
 		SendSQLUpdate(query);
@@ -3405,7 +3137,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	else if (AttackerTeam == TEAM_SURVIVORS && VictimTeam == TEAM_INFECTED)
 	{
 		new Score = 0;
-		decl String:InfectedType[8];
+		char InfectedType[8];
 
 		if (VictimInfType == INF_ID_HUNTER)
 		{
@@ -3440,7 +3172,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		else
 			return;
 
-		new String:Headshot[32];
+		char Headshot[32];
 		if (GetEventBool(event, "headshot"))
 		{
 			Format(Headshot, sizeof(Headshot), ", headshots = headshots + 1");
@@ -3449,7 +3181,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 
 		Score = GetMedkitPointReductionScore(Score);
 
-		decl String:UpdatePoints[32];
+		char UpdatePoints[32];
 
 		switch (CurrentGamemodeID)
 		{
@@ -3484,7 +3216,7 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		}
 
 		new len = 0;
-		decl String:query[1024];
+		char query[1024];
 		len += Format(query[len], sizeof(query)-len, "UPDATE %splayers SET %s = %s + %i, ", DbPrefix, UpdatePoints, UpdatePoints, Score);
 		len += Format(query[len], sizeof(query)-len, "kills = kills + 1, kill_%s = kill_%s + 1", InfectedType, InfectedType);
 		len += Format(query[len], sizeof(query)-len, "%s WHERE steamid = '%s'", Headshot, AttackerID);
@@ -3535,17 +3267,17 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 
 // Common Infected death code. +1 on headshot.
 
-public Action:event_InfectedDeath(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_InfectedDeath(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 
 	if (!Attacker || IsClientBot(Attacker) || GetClientTeam(Attacker) == TEAM_INFECTED)
 		return;
 
-	new Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_Infected), 2, 3, TEAM_SURVIVORS);
+	int Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_Infected), 2, 3, TEAM_SURVIVORS);
 
 	if (GetEventBool(event, "headshot"))
 	{
@@ -3557,7 +3289,7 @@ public Action:event_InfectedDeath(Handle:event, const String:name[], bool:dontBr
 	TimerKills[Attacker] = TimerKills[Attacker] + 1;
 
 	// Melee?
-	if (ServerVersion != SERVER_VERSION_L4D1)
+	if (ServerVersion != Engine_Left4Dead)
 	{
 		new WeaponID = GetEventInt(event, "weapon_id");
 
@@ -3565,7 +3297,7 @@ public Action:event_InfectedDeath(Handle:event, const String:name[], bool:dontBr
 			IncrementMeleeKills(Attacker);
 	}
 
-	//decl String:AttackerName[MAX_LINE_WIDTH];
+	//char AttackerName[MAX_LINE_WIDTH];
 	//GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 
 	//LogMessage("[DEBUG] %s killed an infected (Weapon ID: %i)", AttackerName, WeaponID);
@@ -3584,7 +3316,7 @@ IncrementMeleeKills(client)
 
 // Tank death code. Points are given to all players.
 
-public Action:event_TankKilled(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_TankKilled(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 	{
@@ -3596,13 +3328,13 @@ public Action:event_TankKilled(Handle:event, const String:name[], bool:dontBroad
 		return;
 	}
 
-	new BaseScore = ModifyScoreDifficulty(GetConVarInt(cvar_Tank), 2, 4, TEAM_SURVIVORS);
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	new Deaths = 0;
-	new Players = 0;
+	int BaseScore = ModifyScoreDifficulty(GetConVarInt(cvar_Tank), 2, 4, TEAM_SURVIVORS);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	int Deaths = 0;
+	int Players = 0;
 
-	new maxplayers = GetMaxClients();
-	for (new i = 1; i <= maxplayers; i++)
+	int maxplayers = MaxClients;
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -3616,9 +3348,9 @@ public Action:event_TankKilled(Handle:event, const String:name[], bool:dontBroad
 	}
 
 	// This was proposed by AlliedModders users el_psycho and PatriotGames (Thanks!)
-	new Score = (BaseScore * ((Players - Deaths) / Players)) / Players;
+	int Score = (BaseScore * ((Players - Deaths) / Players)) / Players;
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -3652,10 +3384,10 @@ public Action:event_TankKilled(Handle:event, const String:name[], bool:dontBroad
 		}
 	}
 
-	decl String:iID[MAX_LINE_WIDTH];
-	decl String:query[512];
+	char iID[MAX_LINE_WIDTH];
+	char query[512];
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i) && GetClientTeam(i) == TEAM_SURVIVORS)
 		{
@@ -3697,18 +3429,18 @@ GiveAdrenaline(Giver, Recipient, AdrenalineID = -1)
 	if (IsClientBot(Giver))
 		return;
 
-	decl String:RecipientName[MAX_LINE_WIDTH];
+	char RecipientName[MAX_LINE_WIDTH];
 	GetClientName(Recipient, RecipientName, sizeof(RecipientName));
-	decl String:RecipientID[MAX_LINE_WIDTH];
+	char RecipientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Recipient, RecipientID, sizeof(RecipientID));
 
-	decl String:GiverName[MAX_LINE_WIDTH];
+	char GiverName[MAX_LINE_WIDTH];
 	GetClientName(Giver, GiverName, sizeof(GiverName));
-	decl String:GiverID[MAX_LINE_WIDTH];
+	char GiverID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Giver, GiverID, sizeof(GiverID));
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_Adrenaline), 2, 4, TEAM_SURVIVORS);
-	decl String:UpdatePoints[32];
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_Adrenaline), 2, 4, TEAM_SURVIVORS);
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -3742,7 +3474,7 @@ GiveAdrenaline(Giver, Recipient, AdrenalineID = -1)
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_adrenaline = award_adrenaline + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, GiverID);
 	SendSQLUpdate(query);
 
@@ -3762,7 +3494,7 @@ GiveAdrenaline(Giver, Recipient, AdrenalineID = -1)
 
 // Pill give event. (From give a weapon)
 
-public Action:event_GivePills(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_GivePills(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -3774,9 +3506,9 @@ public Action:event_GivePills(Handle:event, const String:name[], bool:dontBroadc
 	if (CurrentGamemodeID == GAMEMODE_SURVIVAL && !GetConVarBool(cvar_EnableSvMedicPoints))
 		return;
 
-	new Recipient = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Giver = GetClientOfUserId(GetEventInt(event, "giver"));
-	new PillsID = GetEventInt(event, "weaponentid");
+	int Recipient = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Giver = GetClientOfUserId(GetEventInt(event, "giver"));
+	int PillsID = GetEventInt(event, "weaponentid");
 
 	GivePills(Giver, Recipient, PillsID);
 }
@@ -3801,18 +3533,18 @@ GivePills(Giver, Recipient, PillsID = -1)
 	if (IsClientBot(Giver))
 		return;
 
-	decl String:RecipientName[MAX_LINE_WIDTH];
+	char RecipientName[MAX_LINE_WIDTH];
 	GetClientName(Recipient, RecipientName, sizeof(RecipientName));
-	decl String:RecipientID[MAX_LINE_WIDTH];
+	char RecipientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Recipient, RecipientID, sizeof(RecipientID));
 
-	decl String:GiverName[MAX_LINE_WIDTH];
+	char GiverName[MAX_LINE_WIDTH];
 	GetClientName(Giver, GiverName, sizeof(GiverName));
-	decl String:GiverID[MAX_LINE_WIDTH];
+	char GiverID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Giver, GiverID, sizeof(GiverID));
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_Pills), 2, 4, TEAM_SURVIVORS);
-	decl String:UpdatePoints[32];
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_Pills), 2, 4, TEAM_SURVIVORS);
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -3846,7 +3578,7 @@ GivePills(Giver, Recipient, PillsID = -1)
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_pills = award_pills + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, GiverID);
 	SendSQLUpdate(query);
 
@@ -3866,7 +3598,7 @@ GivePills(Giver, Recipient, PillsID = -1)
 
 // Defibrillator used code.
 
-public Action:event_DefibPlayer(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_DefibPlayer(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
@@ -3874,11 +3606,11 @@ public Action:event_DefibPlayer(Handle:event, const String:name[], bool:dontBroa
 	if (CurrentGamemodeID == GAMEMODE_SURVIVAL && (!SurvivalStarted || !GetConVarBool(cvar_EnableSvMedicPoints)))
 		return;
 
-	new Recipient = GetClientOfUserId(GetEventInt(event, "subject"));
-	new Giver = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Recipient = GetClientOfUserId(GetEventInt(event, "subject"));
+	int Giver = GetClientOfUserId(GetEventInt(event, "userid"));
 
-	new bool:GiverIsBot = IsClientBot(Giver);
-	new bool:RecipientIsBot = IsClientBot(Recipient);
+	bool GiverIsBot = IsClientBot(Giver);
+	bool RecipientIsBot = IsClientBot(Recipient);
 
 	if (CurrentGamemodeID != GAMEMODE_SURVIVAL && (!GiverIsBot || (GiverIsBot && (GetConVarInt(cvar_MedkitBotMode) >= 2 || (!RecipientIsBot && GetConVarInt(cvar_MedkitBotMode) >= 1)))))
 	{
@@ -3893,19 +3625,19 @@ public Action:event_DefibPlayer(Handle:event, const String:name[], bool:dontBroa
 	if (Recipient == Giver)
 		return;
 
-	decl String:RecipientName[MAX_LINE_WIDTH];
+	char RecipientName[MAX_LINE_WIDTH];
 	GetClientName(Recipient, RecipientName, sizeof(RecipientName));
-	decl String:RecipientID[MAX_LINE_WIDTH];
+	char RecipientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Recipient, RecipientID, sizeof(RecipientID));
 
-	decl String:GiverName[MAX_LINE_WIDTH];
+	char GiverName[MAX_LINE_WIDTH];
 	GetClientName(Giver, GiverName, sizeof(GiverName));
-	decl String:GiverID[MAX_LINE_WIDTH];
+	char GiverID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Giver, GiverID, sizeof(GiverID));
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_Defib), 2, 4, TEAM_SURVIVORS);
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_Defib), 2, 4, TEAM_SURVIVORS);
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -3939,7 +3671,7 @@ public Action:event_DefibPlayer(Handle:event, const String:name[], bool:dontBroa
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_defib = award_defib + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, GiverID);
 	SendSQLUpdate(query);
 
@@ -3958,7 +3690,7 @@ public Action:event_DefibPlayer(Handle:event, const String:name[], bool:dontBroa
 
 // Medkit give code.
 
-public Action:event_HealPlayer(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_HealPlayer(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
@@ -3966,12 +3698,12 @@ public Action:event_HealPlayer(Handle:event, const String:name[], bool:dontBroad
 	if (CurrentGamemodeID == GAMEMODE_SURVIVAL && (!SurvivalStarted || !GetConVarBool(cvar_EnableSvMedicPoints)))
 		return;
 
-	new Recipient = GetClientOfUserId(GetEventInt(event, "subject"));
-	new Giver = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Amount = GetEventInt(event, "health_restored");
+	int Recipient = GetClientOfUserId(GetEventInt(event, "subject"));
+	int Giver = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Amount = GetEventInt(event, "health_restored");
 
-	new bool:GiverIsBot = IsClientBot(Giver);
-	new bool:RecipientIsBot = IsClientBot(Recipient);
+	bool GiverIsBot = IsClientBot(Giver);
+	bool RecipientIsBot = IsClientBot(Recipient);
 
 	if (CurrentGamemodeID != GAMEMODE_SURVIVAL && (!GiverIsBot || (GiverIsBot && (GetConVarInt(cvar_MedkitBotMode) >= 2 || (!RecipientIsBot && GetConVarInt(cvar_MedkitBotMode) >= 1)))))
 	{
@@ -3985,23 +3717,23 @@ public Action:event_HealPlayer(Handle:event, const String:name[], bool:dontBroad
 	if (Recipient == Giver)
 		return;
 
-	decl String:RecipientName[MAX_LINE_WIDTH];
+	char RecipientName[MAX_LINE_WIDTH];
 	GetClientName(Recipient, RecipientName, sizeof(RecipientName));
-	decl String:RecipientID[MAX_LINE_WIDTH];
+	char RecipientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Recipient, RecipientID, sizeof(RecipientID));
 
-	decl String:GiverName[MAX_LINE_WIDTH];
+	char GiverName[MAX_LINE_WIDTH];
 	GetClientName(Giver, GiverName, sizeof(GiverName));
-	decl String:GiverID[MAX_LINE_WIDTH];
+	char GiverID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Giver, GiverID, sizeof(GiverID));
 
-	new Score = (Amount + 1) / 2;
+	int Score = (Amount + 1) / 2;
 	if (GetConVarInt(cvar_MedkitMode))
 		Score = ModifyScoreDifficulty(GetConVarInt(cvar_Medkit), 2, 4, TEAM_SURVIVORS);
 	else
 		Score = ModifyScoreDifficulty(Score, 2, 3, TEAM_SURVIVORS);
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -4035,7 +3767,7 @@ public Action:event_HealPlayer(Handle:event, const String:name[], bool:dontBroad
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_medkit = award_medkit + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, GiverID);
 	SendSQLUpdate(query);
 
@@ -4054,13 +3786,13 @@ public Action:event_HealPlayer(Handle:event, const String:name[], bool:dontBroad
 
 // Friendly fire code.
 
-public Action:event_FriendlyFire(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_FriendlyFire(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	if (!Attacker || !Victim)
 		return;
@@ -4068,7 +3800,7 @@ public Action:event_FriendlyFire(Handle:event, const String:name[], bool:dontBro
 //	if (IsClientBot(Victim))
 //		return;
 
-	new FFMode = GetConVarInt(cvar_FriendlyFireMode);
+	int FFMode = GetConVarInt(cvar_FriendlyFireMode);
 
 	if (FFMode == 1)
 	{
@@ -4107,7 +3839,7 @@ public Action:event_FriendlyFire(Handle:event, const String:name[], bool:dontBro
 
 // Campaign win code.
 
-public Action:event_CampaignWin(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_CampaignWin(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (CampaignOver || StatsDisabled())
 		return;
@@ -4120,16 +3852,17 @@ public Action:event_CampaignWin(Handle:event, const String:name[], bool:dontBroa
 			CurrentGamemodeID == GAMEMODE_SURVIVAL)
 		return;
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_VictorySurvivors), 4, 12, TEAM_SURVIVORS);
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	new SurvivorCount = GetEventInt(event, "survivorcount");
-	new ClientTeam, bool:NegativeScore = GetConVarBool(cvar_EnableNegativeScore);
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_VictorySurvivors), 4, 12, TEAM_SURVIVORS);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	int SurvivorCount = GetEventInt(event, "survivorcount");
+	int ClientTeam;
+	bool NegativeScore = GetConVarBool(cvar_EnableNegativeScore);
 
 	Score *= SurvivorCount;
 
-	decl String:query[1024];
-	decl String:iID[MAX_LINE_WIDTH];
-	decl String:UpdatePoints[32], String:UpdatePointsPenalty[32];
+	char query[1024];
+	char iID[MAX_LINE_WIDTH];
+	char UpdatePoints[32], UpdatePointsPenalty[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -4157,8 +3890,8 @@ public Action:event_CampaignWin(Handle:event, const String:name[], bool:dontBroa
 		}
 	}
 
-	new maxplayers = GetMaxClients();
-	for (new i = 1; i <= maxplayers; i++)
+	int maxplayers = MaxClients;
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -4202,7 +3935,7 @@ public Action:event_CampaignWin(Handle:event, const String:name[], bool:dontBroa
 // Safe House reached code. Points are given to all players.
 // Also, Witch Not Disturbed code, points also given to all players.
 
-public Action:event_MapTransition(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_MapTransition(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -4212,7 +3945,7 @@ public Action:event_MapTransition(Handle:event, const String:name[], bool:dontBr
 
 // Begin panic event.
 
-public Action:event_PanicEvent(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PanicEvent(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -4233,7 +3966,7 @@ public Action:event_PanicEvent(Handle:event, const String:name[], bool:dontBroad
 
 // Panic Event with no Incaps code. Points given to all players.
 
-public Action:timer_PanicEventEnd(Handle:timer, Handle:hndl)
+public Action:timer_PanicEventEnd(Handle timer, Handle hndl)
 {
 	if (StatsDisabled())
 		return;
@@ -4241,7 +3974,7 @@ public Action:timer_PanicEventEnd(Handle:timer, Handle:hndl)
 	if (CampaignOver || CurrentGamemodeID == GAMEMODE_SURVIVAL)
 		return;
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (PanicEvent && !PanicEventIncap)
 	{
@@ -4249,9 +3982,9 @@ public Action:timer_PanicEventEnd(Handle:timer, Handle:hndl)
 
 		if (Score > 0)
 		{
-			decl String:query[1024];
-			decl String:iID[MAX_LINE_WIDTH];
-			decl String:UpdatePoints[32];
+			char query[1024];
+			char iID[MAX_LINE_WIDTH];
+			char UpdatePoints[32];
 
 			switch (CurrentGamemodeID)
 			{
@@ -4281,8 +4014,8 @@ public Action:timer_PanicEventEnd(Handle:timer, Handle:hndl)
 				}
 			}
 
-			new maxplayers = GetMaxClients();
-			for (new i = 1; i <= maxplayers; i++)
+			new maxplayers = MaxClients;
+			for (int i = 1; i <= maxplayers; i++)
 			{
 				if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 				{
@@ -4305,24 +4038,24 @@ public Action:timer_PanicEventEnd(Handle:timer, Handle:hndl)
 
 // Begin Boomer blind.
 
-public Action:event_PlayerBlind(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerBlind(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 
 	if (StatsGetClientTeam(Attacker) != TEAM_INFECTED)
 		return;
 
 	PlayerVomited = true;
 
-//	new bool:Infected = GetEventBool(event, "infected");
+//	bool Infected = GetEventBool(event, "infected");
 //
 //	if (!Infected)
 //		return;
 
-	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (IsClientBot(Attacker))
 		return;
@@ -4343,12 +4076,12 @@ public Action:event_PlayerBlind(Handle:event, const String:name[], bool:dontBroa
 
 // Boomer Mob Survival with no Incaps code. Points are given to all players.
 
-public Action:event_PlayerBlindEnd(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerBlindEnd(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Player = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (StatsGetClientTeam(Player) != TEAM_SURVIVORS)
 		return;
@@ -4356,7 +4089,7 @@ public Action:event_PlayerBlindEnd(Handle:event, const String:name[], bool:dontB
 	if (Player > 0)
 		CreateTimer(INF_WEAROFF_TIME, timer_EndBoomerBlinded, Player);
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (PlayerVomited && !PlayerVomitedIncap)
 	{
@@ -4364,9 +4097,9 @@ public Action:event_PlayerBlindEnd(Handle:event, const String:name[], bool:dontB
 
 		if (Score > 0)
 		{
-			decl String:query[1024];
-			decl String:iID[MAX_LINE_WIDTH];
-			decl String:UpdatePoints[32];
+			char query[1024];
+			char iID[MAX_LINE_WIDTH];
+			char UpdatePoints[32];
 
 			switch (CurrentGamemodeID)
 			{
@@ -4400,8 +4133,8 @@ public Action:event_PlayerBlindEnd(Handle:event, const String:name[], bool:dontB
 				}
 			}
 
-			new maxplayers = GetMaxClients();
-			for (new i = 1; i <= maxplayers; i++)
+			new maxplayers = MaxClients;
+			for (int i = 1; i <= maxplayers; i++)
 			{
 				if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 				{
@@ -4458,9 +4191,9 @@ PlayerIncap(Attacker, Victim)
 		return;
 	}
 
-	new AttackerTeam = GetClientTeam(Attacker);
-	new VictimTeam = GetClientTeam(Victim);
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int AttackerTeam = GetClientTeam(Attacker);
+	int VictimTeam = GetClientTeam(Victim);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (VictimTeam == TEAM_SURVIVORS)
 		CheckSurvivorsAllDown();
@@ -4468,12 +4201,12 @@ PlayerIncap(Attacker, Victim)
 	// Attacker is a Survivor
 	if (AttackerTeam == TEAM_SURVIVORS && VictimTeam == TEAM_SURVIVORS)
 	{
-		decl String:AttackerID[MAX_LINE_WIDTH];
+		char AttackerID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
-		decl String:AttackerName[MAX_LINE_WIDTH];
+		char AttackerName[MAX_LINE_WIDTH];
 		GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 
-		decl String:VictimName[MAX_LINE_WIDTH];
+		char VictimName[MAX_LINE_WIDTH];
 		GetClientName(Victim, VictimName, sizeof(VictimName));
 
 		new Score = 0;
@@ -4483,7 +4216,7 @@ PlayerIncap(Attacker, Victim)
 				Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_FIncap), 2, 4, TEAM_SURVIVORS);
 			else
 			{
-				new Float:BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
+				float BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
 
 				if (BotScoreMultiplier > 0.0)
 					Score = RoundToNearest(ModifyScoreDifficultyNR(GetConVarInt(cvar_FIncap), 2, 4, TEAM_SURVIVORS) * BotScoreMultiplier);
@@ -4492,7 +4225,7 @@ PlayerIncap(Attacker, Victim)
 		else
 			Mode = 0;
 
-		decl String:UpdatePoints[32];
+		char UpdatePoints[32];
 
 		switch (CurrentGamemodeID)
 		{
@@ -4526,7 +4259,7 @@ PlayerIncap(Attacker, Victim)
 			}
 		}
 
-		decl String:query[512];
+		char query[512];
 		Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_fincap = award_fincap + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
 		SendSQLUpdate(query);
 
@@ -4545,52 +4278,52 @@ PlayerIncap(Attacker, Victim)
 
 // Friendly Incapacitate event.
 
-public Action:event_PlayerIncap(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerIncap(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	PlayerIncap(Attacker, Victim);
 }
 
 // Save friendly from being dragged by Smoker.
 
-public Action:event_TongueSave(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_TongueSave(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
-	new Savior = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Savior = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	HunterSmokerSave(Savior, Victim, GetConVarInt(cvar_SmokerDrag), 2, 3, "Smoker", "award_smoker");
 }
 
 // Save friendly from being choked by Smoker.
 
-public Action:event_ChokeSave(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChokeSave(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
-	new Savior = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Savior = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	HunterSmokerSave(Savior, Victim, GetConVarInt(cvar_ChokePounce), 2, 3, "Smoker", "award_smoker");
 }
 
 // Save friendly from being pounced by Hunter.
 
-public Action:event_PounceSave(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PounceSave(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Savior = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "Victim"));
+	int Savior = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "Victim"));
 
 	if (Victim > 0)
 		CreateTimer(INF_WEAROFF_TIME, timer_EndHunterLunged, Victim);
@@ -4600,14 +4333,14 @@ public Action:event_PounceSave(Handle:event, const String:name[], bool:dontBroad
 
 // Player is hanging from a ledge.
 
-public Action:event_PlayerFallDamage(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerFallDamage(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver || !IsGamemodeVersus())
 		return;
 
-	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Attacker = GetClientOfUserId(GetEventInt(event, "causer"));
-	new Damage = RoundToNearest(GetEventFloat(event, "damage"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "causer"));
+	int Damage = RoundToNearest(GetEventFloat(event, "damage"));
 
 	if (Attacker == 0 && PlayerJockied[Victim][0] && PlayerJockied[Victim][1])
 		Attacker = PlayerJockied[Victim][1];
@@ -4615,8 +4348,8 @@ public Action:event_PlayerFallDamage(Handle:event, const String:name[], bool:don
 	if (Attacker == 0 || IsClientBot(Attacker) || GetClientTeam(Attacker) != TEAM_INFECTED || GetClientTeam(Victim) != TEAM_SURVIVORS || Damage <= 0)
 		return;
 
-	new VictimHealth = GetClientHealth(Victim);
-	new VictimIsIncap = GetEntProp(Victim, Prop_Send, "m_isIncapacitated");
+	int VictimHealth = GetClientHealth(Victim);
+	int VictimIsIncap = GetEntProp(Victim, Prop_Send, "m_isIncapacitated");
 
 	// If the victim health is zero or below zero or is incapacitated don't count the damage from the fall
 	if (VictimHealth <= 0 || VictimIsIncap != 0)
@@ -4634,14 +4367,14 @@ public Action:event_PlayerFallDamage(Handle:event, const String:name[], bool:don
 
 // Player melee killed an infected
 
-public Action:event_MeleeKill(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_MeleeKill(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
 	//new EntityID = GetEventInt(event, "entityid");
-	//new bool:Ambushed = GetEventBool(event, "ambush");
+	//bool Ambushed = GetEventBool(event, "ambush");
 
 	if (Attacker == 0 || IsClientBot(Attacker) || GetClientTeam(Attacker) != TEAM_SURVIVORS || !IsClientConnected(Attacker) || !IsClientInGame(Attacker))
 		return;
@@ -4651,13 +4384,13 @@ public Action:event_MeleeKill(Handle:event, const String:name[], bool:dontBroadc
 
 // Player is hanging from a ledge.
 
-public Action:event_PlayerLedge(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerLedge(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || !IsGamemodeVersus())
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "causer"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "causer"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (Attacker == 0 && PlayerJockied[Victim][0] && PlayerJockied[Victim][1])
 		Attacker = PlayerJockied[Victim][1];
@@ -4665,19 +4398,19 @@ public Action:event_PlayerLedge(Handle:event, const String:name[], bool:dontBroa
 	if (Attacker == 0 || IsClientBot(Attacker) || GetClientTeam(Attacker) != TEAM_INFECTED)
 		return;
 
-	new Score = ModifyScoreDifficultyFloat(GetConVarInt(cvar_PlayerLedgeSuccess), 0.9, 0.8, TEAM_INFECTED);
+	int Score = ModifyScoreDifficultyFloat(GetConVarInt(cvar_PlayerLedgeSuccess), 0.9, 0.8, TEAM_INFECTED);
 
 	if (Score > 0)
 	{
-		decl String:VictimName[MAX_LINE_WIDTH];
+		char VictimName[MAX_LINE_WIDTH];
 		GetClientName(Victim, VictimName, sizeof(VictimName));
 
 		new Mode = GetConVarInt(cvar_AnnounceMode);
 
-		decl String:ClientID[MAX_LINE_WIDTH];
+		char ClientID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(Attacker, ClientID, sizeof(ClientID));
 
-		decl String:query[1024];
+		char query[1024];
 		if (CurrentGamemodeID == GAMEMODE_VERSUS)
 			Format(query, sizeof(query), "UPDATE %splayers SET points_infected = points_infected + %i, award_ledgegrab = award_ledgegrab + 1 WHERE steamid = '%s'", DbPrefix, Score, ClientID);
 		else if (CurrentGamemodeID == GAMEMODE_REALISMVERSUS)
@@ -4695,7 +4428,7 @@ public Action:event_PlayerLedge(Handle:event, const String:name[], bool:dontBroa
 			StatsPrintToChat(Attacker, "You have earned \x04%i \x01points for causing player \x05%s\x01 to grab a ledge!", Score, VictimName);
 		else if (Mode == 3)
 		{
-			decl String:AttackerName[MAX_LINE_WIDTH];
+			char AttackerName[MAX_LINE_WIDTH];
 			GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 			StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for causing player \x05%s\x01 to grab a ledge!", AttackerName, Score, VictimName);
 		}
@@ -4704,12 +4437,12 @@ public Action:event_PlayerLedge(Handle:event, const String:name[], bool:dontBroa
 
 // Player spawned in game.
 
-public Action:event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Player = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (Player == 0)
 		return;
@@ -4758,13 +4491,13 @@ public Action:event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroa
 // Player hurt. Used for calculating damage points for the Infected players and also
 // the friendly fire damage when Friendly Fire Mode is set to Damage Based.
 
-public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerHurt(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	// Self inflicted damage does not count
 	if (Attacker == Victim)
@@ -4787,11 +4520,11 @@ public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 		return;
 	}
 
-	new Damage = GetEventInt(event, "dmg_health");
-	new AttackerTeam = GetClientTeam(Attacker);
-	new AttackerInfType = -1;
+	int Damage = GetEventInt(event, "dmg_health");
+	int AttackerTeam = GetClientTeam(Attacker);
+	int AttackerInfType = -1;
 
-	new VictimTeam = GetClientTeam(Victim);
+	int VictimTeam = GetClientTeam(Victim);
 	if (AttackerTeam == VictimTeam && AttackerTeam == TEAM_INFECTED)
 		return;
 
@@ -4809,14 +4542,14 @@ public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 					FriendlyFireTimer[Attacker][0] = INVALID_HANDLE;
 				}
 
-				decl String:AttackerID[MAX_LINE_WIDTH];
+				char AttackerID[MAX_LINE_WIDTH];
 				GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
-				decl String:AttackerName[MAX_LINE_WIDTH];
+				char AttackerName[MAX_LINE_WIDTH];
 				GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 
 				// Using datapack to deliver the needed info so that the attacker can't escape the penalty by disconnecting
 
-				new Handle:dp = INVALID_HANDLE;
+				Handle dp = INVALID_HANDLE;
 				new OldHumanDamage = 0;
 				new OldBotDamage = 0;
 
@@ -4856,12 +4589,12 @@ public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 	if (AttackerInfType < 0)
 		return;
 
-//	decl String:AttackerID[MAX_LINE_WIDTH];
+//	char AttackerID[MAX_LINE_WIDTH];
 //	GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
 
 //	new Mode;
 //	new Victim = GetClientOfUserId(GetEventInt(event, "userid"));
-//	decl String:VictimName[MAX_LINE_WIDTH];
+//	char VictimName[MAX_LINE_WIDTH];
 //	new VictimTeam = 0;
 //	new Score = 0;
 
@@ -4875,7 +4608,7 @@ public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 
 //	if (VictimTeam == TEAM_INFECTED)
 //	{
-//		decl String:query[1024];
+//		char query[1024];
 //
 //		Score = GetConVarInt(cvar_FFire);
 //		Format(query, sizeof(query), "UPDATE %splayers SET points_infected = points_infected - %i WHERE steamid = '%s'", DbPrefix, Score, AttackerID);
@@ -4888,7 +4621,7 @@ public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 //			StatsPrintToChat(Attacker, "You have \x03LOST \x04%i \x01points for \x03Friendly Firing \x05%s\x01!", Score, VictimName);
 //		else if (Mode == 3)
 //		{
-//			decl String:AttackerName[MAX_LINE_WIDTH];
+//			char AttackerName[MAX_LINE_WIDTH];
 //			GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 //			StatsPrintToChatAll("\x05%s \x01has \x03LOST \x04%i \x01points for \x03Friendly Firing \x05%s\x01!", AttackerName, Score, VictimName);
 //		}
@@ -4901,13 +4634,13 @@ public Action:event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 
 // Smoker events.
 
-public Action:event_SmokerGrap(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_SmokerGrap(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || !IsGamemodeVersus() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	PlayerParalyzed[Victim][0] = 1;
 	PlayerParalyzed[Victim][1] = Attacker;
@@ -4915,13 +4648,13 @@ public Action:event_SmokerGrap(Handle:event, const String:name[], bool:dontBroad
 
 // Jockey events.
 
-public Action:event_JockeyStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_JockeyStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	PlayerJockied[Victim][0] = 1;
 	PlayerJockied[Victim][1] = Attacker;
@@ -4934,27 +4667,27 @@ public Action:event_JockeyStart(Handle:event, const String:name[], bool:dontBroa
 
 	JockeyRideStartTime[Attacker] = GetTime();
 
-	decl String:query[1024];
-	decl String:iID[MAX_LINE_WIDTH];
+	char query[1024];
+	char iID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Attacker, iID, sizeof(iID));
 	Format(query, sizeof(query), "UPDATE %splayers SET jockey_rides = jockey_rides + 1 WHERE steamid = '%s'", DbPrefix, iID);
 	SendSQLUpdate(query);
 	UpdateMapStat("jockey_rides", 1);
 }
 
-public Action:event_JockeyRelease(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_JockeyRelease(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Jockey = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
-	new Rescuer = GetClientOfUserId(GetEventInt(event, "rescuer"));
-	new Float:RideLength = GetEventFloat(event, "ride_length");
+	int Jockey = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Rescuer = GetClientOfUserId(GetEventInt(event, "rescuer"));
+	float RideLength = GetEventFloat(event, "ride_length");
 
 	if (Rescuer > 0 && !IsClientBot(Rescuer) && IsClientInGame(Rescuer))
 	{
-		decl String:query[1024], String:JockeyName[MAX_LINE_WIDTH], String:VictimName[MAX_LINE_WIDTH], String:RescuerName[MAX_LINE_WIDTH], String:RescuerID[MAX_LINE_WIDTH], String:UpdatePoints[32];
+		char query[1024], JockeyName[MAX_LINE_WIDTH], VictimName[MAX_LINE_WIDTH], RescuerName[MAX_LINE_WIDTH], RescuerID[MAX_LINE_WIDTH], UpdatePoints[32];
 		new Score = ModifyScoreDifficulty(GetConVarInt(cvar_JockeyRide), 2, 3, TEAM_SURVIVORS);
 
 		GetClientRankAuthString(Rescuer, RescuerID, sizeof(RescuerID));
@@ -5033,17 +4766,17 @@ public Action:event_JockeyRelease(Handle:event, const String:name[], bool:dontBr
 		CreateTimer(INF_WEAROFF_TIME, timer_EndJockeyRide, Victim);
 }
 
-public Action:event_JockeyKilled(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_JockeyKilled(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (Attacker == 0 || IsClientBot(Attacker) || !IsClientInGame(Attacker))
 		return;
 
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	if (Victim > 0)
 		CreateTimer(INF_WEAROFF_TIME, timer_EndJockeyRide, Victim);
@@ -5051,20 +4784,20 @@ public Action:event_JockeyKilled(Handle:event, const String:name[], bool:dontBro
 
 // Charger events.
 
-public Action:event_ChargerKilled(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChargerKilled(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Killer = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int Killer = GetClientOfUserId(GetEventInt(event, "attacker"));
 
 	if (Killer == 0 || IsClientBot(Killer) || !IsClientInGame(Killer))
 		return;
 
-	new Charger = GetClientOfUserId(GetEventInt(event, "userid"));
-	decl String:query[1024], String:KillerName[MAX_LINE_WIDTH], String:KillerID[MAX_LINE_WIDTH], String:UpdatePoints[32];
-	new Score = 0;
-	new bool:IsMatador = GetEventBool(event, "melee") && GetEventBool(event, "charging");
+	int Charger = GetClientOfUserId(GetEventInt(event, "userid"));
+	char query[1024], KillerName[MAX_LINE_WIDTH], KillerID[MAX_LINE_WIDTH], UpdatePoints[32];
+	int Score = 0;
+	bool IsMatador = GetEventBool(event, "melee") && GetEventBool(event, "charging");
 
 	GetClientRankAuthString(Killer, KillerID, sizeof(KillerID));
 
@@ -5124,7 +4857,7 @@ public Action:event_ChargerKilled(Handle:event, const String:name[], bool:dontBr
 	UpdateMapStat("points", Score);
 	AddScore(Killer, Score);
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (Mode)
 	{
@@ -5139,7 +4872,7 @@ public Action:event_ChargerKilled(Handle:event, const String:name[], bool:dontBr
 		}
 		else
 		{
-			decl String:VictimName[MAX_LINE_WIDTH], String:ChargerName[MAX_LINE_WIDTH];
+			char VictimName[MAX_LINE_WIDTH], ChargerName[MAX_LINE_WIDTH];
 
 			GetClientName(Charger, ChargerName, sizeof(ChargerName));
 
@@ -5159,13 +4892,13 @@ public Action:event_ChargerKilled(Handle:event, const String:name[], bool:dontBr
 	}
 }
 
-public Action:event_ChargerCarryStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChargerCarryStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	PlayerCarried[Victim][0] = 1;
 	PlayerCarried[Victim][1] = Attacker;
@@ -5178,13 +4911,13 @@ public Action:event_ChargerCarryStart(Handle:event, const String:name[], bool:do
 	IncrementImpactCounter(Attacker);
 }
 
-public Action:event_ChargerCarryRelease(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChargerCarryRelease(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
 	//new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	//if (Attacker == 0 || IsClientBot(Attacker) || !IsClientInGame(Attacker))
 	//{
@@ -5198,12 +4931,12 @@ public Action:event_ChargerCarryRelease(Handle:event, const String:name[], bool:
 		CreateTimer(INF_WEAROFF_TIME, timer_EndChargerCarry, Victim);
 }
 
-public Action:event_ChargerImpact(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChargerImpact(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (Attacker == 0 || IsClientBot(Attacker) || !IsClientConnected(Attacker) || !IsClientInGame(Attacker))
 		return;
@@ -5222,17 +4955,17 @@ IncrementImpactCounter(client)
 	ChargerImpactCounter[client]++;
 }
 
-public Action:event_ChargerPummelStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChargerPummelStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	// There is no delay on charger carry once the plummel starts
 	ChargerCarryVictim[Attacker] = 0;
 
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	PlayerPlummeled[Victim][0] = 1;
 	PlayerPlummeled[Victim][1] = Attacker;
@@ -5243,13 +4976,13 @@ public Action:event_ChargerPummelStart(Handle:event, const String:name[], bool:d
 	//	return;
 }
 
-public Action:event_ChargerPummelRelease(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ChargerPummelRelease(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	if (Attacker == 0 || IsClientBot(Attacker) || !IsClientInGame(Attacker))
 	{
@@ -5265,12 +4998,12 @@ public Action:event_ChargerPummelRelease(Handle:event, const String:name[], bool
 
 // Hunter events.
 
-public Action:event_HunterRelease(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_HunterRelease(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Player = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	if (Player > 0)
 		CreateTimer(INF_WEAROFF_TIME, timer_EndHunterLunged, Player);
@@ -5278,12 +5011,12 @@ public Action:event_HunterRelease(Handle:event, const String:name[], bool:dontBr
 
 // Smoker events.
 
-public Action:event_SmokerRelease(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_SmokerRelease(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Player = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	if (Player > 0)
 		CreateTimer(INF_WEAROFF_TIME, timer_EndSmokerParalyzed, Player);
@@ -5291,7 +5024,7 @@ public Action:event_SmokerRelease(Handle:event, const String:name[], bool:dontBr
 
 // L4D2 ammo upgrade deployed event.
 
-public Action:event_UpgradePackAdded(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_UpgradePackAdded(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
@@ -5299,20 +5032,20 @@ public Action:event_UpgradePackAdded(Handle:event, const String:name[], bool:don
 	if (CurrentGamemodeID == GAMEMODE_SURVIVAL && !SurvivalStarted)
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Player = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (Player == 0 || IsClientBot(Player))
 		return;
 
-	new Score = GetConVarInt(cvar_AmmoUpgradeAdded);
+	int Score = GetConVarInt(cvar_AmmoUpgradeAdded);
 
 	if (Score > 0)
 		Score = ModifyScoreDifficulty(Score, 2, 3, TEAM_SURVIVORS);
 
-	decl String:PlayerID[MAX_LINE_WIDTH];
+	char PlayerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Player, PlayerID, sizeof(PlayerID));
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -5346,7 +5079,7 @@ public Action:event_UpgradePackAdded(Handle:event, const String:name[], bool:don
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_upgrades_added = award_upgrades_added + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, PlayerID);
 
 	SendSQLUpdate(query);
@@ -5359,7 +5092,7 @@ public Action:event_UpgradePackAdded(Handle:event, const String:name[], bool:don
 			return;
 
 		new EntityID = GetEventInt(event, "upgradeid");
-		decl String:ModelName[128];
+		char ModelName[128];
 		GetEntPropString(EntityID, Prop_Data, "m_ModelName", ModelName, sizeof(ModelName));
 
 		if (StrContains(ModelName, "incendiary_ammo", false) >= 0)
@@ -5373,7 +5106,7 @@ public Action:event_UpgradePackAdded(Handle:event, const String:name[], bool:don
 			StatsPrintToChat(Player, "You have earned \x04%i \x01points for deploying \x05%s\x01!", Score, ModelName);
 		else if (Mode == 3)
 		{
-			decl String:PlayerName[MAX_LINE_WIDTH];
+			char PlayerName[MAX_LINE_WIDTH];
 			GetClientName(Player, PlayerName, sizeof(PlayerName));
 			StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for deploying \x05%s\x01!", PlayerName, Score, ModelName);
 		}
@@ -5382,25 +5115,25 @@ public Action:event_UpgradePackAdded(Handle:event, const String:name[], bool:don
 
 // L4D2 gascan pour completed event.
 
-public Action:event_GascanPoured(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_GascanPoured(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Player = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (Player == 0 || IsClientBot(Player))
 		return;
 
-	new Score = GetConVarInt(cvar_GascanPoured);
+	int Score = GetConVarInt(cvar_GascanPoured);
 
 	if (Score > 0)
 		Score = ModifyScoreDifficulty(Score, 2, 3, TEAM_SURVIVORS);
 
-	decl String:PlayerID[MAX_LINE_WIDTH];
+	char PlayerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Player, PlayerID, sizeof(PlayerID));
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -5434,7 +5167,7 @@ public Action:event_GascanPoured(Handle:event, const String:name[], bool:dontBro
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_gascans_poured = award_gascans_poured + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, PlayerID);
 
 	SendSQLUpdate(query);
@@ -5447,7 +5180,7 @@ public Action:event_GascanPoured(Handle:event, const String:name[], bool:dontBro
 			StatsPrintToChat(Player, "You have earned \x04%i \x01points for successfully \x05Pouring a Gascan\x01!", Score);
 		else if (Mode == 3)
 		{
-			decl String:PlayerName[MAX_LINE_WIDTH];
+			char PlayerName[MAX_LINE_WIDTH];
 			GetClientName(Player, PlayerName, sizeof(PlayerName));
 			StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for successfully \x05Pouring a Gascan\x01!", PlayerName, Score);
 		}
@@ -5518,15 +5251,15 @@ public Action:event_GascanPoured(Handle:event, const String:name[], bool:dontBro
 114 - Outbreak
 */
 
-public Action:event_Achievement(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_Achievement(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 	{
 		return;
 	}
 
-	new Player = GetClientOfUserId(GetEventInt(event, "player"));
-	new Achievement = GetEventInt(event, "achievement");
+	int Player = GetClientOfUserId(GetEventInt(event, "player"));
+	int Achievement = GetEventInt(event, "achievement");
 
 	if (IsClientBot(Player))
 	{
@@ -5541,7 +5274,7 @@ public Action:event_Achievement(Handle:event, const String:name[], bool:dontBroa
 
 // Saferoom door opens.
 
-public Action:event_DoorOpen(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_DoorOpen(Handle event, const char[] name, bool dontBroadcast)
 {
 	if(MapTimingBlocked || MapTimingStartTime != 0.0 || !GetEventBool(event, "checkpoint") || !GetEventBool(event, "closed") || CurrentGamemodeID == GAMEMODE_SURVIVAL || StatsDisabled())
 	{
@@ -5554,7 +5287,7 @@ public Action:event_DoorOpen(Handle:event, const String:name[], bool:dontBroadca
 	return Plugin_Continue;
 }
 
-public Action:event_StartArea(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_StartArea(Handle event, const char[] name, bool dontBroadcast)
 {
 	if(MapTimingBlocked || MapTimingStartTime != 0.0 || CurrentGamemodeID == GAMEMODE_SURVIVAL || StatsDisabled())
 	{
@@ -5567,14 +5300,14 @@ public Action:event_StartArea(Handle:event, const String:name[], bool:dontBroadc
 	return Plugin_Continue;
 }
 
-public Action:event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerTeam(Handle event, const char[] name, bool dontBroadcast)
 {
 	if(MapTimingBlocked || MapTimingStartTime != 0.0 || GetEventBool(event, "isbot"))
 	{
 		return Plugin_Continue;
 	}
 
-	new Player = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Player = GetClientOfUserId(GetEventInt(event, "userid"));
 	//new NewTeam = GetEventInt(event, "team");
 	//new OldTeam = GetEventInt(event, "oldteam");
 
@@ -5583,7 +5316,7 @@ public Action:event_PlayerTeam(Handle:event, const String:name[], bool:dontBroad
 		return Plugin_Continue;
 	}
 
-	decl String:PlayerID[MAX_LINE_WIDTH];
+	char PlayerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Player, PlayerID, sizeof(PlayerID));
 
 	RemoveFromTrie(MapTimingSurvivors, PlayerID);
@@ -5594,18 +5327,18 @@ public Action:event_PlayerTeam(Handle:event, const String:name[], bool:dontBroad
 
 // AbilityUse.
 
-public Action:event_AbilityUse(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_AbilityUse(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
 
-	new Player = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Player = GetClientOfUserId(GetEventInt(event, "userid"));
 	GetClientAbsOrigin(Player, HunterPosition[Player]);
 
 	if (!IsClientBot(Player) && GetClientInfectedType(Player) == INF_ID_BOOMER)
 	{
-		decl String:query[1024];
-		decl String:iID[MAX_LINE_WIDTH];
+		char query[1024];
+		char iID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(Player, iID, sizeof(iID));
 		Format(query, sizeof(query), "UPDATE %splayers SET infected_boomer_vomits = infected_boomer_vomits + 1 WHERE steamid = '%s'", DbPrefix, iID);
 		SendSQLUpdate(query);
@@ -5616,13 +5349,13 @@ public Action:event_AbilityUse(Handle:event, const String:name[], bool:dontBroad
 
 // Player got pounced.
 
-public Action:event_PlayerPounced(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_PlayerPounced(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
-	new Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	int Attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "victim"));
 
 	PlayerLunged[Victim][0] = 1;
 	PlayerLunged[Victim][1] = Attacker;
@@ -5630,40 +5363,40 @@ public Action:event_PlayerPounced(Handle:event, const String:name[], bool:dontBr
 	if (IsClientBot(Attacker))
 		return;
 
-	new Float:PouncePosition[3];
+	float PouncePosition[3];
 
 	GetClientAbsOrigin(Attacker, PouncePosition);
-	new PounceDistance = RoundToNearest(GetVectorDistance(HunterPosition[Attacker], PouncePosition));
+	int PounceDistance = RoundToNearest(GetVectorDistance(HunterPosition[Attacker], PouncePosition));
 
 	if (PounceDistance < MinPounceDistance)
 		return;
 
-	new Dmg = RoundToNearest((((PounceDistance - float(MinPounceDistance)) / float(MaxPounceDistance - MinPounceDistance)) * float(MaxPounceDamage)) + 1);
-	new DmgCap = GetConVarInt(cvar_HunterDamageCap);
+	int Dmg = RoundToNearest((((PounceDistance - float(MinPounceDistance)) / float(MaxPounceDistance - MinPounceDistance)) * float(MaxPounceDamage)) + 1);
+	int DmgCap = GetConVarInt(cvar_HunterDamageCap);
 
 	if (Dmg > DmgCap)
 		Dmg = DmgCap;
 
-	new PerfectDmgLimit = GetConVarInt(cvar_HunterPerfectPounceDamage);
-	new NiceDmgLimit = GetConVarInt(cvar_HunterNicePounceDamage);
+	int PerfectDmgLimit = GetConVarInt(cvar_HunterPerfectPounceDamage);
+	int NiceDmgLimit = GetConVarInt(cvar_HunterNicePounceDamage);
 
 	UpdateHunterDamage(Attacker, Dmg);
 
 	if (Dmg < NiceDmgLimit && Dmg < PerfectDmgLimit)
 		return;
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
-	decl String:AttackerName[MAX_LINE_WIDTH];
+	char AttackerName[MAX_LINE_WIDTH];
 	GetClientName(Attacker, AttackerName, sizeof(AttackerName));
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
-	decl String:VictimName[MAX_LINE_WIDTH];
+	char VictimName[MAX_LINE_WIDTH];
 	GetClientName(Victim, VictimName, sizeof(VictimName));
 
-	new Score = 0;
-	decl String:Label[32];
-	decl String:query[1024];
+	int Score = 0;
+	char Label[32];
+	char query[1024];
 
 	if (Dmg >= PerfectDmgLimit)
 	{
@@ -5706,7 +5439,7 @@ public Action:event_PlayerPounced(Handle:event, const String:name[], bool:dontBr
 
 // Revive friendly code.
 
-public Action:event_RevivePlayer(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_RevivePlayer(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -5717,26 +5450,26 @@ public Action:event_RevivePlayer(Handle:event, const String:name[], bool:dontBro
 	if (GetEventBool(event, "ledge_hang"))
 		return;
 
-	new Savior = GetClientOfUserId(GetEventInt(event, "userid"));
-	new Victim = GetClientOfUserId(GetEventInt(event, "subject"));
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Savior = GetClientOfUserId(GetEventInt(event, "userid"));
+	int Victim = GetClientOfUserId(GetEventInt(event, "subject"));
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (IsClientBot(Savior) || IsClientBot(Victim))
 		return;
 
-	decl String:SaviorName[MAX_LINE_WIDTH];
+	char SaviorName[MAX_LINE_WIDTH];
 	GetClientName(Savior, SaviorName, sizeof(SaviorName));
-	decl String:SaviorID[MAX_LINE_WIDTH];
+	char SaviorID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Savior, SaviorID, sizeof(SaviorID));
 
-	decl String:VictimName[MAX_LINE_WIDTH];
+	char VictimName[MAX_LINE_WIDTH];
 	GetClientName(Victim, VictimName, sizeof(VictimName));
-	decl String:VictimID[MAX_LINE_WIDTH];
+	char VictimID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Victim, VictimID, sizeof(VictimID));
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_Revive), 2, 3, TEAM_SURVIVORS);
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_Revive), 2, 3, TEAM_SURVIVORS);
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -5770,7 +5503,7 @@ public Action:event_RevivePlayer(Handle:event, const String:name[], bool:dontBro
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_revive = award_revive + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, SaviorID);
 	SendSQLUpdate(query);
 
@@ -5852,38 +5585,38 @@ L4D1:
 
 // Miscellaneous events and awards. See specific award for info.
 
-public Action:event_Award_L4D1(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_Award_L4D1(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 	{
 		return;
 	}
 
-	new PlayerID = GetEventInt(event, "userid");
+	int PlayerID = GetEventInt(event, "userid");
 
 	if (!PlayerID)
 	{
 		return;
 	}
 
-	new User = GetClientOfUserId(PlayerID);
+	int User = GetClientOfUserId(PlayerID);
 
 	if (IsClientBot(User))
 	{
 		return;
 	}
 
-	new SubjectID = GetEventInt(event, "subjectentid");
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	decl String:UserName[MAX_LINE_WIDTH];
+	int SubjectID = GetEventInt(event, "subjectentid");
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	char UserName[MAX_LINE_WIDTH];
 	GetClientName(User, UserName, sizeof(UserName));
 
-	new Recipient;
-	decl String:RecipientName[MAX_LINE_WIDTH];
+	int Recipient;
+	char RecipientName[MAX_LINE_WIDTH];
 
-	new Score = 0;
-	new String:AwardSQL[128];
-	new AwardID = GetEventInt(event, "award");
+	int Score = 0;
+	char AwardSQL[128];
+	int AwardID = GetEventInt(event, "award");
 
 	if (AwardID == 67) // Protect friendly
 	{
@@ -6005,8 +5738,8 @@ public Action:event_Award_L4D1(Handle:event, const String:name[], bool:dontBroad
 		return;
 	}
 
-	decl String:UpdatePoints[32];
-	decl String:UserID[MAX_LINE_WIDTH];
+	char UpdatePoints[32];
+	char UserID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(User, UserID, sizeof(UserID));
 
 	switch (CurrentGamemodeID)
@@ -6041,7 +5774,7 @@ public Action:event_Award_L4D1(Handle:event, const String:name[], bool:dontBroad
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i%s WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AwardSQL, UserID);
 	SendSQLUpdate(query);
 }
@@ -6076,38 +5809,38 @@ L4D2:
 
 // Miscellaneous events and awards. See specific award for info.
 
-public Action:event_Award_L4D2(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_Award_L4D2(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 	{
 		return;
 	}
 
-	new PlayerID = GetEventInt(event, "userid");
+	int PlayerID = GetEventInt(event, "userid");
 
 	if (!PlayerID)
 	{
 		return;
 	}
 
-	new User = GetClientOfUserId(PlayerID);
+	int User = GetClientOfUserId(PlayerID);
 
 	if (IsClientBot(User))
 	{
 		return;
 	}
 
-	new SubjectID = GetEventInt(event, "subjectentid");
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	decl String:UserName[MAX_LINE_WIDTH];
+	int SubjectID = GetEventInt(event, "subjectentid");
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	char UserName[MAX_LINE_WIDTH];
 	GetClientName(User, UserName, sizeof(UserName));
 
-	new Recipient;
-	decl String:RecipientName[MAX_LINE_WIDTH];
+	int Recipient;
+	char RecipientName[MAX_LINE_WIDTH];
 
-	new Score = 0;
-	new String:AwardSQL[128];
-	new AwardID = GetEventInt(event, "award");
+	int Score = 0;
+	char AwardSQL[128];
+	int AwardID = GetEventInt(event, "award");
 
 	//StatsPrintToChat(User, "[TEST] Your actions gave you award (ID = %i)", AwardID);
 
@@ -6280,8 +6013,8 @@ public Action:event_Award_L4D2(Handle:event, const String:name[], bool:dontBroad
 		return;
 	}
 
-	decl String:UpdatePoints[32];
-	decl String:UserID[MAX_LINE_WIDTH];
+	char UpdatePoints[32];
+	char UserID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(User, UserID, sizeof(UserID));
 
 	switch (CurrentGamemodeID)
@@ -6316,23 +6049,23 @@ public Action:event_Award_L4D2(Handle:event, const String:name[], bool:dontBroad
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i%s WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AwardSQL, UserID);
 	SendSQLUpdate(query);
 }
 
 // Scavenge halftime code.
 
-public Action:event_ScavengeHalftime(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_ScavengeHalftime(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CampaignOver)
 		return;
 
 	CampaignOver = true;
 
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -6349,7 +6082,7 @@ public Action:event_ScavengeHalftime(Handle:event, const String:name[], bool:don
 
 // Survival started code.
 
-public Action:event_SurvivalStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_SurvivalStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -6368,19 +6101,19 @@ public SurvivalStart()
 
 // Car alarm triggered code.
 
-public Action:event_CarAlarm(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_CarAlarm(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CurrentGamemodeID == GAMEMODE_SURVIVAL || !GetConVarBool(cvar_EnableNegativeScore))
 		return;
 
-	new Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_CarAlarm), 2, 3, TEAM_SURVIVORS);
+	int Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_CarAlarm), 2, 3, TEAM_SURVIVORS);
 	UpdateMapStat("caralarm", 1);
 
 	if (Score <= 0)
 		return;
 
-	decl String:UpdatePoints[32];
-	decl String:query[1024];
+	char UpdatePoints[32];
+	char query[1024];
 
 	switch (CurrentGamemodeID)
 	{
@@ -6414,11 +6147,11 @@ public Action:event_CarAlarm(Handle:event, const String:name[], bool:dontBroadca
 		}
 	}
 
-	new maxplayers = GetMaxClients();
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	decl String:iID[MAX_LINE_WIDTH];
+	int maxplayers = MaxClients;
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	char iID[MAX_LINE_WIDTH];
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i) && GetClientTeam(i) == TEAM_SURVIVORS)
 		{
@@ -6434,7 +6167,7 @@ public Action:event_CarAlarm(Handle:event, const String:name[], bool:dontBroadca
 
 // Reset Witch existence in the world when a new one is created.
 
-public Action:event_WitchSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_WitchSpawn(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -6444,21 +6177,21 @@ public Action:event_WitchSpawn(Handle:event, const String:name[], bool:dontBroad
 
 // Witch was crowned!
 
-public Action:event_WitchCrowned(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_WitchCrowned(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled() || CurrentGamemodeID == GAMEMODE_SURVIVAL)
 		return;
 
-	new Killer = GetClientOfUserId(GetEventInt(event, "userid"));
-	new bool:Crowned = GetEventBool(event, "oneshot");
+	int Killer = GetClientOfUserId(GetEventInt(event, "userid"));
+	bool Crowned = GetEventBool(event, "oneshot");
 
 	if (Crowned && Killer > 0 && !IsClientBot(Killer) && IsClientConnected(Killer) && IsClientInGame(Killer))
 	{
-		decl String:SteamID[MAX_LINE_WIDTH];
+		char SteamID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(Killer, SteamID, sizeof(SteamID));
 
 		new Score = ModifyScoreDifficulty(GetConVarInt(cvar_WitchCrowned), 2, 3, TEAM_SURVIVORS);
-		decl String:UpdatePoints[32];
+		char UpdatePoints[32];
 
 		switch (CurrentGamemodeID)
 		{
@@ -6492,13 +6225,13 @@ public Action:event_WitchCrowned(Handle:event, const String:name[], bool:dontBro
 			}
 		}
 
-		decl String:query[1024];
+		char query[1024];
 		Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, award_witchcrowned = award_witchcrowned + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, SteamID);
 		SendSQLUpdate(query);
 
 		if (Score > 0 && GetConVarInt(cvar_AnnounceMode))
 		{
-			decl String:Name[MAX_LINE_WIDTH];
+			char Name[MAX_LINE_WIDTH];
 			GetClientName(Killer, Name, sizeof(Name));
 
 			StatsPrintToChatTeam(TEAM_SURVIVORS, "\x05%s \x01has earned \x04%i \x01points for \x04Crowning the Witch\x01!", Name, Score);
@@ -6508,7 +6241,7 @@ public Action:event_WitchCrowned(Handle:event, const String:name[], bool:dontBro
 
 // Witch was disturbed!
 
-public Action:event_WitchDisturb(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:event_WitchDisturb(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (StatsDisabled())
 		return;
@@ -6525,10 +6258,10 @@ public Action:event_WitchDisturb(Handle:event, const String:name[], bool:dontBro
 		if (IsClientBot(User))
 			return;
 
-		decl String:UserID[MAX_LINE_WIDTH];
+		char UserID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(User, UserID, sizeof(UserID));
 
-		decl String:query[1024];
+		char query[1024];
 		Format(query, sizeof(query), "UPDATE %splayers SET award_witchdisturb = award_witchdisturb + 1 WHERE steamid = '%s'", DbPrefix, UserID);
 		SendSQLUpdate(query);
 	}
@@ -6537,12 +6270,12 @@ public Action:event_WitchDisturb(Handle:event, const String:name[], bool:dontBro
 // DEBUG
 //public Action:cmd_StatsTest(client, args)
 //{
-//	new String:CurrentMode[16];
+//	char CurrentMode[16];
 //	GetConVarString(cvar_Gamemode, CurrentMode, sizeof(CurrentMode));
 //	PrintToConsole(0, "Gamemode: %s", CurrentMode);
 //	UpdateMapStat("playtime", 10);
 //	PrintToConsole(0, "Added 10 seconds to maps table current map.");
-//	new Float:ReductionFactor = GetMedkitPointReductionFactor();
+//	float ReductionFactor = GetMedkitPointReductionFactor();
 //
 //	StatsPrintToChat(client, "\x03ALL SURVIVORS \x01now earns only \x04%i percent \x01of their normal points after using their \x05%i%s Medkit\x01!", RoundToNearest(ReductionFactor * 100), MedkitsUsedCounter, (MedkitsUsedCounter == 1 ? "st" : (MedkitsUsedCounter == 2 ? "nd" : (MedkitsUsedCounter == 3 ? "rd" : "th"))), GetClientTeam(client));
 //}
@@ -6553,7 +6286,7 @@ Chat/command handling and panels for Rank and Top10
 -----------------------------------------------------------------------------
 */
 
-public Action:HandleCommands(client, const String:Text[])
+public Action:HandleCommands(client, const char[] Text)
 {
 	if (strcmp(Text, "rankmenu", false) == 0)
 	{
@@ -6659,13 +6392,13 @@ public Action:HandleCommands(client, const String:Text[])
 // Parse chat for RANK and TOP10 triggers.
 public Action:cmd_Say(client, args)
 {
-	decl String:Text[192];
-	//new String:Command[64];
-	new Start = 0;
+	char Text[192];
+	//char Command[64];
+	int Start = 0;
 
 	GetCmdArgString(Text, sizeof(Text));
 
-	new TextLen = strlen(Text);
+	int TextLen = strlen(Text);
 
 	// This apparently happens sometimes?
 	if (TextLen <= 0)
@@ -6709,8 +6442,8 @@ public Action:cmd_ShowTimedMapsTimer(client, args)
 		return Plugin_Handled;
 	}
 
-	new Float:CurrentMapTimer = GetEngineTime() - MapTimingStartTime;
-	decl String:TimeLabel[32];
+	float CurrentMapTimer = GetEngineTime() - MapTimingStartTime;
+	char TimeLabel[32];
 
 	SetTimeLabel(CurrentMapTimer, TimeLabel, sizeof(TimeLabel));
 
@@ -6731,7 +6464,7 @@ public Action:cmd_ShowNextRank(client, args)
 	if (IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	QueryClientStatsSteamID(client, SteamID, CM_NEXTRANK);
@@ -6745,7 +6478,7 @@ public Action:cmd_ShowNextRank(client, args)
 //	if (!client)
 //		return Plugin_Handled;
 //
-//	new Handle:RankAdminPanel = CreatePanel();
+//	Handle RankAdminPanel = CreatePanel();
 //
 //	SetPanelTitle(RankAdminPanel, "Rank Admin:");
 //
@@ -6760,12 +6493,12 @@ public Action:cmd_ShowNextRank(client, args)
 //	return Plugin_Handled;
 //}
 
-DisplayYesNoPanel(client, const String:title[], MenuHandler:handler, delay=30)
+DisplayYesNoPanel(client, const char[] title, MenuHandler:handler, delay=30)
 {
 	if (!client)
 		return;
 
-	new Handle:panel = CreatePanel();
+	Handle panel = CreatePanel();
 
 	SetPanelTitle(panel, title);
 
@@ -6776,11 +6509,13 @@ DisplayYesNoPanel(client, const String:title[], MenuHandler:handler, delay=30)
 	CloseHandle(panel);
 }
 
-public bool:IsTeamGamemode()
+public bool IsTeamGamemode()
 {
 	return IsGamemode("versus") ||
+				 IsGamemode("teamversus") ||
 				 IsGamemode("realismversus") ||
 				 IsGamemode("scavenge") ||
+				 IsGamemode("teamscavenge") ||
 				 IsGamemode("mutation11") ||	// Healthpackalypse!
 				 IsGamemode("mutation12") ||	// Realism Versus
 				 IsGamemode("mutation13") ||	// Follow the Liter
@@ -6788,6 +6523,7 @@ public bool:IsTeamGamemode()
 				 IsGamemode("mutation18") ||	// Bleed Out Versus
 				 IsGamemode("mutation19") ||	// Taaannnkk!
 				 IsGamemode("community3") ||	// Riding My Survivor
+				 IsGamemode("l4d1vs") 	  ||	// L4D1 Versus
 				 IsGamemode("community6");		// Confogl
 }
 
@@ -6817,7 +6553,7 @@ public Action:cmd_ShuffleTeams(client, args)
 // Set Message Of The Day.
 public Action:cmd_SetMotd(client, args)
 {
-	decl String:arg[1024];
+	char arg[1024];
 
 	GetCmdArgString(arg, sizeof(arg));
 
@@ -6868,7 +6604,7 @@ public ClearStatsMaps(client)
 		return;
 	}
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT * FROM %smaps WHERE 1 = 2", DbPrefix);
 
 	SQL_TQuery(db, ClearStatsMapsHandler, query, client);
@@ -6899,7 +6635,7 @@ public ClearStatsAll(client)
 		return;
 	}
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT * FROM %smaps WHERE 1 = 2", DbPrefix);
 
 	SQL_TQuery(db, ClearStatsMapsHandler, query, client);
@@ -6925,7 +6661,7 @@ public ClearStatsPlayers(client)
 	}
 }
 
-public ClearStatsMapsHandler(Handle:owner, Handle:hndl, const String:error[], any:client)
+public ClearStatsMapsHandler(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -6935,15 +6671,15 @@ public ClearStatsMapsHandler(Handle:owner, Handle:hndl, const String:error[], an
 		return;
 	}
 
-	new FieldCount = SQL_GetFieldCount(hndl);
-	decl String:FieldName[MAX_LINE_WIDTH];
-	decl String:FieldSet[MAX_LINE_WIDTH];
+	int FieldCount = SQL_GetFieldCount(hndl);
+	char FieldName[MAX_LINE_WIDTH];
+	char FieldSet[MAX_LINE_WIDTH];
 
-	new Counter = 0;
-	decl String:query[4096];
+	int Counter = 0;
+	char query[4096];
 	Format(query, sizeof(query), "UPDATE %smaps SET", DbPrefix);
 
-	for (new i = 0; i < FieldCount; i++)
+	for (int i = 0; i < FieldCount; i++)
 	{
 		SQL_FieldNumToName(hndl, i, FieldName, sizeof(FieldName));
 
@@ -6976,12 +6712,12 @@ public ClearStatsMapsHandler(Handle:owner, Handle:hndl, const String:error[], an
 	}
 }
 
-bool:DoFastQuery(Client, const String:Query[], any:...)
+bool DoFastQuery(Client, const char[] Query, any ...)
 {
-	new String:FormattedQuery[4096];
+	char FormattedQuery[4096];
 	VFormat(FormattedQuery, sizeof(FormattedQuery), Query, 3);
 
-	new String:Error[1024];
+	char Error[1024];
 
 	if (!SQL_FastQuery(db, FormattedQuery))
 	{
@@ -7002,7 +6738,7 @@ bool:DoFastQuery(Client, const String:Query[], any:...)
 	return true;
 }
 
-public Action:timer_ClearDatabase(Handle:timer, any:data)
+public Action:timer_ClearDatabase(Handle timer, any data)
 {
 	ClearDatabaseTimer = INVALID_HANDLE;
 	ClearDatabaseCaller = -1;
@@ -7032,11 +6768,11 @@ public Action:cmd_ShowRankMenu(client, args)
 
 public DisplayRankMenu(client)
 {
-	decl String:Title[MAX_LINE_WIDTH];
+	char Title[MAX_LINE_WIDTH];
 
 	Format(Title, sizeof(Title), "%s:", PLUGIN_NAME);
 
-	new Handle:menu = CreateMenu(Menu_CreateRankMenuHandler);
+	Handle menu = CreateMenu(Menu_CreateRankMenuHandler);
 
 	SetMenuTitle(menu, Title);
 	SetMenuExitBackButton(menu, false);
@@ -7093,7 +6829,7 @@ public Action:cmd_ShowRank(client, args)
 	if (IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	QueryClientStatsSteamID(client, SteamID, CM_RANK);
@@ -7102,19 +6838,19 @@ public Action:cmd_ShowRank(client, args)
 }
 
 // Generate client's point total.
-public GetClientPointsPlayerJoined(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientPointsPlayerJoined(Handle owner, Handle hndl, const char[] error, any client)
 {
 	GetClientPointsWorker(owner, hndl, error, client, GetClientRankPlayerJoined);
 }
 
 // Generate client's point total.
-public GetClientPointsRankChange(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientPointsRankChange(Handle owner, Handle hndl, const char[] error, any client)
 {
 	GetClientPointsWorker(owner, hndl, error, client, GetClientRankRankChange);
 }
 
 // Generate client's point total.
-GetClientPointsWorker(Handle:owner, Handle:hndl, const String:error[], any:client, SQLTCallback:callback=INVALID_FUNCTION)
+GetClientPointsWorker(Handle owner, Handle hndl, const char[] error, any client, SQLTCallback:callback=INVALID_FUNCTION)
 {
 	if (!client)
 	{
@@ -7138,7 +6874,7 @@ GetClientPointsWorker(Handle:owner, Handle:hndl, const String:error[], any:clien
 }
 
 // Generate client's point total.
-public GetClientPoints(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientPoints(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7156,7 +6892,7 @@ public GetClientPoints(Handle:owner, Handle:hndl, const String:error[], any:clie
 }
 
 // Generate client's gamemode point total.
-public GetClientGameModePoints(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientGameModePoints(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7180,7 +6916,7 @@ public GetClientGameModePoints(Handle:owner, Handle:hndl, const String:error[], 
 }
 
 // Generate client's next rank.
-public DisplayClientNextRank(Handle:owner, Handle:hndl, const String:error[], any:client)
+public DisplayClientNextRank(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7197,7 +6933,7 @@ public DisplayClientNextRank(Handle:owner, Handle:hndl, const String:error[], an
 }
 
 // Generate client's next rank.
-public GetClientNextRank(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientNextRank(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7215,7 +6951,7 @@ public GetClientNextRank(Handle:owner, Handle:hndl, const String:error[], any:cl
 }
 
 // Generate client's rank.
-public GetClientRankRankChange(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientRankRankChange(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7246,7 +6982,7 @@ public GetClientRankRankChange(Handle:owner, Handle:hndl, const String:error[], 
 		if (!GetConVarInt(cvar_AnnounceMode) || !GetConVarBool(cvar_AnnounceRankChange))
 			return;
 
-		decl String:Label[16];
+		char Label[16];
 		if (RankChange > 0)
 			Format(Label, sizeof(Label), "GAINED");
 		else
@@ -7261,7 +6997,7 @@ public GetClientRankRankChange(Handle:owner, Handle:hndl, const String:error[], 
 }
 
 // Generate client's rank.
-public GetClientRankPlayerJoined(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientRankPlayerJoined(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 	{
@@ -7276,7 +7012,7 @@ public GetClientRankPlayerJoined(Handle:owner, Handle:hndl, const String:error[]
 
 	GetClientRank(owner, hndl, error, client);
 
-	decl String:userName[MAX_LINE_WIDTH];
+	char userName[MAX_LINE_WIDTH];
 	GetClientName(client, userName, sizeof(userName));
 
 	if (ClientRank[client] > 0)
@@ -7290,7 +7026,7 @@ public GetClientRankPlayerJoined(Handle:owner, Handle:hndl, const String:error[]
 }
 
 // Generate client's rank.
-public GetClientRank(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientRank(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7306,7 +7042,7 @@ public GetClientRank(Handle:owner, Handle:hndl, const String:error[], any:client
 }
 
 // Generate client's rank.
-public GetClientGameModeRank(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientGameModeRank(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7322,7 +7058,7 @@ public GetClientGameModeRank(Handle:owner, Handle:hndl, const String:error[], an
 }
 
 // Generate total rank amount.
-public GetRankTotal(Handle:owner, Handle:hndl, const String:error[], any:data)
+public GetRankTotal(Handle owner, Handle hndl, const char[] error, any data)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -7335,7 +7071,7 @@ public GetRankTotal(Handle:owner, Handle:hndl, const String:error[], any:data)
 }
 
 // Generate total gamemode rank amount.
-public GetGameModeRankTotal(Handle:owner, Handle:hndl, const String:error[], any:data)
+public GetGameModeRankTotal(Handle owner, Handle hndl, const char[] error, any data)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -7353,8 +7089,8 @@ public DisplayNextRank(client)
 	if (!client)
 		return;
 
-	new Handle:NextRankPanel = CreatePanel();
-	new String:Value[MAX_LINE_WIDTH];
+	Handle NextRankPanel = CreatePanel();
+	char Value[MAX_LINE_WIDTH];
 
 	SetPanelTitle(NextRankPanel, "Next Rank:");
 
@@ -7376,7 +7112,7 @@ public DisplayNextRank(client)
 }
 
 // Send the NEXTRANK panel to the client's display.
-public DisplayNextRankFull(Handle:owner, Handle:hndl, const String:error[], any:client)
+public DisplayNextRankFull(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7390,11 +7126,11 @@ public DisplayNextRankFull(Handle:owner, Handle:hndl, const String:error[], any:
 	if(SQL_GetRowCount(hndl) <= 1)
 		return;
 
-	new Points;
-	decl String:Name[32];
+	int Points;
+	char Name[32];
 
-	new Handle:NextRankPanel = CreatePanel();
-	new String:Value[MAX_LINE_WIDTH];
+	Handle NextRankPanel = CreatePanel();
+	char Value[MAX_LINE_WIDTH];
 
 	SetPanelTitle(NextRankPanel, "Next Rank:");
 
@@ -7424,7 +7160,7 @@ public DisplayNextRankFull(Handle:owner, Handle:hndl, const String:error[], any:
 }
 
 // Send the RANK panel to the client's display.
-public DisplayRank(Handle:owner, Handle:hndl, const String:error[], any:client)
+public DisplayRank(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client)
 		return;
@@ -7435,9 +7171,9 @@ public DisplayRank(Handle:owner, Handle:hndl, const String:error[], any:client)
 		return;
 	}
 
-	new Float:PPM;
-	new Playtime, Points, InfectedKilled, SurvivorsKilled, Headshots;
-	new String:Name[32];
+	float PPM;
+	int Playtime, Points, InfectedKilled, SurvivorsKilled, Headshots;
+	char Name[32];
 
 	if (SQL_FetchRow(hndl))
 	{
@@ -7460,12 +7196,12 @@ public DisplayRank(Handle:owner, Handle:hndl, const String:error[], any:client)
 		PPM = 0.0;
 	}
 
-	new Handle:RankPanel = CreatePanel();
-	new String:Value[MAX_LINE_WIDTH];
-	new String:URL[MAX_LINE_WIDTH];
+	Handle RankPanel = CreatePanel();
+	char Value[MAX_LINE_WIDTH];
+	char URL[MAX_LINE_WIDTH];
 
 	GetConVarString(cvar_SiteURL, URL, sizeof(URL));
-	new Float:HeadshotRatio = Headshots == 0 ? 0.00 : FloatDiv(float(Headshots), float(InfectedKilled))*100;
+	float HeadshotRatio = Headshots == 0 ? 0.00 : (float(Headshots)/float(InfectedKilled))*100;
 
 	Format(Value, sizeof(Value), "Ranking of %s" , Name);
 	SetPanelTitle(RankPanel, Value);
@@ -7481,7 +7217,7 @@ public DisplayRank(Handle:owner, Handle:hndl, const String:error[], any:client)
 
 	if (Playtime > 60)
 	{
-		Format(Value, sizeof(Value), "Playtime: %.2f hours" , FloatDiv(float(Playtime), 60.0));
+		Format(Value, sizeof(Value), "Playtime: %.2f hours" , float(Playtime)/60.0);
 		DrawPanelText(RankPanel, Value);
 	}
 	else
@@ -7561,12 +7297,12 @@ public Action:cmd_ToggleClientRankMute(client, args)
 	if (!IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	new String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	ClientRankMute[client] = !ClientRankMute[client];
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "UPDATE %ssettings SET mute = %i WHERE steamid = '%s'", DbPrefix, (ClientRankMute[client] ? 1 : 0), SteamID);
 	SendSQLUpdate(query);
 
@@ -7601,7 +7337,7 @@ public Action:cmd_ClientRankMute(client, args)
 		return Plugin_Handled;
 	}
 
-	decl String:arg[MAX_LINE_WIDTH];
+	char arg[MAX_LINE_WIDTH];
 	GetCmdArgString(arg, sizeof(arg));
 
 	if (!StrEqual(arg, "0") && !StrEqual(arg, "1"))
@@ -7610,12 +7346,12 @@ public Action:cmd_ClientRankMute(client, args)
 		return Plugin_Handled;
 	}
 	
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	ClientRankMute[client] = StrEqual(arg, "1");
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "UPDATE %ssettings SET mute = %s WHERE steamid = '%s'", DbPrefix, arg, SteamID);
 	SendSQLUpdate(query);
 
@@ -7643,10 +7379,10 @@ public Action:cmd_RankVote(client, args)
 		return Plugin_Handled;
 	}
 
-	new ClientFlags = GetUserFlagBits(client);
-	new bool:IsAdmin = ((ClientFlags & ADMFLAG_GENERIC) == ADMFLAG_GENERIC);
+	int ClientFlags = GetUserFlagBits(client);
+	bool IsAdmin = ((ClientFlags & ADMFLAG_GENERIC) == ADMFLAG_GENERIC);
 
-	new ClientTeam = GetClientTeam(client);
+	int ClientTeam = GetClientTeam(client);
 
 	if (!IsAdmin && ClientTeam != TEAM_SURVIVORS && ClientTeam != TEAM_INFECTED)
 	{
@@ -7665,7 +7401,7 @@ public Action:cmd_TimedMaps(client, args)
 	if (client == 0 || !IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT DISTINCT tm.gamemode, tm.mutation FROM %stimedmaps AS tm INNER JOIN %splayers AS p ON tm.steamid = p.steamid", DbPrefix, DbPrefix);
 	SQL_TQuery(db, CreateTimedMapsMenu, query, client);
 
@@ -7678,7 +7414,7 @@ public Action:cmd_MapTimes(client, args)
 	if (client == 0 || !IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:Info[MAX_LINE_WIDTH], String:CurrentMapName[MAX_LINE_WIDTH];
+	char Info[MAX_LINE_WIDTH], CurrentMapName[MAX_LINE_WIDTH];
 
 	GetCurrentMap(CurrentMapName, sizeof(CurrentMapName));
 	Format(Info, sizeof(Info), "%i\\%s", CurrentGamemodeID, CurrentMapName);
@@ -7705,17 +7441,17 @@ public Action:cmd_ShowPPMs(client, args)
 	if (!IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:query[1024];
+	char query[1024];
 	//Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers", DbPrefix);
 	//SQL_TQuery(db, GetRankTotal, query);
 
 	Format(query, sizeof(query), "SELECT steamid, name, (%s) / (%s) AS ppm FROM %splayers WHERE ", DB_PLAYERS_TOTALPOINTS, DB_PLAYERS_TOTALPLAYTIME, DbPrefix);
 
-	new maxplayers = GetMaxClients();
-	decl String:SteamID[MAX_LINE_WIDTH], String:where[512];
-	new counter = 0;
+	int maxplayers = MaxClients;
+	char SteamID[MAX_LINE_WIDTH], where[512];
+	int counter = 0;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientBot(i) || !IsClientConnected(i) || !IsClientInGame(i))
 			continue;
@@ -7750,17 +7486,17 @@ public Action:cmd_ShowRanks(client, args)
 	if (!IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:query[1024];
+	char query[1024];
 	//Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers", DbPrefix);
 	//SQL_TQuery(db, GetRankTotal, query);
 
 	Format(query, sizeof(query), "SELECT steamid, name, %s AS totalpoints FROM %splayers WHERE ", DB_PLAYERS_TOTALPOINTS, DbPrefix);
 
-	new maxplayers = GetMaxClients();
-	decl String:SteamID[MAX_LINE_WIDTH], String:where[512];
-	new counter = 0;
+	int maxplayers = MaxClients;
+	char SteamID[MAX_LINE_WIDTH], where[512];
+	int counter = 0;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientBot(i) || !IsClientConnected(i) || !IsClientInGame(i))
 			continue;
@@ -7795,7 +7531,7 @@ public Action:cmd_ShowTop10PPM(client, args)
 	if (!IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers", DbPrefix);
 	SQL_TQuery(db, GetRankTotal, query);
 
@@ -7811,7 +7547,7 @@ public Action:cmd_ShowTop10(client, args)
 	if (!IsClientConnected(client) && !IsClientInGame(client) && IsClientBot(client))
 		return Plugin_Handled;
 
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "SELECT COUNT(*) FROM %splayers", DbPrefix);
 	SQL_TQuery(db, GetRankTotal, query);
 
@@ -7824,7 +7560,7 @@ public Action:cmd_ShowTop10(client, args)
 // Find a player from Top 10 ranking.
 public GetClientFromTop10(client, rank)
 {
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "SELECT (%s) as totalpoints, steamid FROM %splayers ORDER BY totalpoints DESC LIMIT %i,1", DB_PLAYERS_TOTALPOINTS, DbPrefix, rank);
 	SQL_TQuery(db, GetClientTop10, query, client);
 }
@@ -7832,13 +7568,13 @@ public GetClientFromTop10(client, rank)
 // Find a player from Top 10 PPM ranking.
 public GetClientFromTop10PPM(client, rank)
 {
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "SELECT (%s) AS totalpoints, steamid, (%s) AS totalplaytime FROM %splayers WHERE (%s) >= %i ORDER BY (totalpoints / totalplaytime) DESC, totalplaytime DESC LIMIT %i,1", DB_PLAYERS_TOTALPOINTS, DB_PLAYERS_TOTALPLAYTIME, DbPrefix, DB_PLAYERS_TOTALPLAYTIME, GetConVarInt(cvar_Top10PPMMin), rank);
 	SQL_TQuery(db, GetClientTop10, query, client);
 }
 
 // Send the Top 10 player's info to the client.
-public GetClientTop10(Handle:owner, Handle:hndl, const String:error[], any:client)
+public GetClientTop10(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -7846,7 +7582,7 @@ public GetClientTop10(Handle:owner, Handle:hndl, const String:error[], any:clien
 		return;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 
 	while (SQL_FetchRow(hndl))
 	{
@@ -7856,7 +7592,7 @@ public GetClientTop10(Handle:owner, Handle:hndl, const String:error[], any:clien
 	}
 }
 
-public ExecuteTeamShuffle(Handle:owner, Handle:hndl, const String:error[], any:data)
+public ExecuteTeamShuffle(Handle owner, Handle hndl, const char[] error, any data)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -7864,12 +7600,12 @@ public ExecuteTeamShuffle(Handle:owner, Handle:hndl, const String:error[], any:d
 		return;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
-	new i, team, maxplayers = GetMaxClients(), client, topteam;
-	new SurvivorsLimit = GetConVarInt(cvar_SurvivorLimit), InfectedLimit = GetConVarInt(cvar_InfectedLimit);
-	new Handle:PlayersTrie = CreateTrie();
-	new Handle:InfectedArray = CreateArray();
-	new Handle:SurvivorArray = CreateArray();
+	char SteamID[MAX_LINE_WIDTH];
+	int i, team, maxplayers = MaxClients, client, topteam;
+	int SurvivorsLimit = GetConVarInt(cvar_SurvivorLimit), InfectedLimit = GetConVarInt(cvar_InfectedLimit);
+	Handle PlayersTrie = CreateTrie();
+	Handle InfectedArray = CreateArray();
+	Handle SurvivorArray = CreateArray();
 
 	for (i = 1; i <= maxplayers; i++)
 	{
@@ -7902,8 +7638,8 @@ public ExecuteTeamShuffle(Handle:owner, Handle:hndl, const String:error[], any:d
 		}
 	}
 
-	new SurvivorCounter = GetArraySize(SurvivorArray);
-	new InfectedCounter = GetArraySize(InfectedArray);
+	int SurvivorCounter = GetArraySize(SurvivorArray);
+	int InfectedCounter = GetArraySize(InfectedArray);
 
 	i = 0;
 	topteam = 0;
@@ -7974,7 +7710,7 @@ public ExecuteTeamShuffle(Handle:owner, Handle:hndl, const String:error[], any:d
 		{
 			CampaignOver = true;
 
-			decl String:Name[32];
+			char Name[32];
 
 			// Change Survivors team to Spectators (TEMPORARILY)
 			for (i = 0; i < GetArraySize(SurvivorArray); i++)
@@ -8026,7 +7762,7 @@ public ExecuteTeamShuffle(Handle:owner, Handle:hndl, const String:error[], any:d
 	CloseHandle(hndl);
 }
 
-public CreateRanksMenu(Handle:owner, Handle:hndl, const String:error[], any:client)
+public CreateRanksMenu(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8034,10 +7770,10 @@ public CreateRanksMenu(Handle:owner, Handle:hndl, const String:error[], any:clie
 		return;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
-	new Handle:menu = CreateMenu(Menu_CreateRanksMenuHandler);
+	char SteamID[MAX_LINE_WIDTH];
+	Handle menu = CreateMenu(Menu_CreateRanksMenuHandler);
 
-	decl String:Name[32], String:DisplayName[MAX_LINE_WIDTH];
+	char Name[32], DisplayName[MAX_LINE_WIDTH];
 
 	SetMenuTitle(menu, "Player Ranks:");
 	SetMenuExitBackButton(menu, false);
@@ -8062,7 +7798,7 @@ public CreateRanksMenu(Handle:owner, Handle:hndl, const String:error[], any:clie
 	DisplayMenu(menu, client, 30);
 }
 
-public CreateTimedMapsMenu(Handle:owner, Handle:hndl, const String:error[], any:client)
+public CreateTimedMapsMenu(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8072,7 +7808,7 @@ public CreateTimedMapsMenu(Handle:owner, Handle:hndl, const String:error[], any:
 
 	if (SQL_GetRowCount(hndl) <= 0)
 	{
-		new Handle:TimedMapsPanel = CreatePanel();
+		Handle TimedMapsPanel = CreatePanel();
 		SetPanelTitle(TimedMapsPanel, "Timed Maps:");
 
 		DrawPanelText(TimedMapsPanel, "There are no recorded map timings!");
@@ -8084,9 +7820,9 @@ public CreateTimedMapsMenu(Handle:owner, Handle:hndl, const String:error[], any:
 		return;
 	}
 
-	new Gamemode;
-	new Handle:menu = CreateMenu(Menu_CreateTimedMapsMenuHandler);
-	decl String:GamemodeTitle[32], String:GamemodeInfo[2]; //, MutationInfo[MAX_LINE_WIDTH];
+	int Gamemode;
+	Handle menu = CreateMenu(Menu_CreateTimedMapsMenuHandler);
+	char GamemodeTitle[32], GamemodeInfo[2]; //, MutationInfo[MAX_LINE_WIDTH];
 
 	SetMenuTitle(menu, "Timed Maps:");
 	SetMenuExitBackButton(menu, false);
@@ -8126,7 +7862,7 @@ public CreateTimedMapsMenu(Handle:owner, Handle:hndl, const String:error[], any:
 	return;
 }
 
-public Menu_CreateTimedMapsMenuHandler(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateTimedMapsMenuHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -8137,8 +7873,8 @@ public Menu_CreateTimedMapsMenuHandler(Handle:menu, MenuAction:action, param1, p
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:Info[2];
-	new bool:found = GetMenuItem(menu, param2, Info, sizeof(Info));
+	char Info[2];
+	bool found = GetMenuItem(menu, param2, Info, sizeof(Info));
 
 	if (!found)
 		return;
@@ -8146,14 +7882,14 @@ public Menu_CreateTimedMapsMenuHandler(Handle:menu, MenuAction:action, param1, p
 	DisplayTimedMapsMenu2FromInfo(param1, Info);
 }
 
-bool:TimedMapsMenuInfoMarker(String:Info[], MenuNumber)
+bool TimedMapsMenuInfoMarker(char[] Info, MenuNumber)
 {
 	if (Info[0] == '\0' || MenuNumber < 2)
 		return false;
 
-	new Position = -1, TempPosition;
+	int Position = -1, TempPosition;
 
-	for (new i = 0; i < MenuNumber; i++)
+	for (int i = 0; i < MenuNumber; i++)
 	{
 		TempPosition = FindCharInString(Info[Position + 1], '\\');
 
@@ -8177,7 +7913,7 @@ bool:TimedMapsMenuInfoMarker(String:Info[], MenuNumber)
 	return false;
 }
 
-public DisplayTimedMapsMenu2FromInfo(client, String:Info[])
+public DisplayTimedMapsMenu2FromInfo(client, char[] Info)
 {
 	if (!TimedMapsMenuInfoMarker(Info, 2))
 	{
@@ -8187,19 +7923,19 @@ public DisplayTimedMapsMenu2FromInfo(client, String:Info[])
 
 	strcopy(MapTimingMenuInfo[client], MAX_LINE_WIDTH, Info);
 
-	new Gamemode = StringToInt(Info);
+	int Gamemode = StringToInt(Info);
 
 	DisplayTimedMapsMenu2(client, Gamemode);
 }
 
 public DisplayTimedMapsMenu2(client, Gamemode)
 {
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT DISTINCT tm.gamemode, tm.map FROM %stimedmaps AS tm INNER JOIN %splayers AS p ON tm.steamid = p.steamid WHERE tm.gamemode = %i ORDER BY tm.map ASC", DbPrefix, DbPrefix, Gamemode);
 	SQL_TQuery(db, CreateTimedMapsMenu2, query, client);
 }
 
-public CreateTimedMapsMenu2(Handle:owner, Handle:hndl, const String:error[], any:client)
+public CreateTimedMapsMenu2(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8209,7 +7945,7 @@ public CreateTimedMapsMenu2(Handle:owner, Handle:hndl, const String:error[], any
 
 	if (SQL_GetRowCount(hndl) <= 0)
 	{
-		new Handle:TimedMapsPanel = CreatePanel();
+		Panel TimedMapsPanel = CreatePanel();
 		SetPanelTitle(TimedMapsPanel, "Timed Maps:");
 
 		DrawPanelText(TimedMapsPanel, "There are no recorded times for this gamemode!");
@@ -8221,8 +7957,9 @@ public CreateTimedMapsMenu2(Handle:owner, Handle:hndl, const String:error[], any
 		return;
 	}
 
-	new Handle:menu = CreateMenu(Menu_CreateTimedMapsMenu2Hndl), Gamemode;
-	decl String:Map[MAX_LINE_WIDTH], String:Info[MAX_LINE_WIDTH], String:CurrentMapName[MAX_LINE_WIDTH];
+	Handle menu = CreateMenu(Menu_CreateTimedMapsMenu2Hndl);
+	int Gamemode;
+	char Map[MAX_LINE_WIDTH], Info[MAX_LINE_WIDTH], CurrentMapName[MAX_LINE_WIDTH];
 
 	GetCurrentMap(CurrentMapName, sizeof(CurrentMapName));
 
@@ -8246,7 +7983,7 @@ public CreateTimedMapsMenu2(Handle:owner, Handle:hndl, const String:error[], any
 	DisplayMenu(menu, client, 30);
 }
 
-public Menu_CreateTimedMapsMenu2Hndl(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateTimedMapsMenu2Hndl(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -8265,8 +8002,8 @@ public Menu_CreateTimedMapsMenu2Hndl(Handle:menu, MenuAction:action, param1, par
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:Info[MAX_LINE_WIDTH];
-	new bool:found = GetMenuItem(menu, param2, Info, sizeof(Info));
+	char Info[MAX_LINE_WIDTH];
+	bool found = GetMenuItem(menu, param2, Info, sizeof(Info));
 
 	if (!found)
 		return;
@@ -8274,7 +8011,7 @@ public Menu_CreateTimedMapsMenu2Hndl(Handle:menu, MenuAction:action, param1, par
 	DisplayTimedMapsMenu3FromInfo(param1, Info);
 }
 
-public DisplayTimedMapsMenu3FromInfo(client, String:Info[])
+public DisplayTimedMapsMenu3FromInfo(client, char[] Info)
 {
 	if (!TimedMapsMenuInfoMarker(Info, 3))
 	{
@@ -8284,7 +8021,7 @@ public DisplayTimedMapsMenu3FromInfo(client, String:Info[])
 
 	strcopy(MapTimingMenuInfo[client], MAX_LINE_WIDTH, Info);
 
-	decl String:GamemodeInfo[2], String:Map[MAX_LINE_WIDTH];
+	char GamemodeInfo[2], Map[MAX_LINE_WIDTH];
 
 	strcopy(GamemodeInfo, sizeof(GamemodeInfo), Info);
 	GamemodeInfo[1] = 0;
@@ -8294,23 +8031,23 @@ public DisplayTimedMapsMenu3FromInfo(client, String:Info[])
 	DisplayTimedMapsMenu3(client, StringToInt(GamemodeInfo), Map);
 }
 
-public DisplayTimedMapsMenu3(client, Gamemode, const String:Map[])
+public DisplayTimedMapsMenu3(client, Gamemode, const char[] Map)
 {
-	new Handle:dp = CreateDataPack();
+	Handle dp = CreateDataPack();
 
 	WritePackCell(dp, client);
 	WritePackCell(dp, Gamemode);
 	WritePackString(dp, Map);
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT tm.time FROM %stimedmaps AS tm INNER JOIN %splayers AS p ON tm.steamid = p.steamid WHERE tm.gamemode = %i AND tm.map = '%s' AND p.steamid = '%s'", DbPrefix, DbPrefix, Gamemode, Map, SteamID);
 	SQL_TQuery(db, DisplayTimedMapsMenu3_2, query, dp);
 }
 
-public DisplayTimedMapsMenu3_2(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public DisplayTimedMapsMenu3_2(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -8323,9 +8060,9 @@ public DisplayTimedMapsMenu3_2(Handle:owner, Handle:hndl, const String:error[], 
 
 	ResetPack(dp);
 
-	new client = ReadPackCell(dp);
-	new Gamemode = ReadPackCell(dp);
-	decl String:Map[MAX_LINE_WIDTH];
+	int client = ReadPackCell(dp);
+	int Gamemode = ReadPackCell(dp);
+	char Map[MAX_LINE_WIDTH];
 	ReadPackString(dp, Map, sizeof(Map));
 
 	CloseHandle(dp);
@@ -8335,12 +8072,12 @@ public DisplayTimedMapsMenu3_2(Handle:owner, Handle:hndl, const String:error[], 
 	else
 		ClientMapTime[client] = 0.0;
 
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT DISTINCT tm.gamemode, tm.map, tm.time FROM %stimedmaps AS tm INNER JOIN %splayers AS p ON tm.steamid = p.steamid WHERE tm.gamemode = %i AND tm.map = '%s' ORDER BY tm.time %s", DbPrefix, DbPrefix, Gamemode, Map, (Gamemode == GAMEMODE_SURVIVAL ? "DESC" : "ASC"));
 	SQL_TQuery(db, CreateTimedMapsMenu3, query, client);
 }
 
-public CreateTimedMapsMenu3(Handle:owner, Handle:hndl, const String:error[], any:client)
+public CreateTimedMapsMenu3(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8350,7 +8087,7 @@ public CreateTimedMapsMenu3(Handle:owner, Handle:hndl, const String:error[], any
 
 	if (SQL_GetRowCount(hndl) <= 0)
 	{
-		new Handle:TimedMapsPanel = CreatePanel();
+		Handle TimedMapsPanel = CreatePanel();
 		SetPanelTitle(TimedMapsPanel, "Timed Maps:");
 
 		DrawPanelText(TimedMapsPanel, "There are no recorded times for this map!");
@@ -8362,8 +8099,9 @@ public CreateTimedMapsMenu3(Handle:owner, Handle:hndl, const String:error[], any
 		return;
 	}
 
-	new Handle:menu = CreateMenu(Menu_CreateTimedMapsMenu3Hndl), Float:MapTime;
-	decl String:Map[MAX_LINE_WIDTH], String:Info[MAX_LINE_WIDTH], String:Value[MAX_LINE_WIDTH];
+	Handle menu = CreateMenu(Menu_CreateTimedMapsMenu3Hndl);
+	float MapTime;
+	char Map[MAX_LINE_WIDTH], Info[MAX_LINE_WIDTH], Value[MAX_LINE_WIDTH];
 
 	SetMenuTitle(menu, "Timed Maps:");
 	SetMenuExitBackButton(menu, true);
@@ -8387,7 +8125,7 @@ public CreateTimedMapsMenu3(Handle:owner, Handle:hndl, const String:error[], any
 	DisplayMenu(menu, client, 30);
 }
 
-public Menu_CreateTimedMapsMenu3Hndl(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateTimedMapsMenu3Hndl(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -8406,8 +8144,8 @@ public Menu_CreateTimedMapsMenu3Hndl(Handle:menu, MenuAction:action, param1, par
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:Info[MAX_LINE_WIDTH];
-	new bool:found = GetMenuItem(menu, param2, Info, sizeof(Info));
+	char Info[MAX_LINE_WIDTH];
+	bool found = GetMenuItem(menu, param2, Info, sizeof(Info));
 
 	if (!found)
 		return;
@@ -8415,7 +8153,7 @@ public Menu_CreateTimedMapsMenu3Hndl(Handle:menu, MenuAction:action, param1, par
 	DisplayTimedMapsMenu4FromInfo(param1, Info);
 }
 
-public DisplayTimedMapsMenu4FromInfo(client, String:Info[])
+public DisplayTimedMapsMenu4FromInfo(client, char[] Info)
 {
 	if (!TimedMapsMenuInfoMarker(Info, 4))
 	{
@@ -8425,12 +8163,12 @@ public DisplayTimedMapsMenu4FromInfo(client, String:Info[])
 
 	strcopy(MapTimingMenuInfo[client], MAX_LINE_WIDTH, Info);
 
-	decl String:GamemodeInfo[2], String:Map[MAX_LINE_WIDTH];
+	char GamemodeInfo[2], Map[MAX_LINE_WIDTH];
 
 	strcopy(GamemodeInfo, sizeof(GamemodeInfo), Info);
 	GamemodeInfo[1] = 0;
 
-	new Position = FindCharInString(Info[2], '\\');
+	int Position = FindCharInString(Info[2], '\\');
 
 	if (Position < 0)
 	{
@@ -8443,20 +8181,20 @@ public DisplayTimedMapsMenu4FromInfo(client, String:Info[])
 	strcopy(Map, sizeof(Map), Info[2]);
 	Map[Position - 2] = '\0';
 
-	decl String:MapTime[MAX_LINE_WIDTH];
+	char MapTime[MAX_LINE_WIDTH];
 	strcopy(MapTime, sizeof(MapTime), Info[Position + 1]);
 
 	DisplayTimedMapsMenu4(client, StringToInt(GamemodeInfo), Map, StringToFloat(MapTime));
 }
 
-public DisplayTimedMapsMenu4(client, Gamemode, const String:Map[], Float:MapTime)
+public DisplayTimedMapsMenu4(client, Gamemode, const char[] Map, float MapTime)
 {
-	decl String:query[256];
+	char query[256];
 	Format(query, sizeof(query), "SELECT tm.steamid, p.name FROM %stimedmaps AS tm INNER JOIN %splayers AS p ON tm.steamid = p.steamid WHERE tm.gamemode = %i AND tm.map = '%s' AND tm.time = %f ORDER BY p.name ASC", DbPrefix, DbPrefix, Gamemode, Map, MapTime);
 	SQL_TQuery(db, CreateTimedMapsMenu4, query, client);
 }
 
-public CreateTimedMapsMenu4(Handle:owner, Handle:hndl, const String:error[], any:client)
+public CreateTimedMapsMenu4(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8464,9 +8202,9 @@ public CreateTimedMapsMenu4(Handle:owner, Handle:hndl, const String:error[], any
 		return;
 	}
 
-	new Handle:menu = CreateMenu(Menu_CreateTimedMapsMenu4Hndl);
+	Handle menu = CreateMenu(Menu_CreateTimedMapsMenu4Hndl);
 
-	decl String:Name[32], String:SteamID[MAX_LINE_WIDTH];
+	char Name[32], SteamID[MAX_LINE_WIDTH];
 
 	SetMenuTitle(menu, "Timed Maps:");
 	SetMenuExitBackButton(menu, true);
@@ -8489,7 +8227,7 @@ public CreateTimedMapsMenu4(Handle:owner, Handle:hndl, const String:error[], any
 	DisplayMenu(menu, client, 30);
 }
 
-public Menu_CreateTimedMapsMenu4Hndl(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateTimedMapsMenu4Hndl(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -8508,8 +8246,8 @@ public Menu_CreateTimedMapsMenu4Hndl(Handle:menu, MenuAction:action, param1, par
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:SteamID[MAX_LINE_WIDTH];
-	new bool:found = GetMenuItem(menu, param2, SteamID, sizeof(SteamID));
+	char SteamID[MAX_LINE_WIDTH];
+	bool found = GetMenuItem(menu, param2, SteamID, sizeof(SteamID));
 
 	if (!found)
 		return;
@@ -8517,7 +8255,7 @@ public Menu_CreateTimedMapsMenu4Hndl(Handle:menu, MenuAction:action, param1, par
 	QueryClientStatsSteamID(param1, SteamID, CM_RANK);
 }
 
-public CreatePPMMenu(Handle:owner, Handle:hndl, const String:error[], any:client)
+public CreatePPMMenu(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8525,10 +8263,10 @@ public CreatePPMMenu(Handle:owner, Handle:hndl, const String:error[], any:client
 		return;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
-	new Handle:menu = CreateMenu(Menu_CreateRanksMenuHandler);
+	char SteamID[MAX_LINE_WIDTH];
+	Handle menu = CreateMenu(Menu_CreateRanksMenuHandler);
 
-	decl String:Name[32], String:DisplayName[MAX_LINE_WIDTH];
+	char Name[32], DisplayName[MAX_LINE_WIDTH];
 
 	SetMenuTitle(menu, "Player PPM:");
 	SetMenuExitBackButton(menu, false);
@@ -8553,7 +8291,7 @@ public CreatePPMMenu(Handle:owner, Handle:hndl, const String:error[], any:client
 	DisplayMenu(menu, client, 30);
 }
 
-public Menu_CreateRanksMenuHandler(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateRanksMenuHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -8564,8 +8302,8 @@ public Menu_CreateRanksMenuHandler(Handle:menu, MenuAction:action, param1, param
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:SteamID[MAX_LINE_WIDTH];
-	new bool:found = GetMenuItem(menu, param2, SteamID, sizeof(SteamID));
+	char SteamID[MAX_LINE_WIDTH];
+	bool found = GetMenuItem(menu, param2, SteamID, sizeof(SteamID));
 
 	if (!found)
 		return;
@@ -8573,7 +8311,7 @@ public Menu_CreateRanksMenuHandler(Handle:menu, MenuAction:action, param1, param
 	QueryClientStatsSteamID(param1, SteamID, CM_RANK);
 }
 
-public Menu_CreateRankMenuHandler(Handle:menu, MenuAction:action, param1, param2)
+public Menu_CreateRankMenuHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -8584,8 +8322,8 @@ public Menu_CreateRankMenuHandler(Handle:menu, MenuAction:action, param1, param2
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:Info[MAX_LINE_WIDTH];
-	new bool:found = GetMenuItem(menu, param2, Info, sizeof(Info));
+	char Info[MAX_LINE_WIDTH];
+	bool found = GetMenuItem(menu, param2, Info, sizeof(Info));
 
 	if (!found)
 		return;
@@ -8608,9 +8346,9 @@ public Menu_CreateRankMenuHandler(Handle:menu, MenuAction:action, param1, param2
 // Send the RANKABOUT panel to the client's display.
 public DisplayAboutPanel(client)
 {
-	decl String:Value[MAX_LINE_WIDTH];
+	char Value[MAX_LINE_WIDTH];
 
-	new Handle:panel = CreatePanel();
+	Handle panel = CreatePanel();
 
 	Format(Value, sizeof(Value), "About %s:", PLUGIN_NAME);
 	SetPanelTitle(panel, Value);
@@ -8634,9 +8372,9 @@ public DisplayAboutPanel(client)
 // Send the RANKABOUT panel to the client's display.
 public DisplaySettingsPanel(client)
 {
-	decl String:Value[MAX_LINE_WIDTH];
+	char Value[MAX_LINE_WIDTH];
 
-	new Handle:panel = CreatePanel();
+	Handle panel = CreatePanel();
 
 	Format(Value, sizeof(Value), "%s Settings:", PLUGIN_NAME);
 	SetPanelTitle(panel, Value);
@@ -8651,7 +8389,7 @@ public DisplaySettingsPanel(client)
 }
 
 // Send the TOP10 panel to the client's display.
-public DisplayTop10(Handle:owner, Handle:hndl, const String:error[], any:client)
+public DisplayTop10(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8659,9 +8397,9 @@ public DisplayTop10(Handle:owner, Handle:hndl, const String:error[], any:client)
 		return;
 	}
 
-	new String:Name[32];
+	char Name[32];
 
-	new Handle:Top10Panel = CreatePanel();
+	Handle Top10Panel = CreatePanel();
 	SetPanelTitle(Top10Panel, "Top 10 Players");
 
 	while (SQL_FetchRow(hndl))
@@ -8682,7 +8420,7 @@ public DisplayTop10(Handle:owner, Handle:hndl, const String:error[], any:client)
 }
 
 // Send the TOP10PPM panel to the client's display.
-public DisplayTop10PPM(Handle:owner, Handle:hndl, const String:error[], any:client)
+public DisplayTop10PPM(Handle owner, Handle hndl, const char[] error, any client)
 {
 	if (!client || hndl == INVALID_HANDLE)
 	{
@@ -8690,9 +8428,9 @@ public DisplayTop10PPM(Handle:owner, Handle:hndl, const String:error[], any:clie
 		return;
 	}
 
-	decl String:Name[32], String:Disp[MAX_LINE_WIDTH];
+	char Name[32], Disp[MAX_LINE_WIDTH];
 
-	new Handle:TopPPMPanel = CreatePanel();
+	Handle TopPPMPanel = CreatePanel();
 	SetPanelTitle(TopPPMPanel, "Top 10 PPM Players");
 
 	while (SQL_FetchRow(hndl))
@@ -8715,29 +8453,29 @@ public DisplayTop10PPM(Handle:owner, Handle:hndl, const String:error[], any:clie
 }
 
 // Handler for RANK panel.
-public RankPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public RankPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 }
 
 // Handler for NEXTRANK panel.
-public NextRankPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public NextRankPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (param2 == 1)
 		QueryClientStats(param1, CM_NEXTRANKFULL);
 }
 
 // Handler for NEXTRANK panel.
-public NextRankFullPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public NextRankFullPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 }
 
 // Handler for TIMEDMAPS panel.
-public TimedMapsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public TimedMapsPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 }
 
 // Handler for RANKADMIN panel.
-//public RankAdminPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+//public RankAdminPanelHandler(Handle menu, MenuAction:action, param1, param2)
 //{
 //	if (action != MenuAction_Select)
 //		return;
@@ -8753,7 +8491,7 @@ public TimedMapsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 //}
 
 // Handler for RANKADMIN panel.
-public ClearPlayersPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearPlayersPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8768,7 +8506,7 @@ public ClearPlayersPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKADMIN panel.
-public ClearMapsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearMapsPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8783,7 +8521,7 @@ public ClearMapsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKADMIN panel.
-public ClearAllPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearAllPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8798,7 +8536,7 @@ public ClearAllPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKADMIN panel.
-public CleanPlayersPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public CleanPlayersPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8810,7 +8548,7 @@ public CleanPlayersPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 
 		if (LastOnTimeMonths || PlaytimeMinutes)
 		{
-			new bool:Success = true;
+			bool Success = true;
 
 			if (LastOnTimeMonths)
 				Success &= DoFastQuery(param1, "DELETE FROM %splayers WHERE lastontime < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL %i MONTH))", DbPrefix, LastOnTimeMonths);
@@ -8831,7 +8569,7 @@ public CleanPlayersPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKADMIN panel.
-public RemoveCustomMapsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public RemoveCustomMapsPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8848,7 +8586,7 @@ public RemoveCustomMapsPanelHandler(Handle:menu, MenuAction:action, param1, para
 }
 
 // Handler for RANKADMIN panel.
-public ClearTMAllPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearTMAllPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8865,7 +8603,7 @@ public ClearTMAllPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKADMIN panel.
-public ClearTMCoopPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearTMCoopPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8882,7 +8620,7 @@ public ClearTMCoopPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKADMIN panel.
-public ClearTMSurvivalPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearTMSurvivalPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8899,7 +8637,7 @@ public ClearTMSurvivalPanelHandler(Handle:menu, MenuAction:action, param1, param
 }
 
 // Handler for RANKADMIN panel.
-public ClearTMRealismPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearTMRealismPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8916,7 +8654,7 @@ public ClearTMRealismPanelHandler(Handle:menu, MenuAction:action, param1, param2
 }
 
 // Handler for RANKADMIN panel.
-public ClearTMMutationsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public ClearTMMutationsPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select)
 		return;
@@ -8933,7 +8671,7 @@ public ClearTMMutationsPanelHandler(Handle:menu, MenuAction:action, param1, para
 }
 
 // Handler for RANKVOTE panel.
-public RankVotePanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public RankVotePanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action != MenuAction_Select || RankVoteTimer == INVALID_HANDLE || param1 <= 0 || IsClientBot(param1))
 		return;
@@ -8973,7 +8711,7 @@ public RankVotePanelHandler(Handle:menu, MenuAction:action, param1, param2)
 		if (OldPlayerRankVote != RANKVOTE_NOVOTE)
 			return;
 
-		decl String:Name[32];
+		char Name[32];
 		GetClientName(param1, Name, sizeof(Name));
 
 		StatsPrintToChatAll("\x05%s \x01voted. \x04%i/%i \x01players have voted.", Name, votes, humans);
@@ -8988,7 +8726,7 @@ CheckRankVotes(&Humans, &Votes, &YesVotes, &NoVotes, &WinningVoteCount)
 	NoVotes = 0;
 	WinningVoteCount = 0;
 
-	new i, team, maxplayers = GetMaxClients();
+	int i, team, maxplayers = MaxClients;
 
 	for (i = 1; i <= maxplayers; i++)
 	{
@@ -9027,11 +8765,11 @@ DisplayClearPanel(client, delay=30)
 	//	ClearPlayerMenu = INVALID_HANDLE;
 	//}
 
-	new Handle:ClearPlayerMenu = CreateMenu(DisplayClearPanelHandler);
-	new maxplayers = GetMaxClients();
-	decl String:id[3], String:Name[32];
+	Handle ClearPlayerMenu = CreateMenu(DisplayClearPanelHandler);
+	int maxplayers = MaxClients;
+	char id[3], Name[32];
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientBot(i) || !IsClientConnected(i) || !IsClientInGame(i))
 			continue;
@@ -9047,7 +8785,7 @@ DisplayClearPanel(client, delay=30)
 }
 
 // Handler for RANKADMIN panel.
-public DisplayClearPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public DisplayClearPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (menu == INVALID_HANDLE)
 		return;
@@ -9058,15 +8796,15 @@ public DisplayClearPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 	if (action != MenuAction_Select || param1 <= 0 || IsClientBot(param1))
 		return;
 
-	decl String:id[3];
-	new bool:found = GetMenuItem(menu, param2, id, sizeof(id));
+	char id[3];
+	bool found = GetMenuItem(menu, param2, id, sizeof(id));
 
 	if (!found)
 		return;
 
-	new client = StringToInt(id);
+	int client = StringToInt(id);
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	if (DoFastQuery(param1, "DELETE FROM %splayers WHERE steamid = '%s'", DbPrefix, SteamID))
@@ -9076,7 +8814,7 @@ public DisplayClearPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 		ClientPoints[client] = 0;
 		ClientRank[client] = 0;
 
-		decl String:Name[32];
+		char Name[32];
 		GetClientName(client, Name, sizeof(Name));
 
 		StatsPrintToChatPreFormatted(client, "Your player stats were cleared!");
@@ -9088,7 +8826,7 @@ public DisplayClearPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANKABOUT panel.
-public AboutPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public AboutPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action == MenuAction_Select)
 	{
@@ -9098,7 +8836,7 @@ public AboutPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for RANK SETTINGS panel.
-public SettingsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public SettingsPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action == MenuAction_Select)
 	{
@@ -9110,7 +8848,7 @@ public SettingsPanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for TOP10 panel.
-public Top10PanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public Top10PanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action == MenuAction_Select)
 	{
@@ -9122,7 +8860,7 @@ public Top10PanelHandler(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Handler for TOP10PPM panel.
-public Top10PPMPanelHandler(Handle:menu, MenuAction:action, param1, param2)
+public Top10PPMPanelHandler(Handle menu, MenuAction:action, param1, param2)
 {
 	if (action == MenuAction_Select)
 	{
@@ -9139,7 +8877,7 @@ Private functions
 -----------------------------------------------------------------------------
 */
 
-HunterSmokerSave(Savior, Victim, BasePoints, AdvMult, ExpertMult, String:SaveFrom[], String:SQLField[])
+HunterSmokerSave(Savior, Victim, BasePoints, AdvMult, ExpertMult, char[] SaveFrom, char[] SQLField)
 {
 	if (StatsDisabled())
 		return;
@@ -9147,23 +8885,23 @@ HunterSmokerSave(Savior, Victim, BasePoints, AdvMult, ExpertMult, String:SaveFro
 	if (IsClientBot(Savior) || IsClientBot(Victim))
 		return;
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
-	decl String:SaviorName[MAX_LINE_WIDTH];
+	char SaviorName[MAX_LINE_WIDTH];
 	GetClientName(Savior, SaviorName, sizeof(SaviorName));
-	decl String:SaviorID[MAX_LINE_WIDTH];
+	char SaviorID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Savior, SaviorID, sizeof(SaviorID));
 
-	decl String:VictimName[MAX_LINE_WIDTH];
+	char VictimName[MAX_LINE_WIDTH];
 	GetClientName(Victim, VictimName, sizeof(VictimName));
-	decl String:VictimID[MAX_LINE_WIDTH];
+	char VictimID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Victim, VictimID, sizeof(VictimID));
 
 	if (StrEqual(SaviorID, VictimID))
 		return;
 
-	new Score = ModifyScoreDifficulty(BasePoints, AdvMult, ExpertMult, TEAM_SURVIVORS);
-	decl String:UpdatePoints[32];
+	int Score = ModifyScoreDifficulty(BasePoints, AdvMult, ExpertMult, TEAM_SURVIVORS);
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -9197,7 +8935,7 @@ HunterSmokerSave(Savior, Victim, BasePoints, AdvMult, ExpertMult, String:SaveFro
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i, %s = %s + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, SQLField, SQLField, SaviorID);
 	SendSQLUpdate(query);
 
@@ -9211,14 +8949,14 @@ HunterSmokerSave(Savior, Victim, BasePoints, AdvMult, ExpertMult, String:SaveFro
 	AddScore(Savior, Score);
 }
 
-bool:IsClientBot(client)
+bool IsClientBot(client)
 {
 	if (client == 0 || !IsClientConnected(client) || IsFakeClient(client))
 	{
 		return true;
 	}
 
-	decl String:SteamID[MAX_LINE_WIDTH];
+	char SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
 
 	if (StrEqual(SteamID, "BOT", false))
@@ -9229,11 +8967,11 @@ bool:IsClientBot(client)
 	return false;
 }
 
-ModifyScoreRealism(BaseScore, ClientTeam, bool:ToCeil=true)
+ModifyScoreRealism(BaseScore, ClientTeam, bool ToCeil=true)
 {
-	if (ServerVersion != SERVER_VERSION_L4D1)
+	if (ServerVersion != Engine_Left4Dead)
 	{
-		decl Handle:Multiplier;
+		Handle Multiplier;
 		
 		if (CurrentGamemodeID == GAMEMODE_REALISM)
 			Multiplier = cvar_RealismMultiplier;
@@ -9258,28 +8996,28 @@ ModifyScoreRealism(BaseScore, ClientTeam, bool:ToCeil=true)
 	return BaseScore;
 }
 
-ModifyScoreDifficultyFloatNR(BaseScore, Float:AdvMult, Float:ExpMult, ClientTeam, bool:ToCeil=true)
+ModifyScoreDifficultyFloatNR(BaseScore, float AdvMult, float ExpMult, ClientTeam, bool ToCeil=true)
 {
 	return ModifyScoreDifficultyFloat(BaseScore, AdvMult, ExpMult, ClientTeam, ToCeil, false);
 }
 
-ModifyScoreDifficultyFloat(BaseScore, Float:AdvMult, Float:ExpMult, ClientTeam, bool:ToCeil=true, bool:Reduction = true)
+ModifyScoreDifficultyFloat(BaseScore, float AdvMult, float ExpMult, ClientTeam, bool ToCeil=true, bool Reduction = true)
 {
 	if (BaseScore <= 0)
 	{
 		return 0;
 	}
 
-	decl String:Difficulty[MAX_LINE_WIDTH];
+	char Difficulty[MAX_LINE_WIDTH];
 	GetConVarString(cvar_Difficulty, Difficulty, sizeof(Difficulty));
 
-	new Float:ModifiedScore;
+	float ModifiedScore;
 
 	if (StrEqual(Difficulty, "Hard", false)) ModifiedScore = BaseScore * AdvMult;
 	else if (StrEqual(Difficulty, "Impossible", false)) ModifiedScore = BaseScore * ExpMult;
 	else return ModifyScoreRealism(BaseScore, ClientTeam);
 
-	new Score = 0;
+	int Score = 0;
 	if (ToCeil)
 	{
 		Score = RoundToCeil(ModifiedScore);
@@ -9304,9 +9042,9 @@ ModifyScoreDifficultyNR(BaseScore, AdvMult, ExpMult, ClientTeam)
 	return ModifyScoreDifficulty(BaseScore, AdvMult, ExpMult, ClientTeam, false);
 }
 
-ModifyScoreDifficulty(BaseScore, AdvMult, ExpMult, ClientTeam, bool:Reduction = true)
+ModifyScoreDifficulty(BaseScore, AdvMult, ExpMult, ClientTeam, bool Reduction = true)
 {
-	decl String:Difficulty[MAX_LINE_WIDTH];
+	char Difficulty[MAX_LINE_WIDTH];
 	GetConVarString(cvar_Difficulty, Difficulty, sizeof(Difficulty));
 
 	if (StrEqual(Difficulty, "hard", false)) BaseScore = BaseScore * AdvMult;
@@ -9322,7 +9060,7 @@ ModifyScoreDifficulty(BaseScore, AdvMult, ExpMult, ClientTeam, bool:Reduction = 
 
 IsDifficultyEasy()
 {
-	decl String:Difficulty[MAX_LINE_WIDTH];
+	char Difficulty[MAX_LINE_WIDTH];
 	GetConVarString(cvar_Difficulty, Difficulty, sizeof(Difficulty));
 
 	if (StrEqual(Difficulty, "easy", false))
@@ -9370,13 +9108,13 @@ InvalidGameMode()
 	return true;
 }
 
-bool:CheckHumans()
+bool CheckHumans()
 {
-	new MinHumans = GetConVarInt(cvar_HumansNeeded);
-	new Humans = 0;
-	new maxplayers = GetMaxClients();
+	int MinHumans = GetConVarInt(cvar_HumansNeeded);
+	int Humans = 0;
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -9396,7 +9134,7 @@ bool:CheckHumans()
 
 ResetInfVars()
 {
-	new i;
+	int i;
 
 	// Reset all Infected variables
 	for (i = 0; i < MAXPLAYERS + 1; i++)
@@ -9466,7 +9204,7 @@ ResetVars()
 
 	TankCount = 0;
 
-	new i, j, maxplayers = GetMaxClients();
+	int i, j, maxplayers = MaxClients;
 	for (i = 1; i <= maxplayers; i++)
 	{
 		AnnounceCounter[i] = 0;
@@ -9500,9 +9238,9 @@ ResetVars()
 
 public ResetRankChangeCheck()
 {
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 		StartRankChangeCheck(i);
 }
 
@@ -9521,7 +9259,7 @@ public StartRankChangeCheck(Client)
 	TimerRankChangeCheck[Client] = CreateTimer(GetConVarFloat(cvar_AnnounceRankChangeIVal), timer_ShowRankChange, Client, TIMER_REPEAT);
 }
 
-StatsDisabled(bool:MapCheck = false)
+StatsDisabled(bool MapCheck = false)
 {
 	if (!GetConVarBool(cvar_Enable))
 		return true;
@@ -9563,10 +9301,10 @@ public UpdateSmokerDamage(Client, Damage)
 	if (Client <= 0 || Damage <= 0 || IsClientBot(Client))
 		return;
 
-	decl String:iID[MAX_LINE_WIDTH];
+	char iID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, iID, sizeof(iID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_smoker_damage = infected_smoker_damage + %i WHERE steamid = '%s'", DbPrefix, Damage, iID);
 	SendSQLUpdate(query);
 
@@ -9578,10 +9316,10 @@ public UpdateSpitterDamage(Client, Damage)
 	if (Client <= 0 || Damage <= 0 || IsClientBot(Client))
 		return;
 
-	decl String:iID[MAX_LINE_WIDTH];
+	char iID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, iID, sizeof(iID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_spitter_damage = infected_spitter_damage + %i WHERE steamid = '%s'", DbPrefix, Damage, iID);
 	SendSQLUpdate(query);
 
@@ -9593,17 +9331,17 @@ public UpdateJockeyDamage(Client, Damage)
 	if (Client <= 0 || Damage <= 0 || IsClientBot(Client))
 		return;
 
-	decl String:iID[MAX_LINE_WIDTH];
+	char iID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, iID, sizeof(iID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_jockey_damage = infected_jockey_damage + %i WHERE steamid = '%s'", DbPrefix, Damage, iID);
 	SendSQLUpdate(query);
 
 	UpdateMapStat("infected_jockey_damage", Damage);
 }
 
-UpdateJockeyRideLength(Client, Float:RideLength=-1.0)
+UpdateJockeyRideLength(Client, float RideLength=-1.0)
 {
 	if (Client <= 0 || RideLength == 0 || IsClientBot(Client) || (RideLength < 0 && JockeyRideStartTime[Client] <= 0))
 		return;
@@ -9611,10 +9349,10 @@ UpdateJockeyRideLength(Client, Float:RideLength=-1.0)
 	if (RideLength < 0)
 		RideLength = float(GetTime() - JockeyRideStartTime[Client]);
 
-	decl String:iID[MAX_LINE_WIDTH];
+	char iID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, iID, sizeof(iID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_jockey_ridetime = infected_jockey_ridetime + %f WHERE steamid = '%s'", DbPrefix, RideLength, iID);
 	SendSQLUpdate(query);
 
@@ -9626,10 +9364,10 @@ public UpdateChargerDamage(Client, Damage)
 	if (Client <= 0 || Damage <= 0 || IsClientBot(Client))
 		return;
 
-	decl String:iID[MAX_LINE_WIDTH];
+	char iID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, iID, sizeof(iID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_charger_damage = infected_charger_damage + %i WHERE steamid = '%s'", DbPrefix, Damage, iID);
 	SendSQLUpdate(query);
 
@@ -9650,13 +9388,14 @@ public CheckSurvivorsWin()
 			CurrentGamemodeID == GAMEMODE_SURVIVAL)
 		return;
 
-	new Score = ModifyScoreDifficulty(GetConVarInt(cvar_Witch), 5, 10, TEAM_SURVIVORS);
-	new Mode = GetConVarInt(cvar_AnnounceMode);
-	decl String:iID[MAX_LINE_WIDTH];
-	decl String:query[1024];
-	new maxplayers = GetMaxClients();
-	decl String:UpdatePoints[32], String:UpdatePointsPenalty[32];
-	new ClientTeam, bool:NegativeScore = GetConVarBool(cvar_EnableNegativeScore);
+	int Score = ModifyScoreDifficulty(GetConVarInt(cvar_Witch), 5, 10, TEAM_SURVIVORS);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
+	char iID[MAX_LINE_WIDTH];
+	char query[1024];
+	int maxplayers = MaxClients;
+	char UpdatePoints[32], UpdatePointsPenalty[32];
+	int ClientTeam;
+	bool NegativeScore = GetConVarBool(cvar_EnableNegativeScore);
 
 	switch (CurrentGamemodeID)
 	{
@@ -9686,7 +9425,7 @@ public CheckSurvivorsWin()
 
 	if (Score > 0 && WitchExists && !WitchDisturb)
 	{
-		for (new i = 1; i <= maxplayers; i++)
+		for (int i = 1; i <= maxplayers; i++)
 		{
 			if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i) && GetClientTeam(i) == TEAM_SURVIVORS)
 			{
@@ -9703,10 +9442,10 @@ public CheckSurvivorsWin()
 	}
 
 	Score = 0;
-	new Deaths = 0;
-	new BaseScore = ModifyScoreDifficulty(GetConVarInt(cvar_SafeHouse), 2, 5, TEAM_SURVIVORS);
+	int Deaths = 0;
+	int BaseScore = ModifyScoreDifficulty(GetConVarInt(cvar_SafeHouse), 2, 5, TEAM_SURVIVORS);
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i) && GetClientTeam(i) == TEAM_SURVIVORS)
 		{
@@ -9717,11 +9456,11 @@ public CheckSurvivorsWin()
 		}
 	}
 
-	new String:All4Safe[64] = "";
+	char All4Safe[64] = "";
 	if (Deaths == 0)
 		Format(All4Safe, sizeof(All4Safe), ", award_allinsafehouse = award_allinsafehouse + 1");
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -9781,17 +9520,17 @@ CheckSurvivorsAllDown()
 				CurrentGamemodeID == GAMEMODE_REALISM)
 		return;
 
-	new maxplayers = GetMaxClients();
-	new ClientTeam;
-	new bool:ClientIsAlive, bool:ClientIsBot, bool:ClientIsIncap;
+	int maxplayers = MaxClients;
+	int ClientTeam;
+	bool ClientIsAlive, ClientIsBot, ClientIsIncap;
 	new KilledSurvivor[MaxClients];
 	new AliveInfected[MaxClients];
 	new Infected[MaxClients];
-	new InfectedCounter = 0, AliveInfectedCounter = 0;
-	new i;
+	int InfectedCounter = 0, AliveInfectedCounter = 0;
+	int i;
 
 	// Add to killing score on all incapacitated surviviors
-	new IncapCounter = 0;
+	int IncapCounter = 0;
 
 	for (i = 1; i <= maxplayers; i++)
 	{
@@ -9848,14 +9587,14 @@ CheckSurvivorsAllDown()
 		}
 	}
 
-	decl String:query[1024];
-	decl String:ClientID[MAX_LINE_WIDTH];
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	char query[1024];
+	char ClientID[MAX_LINE_WIDTH];
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	for (i = 0; i < AliveInfectedCounter; i++)
 		DoInfectedFinalChecks(AliveInfected[i]);
 
-	new Score = ModifyScoreDifficultyFloat(GetConVarInt(cvar_VictoryInfected), 0.75, 0.5, TEAM_INFECTED) * IncapCounter;
+	int Score = ModifyScoreDifficultyFloat(GetConVarInt(cvar_VictoryInfected), 0.75, 0.5, TEAM_INFECTED) * IncapCounter;
 
 	if (Score > 0)
 		for (i = 0; i < InfectedCounter; i++)
@@ -9920,13 +9659,13 @@ CheckSurvivorsAllDown()
 		StatsPrintToChatTeam(TEAM_SURVIVORS, "\x03ALL SURVIVORS \x01have \x03LOST \x04%i \x01points for \x03All Survivors Dying\x01!", Score);
 }
 
-bool:IsClientIncapacitated(client)
+bool IsClientIncapacitated(client)
 {
 	return GetEntProp(client, Prop_Send, "m_isIncapacitated") != 0 ||
 				 GetEntProp(client, Prop_Send, "m_isHangingFromLedge") != 0;
 }
 
-bool:IsClientAlive(client)
+bool IsClientAlive(client)
 {
 	if (!IsClientConnected(client))
 		return false;
@@ -9939,7 +9678,7 @@ bool:IsClientAlive(client)
 	return IsPlayerAlive(client);
 }
 
-bool:IsGamemode(const String:Gamemode[])
+bool IsGamemode(const char[] Gamemode)
 {
 	if (StrContains(CurrentGamemode, Gamemode, false) != -1)
 	{
@@ -9949,7 +9688,7 @@ bool:IsGamemode(const String:Gamemode[])
 	return false;
 }
 
-GetGamemodeID(const String:Gamemode[])
+GetGamemodeID(const char[] Gamemode)
 {
 	if (StrEqual(Gamemode, "coop", false))
 	{
@@ -9998,7 +9737,7 @@ GetGamemodeID(const String:Gamemode[])
 
 GetCurrentGamemodeID()
 {
-	new String:CurrentMode[16];
+	char CurrentMode[16];
 	GetConVarString(cvar_Gamemode, CurrentMode, sizeof(CurrentMode));
 
 	return GetGamemodeID(CurrentMode);
@@ -10048,20 +9787,20 @@ DoInfectedFinalChecks(Client, ClientInfType = -1)
 		SmokerDamageCounter[Client] = 0;
 		UpdateSmokerDamage(Client, Damage);
 	}
-	else if (ServerVersion != SERVER_VERSION_L4D1 && ClientInfType == INF_ID_SPITTER_L4D2)
+	else if (ServerVersion != Engine_Left4Dead && ClientInfType == INF_ID_SPITTER_L4D2)
 	{
 		new Damage = SpitterDamageCounter[Client];
 		SpitterDamageCounter[Client] = 0;
 		UpdateSpitterDamage(Client, Damage);
 	}
-	else if (ServerVersion != SERVER_VERSION_L4D1 && ClientInfType == INF_ID_JOCKEY_L4D2)
+	else if (ServerVersion != Engine_Left4Dead && ClientInfType == INF_ID_JOCKEY_L4D2)
 	{
 		new Damage = JockeyDamageCounter[Client];
 		JockeyDamageCounter[Client] = 0;
 		UpdateJockeyDamage(Client, Damage);
 		UpdateJockeyRideLength(Client);
 	}
-	else if (ServerVersion != SERVER_VERSION_L4D1 && ClientInfType == INF_ID_CHARGER_L4D2)
+	else if (ServerVersion != Engine_Left4Dead && ClientInfType == INF_ID_CHARGER_L4D2)
 	{
 		new Damage = ChargerDamageCounter[Client];
 		ChargerDamageCounter[Client] = 0;
@@ -10073,10 +9812,10 @@ GetInfType(Client)
 {
 	// Client > 0 && ClientTeam == TEAM_INFECTED checks are done by the caller
 
-	new InfType = GetEntProp(Client, Prop_Send, "m_zombieClass");
+	int InfType = GetEntProp(Client, Prop_Send, "m_zombieClass");
 
 	// Make the conversion so that everything gets stored in the correct fields
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		if (InfType == INF_ID_WITCH_L4D1)
 			return INF_ID_WITCH_L4D2;
@@ -10095,7 +9834,7 @@ SetClientInfectedType(Client)
 	if (Client <= 0)
 		return;
 
-	new ClientTeam = GetClientTeam(Client);
+	int ClientTeam = GetClientTeam(Client);
 
 	if (ClientTeam == TEAM_INFECTED)
 	{
@@ -10110,14 +9849,14 @@ SetClientInfectedType(Client)
 				&& ClientInfectedType[Client] != INF_ID_TANK_L4D2)
 			return;
 
-		decl String:ClientID[MAX_LINE_WIDTH];
+		char ClientID[MAX_LINE_WIDTH];
 		GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
-		decl String:query[1024];
+		char query[1024];
 		Format(query, sizeof(query), "UPDATE %splayers SET infected_spawn_%i = infected_spawn_%i + 1 WHERE steamid = '%s'", DbPrefix, ClientInfectedType[Client], ClientInfectedType[Client], ClientID);
 		SendSQLUpdate(query);
 
-		new String:Spawn[32];
+		char Spawn[32];
 		Format(Spawn, sizeof(Spawn), "infected_spawn_%i", ClientInfectedType[Client]);
 		UpdateMapStat(Spawn, 1);
 	}
@@ -10146,10 +9885,10 @@ TankDamage(Client, Damage)
 
 			if (Score > 0)
 			{
-				decl String:ClientID[MAX_LINE_WIDTH];
+				char ClientID[MAX_LINE_WIDTH];
 				GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
-				decl String:query[1024];
+				char query[1024];
 
 				if (CurrentGamemodeID == GAMEMODE_VERSUS)
 					Format(query, sizeof(query), "UPDATE %splayers SET points_infected = points_infected + %i, award_bulldozer = award_bulldozer + 1 WHERE steamid = '%s'", DbPrefix, Score, ClientID);
@@ -10170,7 +9909,7 @@ TankDamage(Client, Damage)
 					StatsPrintToChat(Client, "You have earned \x04%i \x01points for Bulldozing the Survivors worth %i points of damage!", Score, TankDamageTotal);
 				else if (Mode == 3)
 				{
-					decl String:Name[MAX_LINE_WIDTH];
+					char Name[MAX_LINE_WIDTH];
 					GetClientName(Client, Name, sizeof(Name));
 					StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for Bulldozing the Survivors worth %i points of damage!", Name, Score, TankDamageTotal);
 				}
@@ -10181,7 +9920,7 @@ TankDamage(Client, Damage)
 		}
 	}
 
-	new DamageLimit = GetConVarInt(cvar_TankDamageCap);
+	int DamageLimit = GetConVarInt(cvar_TankDamageCap);
 
 	if (TankDamageCounter[Client] >= DamageLimit)
 		return 0;
@@ -10196,29 +9935,29 @@ TankDamage(Client, Damage)
 
 UpdateFriendlyFire(Attacker, Victim)
 {
-	decl String:AttackerName[MAX_LINE_WIDTH];
+	char AttackerName[MAX_LINE_WIDTH];
 	GetClientName(Attacker, AttackerName, sizeof(AttackerName));
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
 
-	decl String:VictimName[MAX_LINE_WIDTH];
+	char VictimName[MAX_LINE_WIDTH];
 	GetClientName(Victim, VictimName, sizeof(VictimName));
 
-	new Score = 0;
+	int Score = 0;
 	if (GetConVarBool(cvar_EnableNegativeScore))
 	{
 		if (!IsClientBot(Victim))
 			Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_FFire), 2, 4, TEAM_SURVIVORS);
 		else
 		{
-			new Float:BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
+			float BotScoreMultiplier = GetConVarFloat(cvar_BotScoreMultiplier);
 
 			if (BotScoreMultiplier > 0.0)
 				Score = RoundToNearest(ModifyScoreDifficultyNR(GetConVarInt(cvar_FFire), 2, 4, TEAM_SURVIVORS) * BotScoreMultiplier);
 		}
 	}
 
-	decl String:UpdatePoints[32];
+	char UpdatePoints[32];
 
 	switch (CurrentGamemodeID)
 	{
@@ -10252,11 +9991,11 @@ UpdateFriendlyFire(Attacker, Victim)
 		}
 	}
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_friendlyfire = award_friendlyfire + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
 	SendSQLUpdate(query);
 
-	new Mode = 0;
+	int Mode = 0;
 	if (Score > 0)
 		Mode = GetConVarInt(cvar_AnnounceMode);
 
@@ -10271,10 +10010,10 @@ UpdateHunterDamage(Client, Damage)
 	if (Damage <= 0)
 		return;
 
-	decl String:ClientID[MAX_LINE_WIDTH];
+	char ClientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_hunter_pounce_dmg = infected_hunter_pounce_dmg + %i, infected_hunter_pounce_counter = infected_hunter_pounce_counter + 1 WHERE steamid = '%s'", DbPrefix, Damage, ClientID);
 	SendSQLUpdate(query);
 
@@ -10287,10 +10026,10 @@ UpdateTankDamage(Client, Damage)
 	if (Damage <= 0)
 		return;
 
-	decl String:ClientID[MAX_LINE_WIDTH];
+	char ClientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_tank_damage = infected_tank_damage + %i WHERE steamid = '%s'", DbPrefix, Damage, ClientID);
 	SendSQLUpdate(query);
 
@@ -10364,15 +10103,15 @@ UpdatePlayerScoreScavenge(Client, ClientTeam, Score)
 		UpdatePlayerScore2(Client, Score, "points_scavenge_infected");
 }
 */
-UpdatePlayerScore2(Client, Score, const String:Points[])
+UpdatePlayerScore2(Client, Score, const char[] Points)
 {
 	if (Score == 0)
 		return;
 
-	decl String:ClientID[MAX_LINE_WIDTH];
+	char ClientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i WHERE steamid = '%s'", DbPrefix, Points, Points, Score, ClientID);
 	SendSQLUpdate(query);
 
@@ -10387,15 +10126,15 @@ UpdateTankSniper(Client)
 	if (Client <= 0)
 		return;
 
-	decl String:ClientID[MAX_LINE_WIDTH];
+	char ClientID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Client, ClientID, sizeof(ClientID));
 
 	UpdateTankSniperSteamID(ClientID);
 }
 
-UpdateTankSniperSteamID(const String:ClientID[])
+UpdateTankSniperSteamID(const char[] ClientID)
 {
-	decl String:query[1024];
+	char query[1024];
 	Format(query, sizeof(query), "UPDATE %splayers SET infected_tanksniper = infected_tanksniper + 1 WHERE steamid = '%s'", DbPrefix, ClientID);
 	SendSQLUpdate(query);
 
@@ -10409,10 +10148,10 @@ SurvivorDied(Attacker, Victim, AttackerInfType = -1, Mode = -1)
 	if (!Attacker || !Victim || StatsGetClientTeam(Attacker) != TEAM_INFECTED || StatsGetClientTeam(Victim) != TEAM_SURVIVORS)
 		return;
 
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
 
-	decl String:VictimName[MAX_LINE_WIDTH];
+	char VictimName[MAX_LINE_WIDTH];
 	GetClientName(Victim, VictimName, sizeof(VictimName));
 
 	SurvivorDiedNamed(Attacker, Victim, VictimName, AttackerID, AttackerInfType, Mode);
@@ -10420,7 +10159,7 @@ SurvivorDied(Attacker, Victim, AttackerInfType = -1, Mode = -1)
 
 // An Infected player killed a Survivor.
 
-SurvivorDiedNamed(Attacker, Victim, const String:VictimName[], const String:AttackerID[], AttackerInfType = -1, Mode = -1)
+SurvivorDiedNamed(Attacker, Victim, const char[] VictimName, const char[] AttackerID, AttackerInfType = -1, Mode = -1)
 {
 	if (!Attacker || !Victim || StatsGetClientTeam(Attacker) != TEAM_INFECTED || StatsGetClientTeam(Victim) != TEAM_SURVIVORS)
 		return;
@@ -10435,7 +10174,7 @@ SurvivorDiedNamed(Attacker, Victim, const String:VictimName[], const String:Atta
 		AttackerInfType = ClientInfectedType[Attacker];
 	}
 
-	if (ServerVersion == SERVER_VERSION_L4D1)
+	if (ServerVersion == Engine_Left4Dead)
 	{
 		if (AttackerInfType != INF_ID_SMOKER
 				&& AttackerInfType != INF_ID_BOOMER
@@ -10455,10 +10194,10 @@ SurvivorDiedNamed(Attacker, Victim, const String:VictimName[], const String:Atta
 			return;
 	}
 
-	new Score = GetSurvivorKillScore();
+	int Score = GetSurvivorKillScore();
 
-	new len = 0;
-	decl String:query[1024];
+	int len = 0;
+	char query[1024];
 
 	if (CurrentGamemodeID == GAMEMODE_VERSUS)
 		len += Format(query[len], sizeof(query)-len, "UPDATE %splayers SET points_infected = points_infected + %i, versus_kills_survivors = versus_kills_survivors + 1 ", DbPrefix, Score);
@@ -10478,7 +10217,7 @@ SurvivorDiedNamed(Attacker, Victim, const String:VictimName[], const String:Atta
 	{
 		if (Mode > 2)
 		{
-			decl String:AttackerName[MAX_LINE_WIDTH];
+			char AttackerName[MAX_LINE_WIDTH];
 			GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 			StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for killing \x05%s\x01!", AttackerName, Score, VictimName);
 		}
@@ -10493,7 +10232,7 @@ SurvivorDiedNamed(Attacker, Victim, const String:VictimName[], const String:Atta
 
 // Survivor got hurt.
 
-SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle:event = INVALID_HANDLE)
+SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle event = INVALID_HANDLE)
 {
 	if (!Attacker || !Victim || Damage <= 0 || Attacker == Victim)
 		return;
@@ -10521,7 +10260,7 @@ SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle:event = INVA
 		TimerInfectedDamageCheck[Attacker] = INVALID_HANDLE;
 	}
 
-	new VictimHealth = GetClientHealth(Victim);
+	int VictimHealth = GetClientHealth(Victim);
 
 	if (VictimHealth < 0)
 		Damage += VictimHealth;
@@ -10533,7 +10272,7 @@ SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle:event = INVA
 	{
 		InfectedDamageCounter[Attacker] += TankDamage(Attacker, Damage);
 
-		decl String:Weapon[16];
+		char Weapon[16];
 		GetEventString(event, "weapon", Weapon, sizeof(Weapon));
 
 		new RockHit = GetConVarInt(cvar_TankThrowRockSuccess);
@@ -10550,7 +10289,7 @@ SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle:event = INVA
 				UpdatePlayerScore2(Attacker, RockHit, "points_mutations");
 			UpdateTankSniper(Attacker);
 
-			decl String:VictimName[MAX_LINE_WIDTH];
+			char VictimName[MAX_LINE_WIDTH];
 
 			if (Victim > 0)
 				GetClientName(Victim, VictimName, sizeof(VictimName));
@@ -10563,7 +10302,7 @@ SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle:event = INVA
 				StatsPrintToChat(Attacker, "You have earned \x04%i \x01points for throwing a rock at \x05%s\x01!", RockHit, VictimName);
 			else if (Mode == 3)
 			{
-				decl String:AttackerName[MAX_LINE_WIDTH];
+				char AttackerName[MAX_LINE_WIDTH];
 				GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 				StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for throwing a rock at \x05%s\x01!", AttackerName, RockHit, VictimName);
 			}
@@ -10586,14 +10325,14 @@ SurvivorHurt(Attacker, Victim, Damage, AttackerInfType = -1, Handle:event = INVA
 
 // Survivor was hurt by normal infected while being blinded and/or paralyzed.
 
-SurvivorHurtExternal(Handle:event, Victim)
+SurvivorHurtExternal(Handle event, Victim)
 {
 	if (event == INVALID_HANDLE || !Victim)
 		return;
 
-	new Damage = GetEventInt(event, "dmg_health");
+	int Damage = GetEventInt(event, "dmg_health");
 
-	new VictimHealth = GetClientHealth(Victim);
+	int VictimHealth = GetClientHealth(Victim);
 
 	if (VictimHealth < 0)
 		Damage += VictimHealth;
@@ -10601,7 +10340,7 @@ SurvivorHurtExternal(Handle:event, Victim)
 	if (Damage <= 0)
 		return;
 
-	new Attacker;
+	int Attacker;
 
 	if (PlayerBlinded[Victim][0] && PlayerBlinded[Victim][1])
 	{
@@ -10655,7 +10394,7 @@ PlayerDeathExternal(Victim)
 
 	CheckSurvivorsAllDown();
 
-	new Attacker = 0;
+	int Attacker = 0;
 
 	if (PlayerBlinded[Victim][0] && PlayerBlinded[Victim][1])
 	{
@@ -10709,7 +10448,7 @@ PlayerIncapExternal(Victim)
 
 	CheckSurvivorsAllDown();
 
-	new Attacker = 0;
+	int Attacker = 0;
 
 	if (PlayerBlinded[Victim][0] && PlayerBlinded[Victim][1])
 	{
@@ -10749,20 +10488,20 @@ SurvivorIncappedByInfected(Attacker, Victim, Mode = -1)
 	if (Attacker > 0 && !IsClientConnected(Attacker) || Attacker > 0 && IsClientBot(Attacker))
 		return;
 
-	decl String:AttackerID[MAX_LINE_WIDTH];
+	char AttackerID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(Attacker, AttackerID, sizeof(AttackerID));
-	decl String:AttackerName[MAX_LINE_WIDTH];
+	char AttackerName[MAX_LINE_WIDTH];
 	GetClientName(Attacker, AttackerName, sizeof(AttackerName));
 
-	decl String:VictimName[MAX_LINE_WIDTH];
+	char VictimName[MAX_LINE_WIDTH];
 	GetClientName(Victim, VictimName, sizeof(VictimName));
 
-	new Score = ModifyScoreDifficultyFloat(GetConVarInt(cvar_SurvivorIncap), 0.75, 0.5, TEAM_INFECTED);
+	int Score = ModifyScoreDifficultyFloat(GetConVarInt(cvar_SurvivorIncap), 0.75, 0.5, TEAM_INFECTED);
 
 	if (Score <= 0)
 		return;
 
-	decl String:query[512];
+	char query[512];
 
 	if (CurrentGamemodeID == GAMEMODE_VERSUS)
 		Format(query, sizeof(query), "UPDATE %splayers SET points_infected = points_infected + %i, award_survivor_down = award_survivor_down + 1 WHERE steamid = '%s'", DbPrefix, Score, AttackerID);
@@ -10785,18 +10524,18 @@ SurvivorIncappedByInfected(Attacker, Victim, Mode = -1)
 		StatsPrintToChatAll("\x05%s \x01has earned \x04%i \x01points for Incapacitating \x05%s\x01!", AttackerName, Score, VictimName);
 }
 
-Float:GetMedkitPointReductionFactor()
+float GetMedkitPointReductionFactor()
 {
 	if (MedkitsUsedCounter <= 0)
 		return 1.0;
 
-	new Float:Penalty = GetConVarFloat(cvar_MedkitUsedPointPenalty);
+	float Penalty = GetConVarFloat(cvar_MedkitUsedPointPenalty);
 
 	// If Penalty is set to ZERO: There is no reduction.
 	if (Penalty <= 0.0)
 		return 1.0;
 
-	new PenaltyFree = -1;
+	int PenaltyFree = -1;
 
 	if (CurrentGamemodeID == GAMEMODE_REALISM || CurrentGamemodeID == GAMEMODE_REALISMVERSUS)
 		PenaltyFree = GetConVarInt(cvar_MedkitUsedRealismFree);
@@ -10809,7 +10548,7 @@ Float:GetMedkitPointReductionFactor()
 
 	Penalty *= MedkitsUsedCounter - PenaltyFree;
 
-	new Float:PenaltyMax = GetConVarFloat(cvar_MedkitUsedPointPenaltyMax);
+	float PenaltyMax = GetConVarFloat(cvar_MedkitUsedPointPenaltyMax);
 
 	if (Penalty > PenaltyMax)
 		return 1.0 - PenaltyMax;
@@ -10819,9 +10558,9 @@ Float:GetMedkitPointReductionFactor()
 
 // Calculate the score with the medkit point reduction
 
-GetMedkitPointReductionScore(Score, bool:ToCeil = false)
+GetMedkitPointReductionScore(Score, bool ToCeil = false)
 {
-	new Float:ReductionFactor = GetMedkitPointReductionFactor();
+	float ReductionFactor = GetMedkitPointReductionFactor();
 
 	if (ReductionFactor == 1.0)
 		return Score;
@@ -10834,7 +10573,7 @@ GetMedkitPointReductionScore(Score, bool:ToCeil = false)
 
 AnnounceMedkitPenalty(Mode = -1)
 {
-	new Float:ReductionFactor = GetMedkitPointReductionFactor();
+	float ReductionFactor = GetMedkitPointReductionFactor();
 
 	if (ReductionFactor == 1.0)
 		return;
@@ -10843,7 +10582,7 @@ AnnounceMedkitPenalty(Mode = -1)
 		Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (Mode)
-		StatsPrintToChatTeam(TEAM_SURVIVORS, "\x03ALL SURVIVORS \x01now earns only \x04%i percent \x01of their normal points after using their \x05%i%s Medkit%s\x01!", RoundToNearest(ReductionFactor * 100), MedkitsUsedCounter, (MedkitsUsedCounter == 1 ? "st" : (MedkitsUsedCounter == 2 ? "nd" : (MedkitsUsedCounter == 3 ? "rd" : "th"))), (ServerVersion == SERVER_VERSION_L4D1 ? "" : " or Defibrillator"));
+		StatsPrintToChatTeam(TEAM_SURVIVORS, "\x03ALL SURVIVORS \x01now earns only \x04%i percent \x01of their normal points after using their \x05%i%s Medkit%s\x01!", RoundToNearest(ReductionFactor * 100), MedkitsUsedCounter, (MedkitsUsedCounter == 1 ? "st" : (MedkitsUsedCounter == 2 ? "nd" : (MedkitsUsedCounter == 3 ? "rd" : "th"))), (ServerVersion == Engine_Left4Dead ? "" : " or Defibrillator"));
 }
 
 GetClientInfectedType(Client)
@@ -10856,7 +10595,7 @@ GetClientInfectedType(Client)
 
 InitializeClientInf(Client)
 {
-	for (new i = 1; i <= MAXPLAYERS; i++)
+	for (int i = 1; i <= MAXPLAYERS; i++)
 	{
 		if (PlayerParalyzed[i][1] == Client)
 		{
@@ -10888,19 +10627,19 @@ InitializeClientInf(Client)
 
 // Print a chat message to a specific team instead of all players
 
-public StatsPrintToChatTeam(Team, const String:Message[], any:...)
+public StatsPrintToChatTeam(Team, const char[] Message, any ...)
 {
-	new String:FormattedMessage[MAX_MESSAGE_WIDTH];
+	char FormattedMessage[MAX_MESSAGE_WIDTH];
 	VFormat(FormattedMessage, sizeof(FormattedMessage), Message, 3);
 
-	new AnnounceToTeam = GetConVarInt(cvar_AnnounceToTeam);
+	int AnnounceToTeam = GetConVarInt(cvar_AnnounceToTeam);
 
 	if (Team > 0 && AnnounceToTeam)
 	{
-		new maxplayers = GetMaxClients();
+		new maxplayers = MaxClients;
 		new ClientTeam;
 
-		for (new i = 1; i <= maxplayers; i++)
+		for (int i = 1; i <= maxplayers; i++)
 		{
 			if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 			{
@@ -10914,22 +10653,6 @@ public StatsPrintToChatTeam(Team, const String:Message[], any:...)
 	}
 	else
 		StatsPrintToChatAllPreFormatted(FormattedMessage);
-}
-
-// Debugging...
-
-public PrintToConsoleAll(const String:Message[], any:...)
-{
-	new String:FormattedMessage[MAX_MESSAGE_WIDTH];
-	VFormat(FormattedMessage, sizeof(FormattedMessage), Message, 2);
-
-	PrintToConsole(0, FormattedMessage);
-
-	new maxplayers = GetMaxClients();
-
-	for (new i = 1; i <= maxplayers; i++)
-		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
-			PrintToConsole(i, FormattedMessage);
 }
 
 // Disable map timings when opposing team has human players. The time is too much depending on opposing team that is is comparable.
@@ -10948,15 +10671,15 @@ public StartMapTiming()
 
 	MapTimingStartTime = GetEngineTime();
 
-	new ClientTeam, maxplayers = GetMaxClients();
-	decl String:ClientID[MAX_LINE_WIDTH];
+	int ClientTeam, maxplayers = MaxClients;
+	char ClientID[MAX_LINE_WIDTH];
 
 	ClearTrie(MapTimingSurvivors);
 	ClearTrie(MapTimingInfected);
 
-	new bool:SoundsEnabled = EnableSounds_Maptime_Start && GetConVarBool(cvar_SoundsEnabled);
+	bool SoundsEnabled = EnableSounds_Maptime_Start && GetConVarBool(cvar_SoundsEnabled);
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -10981,7 +10704,7 @@ public StartMapTiming()
 
 GetCurrentDifficulty()
 {
-	decl String:Difficulty[MAX_LINE_WIDTH];
+	char Difficulty[MAX_LINE_WIDTH];
 	GetConVarString(cvar_Difficulty, Difficulty, sizeof(Difficulty));
 
 	if (StrEqual(Difficulty, "normal", false)) return 1;
@@ -10997,17 +10720,17 @@ public StopMapTiming()
 		return;
 	}
 
-	new Float:TotalTime = GetEngineTime() - MapTimingStartTime;
+	float TotalTime = GetEngineTime() - MapTimingStartTime;
 	MapTimingStartTime = -1.0;
 	MapTimingBlocked = true;
 
-	new Handle:dp = INVALID_HANDLE;
-	new ClientTeam, enabled, maxplayers = GetMaxClients();
-	decl String:ClientID[MAX_LINE_WIDTH], String:MapName[MAX_LINE_WIDTH], String:query[512];
+	Handle dp = INVALID_HANDLE;
+	int ClientTeam, enabled, maxplayers = MaxClients;
+	char ClientID[MAX_LINE_WIDTH], MapName[MAX_LINE_WIDTH], query[512];
 
 	GetCurrentMap(MapName, sizeof(MapName));
 
-	new i, PlayerCounter = 0, InfectedCounter = (CurrentGamemodeID == GAMEMODE_VERSUS || CurrentGamemodeID == GAMEMODE_SCAVENGE ? 0 : 1);
+	int i, PlayerCounter = 0, InfectedCounter = (CurrentGamemodeID == GAMEMODE_VERSUS || CurrentGamemodeID == GAMEMODE_SCAVENGE ? 0 : 1);
 
 	for (i = 1; i <= maxplayers; i++)
 	{
@@ -11037,7 +10760,7 @@ public StopMapTiming()
 	if (InfectedCounter <= 0)
 		return;
 
-	new GameDifficulty = GetCurrentDifficulty();
+	int GameDifficulty = GetCurrentDifficulty();
 
 	for (i = 1; i <= maxplayers; i++)
 	{
@@ -11076,7 +10799,7 @@ public StopMapTiming()
 	ClearTrie(MapTimingSurvivors);
 }
 
-public UpdateMapTimingStat(Handle:owner, Handle:hndl, const String:error[], any:dp)
+public UpdateMapTimingStat(Handle owner, Handle hndl, const char[] error, any dp)
 {
 	if (hndl == INVALID_HANDLE)
 	{
@@ -11089,8 +10812,9 @@ public UpdateMapTimingStat(Handle:owner, Handle:hndl, const String:error[], any:
 
 	ResetPack(dp);
 
-	decl String:MapName[MAX_LINE_WIDTH], String:ClientID[MAX_LINE_WIDTH], String:query[512], String:TimeLabel[32], String:Mutation[MAX_LINE_WIDTH];
-	new GamemodeID, Float:TotalTime, Float:OldTime, Client, PlayerCounter, GameDifficulty;
+	char MapName[MAX_LINE_WIDTH], ClientID[MAX_LINE_WIDTH], query[512], TimeLabel[32], Mutation[MAX_LINE_WIDTH];
+	int GamemodeID, Client, PlayerCounter, GameDifficulty;
+	float TotalTime, OldTime;
 
 	ReadPackString(dp, MapName, sizeof(MapName));
 	GamemodeID = ReadPackCell(dp);
@@ -11107,7 +10831,7 @@ public UpdateMapTimingStat(Handle:owner, Handle:hndl, const String:error[], any:
 	if (IsClientBot(Client) || !IsClientInGame(Client))
 		return;
 
-	new Mode = GetConVarInt(cvar_AnnounceMode);
+	int Mode = GetConVarInt(cvar_AnnounceMode);
 
 	if (SQL_GetRowCount(hndl) > 0)
 	{
@@ -11152,14 +10876,14 @@ public UpdateMapTimingStat(Handle:owner, Handle:hndl, const String:error[], any:
 	SendSQLUpdate(query);
 }
 
-public SetTimeLabel(Float:TheSeconds, String:TimeLabel[], maxsize)
+public SetTimeLabel(float TheSeconds, char[] TimeLabel, maxsize)
 {
-	new FlooredSeconds = RoundToFloor(TheSeconds);
-	new FlooredSecondsMod = FlooredSeconds % 60;
-	new Float:Seconds = TheSeconds - float(FlooredSeconds) + float(FlooredSecondsMod);
-	new Minutes = (TheSeconds < 60.0 ? 0 : RoundToNearest(float(FlooredSeconds - FlooredSecondsMod) / 60));
-	new MinutesMod = Minutes % 60;
-	new Hours = (Minutes < 60 ? 0 : RoundToNearest(float(Minutes - MinutesMod) / 60));
+	int FlooredSeconds = RoundToFloor(TheSeconds);
+	int FlooredSecondsMod = FlooredSeconds % 60;
+	float Seconds = TheSeconds - float(FlooredSeconds) + float(FlooredSecondsMod);
+	int Minutes = (TheSeconds < 60.0 ? 0 : RoundToNearest(float(FlooredSeconds - FlooredSecondsMod) / 60));
+	int MinutesMod = Minutes % 60;
+	int Hours = (Minutes < 60 ? 0 : RoundToNearest(float(Minutes - MinutesMod) / 60));
 	Minutes = MinutesMod;
 
 	if (Hours > 0)
@@ -11201,7 +10925,7 @@ public InitializeRankVote(client)
 		}
 		else
 		{
-			if (ServerVersion == SERVER_VERSION_L4D1)
+			if (ServerVersion == Engine_Left4Dead)
 			{
 				StatsPrintToChatPreFormatted2(client, true, "The \x04Rank Vote \x01is enabled in \x03Versus \x01gamemode!");
 			}
@@ -11228,10 +10952,10 @@ public InitializeRankVote(client)
 		return;
 	}
 
-	new bool:IsAdmin = (client > 0 ? ((GetUserFlagBits(client) & ADMFLAG_GENERIC) == ADMFLAG_GENERIC) : true);
+	bool IsAdmin = (client > 0 ? ((GetUserFlagBits(client) & ADMFLAG_GENERIC) == ADMFLAG_GENERIC) : true);
 
-	new team;
-	decl String:ClientID[MAX_LINE_WIDTH];
+	int team;
+	char ClientID[MAX_LINE_WIDTH];
 
 	if (!IsAdmin && client > 0 && GetTrieValue(PlayerRankVoteTrie, ClientID, team))
 	{
@@ -11247,14 +10971,14 @@ public InitializeRankVote(client)
 
 	RankVoteTimer = CreateTimer(GetConVarFloat(cvar_RankVoteTime), timer_RankVote);
 
-	new i;
+	int i;
 
 	for (i = 0; i <= MAXPLAYERS; i++)
 	{
 		PlayerRankVote[i] = RANKVOTE_NOVOTE;
 	}
 
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
 	for (i = 1; i <= maxplayers; i++)
 	{
@@ -11271,7 +10995,7 @@ public InitializeRankVote(client)
 
 	if (client > 0)
 	{
-		decl String:UserName[MAX_LINE_WIDTH];
+		char UserName[MAX_LINE_WIDTH];
 		GetClientName(client, UserName, sizeof(UserName));
 
 		StatsPrintToChatAll2(true, "The \x04Rank Vote \x01was initiated by \x05%s\x01!", UserName);
@@ -11291,7 +11015,7 @@ public InitializeRankVote(client)
 		url = "http://forums.alliedmods.net/showthread.php?p=1029519"
 */
 
-stock bool:ChangeRankPlayerTeam(client, team)
+stock bool ChangeRankPlayerTeam(client, team)
 {
 	if(GetClientTeam(client) == team) return true;
 
@@ -11305,13 +11029,13 @@ stock bool:ChangeRankPlayerTeam(client, team)
 	if(GetRankTeamHumanCount(team) == GetRankTeamMaxHumans(team))
 		return false;
 
-	new bot;
+	int bot;
 	//for survivors its more tricky
 	for (bot = 1; bot < MaxClients + 1 && (!IsClientConnected(bot) || !IsFakeClient(bot) || (GetClientTeam(bot) != TEAM_SURVIVORS)); bot++) {}
 
 	if (bot == MaxClients + 1)
 	{
-		new String:command[] = "sb_add";
+		char command[] = "sb_add";
 		new flags = GetCommandFlags(command);
 		SetCommandFlags(command, flags & ~FCVAR_CHEAT);
 
@@ -11338,7 +11062,7 @@ stock bool:ChangeRankPlayerTeam(client, team)
 		url = "http://forums.alliedmods.net/showthread.php?p=1029519"
 */
 
-stock bool:IsRankClientInGameHuman(client)
+stock bool IsRankClientInGameHuman(client)
 {
 	if (client > 0) return IsClientInGame(client) && !IsFakeClient(client);
 	else return false;
@@ -11355,9 +11079,9 @@ stock bool:IsRankClientInGameHuman(client)
 
 stock GetRankTeamHumanCount(team)
 {
-	new humans = 0;
+	int humans = 0;
 	
-	for(new i = 1; i < MaxClients + 1; i++)
+	for(int i = 1; i < MaxClients + 1; i++)
 	{
 		if(IsRankClientInGameHuman(i) && GetClientTeam(i) == team)
 		{
@@ -11383,11 +11107,11 @@ stock GetRankTeamMaxHumans(team)
 	return -1;
 }
 
-GetClientRankAuthString(client, String:auth[], maxlength)
+GetClientRankAuthString(client, char[] auth, maxlength)
 {
 	if (GetConVarInt(cvar_Lan))
 	{
-		GetClientAuthString(client, auth, maxlength);
+		GetClientAuthId(client, AuthId_Steam2, auth, maxlength);
 
 		if (!StrEqual(auth, "BOT", false))
 		{
@@ -11396,7 +11120,7 @@ GetClientRankAuthString(client, String:auth[], maxlength)
 	}
 	else
 	{
-		GetClientAuthString(client, auth, maxlength);
+		GetClientAuthId(client, AuthId_Steam2, auth, maxlength);
 
 		if (StrEqual(auth, "STEAM_ID_LAN", false))
 		{
@@ -11405,27 +11129,27 @@ GetClientRankAuthString(client, String:auth[], maxlength)
 	}
 }
 
-public StatsPrintToChatAll(const String:Message[], any:...)
+public StatsPrintToChatAll(const char[] Message, any ...)
 {
-	new String:FormattedMessage[MAX_MESSAGE_WIDTH];
+	char FormattedMessage[MAX_MESSAGE_WIDTH];
 	VFormat(FormattedMessage, sizeof(FormattedMessage), Message, 2);
 
 	StatsPrintToChatAllPreFormatted(FormattedMessage);
 }
 
-public StatsPrintToChatAll2(bool:Forced, const String:Message[], any:...)
+public StatsPrintToChatAll2(bool Forced, const char[] Message, any ...)
 {
-	new String:FormattedMessage[MAX_MESSAGE_WIDTH];
+	char FormattedMessage[MAX_MESSAGE_WIDTH];
 	VFormat(FormattedMessage, sizeof(FormattedMessage), Message, 2);
 
 	StatsPrintToChatAllPreFormatted2(Forced, FormattedMessage);
 }
 
-public StatsPrintToChatAllPreFormatted(const String:Message[])
+public StatsPrintToChatAllPreFormatted(const char[] Message)
 {
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -11434,11 +11158,11 @@ public StatsPrintToChatAllPreFormatted(const String:Message[])
 	}
 }
 
-public StatsPrintToChatAllPreFormatted2(bool:Forced, const String:Message[])
+public StatsPrintToChatAllPreFormatted2(bool Forced, const char[] Message)
 {
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -11447,7 +11171,7 @@ public StatsPrintToChatAllPreFormatted2(bool:Forced, const String:Message[])
 	}
 }
 
-public StatsPrintToChat(Client, const String:Message[], any:...)
+public StatsPrintToChat(Client, const char[] Message, any ...)
 {
 	// CHECK IF CLIENT HAS MUTED THE PLUGIN
 	if (ClientRankMute[Client])
@@ -11455,13 +11179,13 @@ public StatsPrintToChat(Client, const String:Message[], any:...)
 		return;
 	}
 
-	new String:FormattedMessage[MAX_MESSAGE_WIDTH];
+	char FormattedMessage[MAX_MESSAGE_WIDTH];
 	VFormat(FormattedMessage, sizeof(FormattedMessage), Message, 3);
 
 	StatsPrintToChatPreFormatted(Client, FormattedMessage);
 }
 
-public StatsPrintToChat2(Client, bool:Forced, const String:Message[], any:...)
+public StatsPrintToChat2(Client, bool Forced, const char[] Message, any ...)
 {
 	// CHECK IF CLIENT HAS MUTED THE PLUGIN
 	if (!Forced && ClientRankMute[Client])
@@ -11469,18 +11193,18 @@ public StatsPrintToChat2(Client, bool:Forced, const String:Message[], any:...)
 		return;
 	}
 
-	new String:FormattedMessage[MAX_MESSAGE_WIDTH];
+	char FormattedMessage[MAX_MESSAGE_WIDTH];
 	VFormat(FormattedMessage, sizeof(FormattedMessage), Message, 4);
 
 	StatsPrintToChatPreFormatted2(Client, Forced, FormattedMessage);
 }
 
-public StatsPrintToChatPreFormatted(Client, const String:Message[])
+public StatsPrintToChatPreFormatted(Client, const char[] Message)
 {
 	StatsPrintToChatPreFormatted2(Client, false, Message);
 }
 
-public StatsPrintToChatPreFormatted2(Client, bool:Forced, const String:Message[])
+public StatsPrintToChatPreFormatted2(Client, bool Forced, const char[] Message)
 {
 	// CHECK IF CLIENT HAS MUTED THE PLUGIN
 	if (!Forced && ClientRankMute[Client])
@@ -11506,10 +11230,10 @@ stock StatsGetClientTeam(client)
 	return TEAM_UNDEFINED;
 }
 
-bool:UpdateServerSettings(Client, const String:Key[], const String:Value[], const String:Desc[])
+bool UpdateServerSettings(Client, const char[] Key, const char[] Value, const char[] Desc)
 {
-	new Handle:statement = INVALID_HANDLE;
-	decl String:error[1024], String:query[2048];
+	Handle statement = INVALID_HANDLE;
+	char error[1024], query[2048];
 
 	// Add a row if it does not previously exist
 	if (!DoFastQuery(Client, "INSERT IGNORE INTO %sserver_settings SET sname = '%s', svalue = ''", DbPrefix, Key))
@@ -11528,7 +11252,7 @@ bool:UpdateServerSettings(Client, const String:Key[], const String:Value[], cons
 		return false;
 	}
 
-	new bool:retval = true;
+	bool retval = true;
 	SQL_BindParamString(statement, 0, Value, false);
 
 	if (!SQL_Execute(statement))
@@ -11564,9 +11288,9 @@ bool:UpdateServerSettings(Client, const String:Key[], const String:Value[], cons
 
 ShowMOTDAll()
 {
-	new maxplayers = GetMaxClients();
+	int maxplayers = MaxClients;
 
-	for (new i = 1; i <= maxplayers; i++)
+	for (int i = 1; i <= maxplayers; i++)
 	{
 		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
 		{
@@ -11575,7 +11299,7 @@ ShowMOTDAll()
 	}
 }
 
-ShowMOTD(client, bool:forced=false)
+ShowMOTD(client, bool forced=false)
 {
 	if (!forced && !GetConVarBool(cvar_AnnounceMotd))
 	{
@@ -11602,12 +11326,12 @@ ReadDb()
 
 ReadDbMotd()
 {
-	decl String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "SELECT svalue FROM %sserver_settings WHERE sname = 'motdmessage' LIMIT 1", DbPrefix);
 	SQL_TQuery(db, ReadDbMotdCallback, query);
 }
 
-public ReadDbMotdCallback(Handle:owner, Handle:hndl, const String:error[], any:data)
+public ReadDbMotdCallback(Handle owner, Handle hndl, const char[] error, any data)
 {
 	if (hndl == INVALID_HANDLE)
 	{

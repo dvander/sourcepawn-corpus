@@ -1,8 +1,7 @@
 #include <sourcemod>
 #include <sdktools>
-#include <zombiereloaded>
 
-#define PARACHUTE_VERSION 	"3.0"
+#define PARACHUTE_VERSION 	"3.1"
 
 new g_iVelocity = -1;
 new g_iMoney = -1;
@@ -17,7 +16,6 @@ new Handle:g_msgtype = INVALID_HANDLE;
 new Handle:g_cost = INVALID_HANDLE;
 new Handle:g_payback = INVALID_HANDLE;
 new Handle:g_welcome = INVALID_HANDLE;
-new Handle:g_roundmsg = INVALID_HANDLE;
 new Handle:g_version = INVALID_HANDLE;
 new Handle:g_model = INVALID_HANDLE;
 new Handle:g_decrease = INVALID_HANDLE;
@@ -56,15 +54,14 @@ public OnPluginStart()
 	g_msgtype = CreateConVar("sm_parachute_msgtype","1");
 	g_cost = CreateConVar("sm_parachute_cost","0");
 	g_payback = CreateConVar("sm_parachute_payback","75");
-	g_welcome = CreateConVar("sm_parachute_welcome","1");
-	g_roundmsg = CreateConVar("sm_parachute_roundmsg","1");
+	g_welcome = CreateConVar("sm_parachute_welcome","0");
 	g_version = CreateConVar("sm_parachute_version", PARACHUTE_VERSION,	"SM Parachute Version", FCVAR_NOTIFY);
 	g_model = CreateConVar("sm_parachute_model","1");
 	g_decrease = CreateConVar("sm_parachute_decrease","50");
 	g_button = CreateConVar("sm_parachute_button","1");
-	g_iVelocity = FindSendPropOffs("CBasePlayer", "m_vecVelocity[0]");
-	g_iMoney = FindSendPropOffs("CCSPlayer", "m_iAccount");
-	g_maxplayers = GetMaxClients();
+	g_iVelocity = FindSendPropInfo("CBasePlayer", "m_vecVelocity[0]");
+	g_iMoney = FindSendPropInfo("CCSPlayer", "m_iAccount");
+	g_maxplayers = 0;
 	SetConVarString(g_version, PARACHUTE_VERSION);
 	
 	InitGameMode();
@@ -72,7 +69,6 @@ public OnPluginStart()
 	RegConsoleCmd("say",HandleSay,"",FCVAR_GAMEDLL);
 	RegConsoleCmd("say_team",HandleSay,"",FCVAR_GAMEDLL);
 	HookEvent("player_death",PlayerDeath);
-	HookEvent("player_spawn",PlayerSpawn);
 	HookConVarChange(g_enabled, CvarChange_Enabled);
 	HookConVarChange(g_linear, CvarChange_Linear);
 	HookConVarChange(g_cost, CvarChange_Cost);
@@ -88,7 +84,6 @@ public OnPluginEnd(){
 	CloseHandle(g_cost);
 	CloseHandle(g_payback);
 	CloseHandle(g_welcome);
-	CloseHandle(g_roundmsg);
 	CloseHandle(g_version);
 	CloseHandle(g_model);
 	CloseHandle(g_decrease);
@@ -137,45 +132,35 @@ public OnMapStart(){
 public OnEventShutdown()
 {
 	UnhookEvent("player_death",PlayerDeath);
-	UnhookEvent("player_spawn",PlayerSpawn);
 }
 
 public OnClientPutInServer(client)
 {
+	if (IsClientInGame(client)) ExtinguishEntity(client);
+	for (new i = 1; i <= MaxClients; i++)
+	{
+		g_maxplayers = i;
+	}
 	inUse[client] = false;
 	hasPara[client] = false;
 	hasModel[client] = false;
-	g_maxplayers = GetMaxClients();
 	CreateTimer (20.0, WelcomeMsg, client);
 }
 
 public OnClientDisconnect(client){
-	g_maxplayers = GetMaxClients();
-	CloseParachute(client);
-}
-
-public Action:PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast){
-	new client;
-	client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if (GetConVarInt(g_cost) == 0){
-		CreateTimer (1.0, RoundMsg, client);
+	if (IsClientInGame(client)) ExtinguishEntity(client);
+	for (new i = 1; i <= MaxClients; i++)
+	{
+		g_maxplayers = i;
+		CloseParachute(client);
 	}
-	return Plugin_Continue;
+	
 }
 
 public Action:PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast){
 	new client;
 	client = GetClientOfUserId(GetEventInt(event, "userid"));
 	hasPara[client] = false;
-	EndPara(client);
-	return Plugin_Continue;
-}
-
-public Action:RoundMsg(Handle:timer, any:client){
-	if(GetConVarInt(g_roundmsg) == 1){
-		if(IsClientConnected (client) && IsClientInGame(client))
-			PrintMsg(client,"Have Got Free Parachute");
-	}
 	return Plugin_Continue;
 }
 
@@ -217,9 +202,11 @@ public EndPara(client)
 }
 
 public OpenParachute(client){
+	new team = GetClientTeam(client);
 
 	if(GetConVarInt(g_model) == 1){
-	if (ZR_IsClientZombie(client))
+	//if (ZR_IsClientZombie(client))
+	if (team==2) //t or (team==3) //ct
 		{
 		Parachute_Ent[client] = CreateEntityByName("prop_dynamic_override");
 		DispatchKeyValue(Parachute_Ent[client],"model","models/parachute/zombie/gargoyle_wings/gargoyle_wings.mdl");
@@ -545,4 +532,12 @@ public SetButton(button){
 		USE_BUTTON = IN_JUMP;
 		ButtonText = "Space";
 	}
+}
+
+stock bool IsValidClient(int client)
+{
+	if (client <= 0) return false;
+	if (client > MaxClients) return false;
+	if (!IsClientConnected(client)) return false;
+	return IsClientInGame(client);
 }

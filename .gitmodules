@@ -67,3 +67,6 @@
 [submodule "github.com/JoinedSenses/SM-ConnectionData"]
 	path = github.com/JoinedSenses/SM-ConnectionData
 	url = https://github.com/JoinedSenses/SM-ConnectionData
+[submodule "github.com/SilvDev/Left4DHooks"]
+	path = github.com/SilvDev/Left4DHooks
+	url = https://github.com/SilvDev/Left4DHooks

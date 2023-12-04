@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.4"
+/*
+*	Charger Punch Force
+*	Copyright (C) 2023 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.7"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,16 @@
 
 ========================================================================================
 	Change Log:
+
+1.7 (22-Nov-2023)
+	- Added cvar "l4d2_charger_punch_type" to control if Survivors or Special Infected or both can be affected.
+
+1.6 (10-Apr-2022)
+	- Fixed rare error if a client disconnects 1 frame after punching.
+
+1.5 (14-Nov-2021)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+	- Updated GameData signatures to avoid breaking when detoured by the "Left4DHooks" plugin.
 
 1.4 (23-May-2020)
 	- Fixed conflict with "Charger Actions" plugin when punch to carry is enabled.
@@ -53,9 +83,9 @@
 #define GAMEDATA			"l4d2_charger_punch"
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarCharge, g_hCvarFling, g_hCvarForce, g_hCvarForceZ;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarCharge, g_hCvarFling, g_hCvarForce, g_hCvarForceZ, g_hCvarType;
 bool g_bCvarAllow, g_bMapStarted, g_bLateLoad;
-int g_iCvarCharge, g_iCvarFling;
+int g_iCvarCharge, g_iCvarFling, g_iCvarType;
 float g_fCvarForce, g_fCvarForceZ;
 Handle g_hDetour, sdkCallPushPlayer;
 float g_fLastPunch[MAXPLAYERS+1];
@@ -129,8 +159,9 @@ public void OnPluginStart()
 	g_hCvarModesTog =		CreateConVar(	"l4d2_charger_punch_modes_tog",		"0",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarCharge =			CreateConVar(	"l4d2_charger_punch_charging",		"0",				"Only fling survivors when punched by a Charger that is charging. 0=No. 1=Yes. Very hard to punch and hit while charging, added by request.", CVAR_FLAGS );
 	g_hCvarFling =			CreateConVar(	"l4d2_charger_punch_fling",			"1",				"The type of fling. 1=Fling with get up animation. 2=Teleport player away from Charger.", CVAR_FLAGS );
-	g_hCvarForce =			CreateConVar(	"l4d2_charger_punch_force",			"200.0",			"The velocity a survivors is flung when punched by the Charger.", CVAR_FLAGS );
+	g_hCvarForce =			CreateConVar(	"l4d2_charger_punch_force",			"200.0",			"The velocity a survivor is flung when punched by the Charger.", CVAR_FLAGS );
 	g_hCvarForceZ =			CreateConVar(	"l4d2_charger_punch_forcez",		"251.0",			"The vertical velocity a survivors is flung when punched by the Charger. Must be greater than 250 to lift a Survivor.", CVAR_FLAGS );
+	g_hCvarType =			CreateConVar(	"l4d2_charger_punch_type",			"1",				"Which team does this plugin affect. 1=Survivors. 2=Special Infected. 3=Both.", CVAR_FLAGS );
 	CreateConVar(							"l4d2_charger_punch_version",		PLUGIN_VERSION,		"Charger Punch Force plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,					"l4d2_charger_punch");
 
@@ -144,6 +175,7 @@ public void OnPluginStart()
 	g_hCvarFling.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarForce.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarForceZ.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarType.AddChangeHook(ConVarChanged_Cvars);
 
 	IsAllowed();
 }
@@ -173,12 +205,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -189,6 +221,7 @@ void GetCvars()
 	g_iCvarFling = g_hCvarFling.IntValue;
 	g_fCvarForce = g_hCvarForce.FloatValue;
 	g_fCvarForceZ = g_hCvarForceZ.FloatValue;
+	g_iCvarType = g_hCvarType.IntValue;
 }
 
 void IsAllowed()
@@ -278,7 +311,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -309,7 +342,7 @@ void HookEvents(bool hook)
 	}
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client ) HookClient(client);
@@ -329,24 +362,39 @@ void HookClient(int client)
 	}
 }
 
-public MRESReturn OnPlayerHit(int pThis, Handle hReturn, Handle hParams)
+MRESReturn OnPlayerHit(int pThis, Handle hReturn, Handle hParams)
 {
-	if( !g_bCvarAllow ) return;
+	if( !g_bCvarAllow ) return MRES_Ignored;
 
 	int attacker = GetEntPropEnt(pThis, Prop_Send, "m_hOwnerEntity");
 
 	if( g_iCvarCharge )
 	{
 		int ability = GetEntPropEnt(attacker, Prop_Send, "m_customAbility"); // ability_charge
-		if( ability > 0 && IsValidEdict(ability) && GetEntProp(ability, Prop_Send, "m_isCharging") == 0 ) return;
+		if( ability > 0 && IsValidEdict(ability) && GetEntProp(ability, Prop_Send, "m_isCharging") == 0 ) return MRES_Ignored;
 	}
 
-	// Because this detour triggers first and "Charger Actions" punch to carry survivors uses the player_hurt event, have to delay flinging. 
+	// Because this detour triggers first and "Charger Actions" punch to carry survivors uses the player_hurt event, have to delay flinging.
 	int victim = DHookGetParam(hParams, 1);
+
+	switch( g_iCvarType )
+	{
+		case 1:
+		{
+			if( GetClientTeam(victim) != 2 ) return MRES_Ignored;
+		}
+		case 2:
+		{
+			if( GetClientTeam(victim) != 3 ) return MRES_Ignored;
+		}
+	}
+
 	DataPack dPack = new DataPack();
-	dPack.WriteCell(victim);
-	dPack.WriteCell(attacker);
+	dPack.WriteCell(GetClientUserId(victim));
+	dPack.WriteCell(GetClientUserId(attacker));
 	RequestFrame(OnFrame, dPack);
+
+	return MRES_Ignored;
 }
 
 void OnFrame(DataPack dPack)
@@ -355,6 +403,12 @@ void OnFrame(DataPack dPack)
 	int victim = dPack.ReadCell();
 	int attacker = dPack.ReadCell();
 	delete dPack;
+
+	victim = GetClientOfUserId(victim);
+	if( !victim || !IsClientInGame(victim) ) return;
+
+	attacker = GetClientOfUserId(attacker);
+	if( !attacker || !IsClientInGame(attacker) ) return;
 
 	// Prevent multiple hits
 	if( g_fLastPunch[victim] > GetGameTime() ) return;

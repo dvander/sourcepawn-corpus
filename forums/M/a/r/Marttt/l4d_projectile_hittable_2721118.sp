@@ -2,6 +2,12 @@
 // ====================================================================================================
 Change Log:
 
+1.0.8 (21-September-2022)
+    - Fixed particles and detonation not working properly. (thanks "Iizuka07" for reporting)
+
+1.0.7 (05-March-2022)
+    - Added cvar to allow breaking on shove and melee damage. (thanks "Shao" for requesting)
+
 1.0.6 (06-March-2021)
     - Fixed some throwables entities not exploding. (thanks "KadabraZz" for reporting)
     - Fixed spawner entities triggering explosion when the count is 0.
@@ -11,8 +17,8 @@ Change Log:
     - Added cvar to allow explode projectiles on touch. (thanks "Manoa" for requesting)
 
 1.0.4 (31-December-2020)
-    - Added cvar to control plugin behaviour for bots.
-    - Added cvar to control plugin behaviour for teams.
+    - Added cvar to control plugin for bots.
+    - Added cvar to control plugin for teams.
     - Added cvar to control which SI can trigger explosions on unequipped throwables.
 
 1.0.3 (26-December-2020)
@@ -40,7 +46,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Projectile Hittable"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Allows projectiles and throwables to explode when hit"
-#define PLUGIN_VERSION                "1.0.6"
+#define PLUGIN_VERSION                "1.0.8"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=327838"
 
 // ====================================================================================================
@@ -83,27 +89,19 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_WEAPON_MOLOTOV               "weapon_molotov"
-#define CLASSNAME_WEAPON_PIPEBOMB              "weapon_pipe_bomb"
-#define CLASSNAME_WEAPON_VOMITJAR              "weapon_vomitjar"
+#define MODEL_V_MOLOTOV               "models/v_models/v_molotov.mdl"
+#define MODEL_V_PIPEBOMB              "models/v_models/v_pipebomb.mdl"
+#define MODEL_V_VOMITJAR              "models/v_models/v_bile_flask.mdl"
+#define MODEL_W_MOLOTOV               "models/w_models/weapons/w_eq_molotov.mdl"
+#define MODEL_W_PIPEBOMB              "models/w_models/weapons/w_eq_pipebomb.mdl"
+#define MODEL_W_VOMITJAR              "models/w_models/weapons/w_eq_bile_flask.mdl"
+#define MODEL_GL_BULLET               "models/w_models/weapons/w_HE_grenade.mdl"
 
-#define CLASSNAME_MOLOTOV_PROJECTILE           "molotov_projectile"
-#define CLASSNAME_PIPEBOMB_PROJECTILE          "pipe_bomb_projectile"
-#define CLASSNAME_INFO_GOAL_INFECTED_CHASE     "info_goal_infected_chase"
+#define PARTICLE_MOLOTOV              "molotov_explosion"
+#define PARTICLE_VOMITJAR             "vomit_jar"
 
-#define MODEL_V_MOLOTOV                        "models/v_models/v_molotov.mdl"
-#define MODEL_V_PIPEBOMB                       "models/v_models/v_pipebomb.mdl"
-#define MODEL_V_VOMITJAR                       "models/v_models/v_bile_flask.mdl"
-#define MODEL_W_MOLOTOV                        "models/w_models/weapons/w_eq_molotov.mdl"
-#define MODEL_W_PIPEBOMB                       "models/w_models/weapons/w_eq_pipebomb.mdl"
-#define MODEL_W_VOMITJAR                       "models/w_models/weapons/w_eq_bile_flask.mdl"
-#define MODEL_GRENADE_LAUNCHER_BULLET          "models/w_models/weapons/w_HE_grenade.mdl"
-
-#define PARTICLE_MOLOTOV                       "molotov_explosion"
-#define PARTICLE_VOMITJAR                      "vomit_jar"
-
-#define SOUND_GLASS_BOTTLE_BREAK2              "physics/glass/glass_bottle_break2.wav"
-#define SOUND_VOMITJAR                         ")weapons/ceda_jar/ceda_jar_explode.wav"
+#define SOUND_GLASS_BOTTLE_BREAK2     "physics/glass/glass_bottle_break2.wav"
+#define SOUND_VOMITJAR                ")weapons/ceda_jar/ceda_jar_explode.wav"
 
 #define TEAM_SPECTATOR                1
 #define TEAM_SURVIVOR                 2
@@ -167,96 +165,91 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Bots;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_AnnounceTeam;
-static ConVar g_hCvar_AnnounceSelf;
-static ConVar g_hCvar_Molotov;
-static ConVar g_hCvar_MolotovChance;
-static ConVar g_hCvar_MolotovTouchChance;
-static ConVar g_hCvar_MolotovAnnounce;
-static ConVar g_hCvar_MolotovDelay;
-static ConVar g_hCvar_PipeBomb;
-static ConVar g_hCvar_PipeBombChance;
-static ConVar g_hCvar_PipeBombTouchChance;
-static ConVar g_hCvar_PipeBombAnnounce;
-static ConVar g_hCvar_VomitJar;
-static ConVar g_hCvar_VomitJarChance;
-static ConVar g_hCvar_VomitJarTouchChance;
-static ConVar g_hCvar_VomitJarAnnounce;
-static ConVar g_hCvar_VomitJarDuration;
-static ConVar g_hCvar_Grenade;
-static ConVar g_hCvar_GrenadeChance;
-static ConVar g_hCvar_GrenadeAnnounce;
-static ConVar g_hCvar_SI;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Bots;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_AnnounceTeam;
+ConVar g_hCvar_AnnounceSelf;
+ConVar g_hCvar_Shove;
+ConVar g_hCvar_Melee;
+ConVar g_hCvar_Molotov;
+ConVar g_hCvar_MolotovChance;
+ConVar g_hCvar_MolotovTouchChance;
+ConVar g_hCvar_MolotovAnnounce;
+ConVar g_hCvar_MolotovDelay;
+ConVar g_hCvar_PipeBomb;
+ConVar g_hCvar_PipeBombChance;
+ConVar g_hCvar_PipeBombTouchChance;
+ConVar g_hCvar_PipeBombAnnounce;
+ConVar g_hCvar_VomitJar;
+ConVar g_hCvar_VomitJarChance;
+ConVar g_hCvar_VomitJarTouchChance;
+ConVar g_hCvar_VomitJarAnnounce;
+ConVar g_hCvar_VomitJarDuration;
+ConVar g_hCvar_Grenade;
+ConVar g_hCvar_GrenadeChance;
+ConVar g_hCvar_GrenadeAnnounce;
+ConVar g_hCvar_SI;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Bots;
-static bool   g_bCvar_Team;
-static bool   g_bCvar_AnnounceTeam;
-static bool   g_bCvar_AnnounceSelf;
-static bool   g_bCvar_MolotovChance;
-static bool   g_bCvar_MolotovTouchChance;
-static bool   g_bCvar_MolotovDelay;
-static bool   g_bCvar_MolotovAnnounce;
-static bool   g_bCvar_PipeBombChance;
-static bool   g_bCvar_PipeBombTouchChance;
-static bool   g_bCvar_PipeBombAnnounce;
-static bool   g_bCvar_VomitJarChance;
-static bool   g_bCvar_VomitJarTouchChance;
-static bool   g_bCvar_VomitJarAnnounce;
-static bool   g_bCvar_Grenade;
-static bool   g_bCvar_GrenadeChance;
-static bool   g_bCvar_GrenadeAnnounce;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_Bots;
+bool g_bCvar_AnnounceTeam;
+bool g_bCvar_AnnounceSelf;
+bool g_bCvar_Shove;
+bool g_bCvar_Melee;
+bool g_bCvar_MolotovDelay;
+bool g_bCvar_MolotovAnnounce;
+bool g_bCvar_PipeBombAnnounce;
+bool g_bCvar_VomitJarAnnounce;
+bool g_bCvar_Grenade;
+bool g_bCvar_GrenadeAnnounce;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_V_Molotov = -1;
-static int    g_iModel_V_Pipebomb = -1;
-static int    g_iModel_V_Vomitjar = -1;
-static int    g_iModel_W_Molotov = -1;
-static int    g_iModel_W_Pipebomb = -1;
-static int    g_iModel_W_Vomitjar = -1;
-static int    g_iModel_GrenadeLauncherBullet = -1;
-static int    g_iCvar_Bots;
-static int    g_iCvar_Team;
-static int    g_iCvar_AnnounceTeam;
-static int    g_iCvar_Molotov;
-static int    g_iCvar_PipeBomb;
-static int    g_iCvar_VomitJar;
-static int    g_iCvar_SI;
+int g_iModel_V_Molotov = -1;
+int g_iModel_V_Pipebomb = -1;
+int g_iModel_V_Vomitjar = -1;
+int g_iModel_W_Molotov = -1;
+int g_iModel_W_Pipebomb = -1;
+int g_iModel_W_Vomitjar = -1;
+int g_iModel_GrenadeLauncherBullet = -1;
+int g_iCvar_Bots;
+int g_iCvar_Team;
+int g_iCvar_AnnounceTeam;
+int g_iCvar_Molotov;
+int g_iCvar_MolotovChance;
+int g_iCvar_MolotovTouchChance;
+int g_iCvar_PipeBomb;
+int g_iCvar_PipeBombChance;
+int g_iCvar_PipeBombTouchChance;
+int g_iCvar_VomitJar;
+int g_iCvar_VomitJarChance;
+int g_iCvar_VomitJarTouchChance;
+int g_iCvar_GrenadeChance;
+int g_iCvar_SI;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_MolotovChance;
-static float  g_fCvar_MolotovTouchChance;
-static float  g_fCvar_MolotovDelay;
-static float  g_fCvar_PipeBombChance;
-static float  g_fCvar_PipeBombTouchChance;
-static float  g_fCvar_VomitJarChance;
-static float  g_fCvar_VomitJarTouchChance;
-static float  g_fCvar_VomitJarDuration;
-static float  g_fCvar_GrenadeChance;
+float g_fCvar_MolotovDelay;
+float g_fCvar_VomitJarDuration;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sKillInput[100];
+char g_sKillInput[50];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static int    ge_iClass[MAXENTITIES+1];
-static int    ge_iType[MAXENTITIES+1];
+int ge_iClass[MAXENTITIES+1];
+int ge_iType[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -284,29 +277,31 @@ public void OnPluginStart()
 
     CreateConVar("l4d_projectile_hittable_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled                 = CreateConVar("l4d_projectile_hittable_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Bots                    = CreateConVar("l4d_projectile_hittable_bots", "9", "Plugin behaviour enabled for bots.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED bots.", CVAR_FLAGS, true, 0.0, true, 15.0);
-    g_hCvar_Team                    = CreateConVar("l4d_projectile_hittable_team", "11", "Plugin behaviour enabled for these teams.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
+    g_hCvar_Bots                    = CreateConVar("l4d_projectile_hittable_bots", "9", "Plugin enabled for bots.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED bots.", CVAR_FLAGS, true, 0.0, true, 15.0);
+    g_hCvar_Team                    = CreateConVar("l4d_projectile_hittable_team", "11", "Plugin enabled for these teams.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
     g_hCvar_AnnounceTeam            = CreateConVar("l4d_projectile_hittable_announce_team", "1", "Which teams should the message be transmitted to.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
     g_hCvar_AnnounceSelf            = CreateConVar("l4d_projectile_hittable_announce_self", "1", "Should the message be transmitted to those who hit it.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_Shove                   = CreateConVar("l4d_projectile_hittable_shove", "1", "Allow shove damage to break projectiles.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_Melee                   = CreateConVar("l4d_projectile_hittable_melee", "1", "Allow melee damage to break projectiles.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Molotov                 = CreateConVar("l4d_projectile_hittable_molotov", "3", "Allow molotovs to explode when hit.\n0 = OFF, 1 = Only thrown molotovs (projectile), 2 = Only ground molotovs (weapon).\nExample: \"3\", enables explosion for thrown and ground molotovs.", CVAR_FLAGS, true, 0.0, true, 3.0);
-    g_hCvar_MolotovChance           = CreateConVar("l4d_projectile_hittable_molotov_chance", "100.0", "Chance to molotovs explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
-    g_hCvar_MolotovTouchChance      = CreateConVar("l4d_projectile_hittable_molotov_touch_chance", "100.0", "Chance to molotov projectiles to explode on touch.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_MolotovChance           = CreateConVar("l4d_projectile_hittable_molotov_chance", "100", "Chance to molotovs explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_MolotovTouchChance      = CreateConVar("l4d_projectile_hittable_molotov_touch_chance", "100", "Chance to molotov projectiles to explode on touch.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_MolotovAnnounce         = CreateConVar("l4d_projectile_hittable_molotov_announce", "1", "Output to the chat every time someone hits a molotov.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_MolotovDelay            = CreateConVar("l4d_projectile_hittable_molotov_delay", "1.0", "Delay in seconds to molotov create fire spots when hit.", CVAR_FLAGS, true, 0.0);
     g_hCvar_PipeBomb                = CreateConVar("l4d_projectile_hittable_pipebomb", "3", "Allow pipe bombs to explode when hit.\n0 = OFF, 1 = Only thrown pipe bombs (projectile), 2 = Only ground pipe bombs (weapon).\nExample: \"3\", enables explosion for thrown and ground pipe bombs.", CVAR_FLAGS, true, 0.0, true, 3.0);
-    g_hCvar_PipeBombChance          = CreateConVar("l4d_projectile_hittable_pipebomb_chance", "100.0", "Chance to pipe bombs explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
-    g_hCvar_PipeBombTouchChance     = CreateConVar("l4d_projectile_hittable_pipebomb_touch_chance", "100.0", "Chance to pipe bomb projectiles to explode on touch.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_PipeBombChance          = CreateConVar("l4d_projectile_hittable_pipebomb_chance", "100", "Chance to pipe bombs explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_PipeBombTouchChance     = CreateConVar("l4d_projectile_hittable_pipebomb_touch_chance", "100", "Chance to pipe bomb projectiles to explode on touch.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_PipeBombAnnounce        = CreateConVar("l4d_projectile_hittable_pipebomb_announce", "1", "Output to the chat every time someone hits a pipe bomb.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
 
     if (g_bL4D2)
     {
         g_hCvar_VomitJar            = CreateConVar("l4d_projectile_hittable_vomitjar", "3", "Allow vomit jars to explode when hit.\n0 = OFF, 1 = Only thrown vomitjars (projectile), 2 = Only ground vomitjars (weapon).\nExample: \"3\", enables explosion for thrown and ground vomit jars.", CVAR_FLAGS, true, 0.0, true, 3.0);
-        g_hCvar_VomitJarChance      = CreateConVar("l4d_projectile_hittable_vomitjar_chance", "100.0", "Chance to vomit jars explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
-        g_hCvar_VomitJarTouchChance = CreateConVar("l4d_projectile_hittable_vomitjar_touch_chance", "100.0", "Chance to vomit jar projectiles to explode on touch.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+        g_hCvar_VomitJarChance      = CreateConVar("l4d_projectile_hittable_vomitjar_chance", "100", "Chance to vomit jars explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+        g_hCvar_VomitJarTouchChance = CreateConVar("l4d_projectile_hittable_vomitjar_touch_chance", "100", "Chance to vomit jar projectiles to explode on touch.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
         g_hCvar_VomitJarAnnounce    = CreateConVar("l4d_projectile_hittable_vomitjar_announce", "1", "Output to the chat every time someone hits a vomit jar.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
         g_hCvar_VomitJarDuration    = CreateConVar("l4d_projectile_hittable_vomitjar_duration", "20.0", "How long (in seconds) the vomit particle and the infected chase should last.", CVAR_FLAGS, true, 0.0);
         g_hCvar_Grenade             = CreateConVar("l4d_projectile_hittable_grenade", "1", "Allow grenades to explode when hit.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-        g_hCvar_GrenadeChance       = CreateConVar("l4d_projectile_hittable_grenade_chance", "100.0", "Chance to grenades explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+        g_hCvar_GrenadeChance       = CreateConVar("l4d_projectile_hittable_grenade_chance", "100", "Chance to grenades explode when hit.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
         g_hCvar_GrenadeAnnounce     = CreateConVar("l4d_projectile_hittable_grenade_announce", "1", "Output to the chat every time someone hits a grenade.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     }
 
@@ -320,6 +315,8 @@ public void OnPluginStart()
     g_hCvar_Bots.AddChangeHook(Event_ConVarChanged);
     g_hCvar_AnnounceTeam.AddChangeHook(Event_ConVarChanged);
     g_hCvar_AnnounceSelf.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_Shove.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_Melee.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Molotov.AddChangeHook(Event_ConVarChanged);
     g_hCvar_MolotovChance.AddChangeHook(Event_ConVarChanged);
     g_hCvar_MolotovTouchChance.AddChangeHook(Event_ConVarChanged);
@@ -353,7 +350,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -367,7 +364,7 @@ public void LoadPluginTranslations()
 
 public void OnMapStart()
 {
-    PrecacheSound(SOUND_GLASS_BOTTLE_BREAK2);
+    PrecacheSound(SOUND_GLASS_BOTTLE_BREAK2, true);
     PrecacheParticle(PARTICLE_MOLOTOV);
 
     g_iModel_V_Molotov = PrecacheModel(MODEL_V_MOLOTOV, true);
@@ -377,12 +374,12 @@ public void OnMapStart()
 
     if (g_bL4D2)
     {
-        PrecacheSound(SOUND_VOMITJAR);
+        PrecacheSound(SOUND_VOMITJAR, true);
         PrecacheParticle(PARTICLE_VOMITJAR);
 
         g_iModel_V_Vomitjar = PrecacheModel(MODEL_V_VOMITJAR, true);
         g_iModel_W_Vomitjar = PrecacheModel(MODEL_W_VOMITJAR, true);
-        g_iModel_GrenadeLauncherBullet = PrecacheModel(MODEL_GRENADE_LAUNCHER_BULLET, true);
+        g_iModel_GrenadeLauncherBullet = PrecacheModel(MODEL_GL_BULLET, true);
     }
 }
 
@@ -392,77 +389,69 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_iCvar_Bots = g_hCvar_Bots.IntValue;
     g_bCvar_Bots = (g_iCvar_Bots > 0);
     g_iCvar_Team = g_hCvar_Team.IntValue;
-    g_bCvar_Team = (g_iCvar_Team > 0);
     g_iCvar_AnnounceTeam = g_hCvar_AnnounceTeam.IntValue;
     g_bCvar_AnnounceTeam = (g_iCvar_AnnounceTeam > 0);
     g_bCvar_AnnounceSelf = g_hCvar_AnnounceSelf.BoolValue;
+    g_bCvar_Shove = g_hCvar_Shove.BoolValue;
+    g_bCvar_Melee = g_hCvar_Melee.BoolValue;
     g_iCvar_Molotov = g_hCvar_Molotov.IntValue;
-    g_fCvar_MolotovChance = g_hCvar_MolotovChance.FloatValue;
-    g_bCvar_MolotovChance = (g_fCvar_MolotovChance > 0.0);
-    g_fCvar_MolotovTouchChance = g_hCvar_MolotovTouchChance.FloatValue;
-    g_bCvar_MolotovTouchChance = (g_fCvar_MolotovTouchChance > 0.0);
+    g_iCvar_MolotovChance = g_hCvar_MolotovChance.IntValue;
+    g_iCvar_MolotovTouchChance = g_hCvar_MolotovTouchChance.IntValue;
     g_bCvar_MolotovAnnounce = g_hCvar_MolotovAnnounce.BoolValue;
     g_fCvar_MolotovDelay = g_hCvar_MolotovDelay.FloatValue;
     g_bCvar_MolotovDelay = (g_fCvar_MolotovDelay > 0.0);
     g_iCvar_PipeBomb = g_hCvar_PipeBomb.IntValue;
-    g_fCvar_PipeBombChance = g_hCvar_PipeBombChance.FloatValue;
-    g_bCvar_PipeBombChance = (g_fCvar_PipeBombChance > 0.0);
-    g_fCvar_PipeBombTouchChance = g_hCvar_PipeBombTouchChance.FloatValue;
-    g_bCvar_PipeBombTouchChance = (g_fCvar_PipeBombTouchChance > 0.0);
+    g_iCvar_PipeBombChance = g_hCvar_PipeBombChance.IntValue;
+    g_iCvar_PipeBombTouchChance = g_hCvar_PipeBombTouchChance.IntValue;
     g_bCvar_PipeBombAnnounce = g_hCvar_PipeBombAnnounce.BoolValue;
 
     if (g_bL4D2)
     {
         g_iCvar_VomitJar = g_hCvar_VomitJar.IntValue;
-        g_fCvar_VomitJarChance = g_hCvar_VomitJarChance.FloatValue;
-        g_bCvar_VomitJarChance = (g_fCvar_VomitJarChance > 0.0);
-        g_fCvar_VomitJarTouchChance = g_hCvar_VomitJarTouchChance.FloatValue;
-        g_bCvar_VomitJarTouchChance = (g_fCvar_VomitJarTouchChance > 0.0);
+        g_iCvar_VomitJarChance = g_hCvar_VomitJarChance.IntValue;
+        g_iCvar_VomitJarTouchChance = g_hCvar_VomitJarTouchChance.IntValue;
         g_bCvar_VomitJarAnnounce = g_hCvar_VomitJarAnnounce.BoolValue;
         g_fCvar_VomitJarDuration = g_hCvar_VomitJarDuration.FloatValue;
         g_bCvar_Grenade = g_hCvar_Grenade.BoolValue;
-        g_fCvar_GrenadeChance = g_hCvar_GrenadeChance.FloatValue;
-        g_bCvar_GrenadeChance = (g_fCvar_GrenadeChance > 0.0);
+        g_iCvar_GrenadeChance = g_hCvar_GrenadeChance.IntValue;
         g_bCvar_GrenadeAnnounce = g_hCvar_GrenadeAnnounce.BoolValue;
     }
 
     g_iCvar_SI = g_hCvar_SI.IntValue;
 
-    FormatEx(g_sKillInput, sizeof(g_sKillInput), "OnUser1 !self:Kill::%.2f:-1", g_fCvar_VomitJarDuration);
+    FormatEx(g_sKillInput, sizeof(g_sKillInput), "OnUser1 !self:Kill::%.1f:-1", g_fCvar_VomitJarDuration);
 }
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
     if (!g_bL4D2) // L4D1 doesn't have "weapon_drop" event
         return;
 
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -471,7 +460,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -483,7 +472,7 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
@@ -496,6 +485,9 @@ public void LateLoad()
     entity = INVALID_ENT_REFERENCE;
     while ((entity = FindEntityByClassname(entity, "*")) != INVALID_ENT_REFERENCE)
     {
+        if (entity < 0)
+            continue;
+
         if (!HasEntProp(entity, Prop_Send, "m_bIsLive")) // *_projectile
             continue;
 
@@ -505,26 +497,9 @@ public void LateLoad()
 
 /****************************************************************************************************/
 
-public void OnEntityDestroyed(int entity)
-{
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    ge_iClass[entity] = CLASS_NONE;
-    ge_iType[entity] = TYPE_NONE;
-}
-
-/****************************************************************************************************/
-
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     switch (classname[0])
@@ -553,7 +528,18 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
+        return;
+
+    ge_iClass[entity] = CLASS_NONE;
+    ge_iType[entity] = TYPE_NONE;
+}
+
+/****************************************************************************************************/
+
+void OnNextFrame(int entityRef)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -630,7 +616,7 @@ public void OnNextFrame(int entityRef)
 
     if (modelIndex == g_iModel_V_Vomitjar || modelIndex == g_iModel_W_Vomitjar)
     {
-        if (!(entityClass & g_iCvar_PipeBomb))
+        if (!(entityClass & g_iCvar_VomitJar))
             return;
 
         ge_iClass[entity] = entityClass;
@@ -665,10 +651,11 @@ public void OnNextFrame(int entityRef)
 
 /****************************************************************************************************/
 
-public void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
 {
     char item[2];
     event.GetString("item", item, sizeof(item));
+    int entity = event.GetInt("propid");
 
     switch (item[0])
     {
@@ -676,7 +663,6 @@ public void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
              'p', // pipe_bomb
              'v': // vomitjar
         {
-            int entity = event.GetInt("propid");
             RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
         }
     }
@@ -685,18 +671,18 @@ public void Event_WeaponDrop(Event event, const char[] name, bool dontBroadcast)
 /****************************************************************************************************/
 
 // L4D1 weapon drop fix
-public void OnWeaponThinkPost(int entity)
+void OnWeaponThinkPost(int entity)
 {
     if (!g_bCvar_Enabled)
         return;
 
-    if (GetEntProp(entity, Prop_Send, "m_hOwner") == -1)
+    if (GetEntPropEnt(entity, Prop_Send, "m_hOwner") == -1)
         SetEntProp(entity, Prop_Data, "m_takedamage", DAMAGE_YES);
 }
 
 /****************************************************************************************************/
 
-public void OnStartTouchPost(int entity, int other)
+void OnStartTouchPost(int entity, int other)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -706,7 +692,7 @@ public void OnStartTouchPost(int entity, int other)
 
 /****************************************************************************************************/
 
-public void OnNextFrameTouch(int entityRef)
+void OnNextFrameTouch(int entityRef)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -719,16 +705,13 @@ public void OnNextFrameTouch(int entityRef)
     int type = ge_iType[entity];
 
     float vPos[3];
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPos);
 
     switch (type)
     {
         case TYPE_MOLOTOV:
         {
-            if (!g_bCvar_MolotovTouchChance)
-                return;
-
-            if (g_fCvar_MolotovTouchChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_MolotovTouchChance < GetRandomInt(1, 100))
                 return;
 
             CreateParticle(PARTICLE_MOLOTOV, vPos, 1.0);
@@ -737,20 +720,14 @@ public void OnNextFrameTouch(int entityRef)
         }
         case TYPE_PIPEBOMB:
         {
-            if (!g_bCvar_PipeBombTouchChance)
-                return;
-
-            if (g_fCvar_PipeBombTouchChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_PipeBombTouchChance < GetRandomInt(1, 100))
                 return;
 
             SDKHooks_TakeDamage(entity, ENTITY_WORLDSPAWN, ENTITY_WORLDSPAWN, 0.0, DMG_GENERIC, -1, NULL_VECTOR, NULL_VECTOR);
         }
         case TYPE_VOMITJAR:
         {
-            if (!g_bCvar_VomitJarTouchChance)
-                return;
-
-            if (g_fCvar_VomitJarTouchChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_VomitJarTouchChance < GetRandomInt(1, 100))
                 return;
 
             CreateParticle(PARTICLE_VOMITJAR, vPos, g_fCvar_VomitJarDuration);
@@ -758,12 +735,10 @@ public void OnNextFrameTouch(int entityRef)
 
             AcceptEntityInput(entity, "Kill");
 
-            int goal = CreateEntityByName(CLASSNAME_INFO_GOAL_INFECTED_CHASE);
-            DispatchKeyValue(entity, "targetname", "l4d_projectile_hittable");
-
-            TeleportEntity(goal, vPos, NULL_VECTOR, NULL_VECTOR);
+            int goal = CreateEntityByName("info_goal_infected_chase");
+            DispatchKeyValue(goal, "targetname", "l4d_projectile_hittable");
+            DispatchKeyValueVector(goal, "origin", vPos);
             DispatchSpawn(goal);
-            ActivateEntity(goal);
 
             AcceptEntityInput(goal, "Enable");
             SetVariantString(g_sKillInput);
@@ -775,10 +750,21 @@ public void OnNextFrameTouch(int entityRef)
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
     if (!g_bCvar_Enabled)
         return Plugin_Stop; // Prevents entity disappearing when hit
+
+    if (IsValidClientIndex(inflictor))
+    {
+        if (!g_bCvar_Shove && (damagetype & DMG_CLUB))
+            return Plugin_Stop;
+    }
+    else
+    {
+        if (!g_bCvar_Melee && (damagetype & DMG_SLASH || damagetype & DMG_CLUB))
+            return Plugin_Stop;
+    }
 
     if (HasEntProp(victim, Prop_Data, "m_itemCount")) // Spawner entities fix
     {
@@ -799,9 +785,6 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
     }
     else
     {
-        if (!g_bCvar_Team)
-            return Plugin_Stop;
-
         if (!(GetTeamFlag(GetClientTeam(attacker)) & g_iCvar_Team))
             return Plugin_Stop;
     }
@@ -816,7 +799,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
     int entityClass = ge_iClass[victim];
 
     float vPos[3];
-    GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vPos);
+    GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", vPos);
 
     switch (type)
     {
@@ -825,10 +808,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
             if (!(entityClass & g_iCvar_Molotov))
                 return Plugin_Stop;
 
-            if (!g_bCvar_MolotovChance)
-                return Plugin_Stop;
-
-            if (g_fCvar_MolotovChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_MolotovChance < GetRandomInt(1, 100))
                 return Plugin_Stop;
 
             CreateParticle(PARTICLE_MOLOTOV, vPos, 1.0);
@@ -839,17 +819,15 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 {
                     AcceptEntityInput(victim, "Kill");
 
-                    int entity = CreateEntityByName(CLASSNAME_MOLOTOV_PROJECTILE);
+                    int entity = CreateEntityByName("molotov_projectile");
                     DispatchKeyValue(entity, "targetname", "l4d_projectile_hittable");
-
-                    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+                    DispatchKeyValueVector(entity, "origin", vPos);
                     DispatchSpawn(entity);
-                    ActivateEntity(entity);
 
                     SetEntProp(entity, Prop_Send, "m_iTeamNum", IsValidClient(attacker) ? GetClientTeam(attacker) : 0);
                     SetEntPropFloat(entity, Prop_Send, "m_flDamage", 200.0);
-                    SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", IsValidClient(attacker) ? attacker : 0);
-                    SetEntPropEnt(entity, Prop_Send, "m_hThrower", IsValidClient(attacker) ? attacker : 0); // Fix killer message
+                    SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", IsValidClient(attacker) ? attacker : -1);
+                    SetEntPropEnt(entity, Prop_Send, "m_hThrower", IsValidClient(attacker) ? attacker : -1); // Fix killer message
                     SetEntProp(entity, Prop_Data, "m_takedamage", DAMAGE_YES);
                     SDKHooks_TakeDamage(entity, attacker, attacker, damage, damagetype, weapon, damageForce, damagePosition);
                 }
@@ -900,7 +878,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 if (IsFakeClient(client))
                     continue;
 
-                if (attacker == client)
+                if (client == attacker)
                 {
                     if (!g_bCvar_AnnounceSelf)
                         continue;
@@ -919,10 +897,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
             if (!(entityClass & g_iCvar_PipeBomb))
                 return Plugin_Stop;
 
-            if (!g_bCvar_PipeBombChance)
-                return Plugin_Stop;
-
-            if (g_fCvar_PipeBombChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_PipeBombChance < GetRandomInt(1, 100))
                 return Plugin_Stop;
 
             switch (entityClass)
@@ -931,17 +906,15 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 {
                     AcceptEntityInput(victim, "Kill");
 
-                    int entity = CreateEntityByName(CLASSNAME_PIPEBOMB_PROJECTILE);
+                    int entity = CreateEntityByName("pipe_bomb_projectile");
                     DispatchKeyValue(entity, "targetname", "l4d_projectile_hittable");
-
-                    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+                    DispatchKeyValueVector(entity, "origin", vPos);
                     DispatchSpawn(entity);
-                    ActivateEntity(entity);
 
                     SetEntProp(entity, Prop_Send, "m_iTeamNum", IsValidClient(attacker) ? GetClientTeam(attacker) : 0);
                     SetEntPropFloat(entity, Prop_Send, "m_flDamage", 25.0);
-                    SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", IsValidClient(attacker) ? attacker : 0);
-                    SetEntPropEnt(entity, Prop_Send, "m_hThrower", IsValidClient(attacker) ? attacker : 0); // Fix killer message
+                    SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", IsValidClient(attacker) ? attacker : -1);
+                    SetEntPropEnt(entity, Prop_Send, "m_hThrower", IsValidClient(attacker) ? attacker : -1); // Fix killer message
                     SetEntProp(entity, Prop_Data, "m_takedamage", DAMAGE_YES);
                     SDKHooks_TakeDamage(entity, attacker, attacker, damage, damagetype, weapon, damageForce, damagePosition);
                 }
@@ -961,7 +934,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 if (IsFakeClient(client))
                     continue;
 
-                if (attacker == client)
+                if (client == attacker)
                 {
                     if (!g_bCvar_AnnounceSelf)
                         continue;
@@ -981,10 +954,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
             if (!(entityClass & g_iCvar_VomitJar))
                 return Plugin_Stop;
 
-            if (!g_bCvar_VomitJarChance)
-                return Plugin_Stop;
-
-            if (g_fCvar_VomitJarChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_VomitJarChance < GetRandomInt(1, 100))
                 return Plugin_Stop;
 
             CreateParticle(PARTICLE_VOMITJAR, vPos, g_fCvar_VomitJarDuration);
@@ -994,12 +964,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
             SetEntProp(victim, Prop_Data, "m_takedamage", DAMAGE_NO);
             AcceptEntityInput(victim, "Kill");
 
-            int entity = CreateEntityByName(CLASSNAME_INFO_GOAL_INFECTED_CHASE);
+            int entity = CreateEntityByName("info_goal_infected_chase");
             DispatchKeyValue(entity, "targetname", "l4d_projectile_hittable");
-
-            TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+            DispatchKeyValueVector(entity, "origin", vPos);
             DispatchSpawn(entity);
-            ActivateEntity(entity);
 
             AcceptEntityInput(entity, "Enable");
             SetVariantString(g_sKillInput);
@@ -1020,7 +988,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 if (IsFakeClient(client))
                     continue;
 
-                if (attacker == client)
+                if (client == attacker)
                 {
                     if (!g_bCvar_AnnounceSelf)
                         continue;
@@ -1036,13 +1004,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
         }
         case TYPE_GRENADELAUNCHER:
         {
-            if (!g_bCvar_Grenade)
-                return Plugin_Continue;
-
-            if (!g_bCvar_GrenadeChance)
-                return Plugin_Continue;
-
-            if (g_fCvar_GrenadeChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_GrenadeChance < GetRandomInt(1, 100))
                 return Plugin_Continue;
 
             if (!g_bCvar_AnnounceTeam)
@@ -1059,7 +1021,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
                 if (IsFakeClient(client))
                     continue;
 
-                if (attacker == client)
+                if (client == attacker)
                 {
                     if (!g_bCvar_AnnounceSelf)
                         continue;
@@ -1080,7 +1042,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 
 /****************************************************************************************************/
 
-public Action TimerMolotovExplosion(Handle timer, DataPack pack)
+Action TimerMolotovExplosion(Handle timer, DataPack pack)
 {
     float vPos[3];
     int thrower;
@@ -1107,36 +1069,35 @@ public Action TimerMolotovExplosion(Handle timer, DataPack pack)
     damagePosition[1] = pack.ReadFloat();
     damagePosition[2] = pack.ReadFloat();
 
-    int entity = CreateEntityByName(CLASSNAME_MOLOTOV_PROJECTILE);
+    int entity = CreateEntityByName("molotov_projectile");
     DispatchKeyValue(entity, "targetname", "l4d_projectile_hittable");
-
-    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     SetEntProp(entity, Prop_Send, "m_iTeamNum", IsValidClient(attacker) ? GetClientTeam(attacker) : 0);
     SetEntPropFloat(entity, Prop_Send, "m_flDamage", 200.0);
-    SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", IsValidClient(attacker) ? attacker : 0);
-    SetEntPropEnt(entity, Prop_Send, "m_hThrower", IsValidClient(thrower) ? thrower : 0); // Fix killer message
+    SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", IsValidClient(attacker) ? attacker : -1);
+    SetEntPropEnt(entity, Prop_Send, "m_hThrower", IsValidClient(thrower) ? thrower : -1); // Fix killer message
     SetEntProp(entity, Prop_Data, "m_takedamage", DAMAGE_YES);
     SDKHooks_TakeDamage(entity, attacker, attacker, damage, damagetype, weapon, damageForce, damagePosition);
+
+    return Plugin_Stop;
 }
 
 /****************************************************************************************************/
 
-public void CreateParticle(const char[] particle, float vPos[3], float duration)
+void CreateParticle(const char[] particle, float vPos[3], float duration)
 {
     int entity = CreateEntityByName("info_particle_system");
     DispatchKeyValue(entity, "targetname", "l4d_projectile_hittable");
     DispatchKeyValue(entity, "effect_name", particle);
-
-    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValueVector(entity, "origin", vPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
+    ActivateEntity(entity); // Don't work without it
 
     AcceptEntityInput(entity, "Start");
     char buffer[32];
-    FormatEx(buffer, sizeof(buffer), "OnUser1 !self:Kill::%.2f:-1", duration);
+    FormatEx(buffer, sizeof(buffer), "OnUser1 !self:Kill::%.1f:-1", duration);
     SetVariantString(buffer);
     AcceptEntityInput(entity, "AddOutput");
     AcceptEntityInput(entity, "FireUser1");
@@ -1145,7 +1106,7 @@ public void CreateParticle(const char[] particle, float vPos[3], float duration)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1154,30 +1115,44 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_projectile_hittable_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_projectile_hittable_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_bots : %i (%s)", g_iCvar_Bots, g_bCvar_Bots ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_team : %i (%s)", g_iCvar_Team, g_bCvar_Team ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_announce_team : %i", g_iCvar_AnnounceTeam);
-    PrintToConsole(client, "l4d_projectile_hittable_molotov : %i (%s)", g_iCvar_Molotov, g_iCvar_Molotov > 0 ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_molotov_chance : %.2f (%s)", g_fCvar_MolotovChance, g_bCvar_MolotovChance ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_molotov_touch_chance : %.2f (%s)", g_fCvar_MolotovTouchChance, g_bCvar_MolotovTouchChance ? "true" : "false");
+    PrintToConsole(client, "l4d_projectile_hittable_bots : %i", g_iCvar_Bots);
+    PrintToConsole(client, "l4d_projectile_hittable_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
+    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_projectile_hittable_announce_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_AnnounceTeam,
+    g_iCvar_AnnounceTeam & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_AnnounceTeam & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_AnnounceTeam & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_AnnounceTeam & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_projectile_hittable_shove : %b", g_bCvar_Shove);
+    PrintToConsole(client, "l4d_projectile_hittable_melee : %b", g_bCvar_Melee);
+    PrintToConsole(client, "l4d_projectile_hittable_molotov : %i", g_iCvar_Molotov);
+    PrintToConsole(client, "l4d_projectile_hittable_molotov_chance : %i%%", g_iCvar_MolotovChance);
+    PrintToConsole(client, "l4d_projectile_hittable_molotov_touch_chance : %i%%", g_iCvar_MolotovTouchChance);
     PrintToConsole(client, "l4d_projectile_hittable_molotov_announce : %b (%s)", g_bCvar_MolotovAnnounce, g_bCvar_MolotovAnnounce ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_molotov_delay : %.2f (%s)", g_fCvar_MolotovDelay, g_bCvar_MolotovDelay ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_pipebomb : %i (%s)", g_iCvar_PipeBomb, g_iCvar_PipeBomb > 0 ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_pipebomb_chance : %.2f (%s)", g_fCvar_PipeBombChance, g_bCvar_PipeBombChance ? "true" : "false");
-    PrintToConsole(client, "l4d_projectile_hittable_pipebomb_touch_chance : %.2f (%s)", g_fCvar_PipeBombTouchChance, g_bCvar_PipeBombTouchChance ? "true" : "false");
+    PrintToConsole(client, "l4d_projectile_hittable_molotov_delay : %.1f", g_fCvar_MolotovDelay);
+    PrintToConsole(client, "l4d_projectile_hittable_pipebomb : %i", g_iCvar_PipeBomb);
+    PrintToConsole(client, "l4d_projectile_hittable_pipebomb_chance : %i%%", g_iCvar_PipeBombChance);
+    PrintToConsole(client, "l4d_projectile_hittable_pipebomb_touch_chance : %i%%", g_iCvar_PipeBombTouchChance);
     PrintToConsole(client, "l4d_projectile_hittable_pipebomb_announce : %b (%s)", g_bCvar_PipeBombAnnounce, g_bCvar_PipeBombAnnounce ? "true" : "false");
     if (g_bL4D2)
     {
-        PrintToConsole(client, "l4d_projectile_hittable_vomitjar : %i (%s)", g_iCvar_VomitJar, g_iCvar_VomitJar > 0 ? "true" : "false");
-        PrintToConsole(client, "l4d_projectile_hittable_vomitjar_chance : %.2f (%s)", g_fCvar_VomitJarChance, g_bCvar_VomitJarChance ? "true" : "false");
-        PrintToConsole(client, "l4d_projectile_hittable_vomitjar_touch_chance : %.2f (%s)", g_fCvar_VomitJarTouchChance, g_bCvar_VomitJarTouchChance ? "true" : "false");
+        PrintToConsole(client, "l4d_projectile_hittable_vomitjar : %i", g_iCvar_VomitJar);
+        PrintToConsole(client, "l4d_projectile_hittable_vomitjar_chance : %i%%", g_iCvar_VomitJarChance);
+        PrintToConsole(client, "l4d_projectile_hittable_vomitjar_touch_chance : %i%%", g_iCvar_VomitJarTouchChance);
         PrintToConsole(client, "l4d_projectile_hittable_vomitjar_announce : %b (%s)", g_bCvar_VomitJarAnnounce, g_bCvar_VomitJarAnnounce ? "true" : "false");
-        PrintToConsole(client, "l4d_projectile_hittable_vomitjar_duration : %.2f", g_fCvar_VomitJarDuration);
+        PrintToConsole(client, "l4d_projectile_hittable_vomitjar_duration : %.1f", g_fCvar_VomitJarDuration);
         PrintToConsole(client, "l4d_projectile_hittable_grenade : %b (%s)", g_bCvar_Grenade, g_bCvar_Grenade ? "true" : "false");
-        PrintToConsole(client, "l4d_projectile_hittable_grenade_chance : %.2f (%s)", g_fCvar_GrenadeChance, g_bCvar_GrenadeChance ? "true" : "false");
+        PrintToConsole(client, "l4d_projectile_hittable_grenade_chance : %i%%", g_iCvar_GrenadeChance);
         PrintToConsole(client, "l4d_projectile_hittable_grenade_announce : %b (%s)", g_bCvar_GrenadeAnnounce, g_bCvar_GrenadeAnnounce ? "true" : "false");
     }
-    PrintToConsole(client, "l4d_projectile_hittable_si : %i (%s)", g_iCvar_SI, g_iCvar_SI > 0 ? "true" : "false");
+    if (g_bL4D2)
+    {
+        PrintToConsole(client, "l4d_projectile_hittable_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
+        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
+    else
+    {
+        PrintToConsole(client, "l4d_projectile_hittable_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", g_iCvar_SI,
+        g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -1210,19 +1185,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/
@@ -1322,17 +1284,16 @@ int GetZombieClassFlag(int client)
  *
  * @param particle      Particle name.
  */
-public void PrecacheParticle(const char[] particle)
+int tableParticleEffectNames = INVALID_STRING_TABLE;
+void PrecacheParticle(const char[] particle)
 {
-    static int table = INVALID_STRING_TABLE;
+    if (tableParticleEffectNames == INVALID_STRING_TABLE)
+        tableParticleEffectNames = FindStringTable("ParticleEffectNames");
 
-    if (table == INVALID_STRING_TABLE)
-        table = FindStringTable("ParticleEffectNames");
-
-    if (FindStringIndex(table, particle) == INVALID_STRING_INDEX)
+    if (FindStringIndex(tableParticleEffectNames, particle) == INVALID_STRING_INDEX)
     {
         bool save = LockStringTables(false);
-        AddToStringTable(table, particle);
+        AddToStringTable(tableParticleEffectNames, particle);
         LockStringTables(save);
     }
 }
@@ -1349,7 +1310,7 @@ public void PrecacheParticle(const char[] particle)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

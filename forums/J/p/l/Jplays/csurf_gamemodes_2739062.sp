@@ -49,14 +49,14 @@ public void OnPluginStart()
 
 public Action command_ffa(int client, int args)
 {
-	PrintToChatAll("%t %t", "Prefix", "Admin FFA", client);
+	CPrintToChatAll("%t", "Admin FFA", client);
 	ServerCommand("mp_teammates_are_enemies 1");
 	return Plugin_Handled;
 }
 
 public Action command_tvt(int client, int args)
 {
-	PrintToChatAll("%t %t", "Prefix", "Admin TVT", client);
+	CPrintToChatAll("%t", "Admin TVT", client);
 	ServerCommand("mp_teammates_are_enemies 0");
 	return Plugin_Handled;
 }
@@ -65,13 +65,13 @@ public Action command_stopvote(int client, int args)
 {
 	if (!votestoped)
 	{
-		PrintToChatAll("%t %t", "Prefix", "Admin Cancel", client);
+		CPrintToChatAll("%t", "Admin Cancel", client);
 		votestoped = true;
 		CreateTimer(60.0, autochoose);
 	}
 	if (votestoped)
 	{
-		PrintToChat(client, "%t %t", "Prefix", "Already Stopped");
+		CPrintToChat(client, "%t", "Already Stopped");
 	}
 }
 
@@ -82,23 +82,23 @@ public Action OnRoundStart(Event event, const char[] name, bool dbc)
 		int PlayerCount = GetClientCount(true) - 1;
 		if (PlayerCount >= gConVar_Gamemodes_Players.IntValue)
 		{
-			PrintToChatAll("%t %t", "Prefix", "TVT Players", PlayerCount);
+			CPrintToChatAll("%t", "TVT Players", PlayerCount);
 			ServerCommand("mp_teammates_are_enemies 0");
 		}
 		else
 		{
-			PrintToChatAll("%t %t", "Prefix", "FFA Players", PlayerCount);
+			CPrintToChatAll("%t", "FFA Players", PlayerCount);
 			ServerCommand("mp_teammates_are_enemies 1");
 		}
 	}
 	if (modeffa)
 	{
-		PrintToChatAll("%t %t", "Prefix", "Current FFA");
+		CPrintToChatAll("%t", "Current FFA");
 		ServerCommand("mp_teammates_are_enemies 1");
 	}
 	else if (modetvt)
 	{
-		PrintToChatAll("%t %t", "Prefix", "Current TVT");
+		CPrintToChatAll("%t", "Current TVT");
 		ServerCommand("mp_teammates_are_enemies 0");
 	}
 }
@@ -128,7 +128,7 @@ public Action command_vote(int client, int args)
 	}
 	else if (cantvote)
 	{
-		PrintToChat(client, "%t %t", "Prefix", "Cant Vote");
+		CPrintToChat(client, "%t", "Cant Vote");
 	}
 }
 public Action VoteCount(Handle timer)
@@ -140,7 +140,7 @@ public Action VoteCount(Handle timer)
 			isvotedmode = true;
 			ffa = 0;
 			tvt = 0;
-			PrintToChatAll("%t %t", "Prefix", "Will FFA");
+			CPrintToChatAll("%t", "Will FFA");
 			modeffa = true;
 			
 		}
@@ -150,7 +150,7 @@ public Action VoteCount(Handle timer)
 			isvotedmode = true;
 			ffa = 0;
 			tvt = 0;
-			PrintToChatAll("%t %t", "Prefix", "Will TVT");
+			CPrintToChatAll("%t", "Will TVT");
 			ServerCommand("mp_teammates_are_enemies 0");
 		}
 	}
@@ -177,17 +177,17 @@ public int mVoteMenu(Menu votemenu, MenuAction onclick, int client, int args)
 			
 			if (StrEqual(id, "ffa"))
 			{
-				PrintToChat(client, "%t %t", "Prefix", "Vote FFA");
+				CPrintToChat(client, "%t", "Vote FFA");
 				ffa += 1;
 			}
 			else if (StrEqual(id, "tvt"))
 			{
-				PrintToChat(client, "%t %t", "Prefix", "Vote TVT");
+				CPrintToChat(client, "%t", "Vote TVT");
 				tvt += 1;
 			}
 			else if (StrEqual(id, "stopvote"))
 			{
-				PrintToChatAll("%t %t", "Prefix", "Admin Canceled", client);
+				CPrintToChatAll("%t", "Admin Canceled", client);
 				if (!votestoped)
 				{
 					votestoped = true;
@@ -195,7 +195,7 @@ public int mVoteMenu(Menu votemenu, MenuAction onclick, int client, int args)
 				}
 				if (votestoped)
 				{
-					PrintToChat(client, "%t %t", "Prefix", "Already Stopped");
+					CPrintToChat(client, "%t", "Already Stopped");
 				}
 			}
 		}

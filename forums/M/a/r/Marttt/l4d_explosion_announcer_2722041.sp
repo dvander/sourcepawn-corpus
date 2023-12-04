@@ -2,8 +2,11 @@
 // ====================================================================================================
 Change Log:
 
+1.0.7 (04-March-2022)
+    - Fixed compability with other plugins. (thanks "ddd123" for reporting)
+
 1.0.6 (26-February-2021)
-    - Added support for explosive oil drum (custom model - can found on GoldenEye 4 Dead custom map)
+    - Added support for explosive oil drum (custom model - can be found on GoldenEye 4 Dead custom map)
 
 1.0.5 (04-January-2021)
     - Added support for gas pump. (found on No Mercy, 3rd map)
@@ -12,7 +15,7 @@ Change Log:
     - Added support to physics_prop, prop_physics_override and prop_physics_multiplayer.
 
 1.0.3 (28-November-2020)
-    - Changed the detection method of explosion, from OnEntityDestroyed to break_prop/OnKilled event.
+    - Changed the detection method of explosion, from OnEntityDestroyed to break_prop/OnKilled.
     - Fixed message being sent when pick up a breakable prop item while on ignition.
     - Fixed message being sent from fuel barrel parts explosion.
     - Added Hungarian (hu) translations. (thanks to "KasperH")
@@ -38,7 +41,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Explosion Announcer"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Outputs to the chat who exploded some props"
-#define PLUGIN_VERSION                "1.0.6"
+#define PLUGIN_VERSION                "1.0.7"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328006"
 
 // ====================================================================================================
@@ -81,9 +84,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_WEAPON_GASCAN       "weapon_gascan"
-#define CLASSNAME_PROP_FUEL_BARREL    "prop_fuel_barrel"
-
 #define MODEL_GASCAN                  "models/props_junk/gascan001a.mdl"
 #define MODEL_FUEL_BARREL             "models/props_industrial/barrel_fuel.mdl"
 #define MODEL_PROPANECANISTER         "models/props_junk/propanecanister001a.mdl"
@@ -121,68 +121,66 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_SpamProtection;
-static ConVar g_hCvar_SpamTypeCheck;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_Self;
-static ConVar g_hCvar_Gascan;
-static ConVar g_hCvar_FuelBarrel;
-static ConVar g_hCvar_PropaneCanister;
-static ConVar g_hCvar_OxygenTank;
-static ConVar g_hCvar_BarricadeGascan;
-static ConVar g_hCvar_GasPump;
-static ConVar g_hCvar_FireworksCrate;
-static ConVar g_hCvar_OilDrumExplosive;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_SpamProtection;
+ConVar g_hCvar_SpamTypeCheck;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_Self;
+ConVar g_hCvar_Gascan;
+ConVar g_hCvar_FuelBarrel;
+ConVar g_hCvar_PropaneCanister;
+ConVar g_hCvar_OxygenTank;
+ConVar g_hCvar_BarricadeGascan;
+ConVar g_hCvar_GasPump;
+ConVar g_hCvar_FireworksCrate;
+ConVar g_hCvar_OilDrumExplosive;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_SpamProtection;
-static bool   g_bCvar_SpamTypeCheck;
-static bool   g_bCvar_Team;
-static bool   g_bCvar_Self;
-static bool   g_bCvar_Gascan;
-static bool   g_bCvar_FuelBarrel;
-static bool   g_bCvar_PropaneCanister;
-static bool   g_bCvar_OxygenTank;
-static bool   g_bCvar_BarricadeGascan;
-static bool   g_bCvar_GasPump;
-static bool   g_bCvar_FireworksCrate;
-static bool   g_bCvar_OilDrumExplosive;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_SpamProtection;
+bool g_bCvar_SpamTypeCheck;
+bool g_bCvar_Self;
+bool g_bCvar_Gascan;
+bool g_bCvar_FuelBarrel;
+bool g_bCvar_PropaneCanister;
+bool g_bCvar_OxygenTank;
+bool g_bCvar_BarricadeGascan;
+bool g_bCvar_GasPump;
+bool g_bCvar_FireworksCrate;
+bool g_bCvar_OilDrumExplosive;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_Gascan = -1;
-static int    g_iModel_FuelBarrel = -1;
-static int    g_iModel_PropaneCanister = -1;
-static int    g_iModel_OxygenTank = -1;
-static int    g_iModel_BarricadeGascan = -1;
-static int    g_iModel_GasPump = -1;
-static int    g_iModel_FireworksCrate = -1;
-static int    g_iModel_OilDrumExplosive = -1;
-static int    g_iCvar_Team;
+int g_iModel_Gascan = -1;
+int g_iModel_FuelBarrel = -1;
+int g_iModel_PropaneCanister = -1;
+int g_iModel_OxygenTank = -1;
+int g_iModel_BarricadeGascan = -1;
+int g_iModel_GasPump = -1;
+int g_iModel_FireworksCrate = -1;
+int g_iModel_OilDrumExplosive = -1;
+int g_iCvar_Team;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_SpamProtection;
+float g_fCvar_SpamProtection;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static float  gc_fLastChatOccurrence[MAXPLAYERS+1][MAX_TYPES+1];
+float gc_fLastChatOccurrence[MAXPLAYERS+1][MAX_TYPES+1];
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static int    ge_iType[MAXENTITIES+1];
-static int    ge_iLastAttacker[MAXENTITIES+1];
+int ge_iType[MAXENTITIES+1];
+int ge_iLastAttacker[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -247,7 +245,7 @@ public void OnPluginStart()
     RegAdminCmd("sm_print_cvars_l4d_explosion_announcer", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
 }
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -269,8 +267,11 @@ public void OnMapStart()
     g_iModel_GasPump = PrecacheModel(MODEL_GAS_PUMP, true);
     if (g_bL4D2)
         g_iModel_FireworksCrate = PrecacheModel(MODEL_FIREWORKS_CRATE, true);
+
     if (IsModelPrecached(MODEL_OILDRUM_EXPLOSIVE))
         g_iModel_OilDrumExplosive = PrecacheModel(MODEL_OILDRUM_EXPLOSIVE, true);
+    else
+        g_iModel_OilDrumExplosive = -1;
 }
 
 /****************************************************************************************************/
@@ -279,32 +280,29 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_SpamProtection = g_hCvar_SpamProtection.FloatValue;
     g_bCvar_SpamProtection = (g_fCvar_SpamProtection > 0.0);
     g_bCvar_SpamTypeCheck = g_hCvar_SpamTypeCheck.BoolValue;
     g_iCvar_Team = g_hCvar_Team.IntValue;
-    g_bCvar_Team = (g_iCvar_Team > 0);
     g_bCvar_Self = g_hCvar_Self.BoolValue;
     g_bCvar_Gascan = g_hCvar_Gascan.BoolValue;
     g_bCvar_FuelBarrel = g_hCvar_FuelBarrel.BoolValue;
@@ -319,9 +317,9 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -330,7 +328,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -342,27 +340,20 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
+void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
 {
-    if (!g_bCvar_Enabled)
-        return;
-
-    if (!g_bCvar_Team)
-        return;
-
     int entity = event.GetInt("entindex");
+    int client = GetClientOfUserId(event.GetInt("userid"));
 
     int type = ge_iType[entity];
 
     if (type == TYPE_NONE)
         return;
 
-    int client = GetClientOfUserId(event.GetInt("userid"));
-
     if (client == 0)
         client = GetClientOfUserId(ge_iLastAttacker[entity]);
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     OutputMessage(client, type);
@@ -380,23 +371,21 @@ public void OnClientDisconnect(int client)
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     if (g_bL4D2)
     {
         entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, CLASSNAME_WEAPON_GASCAN)) != INVALID_ENT_REFERENCE)
+        while ((entity = FindEntityByClassname(entity, "weapon_gascan")) != INVALID_ENT_REFERENCE)
         {
-            ge_iType[entity] = TYPE_GASCAN;
-            SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
-            HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
+            RequestFrame(OnNextFrameWeaponGascan, EntIndexToEntRef(entity));
         }
     }
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_PROP_FUEL_BARREL)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "prop_fuel_barrel")) != INVALID_ENT_REFERENCE)
     {
         RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
     }
@@ -417,38 +406,9 @@ public void LateLoad()
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
-{
-    int entity = EntRefToEntIndex(entityRef);
-
-    if (entity == INVALID_ENT_REFERENCE)
-        return;
-
-    OnSpawnPost(entity);
-}
-
-/****************************************************************************************************/
-
-public void OnEntityDestroyed(int entity)
-{
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    ge_iType[entity] = TYPE_NONE;
-    ge_iLastAttacker[entity] = 0;
-}
-
-/****************************************************************************************************/
-
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     switch (classname[0])
@@ -461,26 +421,79 @@ public void OnEntityCreated(int entity, const char[] classname)
             if (classname[1] != 'e') // weapon_*
                 return;
 
-            if (StrEqual(classname, CLASSNAME_WEAPON_GASCAN))
+            if (StrEqual(classname, "weapon_gascan"))
             {
-                ge_iType[entity] = TYPE_GASCAN;
-                SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
-                HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
+                RequestFrame(OnNextFrameWeaponGascan, EntIndexToEntRef(entity));
             }
         }
         case 'p':
         {
             if (HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
-                SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
+                RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
         }
     }
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+public void OnEntityDestroyed(int entity)
 {
+    if (entity < 0)
+        return;
+
+    ge_iType[entity] = TYPE_NONE;
+    ge_iLastAttacker[entity] = 0;
+}
+
+/****************************************************************************************************/
+
+// Extra frame to get netprops updated
+void OnNextFrameWeaponGascan(int entityRef)
+{
+    int entity = EntRefToEntIndex(entityRef);
+
+    if (entity == INVALID_ENT_REFERENCE)
+        return;
+
+    if (ge_iType[entity] != TYPE_NONE)
+        return;
+
     if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
+        return;
+
+    RenderMode rendermode = GetEntityRenderMode(entity);
+    int rgba[4];
+    GetEntityRenderColor(entity, rgba[0], rgba[1], rgba[2], rgba[3]);
+
+    if (rendermode == RENDER_NONE || (rendermode == RENDER_TRANSCOLOR && rgba[3] == 0)) // Other plugins support, ignore invisible entities
+        return;
+
+    ge_iType[entity] = TYPE_GASCAN;
+    SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+    HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
+}
+
+/****************************************************************************************************/
+
+// Extra frame to get netprops updated
+void OnNextFrame(int entityRef)
+{
+    int entity = EntRefToEntIndex(entityRef);
+
+    if (entity == INVALID_ENT_REFERENCE)
+        return;
+
+    if (ge_iType[entity] != TYPE_NONE)
+        return;
+
+    if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
+        return;
+
+    RenderMode rendermode = GetEntityRenderMode(entity);
+    int rgba[4];
+    GetEntityRenderColor(entity, rgba[0], rgba[1], rgba[2], rgba[3]);
+
+    if (rendermode == RENDER_NONE || (rendermode == RENDER_TRANSCOLOR && rgba[3] == 0)) // Other plugins support, ignore invisible entities
         return;
 
     int modelIndex = GetEntProp(entity, Prop_Send, "m_nModelIndex");
@@ -547,7 +560,7 @@ public void OnSpawnPost(int entity)
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
@@ -560,12 +573,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 
 /****************************************************************************************************/
 
-public void OnKilled(const char[] output, int caller, int activator, float delay)
+void OnKilled(const char[] output, int caller, int activator, float delay)
 {
     if (!g_bCvar_Enabled)
-        return;
-
-    if (!g_bCvar_Team)
         return;
 
     int type = ge_iType[caller];
@@ -581,7 +591,7 @@ public void OnKilled(const char[] output, int caller, int activator, float delay
 
     int client = GetClientOfUserId(ge_iLastAttacker[caller]);
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     OutputMessage(client, type);
@@ -589,23 +599,26 @@ public void OnKilled(const char[] output, int caller, int activator, float delay
 
 /****************************************************************************************************/
 
-public void OutputMessage(int attacker, int type)
+void OutputMessage(int client, int type)
 {
+    if (g_iCvar_Team == FLAG_TEAM_NONE)
+        return;
+
     if (g_bCvar_SpamProtection)
     {
         if (g_bCvar_SpamTypeCheck)
         {
-            if (GetGameTime() - gc_fLastChatOccurrence[attacker][type] < g_fCvar_SpamProtection)
+            if (gc_fLastChatOccurrence[client][type] != 0.0 && GetGameTime() - gc_fLastChatOccurrence[client][type] < g_fCvar_SpamProtection)
                 return;
 
-            gc_fLastChatOccurrence[attacker][type] = GetGameTime();
+            gc_fLastChatOccurrence[client][type] = GetGameTime();
         }
         else
         {
-            if (GetGameTime() - gc_fLastChatOccurrence[attacker][TYPE_NONE] < g_fCvar_SpamProtection)
+            if (gc_fLastChatOccurrence[client][TYPE_NONE] != 0.0 && GetGameTime() - gc_fLastChatOccurrence[client][TYPE_NONE] < g_fCvar_SpamProtection)
                 return;
 
-            gc_fLastChatOccurrence[attacker][TYPE_NONE] = GetGameTime();
+            gc_fLastChatOccurrence[client][TYPE_NONE] = GetGameTime();
         }
     }
 
@@ -616,26 +629,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_Gascan)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded a gascan", attacker);
+                CPrintToChat(target, "%t", "Exploded a gascan", client);
             }
         }
 
@@ -644,26 +643,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_FuelBarrel)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded a fuel barrel", attacker);
+                CPrintToChat(target, "%t", "Exploded a fuel barrel", client);
             }
         }
 
@@ -672,26 +657,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_PropaneCanister)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded a propane canister", attacker);
+                CPrintToChat(target, "%t", "Exploded a propane canister", client);
             }
         }
 
@@ -700,26 +671,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_OxygenTank)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded an oxygen tank", attacker);
+                CPrintToChat(target, "%t", "Exploded an oxygen tank", client);
             }
         }
 
@@ -728,26 +685,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_BarricadeGascan)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded a barricade with gascans", attacker);
+                CPrintToChat(target, "%t", "Exploded a barricade with gascans", client);
             }
         }
 
@@ -756,26 +699,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_GasPump)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded a gas pump", attacker);
+                CPrintToChat(target, "%t", "Exploded a gas pump", client);
             }
         }
 
@@ -784,26 +713,12 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_FireworksCrate)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded a fireworks crate", attacker);
+                CPrintToChat(target, "%t", "Exploded a fireworks crate", client);
             }
         }
 
@@ -812,35 +727,40 @@ public void OutputMessage(int attacker, int type)
             if (!g_bCvar_OilDrumExplosive)
                 return;
 
-            for (int client = 1; client <= MaxClients; client++)
+            for (int target = 1; target <= MaxClients; target++)
             {
-                if (!IsClientInGame(client))
+                if (!IsValidPrintTarget(target, client))
                     continue;
 
-                if (IsFakeClient(client))
-                    continue;
-
-                if (attacker == client)
-                {
-                    if (!g_bCvar_Self)
-                        continue;
-                }
-                else
-                {
-                    if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                        continue;
-                }
-
-                CPrintToChat(client, "%t", "Exploded an oil drum", attacker);
+                CPrintToChat(target, "%t", "Exploded an oil drum", client);
             }
         }
     }
 }
 
+/****************************************************************************************************/
+
+bool IsValidPrintTarget(int target, int client)
+{
+    if (!IsClientInGame(target))
+        return false;
+
+    if (IsFakeClient(target))
+        return false;
+
+    if (target == client && !g_bCvar_Self)
+       return false;
+
+    if (!(GetTeamFlag(GetClientTeam(target)) & g_iCvar_Team))
+        return false;
+
+    return true;
+}
+
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -849,9 +769,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_explosion_announcer_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_explosion_announcer_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_spam_protection : %.2f (%s)", g_fCvar_SpamProtection, g_bCvar_SpamProtection ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_spam_protection : %.1f", g_fCvar_SpamProtection);
     PrintToConsole(client, "l4d_explosion_announcer_spam_type_check : %b (%s)", g_bCvar_SpamTypeCheck, g_bCvar_SpamTypeCheck ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_team : %i (%s)", g_iCvar_Team, g_bCvar_Team ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
+    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
     PrintToConsole(client, "l4d_explosion_announcer_self : %b (%s)", g_bCvar_Self, g_bCvar_Self ? "true" : "false");
     PrintToConsole(client, "l4d_explosion_announcer_gascan : %b (%s)", g_bCvar_Gascan, g_bCvar_Gascan ? "true" : "false");
     PrintToConsole(client, "l4d_explosion_announcer_fuelbarrel : %b (%s)", g_bCvar_FuelBarrel, g_bCvar_FuelBarrel ? "true" : "false");
@@ -898,19 +819,6 @@ bool IsValidClient(int client)
 /****************************************************************************************************/
 
 /**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
-/**
  * Returns the team flag from a team.
  *
  * @param team          Team index.
@@ -945,7 +853,7 @@ int GetTeamFlag(int team)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

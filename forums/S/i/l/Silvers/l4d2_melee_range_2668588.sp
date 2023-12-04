@@ -1,6 +1,6 @@
 /*
 *	Melee Range
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.5"
+#define PLUGIN_VERSION 		"1.6"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,9 +32,12 @@
 ========================================================================================
 	Change Log:
 
+1.6 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
 1.5 (24-Sep-2020)
 	- Compatibility update for L4D2's "The Last Stand" update.
-	- Added support for the 2 new Melee weapons.
+	- Added support for the 2 new melee weapons.
 	- Added 2 new cvars "l4d2_melee_range_weapon_pitchfork" and "l4d2_melee_range_weapon_shovel".
 
 1.4 (10-May-2020)
@@ -203,12 +206,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -308,7 +311,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -325,7 +328,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					DETOURS
 // ====================================================================================================
-public MRESReturn TestMeleeSwingCollisionPre(int pThis, Handle hReturn)
+MRESReturn TestMeleeSwingCollisionPre(int pThis, Handle hReturn)
 {
 	if( IsValidEntity(pThis) )
 	{
@@ -340,9 +343,12 @@ public MRESReturn TestMeleeSwingCollisionPre(int pThis, Handle hReturn)
 			g_hCvarMeleeRange.SetInt(g_iCvarRange[MAX_MELEE - 1]);
 		}
 	}
+
+	return MRES_Ignored;
 }
 
-public MRESReturn TestMeleeSwingCollisionPost(int pThis, Handle hReturn)
+MRESReturn TestMeleeSwingCollisionPost(int pThis, Handle hReturn)
 {
 	g_hCvarMeleeRange.SetInt(g_iStockRange);
+	return MRES_Ignored;
 }

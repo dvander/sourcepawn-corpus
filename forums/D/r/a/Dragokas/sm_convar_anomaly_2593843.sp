@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION		"1.8"
+#define PLUGIN_VERSION		"1.12 beta"
 
 /*=======================================================================================
 	Plugin Info:
@@ -11,10 +11,62 @@
 ========================================================================================
 	Change Log:
 
-// TODO: log sorting, check performance.
+1.12 beta (08-Jul-2022)
+	- Fixed compilation warnings on SM 1.11.
+
+1.11 beta (26-Mar-2022)
+	- ConVar default value for "convar_anomaly_fix_nondefault" forced to 1.
+
+1.9 beta (29-Jan-2020) - Unfinished.
+	- added "ConVar handles leak" detection method and partial fix (Note: no more actual in SM v.1.10, SM v.1.11).
+	Details on bug: https://github.com/alliedmodders/sourcemod/issues/1166
+	(PS. This is already fixed 11-Feb-2020 in SM >= 1.10.6462, and SM >= 1.9.6462)
+	If you have a lower SM version, to check for leaking and fix it:
+	* set "convar_cvar_check_areas" to -1 (or to 32 for checking this area only).
+	* enable log "convar_anomaly_logpos" to -1 (or to 4 to write to logfile only).
+	* execute "sm_convar_anomaly_show"
+	* search log "logs/CVar_Anomaly.log" for [LEAK] lines.
+	* follow instruction from the log by renaming your ConVars to correct case of letters.
+	* wait for SourceMod update and install it, if possible, to fix leak competely.
+	* Note, "ConVar Anomaly fixer" is unable to find such leaks coming from 3rd party plugins at the moment,
+	use sm_dump_handles addons/sourcemod/handles.txt to make 2 dumps: current and after new map start,
+	and compare convar handles count using online service: https://hexer10.github.io/Sourcemod-HandleDumpParser/
+
+	 - Included and extended ConVar precision fix made by asherkin: https://forums.alliedmods.net/showthread.php?t=300683
+	Technical info:
+	* fix is applied to both affected parts of ConVar: floating and integer;
+	* fix is limited by signed integer range, because it is SourceMod limitation;
+	* (TODO) when "string" part of value is exceeds signed integer range, 
+	"Anomaly fixer" set ConVar float/int part to the maximum / or minimum value preserving the sign
+	to allow game correctly process < > arithmetics, e.g.: 9999999999 => +2147483647 (affected) and -9999999999 => -2147483648 (actually, usual behaviour),
+	nevertheless, "string" part is not touched;
+	* fix is checked against all numeric ConVars;
+	* fix is enabled for all games at the moment.
+	
+	-todo: find the way to clarify the maximum value length of individual cvars (like sv_tags).
+	
+	Other corrections:
+	- commands list, used for exclusions, is more complete now, retrieved on all plugins loaded stage.
+	- fixed missing CloseHandle of commands list iterator.
+	- nested config names are correctly displayed now in log when executed with "exec" command from the root config.
+	- improved "number" validation functions. Allowed "+" sign before numbers in ConVars (this is by design).
+	
+	- Log lines are prefixed now, depending on the reason:
+	
+	* [MISFORMAT]	- incorrect value type
+	* [LIMIT]		- out of bounds value
+	* [LENGTH]		- value is exceed the maximum length allowed
+	* [DIFFERENT]	- value differs from the one set in the cfg settings
+	* [FAILURE]		- plugin is unable to fix the value
+	* [SUCCESS]		- plugin is successfully fixed the value
+	* [WARNING]		- some specific messages
+	* [UNUSED]		- convar is not exist, possibly, the original plugin has been removed
+	* [LEAK]		- incorrect ConVar name causes handles leak - you have to check letter case in the ConVar name or update your SM version.
+	
+	// TODO: Add global forward OnConVarAnomalyFixed() to give ability for conflicting 3rd party plugins to replace the value if required.
 
 1.8 (18-Dec-2019)
-	- Added "sv_cheats" ON/OFF handling, caused some ConVars to reset to its defaults, when administrator (or 3rd party plugin) uses cheats ConVar.
+	- Added "sv_cheats" ON/OFF handling, caused some ConVars to reset to its defaults, when administrator (or 3rd party plugin) uses that cheats ConVar.
 	- Added "exec" and "sm_execcfg" handling, when they are written in server.cfg file. Subsequent files are automatically parsed now.
 	- Performance optimizations.
 
@@ -47,7 +99,7 @@
 1.3 (13-Jan-2019)
 	- Added additional ConVar check on round start.
 	(some buggy servers known to change ALL convars to defaults after last player leave the game in the way even "command buffer overflow" Silver's fix doesn't help)
-	Be attentive! It can conflict with another plugins. Disable it by "convar_anomaly_roundstart" convar if you ensure your server has no such bug.
+	Be attentive! This fix can conflict with 3-rd party plugins. Disable it by "convar_anomaly_roundstart" convar if you ensure your server has no such bug.
 	
 1.2 (07-Sep-2018)
     - Fixed: log is not created when convar_anomaly_autofix == 0.
@@ -134,13 +186,20 @@
 #define MAX_CVAR_ITEMS			50  // for parsing own .cfg
 #define CVAR_FLAGS				FCVAR_NOTIFY
 
-ArrayList g_hArrayCvarList, g_hArrayCvarValues, g_hArrayCfg, g_hArrayCvarExclude, g_hArrayCfgExclude, g_hArrayCvarDuplicates, g_hArrayCmdLen, g_hArrayCmds;
-ConVar g_hCvarAutoFix, g_hCvarLogPos, g_hCvarCfgsInclude, g_hCvarCfgsExclude, g_hCvarCVarExclude, g_hCvarAreas, g_hCvarFixOnRoundStart, g_hCvarFixNonDefaults, g_hCvarServerOverwrite, g_hCvarServerCfg, g_hCvarCheats;
+const int FLOAT_PRECISION_MIN = -16777216;
+const int FLOAT_PRECISION_MAX = 16777216;
+const int INT_SIGNED_MIN = -2147483648;
+const int INT_SIGNED_MAX = 2147483647;
+
+ArrayList g_hArrayCvarList, g_hArrayCvarValues, g_hArrayCfg, g_hArrayCvarExclude, g_hArrayCfgExclude, g_hArrayCvarDuplicates, g_hArrayCmdLen, g_hArrayCmds, g_hArrayCvars, g_hArrayCvarConfig;
+ConVar g_hCvarAutoFix, g_hCvarLogPos, g_hCvarCfgsInclude, g_hCvarCfgsExclude, g_hCvarCVarExclude, g_hCvarAreas, g_hCvarFixOnRoundStart, g_hCvarFixNonDefaults, g_hCvarServerOverwrite, g_hCvarServerCfg, g_hCvarCheats, g_hCvarCfgsExcludeDir;
 int g_iLogPos, g_iCheckAreas;
 bool g_bAutoFix, g_bFixOnRoundStart, g_bFixNonDefaults, g_bFixServerLast;
 File g_hLog;
 
 char g_sLogPath[PLATFORM_MAX_PATH], g_sServerCfg[PLATFORM_MAX_PATH];
+
+#pragma unused IsSingedInt, g_hCvarCfgsExcludeDir, g_hArrayCvarConfig
 
 /* ====================================================================================================
 					PLUGIN INFO / START / END
@@ -168,13 +227,14 @@ public void OnPluginStart()
 	//
 	g_hCvarAutoFix = CreateConVar(			"convar_anomaly_autofix",		"1",					"Fix Cvar anomaly automatically before each map start? (0 - OFF [plugin will be read only = inform mode only], 1 - ON)", CVAR_FLAGS );
 	g_hCvarFixOnRoundStart = CreateConVar(	"convar_anomaly_roundstart",	"1",					"Do additional check/fix on each round start (0 - Disabled, 1 - Enabled)", CVAR_FLAGS );
-	g_hCvarFixNonDefaults = CreateConVar(	"convar_anomaly_fix_nondefault","0",					"Include all convars in fix even those who have non-default value, but different from cfg (0 - Fix default values only, 1 - Fix all)", CVAR_FLAGS );
+	g_hCvarFixNonDefaults = CreateConVar(	"convar_anomaly_fix_nondefault","1",					"Include all convars in fix even those who have non-default value, however, differ from cfg (0 - Fix default values only, 1 - Fix all)", CVAR_FLAGS );
 	g_hCvarServerOverwrite = CreateConVar(	"convar_anomaly_server_last",	"0",					"(0 - process cfg files in default Valve order [server.cfg go first], 1 - broke rules and overwrite convars by server.cfg file). This include files in 'convar_cfg_files_include'", CVAR_FLAGS );
 	g_hCvarAreas = CreateConVar(			"convar_cvar_check_areas",		"-1",					"Areas to check for (-1 - All, 1 - difference in values, 2 - nonexistent convars, 8 - overflows, 16 - duplicate convars).", CVAR_FLAGS );
 	g_hCvarLogPos = CreateConVar(			"convar_anomaly_logpos",		"0",					"Where to write log? (1 - client console, 2 - server console, 4 - file, 1+2+4=7 - all places)", CVAR_FLAGS );
 	g_hCvarCfgsInclude = CreateConVar(		"convar_cfg_files_include",		"cfg/autoexec.cfg",		"List of additional cfg-files to process, separated by star (*)", CVAR_FLAGS );
 	g_hCvarCfgsExclude = CreateConVar(		"convar_cfg_files_exclude",		"",						"List of cfg-files to exclude from processing, separated by star (*)", CVAR_FLAGS );
-	g_hCvarCVarExclude = CreateConVar(		"convar_cvar_names_exclude",	"",						"List of ConVar names (or commands from server.cfg) to exclude from processing, separated by star (*)", CVAR_FLAGS );
+	g_hCvarCfgsExcludeDir = CreateConVar(	"convar_cfg_files_exclude_dir",	"map-cfg",				"List of folders to exclude from processing, separated by star (*)", CVAR_FLAGS );
+	g_hCvarCVarExclude = CreateConVar(		"convar_cvar_names_exclude",	"setmaster*banid",		"List of ConVar names (or commands from server.cfg) to exclude from processing, separated by star (*)", CVAR_FLAGS );
 	
 	CreateConVar(							"convar_anomaly_version",		PLUGIN_VERSION,						"ConVars Anomaly Fixer plugin version", FCVAR_DONTRECORD);
 	
@@ -183,22 +243,16 @@ public void OnPluginStart()
 	
 	// Init ArrayLists
 	//
-	if (g_hArrayCfg != null) delete g_hArrayCfg;
-	if (g_hArrayCfgExclude != null) delete g_hArrayCfgExclude;
-	if (g_hArrayCvarExclude != null) delete g_hArrayCvarExclude;
-	if (g_hArrayCvarList != null) delete g_hArrayCvarList;
-	if (g_hArrayCvarDuplicates != null) delete g_hArrayCvarDuplicates;
-	if (g_hArrayCvarValues != null) delete g_hArrayCvarValues;
-	if (g_hArrayCmdLen != null) delete g_hArrayCmdLen;
-	
-	g_hArrayCfg = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
-	g_hArrayCfgExclude = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
-	g_hArrayCvarExclude = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));
-	g_hArrayCmds = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));
-	g_hArrayCvarList = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));
-	g_hArrayCvarDuplicates = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));
-	g_hArrayCvarValues = new ArrayList(ByteCountToCells(MAX_CVAR_VALUE_LENGTH));
-	g_hArrayCmdLen = new ArrayList(ByteCountToCells(4));
+	g_hArrayCfg = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));					// additional config files for analyzing
+	g_hArrayCfgExclude = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));			// config files to exclude from processing
+	g_hArrayCvarExclude = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));		// convars to exclude from processing
+	g_hArrayCmds = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));				// list of all game and plugin commands
+	g_hArrayCvars = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));				// list of all game and plugin convars
+	g_hArrayCvarList = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));			// list of oll config convars
+	g_hArrayCvarDuplicates = new ArrayList(ByteCountToCells(MAX_CVAR_NAME_LENGTH));		// temp array to catch convar duplicates
+	g_hArrayCvarValues = new ArrayList(ByteCountToCells(MAX_CVAR_VALUE_LENGTH));		// temp array to store convar values read from configs
+	g_hArrayCmdLen = new ArrayList(ByteCountToCells(4));								// temp array to store convar / cmd + value length
+	g_hArrayCvarConfig = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));			// temp array to store path to config where convar read from
 	
 	AutoExecConfigSmart(true,				"sm_convar_anomaly");
 	
@@ -216,9 +270,13 @@ public void OnPluginStart()
 	g_hCvarCheats.AddChangeHook(ConVarChanged_Cheats);
 	
 	GetCvars();
-	FillCmds();
 	
 	HookEvent("round_start", Event_RoundStart, EventHookMode_PostNoCopy);
+}
+
+public void OnAllPluginsLoaded()
+{
+	FillCmds();
 }
 
 public void Event_RoundStart(Event event, char[] name, bool dontBroadcast)
@@ -227,7 +285,7 @@ public void Event_RoundStart(Event event, char[] name, bool dontBroadcast)
 		OnAutoConfigsBuffered();
 }
 
-// Smart version of AutoExecConfig() that not depends on bugged valve functions
+// Smart version of AutoExecConfig() that doesn't depends on bugged valve functions
 //
 void AutoExecConfigSmart(bool autoCreate, const char[] name, const char[] folder = ".")
 {
@@ -257,6 +315,7 @@ public void ConVarChanged_Cheats(ConVar convar, const char[] oldValue, const cha
 Action Timer_FixCvars(Handle timer)
 {
 	OnAutoConfigsBuffered();
+	return Plugin_Continue;
 }
 
 public void ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -299,26 +358,31 @@ void SplitCvarToArrayList(ConVar cvar, char[] delim, ArrayList al)
 	}
 }
 
-// retrieving the list of commands
+// retrieving the list of commands and convars
 //
 void FillCmds() // thanks to SilverShot
 {
-	static char name[MAX_CVAR_NAME_LENGTH];
+	char name[MAX_CVAR_NAME_LENGTH];
 	Handle hCmd;
 	bool isCommand;
 	
 	g_hArrayCmds.Clear();
+	g_hArrayCvars.Clear();
 	
 	hCmd = FindFirstConCommand(name, sizeof(name), isCommand);
 	if(hCmd != INVALID_HANDLE)
 	{
 		do {
+			ReplaceString(name, sizeof(name), "\n", "");
 			if( isCommand )
 			{
-				ReplaceString(name, sizeof(name), "\n", "");
 				g_hArrayCmds.PushString(name);
 			}
+			else {
+				g_hArrayCvars.PushString(name);
+			}
 		} while( FindNextConCommand(hCmd, name, sizeof(name), isCommand) );
+		CloseHandle(hCmd);
 	}
 }
 
@@ -345,7 +409,7 @@ public Action CmdConfigsFix(int client, int args)
 //
 bool CompareConfigs2(int client, bool doFix)
 {
-	static char sLine[100], sMap[100];
+	static char sLine[100], sMap[64];
 	
 	FormatTime(sLine, sizeof(sLine), "%F, %X", GetTime());
 	GetCurrentMap(sMap, sizeof(sMap));
@@ -432,7 +496,7 @@ int CheckCfgAnomaly(int client, const char sFile[PLATFORM_MAX_PATH], bool doFix)
 	ConVar hCvar;
 	float min, max, fCfgValue;
 	bool hasMin, hasMax;
-
+	
 	g_hArrayCvarList.Clear();
 	g_hArrayCvarValues.Clear();
 	g_hArrayCmdLen.Clear();
@@ -445,7 +509,7 @@ int CheckCfgAnomaly(int client, const char sFile[PLATFORM_MAX_PATH], bool doFix)
 	for (int i = 0; i < g_hArrayCvarList.Length; i++) {
 		iTotal++;
 		g_hArrayCvarList.GetString(i, sCvarName, sizeof(sCvarName));
-
+		
 		// check excludes
 		if (g_hArrayCvarExclude.FindString(sCvarName) != -1)
 			continue;
@@ -454,7 +518,7 @@ int CheckCfgAnomaly(int client, const char sFile[PLATFORM_MAX_PATH], bool doFix)
 		if (!doFix && (g_iCheckAreas & 16)) {
 			if (g_hArrayCvarDuplicates.FindString(sCvarName) != -1) {
 				g_hArrayCvarValues.GetString(i, sCfgValue, sizeof(sCfgValue));
-				PrintConsoles(client, "ConVar is duplicated. Cfg: %s, Cvar: %s, CfgValue: %s", sFile, sCvarName, sCfgValue);
+				PrintConsoles(client, "[DUPLICATED] Cfg: %s, Cvar: %s, CfgValue: %s", sFile, sCvarName, sCfgValue);
 			}
 			else {
 				g_hArrayCvarDuplicates.PushString(sCvarName);
@@ -476,22 +540,22 @@ int CheckCfgAnomaly(int client, const char sFile[PLATFORM_MAX_PATH], bool doFix)
 			
 				if (hasMin || hasMax) {
 					if (!IsNumeric(sCfgValue)) {
-						PrintConsoles(client, "Cfg value should be numeric. Cfg: %s, Cvar: %s, CfgValue: %s", sFile, sCvarName, sCfgValue);
+						PrintConsoles(client, "[MISFORMAT] Cfg value should be numeric. Cfg: %s, Cvar: %s, CfgValue: %s", sFile, sCvarName, sCfgValue);
 					} else {
 						fCfgValue = StringToFloat(sCfgValue);
 						if (hasMin && fCfgValue < min)
-							PrintConsoles(client, "Cfg value is too small. Cfg: %s, Cvar: %s, CfgValue: %s (min: %f)", sFile, sCvarName, sCfgValue, min);
+							PrintConsoles(client, "[LIMIT] Cfg value is too small. Cfg: %s, Cvar: %s, CfgValue: %s (min: %f)", sFile, sCvarName, sCfgValue, min);
 						if (hasMax && fCfgValue > max)
-							PrintConsoles(client, "Cfg value is too big. Cfg: %s, Cvar: %s, CfgValue: %s (max: %f)", sFile, sCvarName, sCfgValue, max);
+							PrintConsoles(client, "[LIMIT] Cfg value is too big. Cfg: %s, Cvar: %s, CfgValue: %s (max: %f)", sFile, sCvarName, sCfgValue, max);
 					}
 				}
 				if (strcmp(sCfgValue, "-2147483648") == 0) {
-					PrintConsoles(client, "Cfg value is too big. Cfg: %s, Cvar: %s, Value: %s, CfgValue: %s (max: 2147483647)", sFile, sCvarName, sCvarValueCur, sCfgValue);
+					PrintConsoles(client, "[LIMIT] Cfg value is too big. Cfg: %s, Cvar: %s, Value: %s, CfgValue: %s (max: 2147483647)", sFile, sCvarName, sCvarValueCur, sCfgValue);
 				}
 				
 				iCmdLen = g_hArrayCmdLen.Get(i);
 				if (iCmdLen > 511) {
-					PrintConsoles(client, "Command is too long (current length: %i, max: 511). Cfg: %s, Cvar: %s, Value: %s, CfgValue: %s", iCmdLen, sFile, sCvarName, sCvarValueCur, sCfgValue);
+					PrintConsoles(client, "[LENGTH] Command is too long (current length: %i, max: 511). Cfg: %s, Cvar: %s, Value: %s, CfgValue: %s", iCmdLen, sFile, sCvarName, sCvarValueCur, sCfgValue);
 				}
 			}
 			
@@ -501,7 +565,7 @@ int CheckCfgAnomaly(int client, const char sFile[PLATFORM_MAX_PATH], bool doFix)
 				// do fix if only the value equal to its defaults (some values can be changed by 3-rd party plugins specially)
 				if (g_bFixNonDefaults || IsSpecificDefaultsCvar(sCvarName) || IsCvarValuesEqual(sCvarValueCur, sCvarValueDef)) {
 					if (!doFix)
-						PrintConsoles(client, "ConVar value is different. Cfg: %s, Cvar: %s, Value: %s (default: %s), should be: %s", 
+						PrintConsoles(client, "[DIFFERENT] ConVar value is different. Cfg: %s, Cvar: %s, Value: %s (default: %s), should be: %s", 
 							sFile, sCvarName, sCvarValueCur, sCvarValueDef, sCfgValue);
 
 					if (doFix) {
@@ -514,20 +578,20 @@ int CheckCfgAnomaly(int client, const char sFile[PLATFORM_MAX_PATH], bool doFix)
 						// check result again
 						hCvar.GetString(sCvarValueCur, sizeof(sCvarValueCur));
 						if (strcmp(sCvarValueCur, sCfgValue, false) != 0 && !IsSpecificAssignmentCvar(sCvarName)) {
-							PrintConsoles(client, "FAILURE. Unable to fix value of convar: %s (Value: %s, should be: %s)", sCvarName, sCvarValueCur, sCfgValue);
+							PrintConsoles(client, "[FAILURE] Unable to fix value of convar: %s (Value: %s, should be: %s)", sCvarName, sCvarValueCur, sCfgValue);
 						} else {
-							PrintConsoles(client, "Successfully changed convar: %s (Old value: %s, New value: %s)", sCvarName, sCvarValueOld, sCvarValueCur);
+							PrintConsoles(client, "[SUCCESS] Changed convar: %s (Old value: %s, New value: %s)", sCvarName, sCvarValueOld, sCvarValueCur);
 						}
 					}
 				}
 				else {
-					PrintConsoles(client, "WARNING. Possibly, convar changed by 3-rd party plugin. It will not be fixed. Cfg: %s, Cvar: %s, Value: %s (default: %s), should be: %s", 
+					PrintConsoles(client, "[WARNING] Possibly, convar changed by 3-rd party plugin. It will not be fixed. Cfg: %s, Cvar: %s, Value: %s (default: %s), should be: %s", 
 						sFile, sCvarName, sCvarValueCur, sCvarValueDef, sCfgValue);
 				}
 			}
 		} else {
 			if (!doFix && (g_iCheckAreas & 2) && g_hArrayCmds.FindString(sCvarName) == -1 )
-				PrintConsoles(client, "ConVar is not used: %s, cfg: %s", sCvarName, sFile);
+				PrintConsoles(client, "[UNUSED] ConVar is not used: %s, cfg: %s", sCvarName, sFile);
 		}
 	}
 	return iTotal;
@@ -701,9 +765,93 @@ char[] EscapeString(char[] Str)
 	return buf;
 }
 
+/*
+	input: valid number as char[]
+
+	return:
+	0: in range
+	1: num > MAX signed int
+	-1: num < MIN signed int 
+*/
+int IsSingedInt(char[] num)
+{
+	const int LEN_MAX = 10;
+	
+	static char min[16];
+	static char max[16];
+	
+	int offset = 0;
+	int positive = 1;
+	
+	if (!min[0])
+	{
+		min = "2147483648"; // -2147483648 (INT_SIGNED_MIN)
+		max = "2147483647"; // +2147483647 (INT_SIGNED_MAX)
+	}
+	
+	if (num[0] == 45) // -
+	{
+		offset = 1;
+		positive = -1;
+	}
+	else if (num[0] == 43) // +
+	{
+		offset = 1;
+	}
+	
+	if (num[offset] == 46) // .
+	{
+		return 0;
+	}
+	
+	int length = strlen(num);
+	
+	if (length - offset < LEN_MAX)
+	{
+		return 0;
+	}
+	
+	int pos = FindCharInString(num[offset], 46, false); // .
+	
+	if ( pos != -1 ) // is float ?
+	{
+		if ( pos < LEN_MAX ) // length of integer part
+		{
+			return 0;
+		}
+		if ( pos > LEN_MAX)
+		{
+			return positive;
+		}
+	}
+	else {
+		if ( length - offset > LEN_MAX )
+		{
+			return positive;
+		}
+	}
+	
+	for (int i = 0; i < length - offset; i++)
+	{
+		if (num[i + offset] == 46) // can happen only when i + offset == LEN_MAX, e.g. -2147483648.1
+		{
+			return positive;
+		}
+		if (num[i + offset] > (positive == 1 ? max[i] : min[i]) ) // direct digit comparision
+		{
+			return positive;
+		}
+		if (num[i + offset] < (positive == 1 ? max[i] : min[i]) )
+		{
+			return 0;
+		}
+	}
+	return 0;
+}
+
 // check if string is a valid number
 //
-bool IsNumeric(char[] value)
+stock bool IsNumeric(char[] value) // thanks to @Neuro Toxin
 {
 /*
 	static Regex regex;
@@ -712,34 +860,40 @@ bool IsNumeric(char[] value)
 	if (strlen(Str) == 0) return (false);
 	return (regex.Match(Str) > 0);
 */
-
-	// thanks to @Neuro Toxin
-
 	bool canbeint = true;
 	bool canbefloat = false;
-	int byte;
-	//int val;
+	bool signed = false;
+	int byte, total;
 	
 	for (int i = 0; (byte = value[i]) != 0; i++)
 	{
-		// 48 = `0`, 57 = `9`, 46 = `.`, 45 = `-`
+		++total;
+	
+		// 48 = `0`, 57 = `9`, 46 = `.`, 45 = `-`, 43 = `+`
 		if (byte < 48 || byte > 57)
 		{
-			// allow negative
-			if (i == 0 && byte == 45)
+			// allow sign
+			if (i == 0 && (byte == 45 || byte == 43))
+			{
+				// don't allow multiple sign
+				if (signed)
+				{
+					return false;
+				}
+				signed = true;
 				continue;
+			}
 			
-			// cant be an int anymore
+			// can't be an int anymore
 			canbeint = false;
 			
 			// allow floats
 			if (byte == 46)
 			{
-				// dont allow multiple periods
+				// don't allow multiple periods
 				if (canbefloat)
 				{
-					canbefloat = false;
-					break;
+					return false;
 				}
 				canbeint = false;
 				canbefloat = true;
@@ -750,16 +904,14 @@ bool IsNumeric(char[] value)
 			break;
 	}
 	
-	if (canbeint)
+	if ( canbeint || canbefloat )
 	{
-		//val = StringToInt(value);
+		if ( signed && total == 1 ) // at least 1 digit required
+			return false;
+		
 		return true;
 	}
-	else if (canbefloat)
-	{
-		// StringToFloat(value)
-		return true;
-	}
+	
 	return false;
 }
 
@@ -803,6 +955,5 @@ void StringToLog(char[] Str)
 	}
 	if (g_hLog) {
 		g_hLog.WriteLine(Str);
-		FlushFile(g_hLog);
 	}
 }

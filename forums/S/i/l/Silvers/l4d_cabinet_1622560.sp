@@ -1,6 +1,6 @@
 /*
 *	Health Cabinet
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.11"
+#define PLUGIN_VERSION		"1.12"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+1.12 (23-Apr-2022)
+	- Fixed cabinets spawning all the same items in the second round of Versus modes. Thanks to "dahyun4220" for reporting.
+	- Compatibility support for SourceMod 1.11. Fixed various warnings.
 
 1.11 (01-Jul-2021)
 	- Now precaches the door opening sound to stop server console saying it's not cached.
@@ -250,7 +254,7 @@ void DeleteEntity(int index)
 	g_iEntities[index] = 0;
 
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 
 	for( int i = 0; i < sizeof(g_iCabinetItems[]); i++ )
 	{
@@ -260,7 +264,7 @@ void DeleteEntity(int index)
 		if( IsValidEntRef(entity) )
 		{
 			if( GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity") == -1 )
-				AcceptEntityInput(entity, "Kill");
+				RemoveEntity(entity);
 		}
 	}
 }
@@ -501,6 +505,8 @@ public Action TimerStart(Handle timer)
 	}
 
 	LoadCabinets();
+
+	return Plugin_Continue;
 }
 
 void LoadCabinets()
@@ -606,6 +612,7 @@ void LoadCabinets()
 				g_vCabinetAng[g_iCount] = vAng;
 				g_vCabinetPos[g_iCount] = vPos;
 				g_iCount++;
+
 				SpawnCabinet(vAng, vPos, type1, type2, type3, type4, index);
 			}
 		}
@@ -708,6 +715,8 @@ public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 
 void SpawnItems(int entity)
 {
+	UnhookSingleEntityOutput(entity, "OnAnimationDone", OnAnimationDone);
+
 	entity = EntIndexToEntRef(entity);
 	int index = -1;
 
@@ -721,8 +730,6 @@ void SpawnItems(int entity)
 	}
 
 	if( index == -1 ) return;
-
-	UnhookSingleEntityOutput(entity, "OnAnimationDone", OnAnimationDone);
 
 	if( g_iSpawned[index] == 1 ) return;
 	g_iSpawned[index] = 1;
@@ -787,7 +794,7 @@ void SpawnItems(int entity)
 	int randomselect, selected;
 	for( int i = 0; i < random; i++ )
 	{
-		if( g_iOrder == 0 || g_iCabinetType[index][i] >= 0 )
+		if( g_iOrder == 0 || g_iCabinetType[index][i] == -1 )
 		{
 			randomselect = type1 + type2 + type3 + type4;
 			selected = GetRandomInt(1, randomselect);
@@ -801,11 +808,11 @@ void SpawnItems(int entity)
 			else if( selected <= randomselect )
 				selected = 4;
 
-			g_iCabinetType[index][i] = selected - 5;
+			g_iCabinetType[index][i] = selected;
 		}
 		else
 		{
-			selected = g_iCabinetType[index][i] + 5;
+			selected = g_iCabinetType[index][i];
 		}
 
 		switch( selected )
@@ -814,6 +821,7 @@ void SpawnItems(int entity)
 			case 2:		entity = CreateEntityByName("weapon_pain_pills");
 			case 3:		entity = CreateEntityByName("weapon_adrenaline");
 			case 4:		entity = CreateEntityByName("weapon_defibrillator");
+			default:	LogError("Error selecting type (%d/%d/%d)", index, i, selected);
 		}
 
 		DispatchKeyValue(entity, "solid", "0");
@@ -1404,6 +1412,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1473,6 +1483,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)

@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.15"
+/*
+*	Dissolve Infected
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (15-Nov-2022)
+	- Fixed plugin not working after map change without round ending. Thanks to "HarryPotter" for reporting.
+
+1.16 (03-Jan-2022)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+	- Fixed rare error about invalid edict. Thanks to "ur5efj" for reporting.
 
 1.15 (10-May-2020)
 	- Added better error log message when gamedata file is missing.
@@ -96,9 +123,9 @@ native int LMC_GetEntityOverlayModel(int iEntity);
 //LMC
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
+#define MAX_DISSOLVE		25
 #define GAMEDATA			"l4d_dissolve_infected"
 #define SPRITE_GLOW			"sprites/blueglow1.vmt"
-#define MAX_DISSOLVE		25
 // L4D2 client? is missing "sprites/blueglow1.vmt" - used by env_entity_dissolver.
 // Precache prevents server's error message, and clients can attempt to precache before round_start to avoid any possible stutter on the first attempt live in-game
 // Error messages:
@@ -111,7 +138,7 @@ ConVar g_hCvarAllow, g_hCvarChance, g_hCvarInfected, g_hCvarMPGameMode, g_hCvarM
 int g_iCvarChance, g_iCvarInfected, g_iPlayerSpawn, g_iRoundStart, g_iDissolvers[MAX_DISSOLVE]; // g_iRagdollFader
 bool g_bCanDiss, g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2;
 float g_fCvarTime, g_fCvarTimeMin, g_fCvarTimeMax;
-int g_iClassTank;
+int g_iClassTank, g_iDamageType;
 
 
 
@@ -211,6 +238,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_dissolve", CmdDissolve, ADMFLAG_ROOT, "Kills and dissolves the entity being aimed at.");
 
 	g_iClassTank = g_bLeft4Dead2 ? 9 : 6;
+	g_iDamageType = g_bLeft4Dead2 ? 5982249 : 33540137;
 }
 
 public void OnPluginEnd()
@@ -227,6 +255,7 @@ public void OnMapStart()
 public void OnMapEnd()
 {
 	g_bMapStarted = false;
+	ResetPlugin();
 }
 
 
@@ -242,28 +271,29 @@ void ResetPlugin()
 	// DeleteFader();
 }
 
-public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(2.0, tmrLoad, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(2.0, TimerLoad, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(2.0, tmrLoad, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(2.0, TimerLoad, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrLoad(Handle timer)
+Action TimerLoad(Handle timer)
 {
 	LoadPlugin();
+	return Plugin_Continue;
 }
 
 void LoadPlugin()
@@ -314,12 +344,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -427,7 +457,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -444,7 +474,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					COMMAND
 // ====================================================================================================
-public Action CmdDissolve(int client, int args)
+Action CmdDissolve(int client, int args)
 {
 	if( !client )
 	{
@@ -516,7 +546,7 @@ int GetDissolveIndex()
 // ====================================================================================================
 //					EVENT
 // ====================================================================================================
-public void Event_Death(Event event, const char[] name, bool dontBroadcast)
+void Event_Death(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_bCanDiss )
 	{
@@ -528,7 +558,7 @@ public void Event_Death(Event event, const char[] name, bool dontBroadcast)
 			if( IsValidEntity(target) )
 			{
 				char sTemp[64];
-				GetEdictClassname(target, sTemp, sizeof(sTemp));
+				GetEntityClassname(target, sTemp, sizeof(sTemp));
 				bool bChance;
 				bool bWitch;
 
@@ -598,11 +628,11 @@ public void Event_Death(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public Action OnCommonDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnCommonDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	// PrintToServer("%d %d %f %d", victim, attacker, damage, damagetype);
 	// Block dissolver damage to common, otherwise server will crash.
-	if( damage == 10000 && damagetype == (g_bLeft4Dead2 ? 5982249 : 33540137) )
+	if( damage == 10000.0 && damagetype == g_iDamageType )
 	{
 		damage = 0.0;
 		return Plugin_Handled;

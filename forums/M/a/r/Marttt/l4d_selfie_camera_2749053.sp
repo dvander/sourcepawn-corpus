@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.1 (25-July-2021)
+    - Changed entity classname to point_viewcontrol_survivor to prevent god mode.
+
 1.0.0 (06-June-2021)
     - Initial release.
 
@@ -14,7 +17,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Selfie Camera"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Turns the camera into selfie mode"
-#define PLUGIN_VERSION                "1.0.0"
+#define PLUGIN_VERSION                "1.0.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=332884"
 
 // ====================================================================================================
@@ -54,34 +57,29 @@ public Plugin myinfo =
 #define CONFIG_FILENAME               "l4d_selfie_camera"
 
 // ====================================================================================================
-// Defines
-// ====================================================================================================
-#define CLASSNAME_POINT_VIEWCONTROL   "point_viewcontrol"
-
-// ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Distance;
-static ConVar g_hCvar_DistanceMax;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Distance;
+ConVar g_hCvar_DistanceMax;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_DistanceMax;
+bool g_bCvar_Enabled;
+bool g_bCvar_DistanceMax;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Distance;
-static int    g_iCvar_DistanceMax;
+int g_iCvar_Distance;
+int g_iCvar_DistanceMax;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iCameraDistance[MAXPLAYERS+1];
-static int    gc_iCameraEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE , ... };
+int gc_iCameraDistance[MAXPLAYERS+1];
+int gc_iCameraEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
 
 // ====================================================================================================
 // Plugin Start
@@ -106,8 +104,9 @@ public void OnPluginStart()
     CreateConVar("l4d_selfie_camera_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled     = CreateConVar("l4d_selfie_camera_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Distance    = CreateConVar("l4d_selfie_camera_distance", "50", "Default distance from client when enable the selfie camera.", CVAR_FLAGS, true, 0.0);
-    g_hCvar_DistanceMax = CreateConVar("l4d_selfie_camera_distance_max", "0", "Max distance from client when enable the selfie camera.\n0 = Unlimited.", CVAR_FLAGS, true, 0.0);
+    g_hCvar_DistanceMax = CreateConVar("l4d_selfie_camera_distance_max", "150", "Max distance from client when enable the selfie camera.\n0 = Unlimited.", CVAR_FLAGS, true, 0.0);
 
+    // Hook plugin ConVars change
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Distance.AddChangeHook(Event_ConVarChanged);
     g_hCvar_DistanceMax.AddChangeHook(Event_ConVarChanged);
@@ -115,7 +114,7 @@ public void OnPluginStart()
     // Load plugin configs from .cfg
     AutoExecConfig(true, CONFIG_FILENAME);
 
-    // Public Commands
+    // Commands
     RegConsoleCmd("sm_selfie", CmdSelfie, "Change the camera to the selfie mode. Usage: sm_selfie [distance]");
 
     // Admin Commands
@@ -131,14 +130,14 @@ public void OnConfigsExecuted()
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_iCvar_Distance = g_hCvar_Distance.IntValue;
@@ -179,7 +178,7 @@ public void OnPluginEnd()
 
 /****************************************************************************************************/
 
-public void CreateCamera(int client)
+void CreateCamera(int client)
 {
     int entity;
     if (gc_iCameraEntRef[client] != INVALID_ENT_REFERENCE)
@@ -196,69 +195,62 @@ public void CreateCamera(int client)
     }
     else
     {
-        float vAng[3];
-        GetClientEyeAngles(client, vAng);
-        vAng[0] = 0.0;
-        vAng[2] = 0.0;
+        float vEyeAng[3];
+        GetClientEyeAngles(client, vEyeAng);
+        vEyeAng[0] = 0.0;
+        vEyeAng[2] = 0.0;
 
-        TeleportEntity(client, NULL_VECTOR, vAng, NULL_VECTOR);
+        TeleportEntity(client, NULL_VECTOR, vEyeAng, NULL_VECTOR);
     }
 
-    entity = CreateEntityByName(CLASSNAME_POINT_VIEWCONTROL);
+    //NOTE: point_viewcontrol makes the player invunerable while enabled on camera, point_viewcontrol_survivor/point_viewcontrol_multiplayer don't.
+    entity = CreateEntityByName("point_viewcontrol_survivor");
     gc_iCameraEntRef[client] = EntIndexToEntRef(entity);
     DispatchKeyValue(entity, "targetname", "l4d_selfie_camera");
-
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
     AcceptEntityInput(entity, "Enable", client);
 }
 
 /****************************************************************************************************/
 
-public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float vel[3], const float angles[3], int weapon, int subtype, int cmdnum, int tickcount, int seed, const int mouse[2])
+float vPos[3];
+float vDir[3];
+float vAng[3];
+public void OnPlayerRunCmdPost(int client, int buttons)
 {
-    if (!IsValidClient(client))
+    if (!IsValidClientIndex(client))
         return;
 
     if (gc_iCameraEntRef[client] == INVALID_ENT_REFERENCE)
         return;
 
+    int entity = EntRefToEntIndex(gc_iCameraEntRef[client]);
+
     if (buttons == 0)
     {
-        int entity = EntRefToEntIndex(gc_iCameraEntRef[client]);
-
-        if (entity != INVALID_ENT_REFERENCE)
-        {
-            float vPos[3];
-            GetClientEyePosition(client, vPos);
-
-            float vDir[3];
-            GetClientEyeAngles(client, vDir);
-
-            float vAng[3];
-            GetAngleVectors(vDir, vAng, NULL_VECTOR, NULL_VECTOR);
-            NormalizeVector(vAng, vAng);
-
-            vPos[0] += (vAng[0] * gc_iCameraDistance[client]);
-            vPos[1] += (vAng[1] * gc_iCameraDistance[client]);
-            vPos[2] += (vAng[2] * gc_iCameraDistance[client]);
-
-            vDir[0] *= -1.0;
-            vDir[1] += 180.0;
-            vDir[2] = 0.0;
-
-            TeleportEntity(entity, vPos, vDir, NULL_VECTOR);
-        }
-        else
+        if (entity == INVALID_ENT_REFERENCE)
         {
             gc_iCameraEntRef[client] = INVALID_ENT_REFERENCE;
+            return;
         }
+
+        GetClientEyePosition(client, vPos);
+        GetClientEyeAngles(client, vDir);
+        GetAngleVectors(vDir, vAng, NULL_VECTOR, NULL_VECTOR);
+
+        vPos[0] += (vAng[0] * gc_iCameraDistance[client]);
+        vPos[1] += (vAng[1] * gc_iCameraDistance[client]);
+        vPos[2] += (vAng[2] * gc_iCameraDistance[client]);
+
+        vDir[0] *= -1.0;
+        vDir[1] += 180.0;
+        vDir[2] = 0.0;
+
+        TeleportEntity(entity, vPos, vDir, NULL_VECTOR);
     }
     else
     {
-        int entity = EntRefToEntIndex(gc_iCameraEntRef[client]);
-
         if (entity != INVALID_ENT_REFERENCE)
         {
             AcceptEntityInput(entity, "Disable");
@@ -270,9 +262,9 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
 }
 
 // ====================================================================================================
-// Public Commands
+// Commands
 // ====================================================================================================
-public Action CmdSelfie(int client, int args)
+Action CmdSelfie(int client, int args)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Handled;
@@ -288,12 +280,24 @@ public Action CmdSelfie(int client, int args)
 
         distance = StringToInt(sArg);
 
-        if (g_bCvar_DistanceMax &&  distance > g_iCvar_DistanceMax)
-            distance = g_iCvar_DistanceMax;
+        if (distance > 0)
+        {
+            if (g_bCvar_DistanceMax && distance > g_iCvar_DistanceMax)
+                distance = g_iCvar_DistanceMax;
+        }
+        else
+        {
+            distance = 0;
+        }
     }
 
     if (distance == 0)
-        distance = g_iCvar_Distance;
+    {
+        if (gc_iCameraDistance[client] > 0)
+            distance = gc_iCameraDistance[client];
+        else
+            distance = g_iCvar_Distance;
+    }
 
     gc_iCameraDistance[client] = distance;
 
@@ -305,7 +309,7 @@ public Action CmdSelfie(int client, int args)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -315,7 +319,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_selfie_camera_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_selfie_camera_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d_selfie_camera_distance : %i", g_iCvar_Distance);
-    PrintToConsole(client, "l4d_selfie_camera_distance_max : %i (%s)", g_iCvar_DistanceMax, g_bCvar_DistanceMax ? "true" : "false");
+    PrintToConsole(client, "l4d_selfie_camera_distance_max : %i", g_iCvar_DistanceMax);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

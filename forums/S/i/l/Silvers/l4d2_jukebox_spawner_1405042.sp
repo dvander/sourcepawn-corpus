@@ -1,6 +1,6 @@
 /*
 *	Jukebox Spawner
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.11"
+#define PLUGIN_VERSION 		"1.12"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.12 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.11 (11-Jul-2021)
 	- Moved the button forward slightly. This allows using the button which the last update prevented.
@@ -321,13 +324,14 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
 // Loop through the logic_relay and enable/disable if the horde timer is allowed.
-public void ConVarChanged_HordeMode(Handle convar, const char[] oldValue, const char[] newValue)
+/*
+void ConVarChanged_HordeMode(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	bool bCvarAllow = IsAllowedHordeMode();
 
@@ -344,6 +348,7 @@ public void ConVarChanged_HordeMode(Handle convar, const char[] oldValue, const 
 		}
 	}
 }
+*/
 
 bool IsAllowedHordeMode()
 {
@@ -450,7 +455,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -467,7 +472,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					COMMANDS - JUKEBOX
 // ====================================================================================================
-public Action CmdJukeList(int client, int args)
+Action CmdJukeList(int client, int args)
 {
 	float vPos[3];
 	int i, ent;
@@ -494,7 +499,7 @@ public Action CmdJukeList(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdJukeTracks(int client, int args)
+Action CmdJukeTracks(int client, int args)
 {
 	char sTracks[7][64];
 
@@ -545,7 +550,7 @@ public Action CmdJukeTracks(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdJuke(int client, int args)
+Action CmdJuke(int client, int args)
 {
 	if( !client )
 	{
@@ -577,7 +582,7 @@ public Action CmdJuke(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdJukeBox(int client, int args)
+Action CmdJukeBox(int client, int args)
 {
 	if( !client )
 	{
@@ -683,22 +688,23 @@ void GetTracks(char sTracks[7][64])
 // By "Zuko & McFlurry"
 bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 {
-	float vAngles[3], vOrigin[3], vBuffer[3], vStart[3], vNorm[3], Distance;
+	float vAngles[3], vOrigin[3];
 
 	GetClientEyePosition(client, vOrigin);
 	GetClientEyeAngles(client, vAngles);
 
-    //get endpoint for teleport
 	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, TraceEntityFilterPlayer);
 
 	if( TR_DidHit(trace) )
 	{
+		float vBuffer[3], vStart[3], vNorm[3], distance;
+
 		TR_GetEndPosition(vStart, trace);
-		Distance = -15.0;
+		distance = -15.0;
 		GetAngleVectors(vAngles, vBuffer, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] = vStart[0] + (vBuffer[0]*Distance);
-		vPos[1] = vStart[1] + (vBuffer[1]*Distance);
-		vPos[2] = vStart[2] + (vBuffer[2]*Distance);
+		vPos[0] = vStart[0] + (vBuffer[0] * distance);
+		vPos[1] = vStart[1] + (vBuffer[1] * distance);
+		vPos[2] = vStart[2] + (vBuffer[2] * distance);
 		vPos[2] = GetGroundHeight(vPos);
 		if( vPos[2] == 0.0 )
 		{
@@ -728,7 +734,9 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 
 float GetGroundHeight(float vPos[3])
 {
-	float vAng[3]; Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, TraceEntityFilterPlayer);
+	float vAng[3];
+
+	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, TraceEntityFilterPlayer);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
 
@@ -736,7 +744,7 @@ float GetGroundHeight(float vPos[3])
 	return vAng[2];
 }
 
-public bool TraceEntityFilterPlayer(int entity, int contentsMask)
+bool TraceEntityFilterPlayer(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }
@@ -758,7 +766,7 @@ int IsEntStored(int entity)
 	return -1;
 }
 
-public Action CmdJukeDelete(int client, int args)
+Action CmdJukeDelete(int client, int args)
 {
 	if( !client )
 	{
@@ -860,7 +868,7 @@ public Action CmdJukeDelete(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdJukeWipe(int client, int args)
+Action CmdJukeWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -901,7 +909,7 @@ public Action CmdJukeWipe(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdJukeNext(int client, int args)
+Action CmdJukeNext(int client, int args)
 {
 	if( !client || (GetClientTeam(client) != 2 && !(GetUserFlagBits(client) & (ADMFLAG_ROOT))) )
 		return Plugin_Handled;
@@ -936,7 +944,7 @@ public Action CmdJukeNext(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdJukeStop(int client, int args)
+Action CmdJukeStop(int client, int args)
 {
 	if( !client || (GetClientTeam(client) != 2 && !(GetUserFlagBits(client) & (ADMFLAG_ROOT))) )
 		return Plugin_Handled;
@@ -974,7 +982,7 @@ void RemoveJuke(int index)
 		{
 			if( index >= 2 && index <= 8 )
 				AcceptEntityInput(entity, "StopSound");
-			AcceptEntityInput(entity, "kill");
+			RemoveEntity(entity);
 		}
 	}
 }
@@ -1004,29 +1012,31 @@ bool IsValidEntRef(int entity)
 // ====================================================================================================
 //					LOAD JUKEBOXES
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerMake, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerMake, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerMake(Handle timer)
+Action TimerMake(Handle timer)
 {
 	ResetPlugin();
 	LoadJukeboxes();
+
+	return Plugin_Continue;
 }
 
 void LoadJukeboxes()
@@ -1100,9 +1110,8 @@ int GetJukeboxID()
 
 void SetPositionInfront(float vPos[3], const float vAng[3], float fDist)
 {
-	float vAngles[3], vOrigin[3], vBuffer[3];
+	float vAngles[3], vBuffer[3];
 
-	vOrigin = vPos;
 	vAngles = vAng;
 	vAngles[1] += 90.0;
 
@@ -1397,7 +1406,7 @@ void MakeJukebox(const float vOrigin[3], const float vAngles[3], const char sTra
 	iJukeboxCount++;
 }
 
-public void OnHordeTimer(const char[] output, int caller, int activator, float delay)
+void OnHordeTimer(const char[] output, int caller, int activator, float delay)
 {
 	PrintToChatAll("%s\x01Zombies inbound!", CHAT_TAG);
 }

@@ -2,6 +2,18 @@
 // ====================================================================================================
 Change Log:
 
+1.1.0 (17-September-2022)
+    - Added cvar to ignore weapons that already have a skin different than default. (thanks "HarryPotter" for requesting)
+
+1.0.9 (14-March-2022)
+    - Added safe check while getting the entity skin to prevent errors. (thanks "HarryPotter" for reporting)
+
+1.0.8 (12-March-2022)
+    - Fixed gascans not applying skin on pickup. (thanks to "Toranks" for reporting and "ryzewash" for the code snippet to fix it)
+
+1.0.7 (17-October-2021)
+    - Fixed prop_physics gascans not changing their skin when enabled. (thanks to "ryzewash" for reporting)
+
 1.0.6 (04-June-2021)
     - Added gascan option. (thanks to "TrevorSoldier" for requesting)
 
@@ -35,8 +47,8 @@ Change Log:
 // ====================================================================================================
 #define PLUGIN_NAME                   "[L4D2] Weapons Skins RNG"
 #define PLUGIN_AUTHOR                 "Mart"
-#define PLUGIN_DESCRIPTION            "Applies randomly skins to spawned weapons"
-#define PLUGIN_VERSION                "1.0.6"
+#define PLUGIN_DESCRIPTION            "Applies random skins to spawned weapons"
+#define PLUGIN_VERSION                "1.1.0"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=327609"
 
 // ====================================================================================================
@@ -93,53 +105,72 @@ public Plugin myinfo =
 
 #define MODEL_GASCAN                  "models/props_junk/gascan001a.mdl"
 
+#define MAXENTITIES                   2048
+
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_PistolMagnum;
-static ConVar g_hCvar_PumpShotgun;
-static ConVar g_hCvar_ShotgunChrome;
-static ConVar g_hCvar_AutoShotgun;
-static ConVar g_hCvar_SMGUzi;
-static ConVar g_hCvar_SMGSilenced;
-static ConVar g_hCvar_RifleM16;
-static ConVar g_hCvar_RifleAK47;
-static ConVar g_hCvar_HuntingRifle;
-static ConVar g_hCvar_CricketBat;
-static ConVar g_hCvar_Crowbar;
-static ConVar g_hCvar_Gascan;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_IgnoreSkin;
+ConVar g_hCvar_PistolMagnum;
+ConVar g_hCvar_PumpShotgun;
+ConVar g_hCvar_ShotgunChrome;
+ConVar g_hCvar_AutoShotgun;
+ConVar g_hCvar_SMGUzi;
+ConVar g_hCvar_SMGSilenced;
+ConVar g_hCvar_RifleM16;
+ConVar g_hCvar_RifleAK47;
+ConVar g_hCvar_HuntingRifle;
+ConVar g_hCvar_CricketBat;
+ConVar g_hCvar_Crowbar;
+ConVar g_hCvar_Gascan;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_PistolMagnum;
-static bool   g_bCvar_PumpShotgun;
-static bool   g_bCvar_ShotgunChrome;
-static bool   g_bCvar_AutoShotgun;
-static bool   g_bCvar_SMGUzi;
-static bool   g_bCvar_SMGSilenced;
-static bool   g_bCvar_RifleM16;
-static bool   g_bCvar_RifleAK47;
-static bool   g_bCvar_HuntingRifle;
-static bool   g_bCvar_CricketBat;
-static bool   g_bCvar_Crowbar;
-static bool   g_bCvar_Melee;
-static bool   g_bCvar_Gascan;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_IgnoreSkin;
+bool g_bCvar_PistolMagnum;
+bool g_bCvar_PumpShotgun;
+bool g_bCvar_ShotgunChrome;
+bool g_bCvar_AutoShotgun;
+bool g_bCvar_SMGUzi;
+bool g_bCvar_SMGSilenced;
+bool g_bCvar_RifleM16;
+bool g_bCvar_RifleAK47;
+bool g_bCvar_HuntingRifle;
+bool g_bCvar_CricketBat;
+bool g_bCvar_Crowbar;
+bool g_bCvar_Melee;
+bool g_bCvar_Gascan;
 
 // ====================================================================================================
-// ArrayList - Plugin Variables
+// int - Plugin Variables
 // ====================================================================================================
-static ArrayList g_alClassname;
+int g_iModel_Gascan = -1;
+
+// ====================================================================================================
+// client - Plugin Variables
+// ====================================================================================================
+bool gc_bItemPickup[MAXPLAYERS+1];
+
+// ====================================================================================================
+// entity - Plugin Variables
+// ====================================================================================================
+bool ge_bIsGascan[MAXENTITIES+1];
 
 // ====================================================================================================
 // StringMap - Plugin Variables
 // ====================================================================================================
-static StringMap g_smWeaponIdToClassname;
-static StringMap g_smWeaponCount;
-static StringMap g_smMeleeModelCount;
+StringMap g_smWeaponIdToClassname;
+StringMap g_smWeaponCount;
+StringMap g_smMeleeModelCount;
+
+// ====================================================================================================
+// ArrayList - Plugin Variables
+// ====================================================================================================
+ArrayList g_alClassname;
 
 // ====================================================================================================
 // Plugin Start
@@ -154,11 +185,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         return APLRes_SilentFailure;
     }
 
-    g_alClassname = new ArrayList(ByteCountToCells(36));
-    g_smWeaponIdToClassname = new StringMap();
-    g_smWeaponCount = new StringMap();
-    g_smMeleeModelCount = new StringMap();
-
     return APLRes_Success;
 }
 
@@ -166,11 +192,17 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    g_alClassname = new ArrayList(ByteCountToCells(36));
+    g_smWeaponIdToClassname = new StringMap();
+    g_smWeaponCount = new StringMap();
+    g_smMeleeModelCount = new StringMap();
+
     BuildClassnameArrayList();
     BuildWeaponStringMap();
 
     CreateConVar("l4d2_wskin_rng_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled       = CreateConVar("l4d2_wskin_rng_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_IgnoreSkin    = CreateConVar("l4d2_wskin_rng_ignore_skin", "1", "Ignore weapons that already have a skin different than default.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PistolMagnum  = CreateConVar("l4d2_wskin_rng_pistol_magnum", "1", "Weapon skin RNG for Pistol Magnum.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_PumpShotgun   = CreateConVar("l4d2_wskin_rng_pump_shotgun", "1", "Weapon skin RNG for Pump Shotgun.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_ShotgunChrome = CreateConVar("l4d2_wskin_rng_shotgun_chrome", "1", "Weapon skin RNG for Chrome Shotgun.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -186,6 +218,7 @@ public void OnPluginStart()
 
     // Hook plugin ConVars change
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_IgnoreSkin.AddChangeHook(Event_ConVarChanged);
     g_hCvar_PistolMagnum.AddChangeHook(Event_ConVarChanged);
     g_hCvar_PumpShotgun.AddChangeHook(Event_ConVarChanged);
     g_hCvar_ShotgunChrome.AddChangeHook(Event_ConVarChanged);
@@ -209,7 +242,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void BuildClassnameArrayList()
+void BuildClassnameArrayList()
 {
     g_alClassname.Clear();
     g_alClassname.PushString("weapon_melee");
@@ -238,7 +271,7 @@ public void BuildClassnameArrayList()
 
 /****************************************************************************************************/
 
-public void BuildWeaponStringMap()
+void BuildWeaponStringMap()
 {
     g_smWeaponIdToClassname.Clear();
     g_smWeaponIdToClassname.SetString(L4D2_WEPID_PISTOL_MAGNUM, "weapon_pistol_magnum");
@@ -254,7 +287,7 @@ public void BuildWeaponStringMap()
 
 /****************************************************************************************************/
 
-public void BuildMaps()
+void BuildMaps()
 {
     g_smWeaponCount.Clear();
 
@@ -337,27 +370,37 @@ public void BuildMaps()
 
 /****************************************************************************************************/
 
+public void OnMapStart()
+{
+    g_iModel_Gascan = PrecacheModel(MODEL_GASCAN, true);
+}
+
+/****************************************************************************************************/
+
 public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
+
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
+
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
+    g_bCvar_IgnoreSkin = g_hCvar_IgnoreSkin.BoolValue;
     g_bCvar_PistolMagnum = g_hCvar_PistolMagnum.BoolValue;
     g_bCvar_PumpShotgun = g_hCvar_PumpShotgun.BoolValue;
     g_bCvar_ShotgunChrome = g_hCvar_ShotgunChrome.BoolValue;
@@ -377,7 +420,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
     int count;
@@ -413,12 +456,41 @@ public void LateLoad()
 
 /****************************************************************************************************/
 
+void HookEvents()
+{
+    if (g_bCvar_Enabled && !g_bEventsHooked)
+    {
+        g_bEventsHooked = true;
+
+        HookEvent("item_pickup", Event_ItemPickup);
+        HookEvent("player_use", Event_PlayerUse);
+
+        return;
+    }
+
+    if (!g_bCvar_Enabled && g_bEventsHooked)
+    {
+        g_bEventsHooked = false;
+
+        UnhookEvent("item_pickup", Event_ItemPickup);
+        UnhookEvent("player_use", Event_PlayerUse);
+
+        return;
+    }
+}
+
+/****************************************************************************************************/
+
+public void OnClientDisconnect(int client)
+{
+    gc_bItemPickup[client] = false;
+}
+
+/****************************************************************************************************/
+
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     switch (classname[0])
@@ -444,29 +516,38 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
+        return;
+
+    ge_bIsGascan[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void OnSpawnPost(int entity)
 {
     RequestFrame(OnNextFrame, EntIndexToEntRef(entity)); // 1 frame later required to get skin (m_nSkin) updated
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPostPhysicsProp(int entity)
+void OnSpawnPostPhysicsProp(int entity)
 {
     if (!g_bCvar_Gascan)
         return;
 
-    char modelname[33];
-    GetEntPropString(entity, Prop_Data, "m_ModelName", modelname, sizeof(modelname));
-    StringToLowerCase(modelname);
+    if (GetEntProp(entity, Prop_Send, "m_nModelIndex") != g_iModel_Gascan)
+        return;
 
-    if (StrEqual(modelname, MODEL_GASCAN))
-        RequestFrame(OnNextFrame, EntIndexToEntRef(entity)); // 1 frame later required to get skin (m_nSkin) updated
+    ge_bIsGascan[entity] = true;
+    RequestFrame(OnNextFrame, EntIndexToEntRef(entity)); // 1 frame later required to get skin (m_nSkin) updated
 }
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
+void OnNextFrame(int entityRef)
 {
     int entity = EntRefToEntIndex(entityRef);
 
@@ -478,16 +559,22 @@ public void OnNextFrame(int entityRef)
 
 /****************************************************************************************************/
 
-public void UpdateWeaponSkin(int entity)
+void UpdateWeaponSkin(int entity)
 {
     if (!g_bCvar_Enabled)
+        return;
+
+    if (g_bCvar_IgnoreSkin && GetEntProp(entity, Prop_Send, "m_nSkin") > 0)
         return;
 
     if (GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity") != -1)
         return;
 
     char classname[36];
-    GetEntityClassname(entity, classname, sizeof(classname));
+    if (ge_bIsGascan[entity])
+        classname = "weapon_gascan";
+    else
+        GetEntityClassname(entity, classname, sizeof(classname));
 
     int count;
 
@@ -501,7 +588,7 @@ public void UpdateWeaponSkin(int entity)
     }
     else if (StrEqual(classname, "weapon_melee_spawn"))
     {
-        char modelname[39];
+        char modelname[PLATFORM_MAX_PATH];
         GetEntPropString(entity, Prop_Data, "m_ModelName", modelname, sizeof(modelname));
         StringToLowerCase(modelname);
 
@@ -538,10 +625,63 @@ public void UpdateWeaponSkin(int entity)
         SetEntProp(entity, Prop_Data, "m_nWeaponSkin", skin);
 }
 
+/****************************************************************************************************/
+
+void Event_ItemPickup(Event event, const char[] name, bool dontBroadcast)
+{
+    int client = GetClientOfUserId(event.GetInt("userid"));
+
+    if (client == 0)
+        return;
+
+    gc_bItemPickup[client] = true;
+}
+
+/****************************************************************************************************/
+
+void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
+{
+    int client = GetClientOfUserId(event.GetInt("userid"));
+    int targetid = event.GetInt("targetid");
+
+    if (client == 0)
+        return;
+
+    if (!gc_bItemPickup[client])
+        return;
+
+    gc_bItemPickup[client] = false;
+
+    if (!IsValidClient(client))
+        return;
+
+    int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+
+    if (activeWeapon == -1)
+        return;
+
+    if (activeWeapon == targetid)
+        return;
+
+    if (!HasEntProp(targetid, Prop_Send, "m_nSkin"))
+        return;
+
+    int skin = GetEntProp(targetid, Prop_Send, "m_nSkin");
+
+    SetEntProp(activeWeapon, Prop_Send, "m_nSkin", skin);
+
+    int viewModel = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
+
+    if (viewModel == -1)
+        return;
+
+    SetEntProp(viewModel, Prop_Send, "m_nSkin", skin);
+}
+
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdWSkinRng(int client, int args)
+Action CmdWSkinRng(int client, int args)
 {
     LateLoad();
 
@@ -550,7 +690,7 @@ public Action CmdWSkinRng(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -559,6 +699,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_wskin_rng_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_wskin_rng_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
+    PrintToConsole(client, "l4d2_wskin_rng_ignore_skin : %b (%s)", g_bCvar_IgnoreSkin, g_bCvar_IgnoreSkin ? "true" : "false");
     PrintToConsole(client, "l4d2_wskin_rng_pistol_magnum : %b (%s)", g_bCvar_PistolMagnum, g_bCvar_PistolMagnum ? "true" : "false");
     PrintToConsole(client, "l4d2_wskin_rng_pump_shotgun : %b (%s)", g_bCvar_PumpShotgun, g_bCvar_PumpShotgun ? "true" : "false");
     PrintToConsole(client, "l4d2_wskin_rng_shotgun_chrome : %b (%s)", g_bCvar_ShotgunChrome, g_bCvar_ShotgunChrome ? "true" : "false");
@@ -582,14 +723,27 @@ public Action CmdPrintCvars(int client, int args)
 // Helpers
 // ====================================================================================================
 /**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
+ * Validates if is a valid client index.
  *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
+ * @param client        Client index.
+ * @return              True if client index is valid, false otherwise.
  */
-bool IsValidEntityIndex(int entity)
+bool IsValidClientIndex(int client)
 {
-    return (MaxClients+1 <= entity <= GetMaxEntities());
+    return (1 <= client <= MaxClients);
+}
+
+/****************************************************************************************************/
+
+/**
+ * Validates if is a valid client.
+ *
+ * @param client        Client index.
+ * @return              True if client index is valid and client is in game, false otherwise.
+ */
+bool IsValidClient(int client)
+{
+    return (IsValidClientIndex(client) && IsClientInGame(client));
 }
 
 /****************************************************************************************************/

@@ -3,7 +3,7 @@
 Change Log:
 
 1.0.2 (01-May-2021)
-    - Added support to special characters in static HUD texts through a data file. (thanks "Voevoda" for requesting)
+    - Added support to special characters in HUD texts through a data file. (thanks "Voevoda" for requesting)
     - Added a required file at data folder.
 
 1.0.1 (13-March-2021)
@@ -50,6 +50,7 @@ public Plugin myinfo =
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
+#include <basecomm>
 
 // ====================================================================================================
 // Pragmas
@@ -94,8 +95,8 @@ public Plugin myinfo =
 // #define HUD_SCORE_4                   14
 
 #define HUD_FLAG_NONE                 0     // no flag
-#define HUD_FLAG_PRESTR               1     // do you want a string/value pair to start(pre) with the static string (default is PRE)
-#define HUD_FLAG_POSTSTR              2     // do you want a string/value pair to end(post) with the static string
+#define HUD_FLAG_PRESTR               1     // do you want a string/value pair to start(pre) with the string (default is PRE)
+#define HUD_FLAG_POSTSTR              2     // do you want a string/value pair to end(post) with the string
 #define HUD_FLAG_BEEP                 4     // Makes a countdown timer blink
 #define HUD_FLAG_BLINK                8     // do you want this field to be blinking
 #define HUD_FLAG_AS_TIME              16    // ?
@@ -140,276 +141,261 @@ public Plugin myinfo =
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_pain_pills_decay_rate;
+ConVar g_hCvar_pain_pills_decay_rate;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_UpdateInterval;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_UpdateInterval;
 
-static ConVar g_hCvar_HUD1_Text;
-static ConVar g_hCvar_HUD1_TextAlign;
-static ConVar g_hCvar_HUD1_BlinkTank;
-static ConVar g_hCvar_HUD1_Blink;
-static ConVar g_hCvar_HUD1_Beep;
-static ConVar g_hCvar_HUD1_Visible;
-static ConVar g_hCvar_HUD1_Background;
-static ConVar g_hCvar_HUD1_Team;
-static ConVar g_hCvar_HUD1_Flag_Debug;
-static ConVar g_hCvar_HUD1_X;
-static ConVar g_hCvar_HUD1_Y;
-static ConVar g_hCvar_HUD1_X_Speed;
-static ConVar g_hCvar_HUD1_Y_Speed;
-static ConVar g_hCvar_HUD1_X_Direction;
-static ConVar g_hCvar_HUD1_Y_Direction;
-static ConVar g_hCvar_HUD1_X_Min;
-static ConVar g_hCvar_HUD1_Y_Min;
-static ConVar g_hCvar_HUD1_X_Max;
-static ConVar g_hCvar_HUD1_Y_Max;
-static ConVar g_hCvar_HUD1_Width;
-static ConVar g_hCvar_HUD1_Height;
+ConVar g_hCvar_HUD1_Text;
+ConVar g_hCvar_HUD1_TextAlign;
+ConVar g_hCvar_HUD1_BlinkTank;
+ConVar g_hCvar_HUD1_Blink;
+ConVar g_hCvar_HUD1_Beep;
+ConVar g_hCvar_HUD1_Visible;
+ConVar g_hCvar_HUD1_Background;
+ConVar g_hCvar_HUD1_Team;
+ConVar g_hCvar_HUD1_Flag_Debug;
+ConVar g_hCvar_HUD1_X;
+ConVar g_hCvar_HUD1_Y;
+ConVar g_hCvar_HUD1_X_Speed;
+ConVar g_hCvar_HUD1_Y_Speed;
+ConVar g_hCvar_HUD1_X_Direction;
+ConVar g_hCvar_HUD1_Y_Direction;
+ConVar g_hCvar_HUD1_X_Min;
+ConVar g_hCvar_HUD1_Y_Min;
+ConVar g_hCvar_HUD1_X_Max;
+ConVar g_hCvar_HUD1_Y_Max;
+ConVar g_hCvar_HUD1_Width;
+ConVar g_hCvar_HUD1_Height;
 
-static ConVar g_hCvar_HUD2_Text;
-static ConVar g_hCvar_HUD2_TextAlign;
-static ConVar g_hCvar_HUD2_BlinkTank;
-static ConVar g_hCvar_HUD2_Blink;
-static ConVar g_hCvar_HUD2_Beep;
-static ConVar g_hCvar_HUD2_Visible;
-static ConVar g_hCvar_HUD2_Background;
-static ConVar g_hCvar_HUD2_Team;
-static ConVar g_hCvar_HUD2_Flag_Debug;
-static ConVar g_hCvar_HUD2_X;
-static ConVar g_hCvar_HUD2_Y;
-static ConVar g_hCvar_HUD2_X_Speed;
-static ConVar g_hCvar_HUD2_Y_Speed;
-static ConVar g_hCvar_HUD2_X_Direction;
-static ConVar g_hCvar_HUD2_Y_Direction;
-static ConVar g_hCvar_HUD2_X_Min;
-static ConVar g_hCvar_HUD2_Y_Min;
-static ConVar g_hCvar_HUD2_X_Max;
-static ConVar g_hCvar_HUD2_Y_Max;
-static ConVar g_hCvar_HUD2_Width;
-static ConVar g_hCvar_HUD2_Height;
+ConVar g_hCvar_HUD2_Text;
+ConVar g_hCvar_HUD2_TextAlign;
+ConVar g_hCvar_HUD2_BlinkTank;
+ConVar g_hCvar_HUD2_Blink;
+ConVar g_hCvar_HUD2_Beep;
+ConVar g_hCvar_HUD2_Visible;
+ConVar g_hCvar_HUD2_Background;
+ConVar g_hCvar_HUD2_Team;
+ConVar g_hCvar_HUD2_Flag_Debug;
+ConVar g_hCvar_HUD2_X;
+ConVar g_hCvar_HUD2_Y;
+ConVar g_hCvar_HUD2_X_Speed;
+ConVar g_hCvar_HUD2_Y_Speed;
+ConVar g_hCvar_HUD2_X_Direction;
+ConVar g_hCvar_HUD2_Y_Direction;
+ConVar g_hCvar_HUD2_X_Min;
+ConVar g_hCvar_HUD2_Y_Min;
+ConVar g_hCvar_HUD2_X_Max;
+ConVar g_hCvar_HUD2_Y_Max;
+ConVar g_hCvar_HUD2_Width;
+ConVar g_hCvar_HUD2_Height;
 
-static ConVar g_hCvar_HUD3_Text;
-static ConVar g_hCvar_HUD3_TextAlign;
-static ConVar g_hCvar_HUD3_BlinkTank;
-static ConVar g_hCvar_HUD3_Blink;
-static ConVar g_hCvar_HUD3_Beep;
-static ConVar g_hCvar_HUD3_Visible;
-static ConVar g_hCvar_HUD3_Background;
-static ConVar g_hCvar_HUD3_Team;
-static ConVar g_hCvar_HUD3_Flag_Debug;
-static ConVar g_hCvar_HUD3_X;
-static ConVar g_hCvar_HUD3_Y;
-static ConVar g_hCvar_HUD3_X_Speed;
-static ConVar g_hCvar_HUD3_Y_Speed;
-static ConVar g_hCvar_HUD3_X_Direction;
-static ConVar g_hCvar_HUD3_Y_Direction;
-static ConVar g_hCvar_HUD3_X_Min;
-static ConVar g_hCvar_HUD3_Y_Min;
-static ConVar g_hCvar_HUD3_X_Max;
-static ConVar g_hCvar_HUD3_Y_Max;
-static ConVar g_hCvar_HUD3_Width;
-static ConVar g_hCvar_HUD3_Height;
+ConVar g_hCvar_HUD3_Text;
+ConVar g_hCvar_HUD3_TextAlign;
+ConVar g_hCvar_HUD3_BlinkTank;
+ConVar g_hCvar_HUD3_Blink;
+ConVar g_hCvar_HUD3_Beep;
+ConVar g_hCvar_HUD3_Visible;
+ConVar g_hCvar_HUD3_Background;
+ConVar g_hCvar_HUD3_Team;
+ConVar g_hCvar_HUD3_Flag_Debug;
+ConVar g_hCvar_HUD3_X;
+ConVar g_hCvar_HUD3_Y;
+ConVar g_hCvar_HUD3_X_Speed;
+ConVar g_hCvar_HUD3_Y_Speed;
+ConVar g_hCvar_HUD3_X_Direction;
+ConVar g_hCvar_HUD3_Y_Direction;
+ConVar g_hCvar_HUD3_X_Min;
+ConVar g_hCvar_HUD3_Y_Min;
+ConVar g_hCvar_HUD3_X_Max;
+ConVar g_hCvar_HUD3_Y_Max;
+ConVar g_hCvar_HUD3_Width;
+ConVar g_hCvar_HUD3_Height;
 
-static ConVar g_hCvar_HUD4_Text;
-static ConVar g_hCvar_HUD4_TextAlign;
-static ConVar g_hCvar_HUD4_BlinkTank;
-static ConVar g_hCvar_HUD4_Blink;
-static ConVar g_hCvar_HUD4_Beep;
-static ConVar g_hCvar_HUD4_Visible;
-static ConVar g_hCvar_HUD4_Background;
-static ConVar g_hCvar_HUD4_Team;
-static ConVar g_hCvar_HUD4_Flag_Debug;
-static ConVar g_hCvar_HUD4_X;
-static ConVar g_hCvar_HUD4_Y;
-static ConVar g_hCvar_HUD4_X_Speed;
-static ConVar g_hCvar_HUD4_Y_Speed;
-static ConVar g_hCvar_HUD4_X_Direction;
-static ConVar g_hCvar_HUD4_Y_Direction;
-static ConVar g_hCvar_HUD4_X_Min;
-static ConVar g_hCvar_HUD4_Y_Min;
-static ConVar g_hCvar_HUD4_X_Max;
-static ConVar g_hCvar_HUD4_Y_Max;
-static ConVar g_hCvar_HUD4_Width;
-static ConVar g_hCvar_HUD4_Height;
+ConVar g_hCvar_HUD4_Text;
+ConVar g_hCvar_HUD4_TextAlign;
+ConVar g_hCvar_HUD4_BlinkTank;
+ConVar g_hCvar_HUD4_Blink;
+ConVar g_hCvar_HUD4_Beep;
+ConVar g_hCvar_HUD4_Visible;
+ConVar g_hCvar_HUD4_Background;
+ConVar g_hCvar_HUD4_Team;
+ConVar g_hCvar_HUD4_Flag_Debug;
+ConVar g_hCvar_HUD4_X;
+ConVar g_hCvar_HUD4_Y;
+ConVar g_hCvar_HUD4_X_Speed;
+ConVar g_hCvar_HUD4_Y_Speed;
+ConVar g_hCvar_HUD4_X_Direction;
+ConVar g_hCvar_HUD4_Y_Direction;
+ConVar g_hCvar_HUD4_X_Min;
+ConVar g_hCvar_HUD4_Y_Min;
+ConVar g_hCvar_HUD4_X_Max;
+ConVar g_hCvar_HUD4_Y_Max;
+ConVar g_hCvar_HUD4_Width;
+ConVar g_hCvar_HUD4_Height;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bEventsHooked;
-static bool   g_bAliveTank;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_HUD1_BlinkTank;
-static bool   g_bCvar_HUD1_Blink;
-static bool   g_bCvar_HUD1_Beep;
-static bool   g_bCvar_HUD1_Visible;
-static bool   g_bCvar_HUD1_Background;
-static bool   g_bCvar_HUD1_Flag_Debug;
-static bool   g_bCvar_HUD1_X_Speed;
-static bool   g_bCvar_HUD1_Y_Speed;
-static bool   g_bCvar_HUD2_BlinkTank;
-static bool   g_bCvar_HUD2_Blink;
-static bool   g_bCvar_HUD2_Beep;
-static bool   g_bCvar_HUD2_Visible;
-static bool   g_bCvar_HUD2_Background;
-static bool   g_bCvar_HUD2_Flag_Debug;
-static bool   g_bCvar_HUD2_X_Speed;
-static bool   g_bCvar_HUD2_Y_Speed;
-static bool   g_bCvar_HUD3_BlinkTank;
-static bool   g_bCvar_HUD3_Blink;
-static bool   g_bCvar_HUD3_Beep;
-static bool   g_bCvar_HUD3_Visible;
-static bool   g_bCvar_HUD3_Background;
-static bool   g_bCvar_HUD3_Flag_Debug;
-static bool   g_bCvar_HUD3_X_Speed;
-static bool   g_bCvar_HUD3_Y_Speed;
-static bool   g_bCvar_HUD4_BlinkTank;
-static bool   g_bCvar_HUD4_Blink;
-static bool   g_bCvar_HUD4_Beep;
-static bool   g_bCvar_HUD4_Visible;
-static bool   g_bCvar_HUD4_Background;
-static bool   g_bCvar_HUD4_Flag_Debug;
-static bool   g_bCvar_HUD4_X_Speed;
-static bool   g_bCvar_HUD4_Y_Speed;
-static bool   g_bCvar_HUD1_Text;
-static bool   g_bCvar_HUD2_Text;
-static bool   g_bCvar_HUD3_Text;
-static bool   g_bCvar_HUD4_Text;
-static bool   g_bCvar_BlinkTank;
-static bool   g_bData_HUD1_Text;
-static bool   g_bData_HUD2_Text;
-static bool   g_bData_HUD3_Text;
-static bool   g_bData_HUD4_Text;
+bool g_bEventsHooked;
+bool g_bAliveTank;
+bool g_bCvar_Enabled;
+bool g_bCvar_HUD1_BlinkTank;
+bool g_bCvar_HUD1_Blink;
+bool g_bCvar_HUD1_Beep;
+bool g_bCvar_HUD1_Visible;
+bool g_bCvar_HUD1_Background;
+bool g_bCvar_HUD1_Flag_Debug;
+bool g_bCvar_HUD1_X_Speed;
+bool g_bCvar_HUD1_Y_Speed;
+bool g_bCvar_HUD2_BlinkTank;
+bool g_bCvar_HUD2_Blink;
+bool g_bCvar_HUD2_Beep;
+bool g_bCvar_HUD2_Visible;
+bool g_bCvar_HUD2_Background;
+bool g_bCvar_HUD2_Flag_Debug;
+bool g_bCvar_HUD2_X_Speed;
+bool g_bCvar_HUD2_Y_Speed;
+bool g_bCvar_HUD3_BlinkTank;
+bool g_bCvar_HUD3_Blink;
+bool g_bCvar_HUD3_Beep;
+bool g_bCvar_HUD3_Visible;
+bool g_bCvar_HUD3_Background;
+bool g_bCvar_HUD3_Flag_Debug;
+bool g_bCvar_HUD3_X_Speed;
+bool g_bCvar_HUD3_Y_Speed;
+bool g_bCvar_HUD4_BlinkTank;
+bool g_bCvar_HUD4_Blink;
+bool g_bCvar_HUD4_Beep;
+bool g_bCvar_HUD4_Visible;
+bool g_bCvar_HUD4_Background;
+bool g_bCvar_HUD4_Flag_Debug;
+bool g_bCvar_HUD4_X_Speed;
+bool g_bCvar_HUD4_Y_Speed;
+bool g_bCvar_HUD1_Text;
+bool g_bCvar_HUD2_Text;
+bool g_bCvar_HUD3_Text;
+bool g_bCvar_HUD4_Text;
+bool g_bCvar_BlinkTank;
+bool g_bData_HUD1_Text;
+bool g_bData_HUD2_Text;
+bool g_bData_HUD3_Text;
+bool g_bData_HUD4_Text;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iTankClass;
-static int    g_iCvar_HUD1_TextAlign;
-static int    g_iCvar_HUD1_Team;
-static int    g_iCvar_HUD1_X_Direction;
-static int    g_iCvar_HUD1_Y_Direction;
-static int    g_iCvar_HUD1_Flag_Debug;
-static int    g_iCvar_HUD2_TextAlign;
-static int    g_iCvar_HUD2_Team;
-static int    g_iCvar_HUD2_Flag_Debug;
-static int    g_iCvar_HUD2_X_Direction;
-static int    g_iCvar_HUD2_Y_Direction;
-static int    g_iCvar_HUD3_TextAlign;
-static int    g_iCvar_HUD3_Team;
-static int    g_iCvar_HUD3_Flag_Debug;
-static int    g_iCvar_HUD3_X_Direction;
-static int    g_iCvar_HUD3_Y_Direction;
-static int    g_iCvar_HUD4_TextAlign;
-static int    g_iCvar_HUD4_Team;
-static int    g_iCvar_HUD4_Flag_Debug;
-static int    g_iCvar_HUD4_X_Direction;
-static int    g_iCvar_HUD4_Y_Direction;
-static int    g_iHUD1Flags;
-static int    g_iHUD2Flags;
-static int    g_iHUD3Flags;
-static int    g_iHUD4Flags;
+int g_iCvar_HUD1_TextAlign;
+int g_iCvar_HUD1_Team;
+int g_iCvar_HUD1_X_Direction;
+int g_iCvar_HUD1_Y_Direction;
+int g_iCvar_HUD1_Flag_Debug;
+int g_iCvar_HUD2_TextAlign;
+int g_iCvar_HUD2_Team;
+int g_iCvar_HUD2_Flag_Debug;
+int g_iCvar_HUD2_X_Direction;
+int g_iCvar_HUD2_Y_Direction;
+int g_iCvar_HUD3_TextAlign;
+int g_iCvar_HUD3_Team;
+int g_iCvar_HUD3_Flag_Debug;
+int g_iCvar_HUD3_X_Direction;
+int g_iCvar_HUD3_Y_Direction;
+int g_iCvar_HUD4_TextAlign;
+int g_iCvar_HUD4_Team;
+int g_iCvar_HUD4_Flag_Debug;
+int g_iCvar_HUD4_X_Direction;
+int g_iCvar_HUD4_Y_Direction;
+int g_iHUD1Flags;
+int g_iHUD2Flags;
+int g_iHUD3Flags;
+int g_iHUD4Flags;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_pain_pills_decay_rate;
-static float  g_fCvar_UpdateInterval;
-static float  g_fCvar_HUD1_X;
-static float  g_fCvar_HUD1_Y;
-static float  g_fCvar_HUD1_X_Speed;
-static float  g_fCvar_HUD1_Y_Speed;
-static float  g_fCvar_HUD1_X_Min;
-static float  g_fCvar_HUD1_Y_Min;
-static float  g_fCvar_HUD1_X_Max;
-static float  g_fCvar_HUD1_Y_Max;
-static float  g_fCvar_HUD1_Width;
-static float  g_fCvar_HUD1_Height;
-static float  g_fCvar_HUD2_X;
-static float  g_fCvar_HUD2_Y;
-static float  g_fCvar_HUD2_X_Speed;
-static float  g_fCvar_HUD2_Y_Speed;
-static float  g_fCvar_HUD2_X_Min;
-static float  g_fCvar_HUD2_Y_Min;
-static float  g_fCvar_HUD2_X_Max;
-static float  g_fCvar_HUD2_Y_Max;
-static float  g_fCvar_HUD2_Width;
-static float  g_fCvar_HUD2_Height;
-static float  g_fCvar_HUD3_X;
-static float  g_fCvar_HUD3_Y;
-static float  g_fCvar_HUD3_X_Speed;
-static float  g_fCvar_HUD3_Y_Speed;
-static float  g_fCvar_HUD3_X_Min;
-static float  g_fCvar_HUD3_Y_Min;
-static float  g_fCvar_HUD3_X_Max;
-static float  g_fCvar_HUD3_Y_Max;
-static float  g_fCvar_HUD3_Width;
-static float  g_fCvar_HUD3_Height;
-static float  g_fCvar_HUD4_X;
-static float  g_fCvar_HUD4_Y;
-static float  g_fCvar_HUD4_X_Speed;
-static float  g_fCvar_HUD4_Y_Speed;
-static float  g_fCvar_HUD4_X_Min;
-static float  g_fCvar_HUD4_Y_Min;
-static float  g_fCvar_HUD4_X_Max;
-static float  g_fCvar_HUD4_Y_Max;
-static float  g_fCvar_HUD4_Width;
-static float  g_fCvar_HUD4_Height;
-static float  g_fHUD1_X;
-static float  g_fHUD1_Y;
-static float  g_fHUD2_X;
-static float  g_fHUD2_Y;
-static float  g_fHUD3_X;
-static float  g_fHUD3_Y;
-static float  g_fHUD4_X;
-static float  g_fHUD4_Y;
+float g_fCvar_pain_pills_decay_rate;
+float g_fCvar_UpdateInterval;
+float g_fCvar_HUD1_X;
+float g_fCvar_HUD1_Y;
+float g_fCvar_HUD1_X_Speed;
+float g_fCvar_HUD1_Y_Speed;
+float g_fCvar_HUD1_X_Min;
+float g_fCvar_HUD1_Y_Min;
+float g_fCvar_HUD1_X_Max;
+float g_fCvar_HUD1_Y_Max;
+float g_fCvar_HUD1_Width;
+float g_fCvar_HUD1_Height;
+float g_fCvar_HUD2_X;
+float g_fCvar_HUD2_Y;
+float g_fCvar_HUD2_X_Speed;
+float g_fCvar_HUD2_Y_Speed;
+float g_fCvar_HUD2_X_Min;
+float g_fCvar_HUD2_Y_Min;
+float g_fCvar_HUD2_X_Max;
+float g_fCvar_HUD2_Y_Max;
+float g_fCvar_HUD2_Width;
+float g_fCvar_HUD2_Height;
+float g_fCvar_HUD3_X;
+float g_fCvar_HUD3_Y;
+float g_fCvar_HUD3_X_Speed;
+float g_fCvar_HUD3_Y_Speed;
+float g_fCvar_HUD3_X_Min;
+float g_fCvar_HUD3_Y_Min;
+float g_fCvar_HUD3_X_Max;
+float g_fCvar_HUD3_Y_Max;
+float g_fCvar_HUD3_Width;
+float g_fCvar_HUD3_Height;
+float g_fCvar_HUD4_X;
+float g_fCvar_HUD4_Y;
+float g_fCvar_HUD4_X_Speed;
+float g_fCvar_HUD4_Y_Speed;
+float g_fCvar_HUD4_X_Min;
+float g_fCvar_HUD4_Y_Min;
+float g_fCvar_HUD4_X_Max;
+float g_fCvar_HUD4_Y_Max;
+float g_fCvar_HUD4_Width;
+float g_fCvar_HUD4_Height;
+float g_fHUD1_X;
+float g_fHUD1_Y;
+float g_fHUD2_X;
+float g_fHUD2_Y;
+float g_fHUD3_X;
+float g_fHUD3_Y;
+float g_fHUD4_X;
+float g_fHUD4_Y;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_HUD1_Text[127];
-static char   g_sCvar_HUD2_Text[127];
-static char   g_sCvar_HUD3_Text[127];
-static char   g_sCvar_HUD4_Text[127];
-static char   g_sData_HUD1_Text[127];
-static char   g_sData_HUD2_Text[127];
-static char   g_sData_HUD3_Text[127];
-static char   g_sData_HUD4_Text[127];
-static char   g_sHUD1_Text[127];
-static char   g_sHUD2_Text[127];
-static char   g_sHUD3_Text[127];
-static char   g_sHUD4_Text[127];
-static char   g_sHUD_Text[512];
-static char   g_sHUD_TextArray[4][127];
-static char   g_sBuffer[128];
-static char   g_sSpaces[127] = "                                                                                                                               ";
+char g_sCvar_HUD1_Text[128];
+char g_sCvar_HUD2_Text[128];
+char g_sCvar_HUD3_Text[128];
+char g_sCvar_HUD4_Text[128];
+char g_sData_HUD1_Text[128];
+char g_sData_HUD2_Text[128];
+char g_sData_HUD3_Text[128];
+char g_sData_HUD4_Text[128];
+char g_sHUD1_Text[128];
+char g_sHUD2_Text[128];
+char g_sHUD3_Text[128];
+char g_sHUD4_Text[128];
+char g_sHUD_Text[512];
+char g_sHUD_TextArray[4][128];
+char g_sBuffer[128];
+char g_sSpaces[128] = "                                                                                                                               ";
+
+// ====================================================================================================
+// client - Plugin Variables
+// ====================================================================================================
+bool gc_bIsSpeaking[MAXPLAYERS+1];
 
 // ====================================================================================================
 // Timer - Plugin Variables
 // ====================================================================================================
 Handle g_tUpdateInterval;
-
-/****************************************************************************************************/
-
-// ====================================================================================================
-// VoiceHook extension - uncomment if you have SM1.10 and the extension and want to show up who is speaking at the hud.
-// You can download it here: https://github.com/Accelerator74/VoiceHook/releases
-// Requires MetaMod 1.11: https://www.sourcemm.net/downloads.php/?branch=1.11-dev&all=1
-// For SM1.11+ is not necessary, cause its already a native.
-// Note: Don't forget to uncomment the inner code too on GetHUD4_Text method.
-// ====================================================================================================
-// public Extension __ext_voice =
-// {
-    // name = "voicehook",
-    // file = "voicehook.ext",
-    // autoload = 1,
-    // required = 1
-// }
-
-// native bool IsClientSpeaking(int client);
 
 // ====================================================================================================
 // Plugin Start
@@ -423,8 +409,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         strcopy(error, err_max, "This plugin only runs in \"Left 4 Dead 2\" game");
         return APLRes_SilentFailure;
     }
-
-    g_iTankClass = L4D2_ZOMBIECLASS_TANK;
 
     return APLRes_Success;
 }
@@ -626,7 +610,14 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginData()
+public void OnMapStart()
+{
+    GameRules_SetProp("m_bChallengeModeActive", 1); // Enable the HUD drawing
+}
+
+/****************************************************************************************************/
+
+void LoadPluginData()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "data/%s.cfg", DATA_FILENAME);
@@ -668,7 +659,7 @@ public void OnConfigsExecuted()
 
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 
     delete g_tUpdateInterval;
     g_tUpdateInterval = CreateTimer(g_fCvar_UpdateInterval, TimerUpdateHUD, _, TIMER_REPEAT);
@@ -676,7 +667,7 @@ public void OnConfigsExecuted()
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     if (convar == g_hCvar_HUD1_Background)
         RequestFrame(OnNextFrameHUDBackground, HUD1);
@@ -689,7 +680,7 @@ public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char
 
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 
     delete g_tUpdateInterval;
     g_tUpdateInterval = CreateTimer(g_fCvar_UpdateInterval, TimerUpdateHUD, _, TIMER_REPEAT);
@@ -697,7 +688,7 @@ public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char
 
 /****************************************************************************************************/
 
-public void OnNextFrameHUDBackground(int hudid)
+void OnNextFrameHUDBackground(int hudid)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -708,7 +699,7 @@ public void OnNextFrameHUDBackground(int hudid)
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     if (g_bCvar_BlinkTank)
         g_bAliveTank = HasAnyTankAlive();
@@ -983,9 +974,30 @@ void GetHUD_Flags()
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+public void OnClientDisconnect(int client)
 {
-    if (hook && !g_bEventsHooked)
+    gc_bIsSpeaking[client] = false;
+}
+
+/****************************************************************************************************/
+
+public void OnClientSpeaking(int client)
+{
+    gc_bIsSpeaking[client] = true;
+}
+
+/****************************************************************************************************/
+
+public void OnClientSpeakingEnd(int client)
+{
+    gc_bIsSpeaking[client] = false;
+}
+
+/****************************************************************************************************/
+
+void HookEvents()
+{
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -994,7 +1006,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -1006,7 +1018,7 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 {
     if (g_bCvar_BlinkTank)
         g_bAliveTank = true;
@@ -1014,7 +1026,7 @@ public void Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 
 /****************************************************************************************************/
 
-public Action TimerAliveTankCheck(Handle timer)
+Action TimerAliveTankCheck(Handle timer)
 {
     if (g_bAliveTank)
         g_bAliveTank = HasAnyTankAlive();
@@ -1024,7 +1036,7 @@ public Action TimerAliveTankCheck(Handle timer)
 
 /****************************************************************************************************/
 
-public Action TimerUpdateHUD(Handle timer)
+Action TimerUpdateHUD(Handle timer)
 {
     if (g_bCvar_Enabled)
         UpdateHUD();
@@ -1034,7 +1046,7 @@ public Action TimerUpdateHUD(Handle timer)
 
 /****************************************************************************************************/
 
-public void UpdateHUD()
+void UpdateHUD()
 {
     GetHUD_Texts();
     GetHUD_Pos();
@@ -1353,7 +1365,7 @@ void GetHUD2_Text(char[] output, int size)
         if (IsPlayerIncapacitated(client))
             FormatEx(health, sizeof(health), "☠");
         else
-            FormatEx(health, sizeof(health), "%d", GetClientHealth(client));
+            FormatEx(health, sizeof(health), "%i", GetClientHealth(client));
 
         if (IsFakeClient(client))
         {
@@ -1402,7 +1414,7 @@ void GetHUD3_Text(char[] output, int size)
         if (!IsPlayerAlive(client))
             FormatEx(health, sizeof(health), "☠");
         else
-            FormatEx(health, sizeof(health), "%d", GetClientHealth(client) + GetClientTempHealth(client));
+            FormatEx(health, sizeof(health), "%i", GetClientHealth(client) + GetClientTempHealth(client));
 
         if (output[0] == 0)
             FormatEx(output, size, "%N: %s", client, health);
@@ -1417,28 +1429,28 @@ void GetHUD4_Text(char[] output, int size)
 {
     FormatEx(output, size, "\0");
 
-    // for (int client = 1; client <= MaxClients; client++)
-    // {
-        // if (!IsClientInGame(client))
-            // continue;
+    for (int client = 1; client <= MaxClients; client++)
+    {
+        if (!IsClientInGame(client))
+            continue;
 
-        // if (IsFakeClient(client))
-            // continue;
+        if (!gc_bIsSpeaking[client])
+            continue;
 
-        // if (!IsClientSpeaking(client))
-            // continue;
+        if (BaseComm_IsClientMuted(client))
+            continue;
 
-        // if (output[0] == 0)
-            // FormatEx(output, size, "Players Speaking:\n%N", client);
-        // else
-            // Format(output, size, "%s\n%N", output, client);
-    // }
+        if (output[0] == 0)
+            FormatEx(output, size, "Players Speaking:\n%N", client);
+        else
+            Format(output, size, "%s\n%N", output, client);
+    }
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdReloadData(int client, int args)
+Action CmdReloadData(int client, int args)
 {
     LoadPluginData();
 
@@ -1450,7 +1462,7 @@ public Action CmdReloadData(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1459,7 +1471,7 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_scripted_hud_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_scripted_hud_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_scripted_hud_update_interval : %.2f", g_fCvar_UpdateInterval);
+    PrintToConsole(client, "l4d2_scripted_hud_update_interval : %.1f", g_fCvar_UpdateInterval);
     PrintToConsole(client, "l4d2_scripted_hud_hud1_text : \"%s\"", g_sCvar_HUD1_Text);
     PrintToConsole(client, "l4d2_scripted_hud_hud1_text_align : %i (%s)", g_iCvar_HUD1_TextAlign, g_iCvar_HUD1_TextAlign == HUD_TEXT_ALIGN_LEFT ? "LEFT" : g_iCvar_HUD1_TextAlign == HUD_TEXT_ALIGN_CENTER ? "CENTER" : "RIGHT");
     PrintToConsole(client, "l4d2_scripted_hud_hud1_blink_tank : %b (%s)", g_bCvar_HUD1_BlinkTank, g_bCvar_HUD1_BlinkTank ? "true" : "false");
@@ -1552,8 +1564,6 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "HUD3 : \"%s\"", g_sData_HUD3_Text);
     PrintToConsole(client, "HUD4 : \"%s\"", g_sData_HUD4_Text);
     PrintToConsole(client, "");
-    PrintToConsole(client, "----------------------------------------------------------------------");
-    PrintToConsole(client, "");
     PrintToConsole(client, "HUD 1 Flags : %i", g_iHUD1Flags);
     PrintToConsole(client, "HUD 2 Flags : %i", g_iHUD2Flags);
     PrintToConsole(client, "HUD 3 Flags : %i", g_iHUD3Flags);
@@ -1645,13 +1655,13 @@ bool IsPlayerTank(int client)
     if (GetClientTeam(client) != TEAM_INFECTED)
         return false;
 
+    if (GetZombieClass(client) != L4D2_ZOMBIECLASS_TANK)
+        return false;
+
     if (!IsPlayerAlive(client))
         return false;
 
     if (IsPlayerGhost(client))
-        return false;
-
-    if (GetZombieClass(client) != g_iTankClass)
         return false;
 
     return true;

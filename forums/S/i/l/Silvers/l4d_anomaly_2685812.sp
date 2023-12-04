@@ -1,6 +1,6 @@
 /*
 *	Anomaly
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.6"
+#define PLUGIN_VERSION 		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,27 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (22-Nov-2023)
+	- Added command "sm_anomoff" to remove all anomalies. Requested by "kochiurun119".
+	- Changed command "sm_anom" to allow specifying a time until spawn, this overrides the minimum spawn flow distance. Requested by "kochiurun119".
+
+1.10 (20-Sep-2022)
+	- Added cvars "l4d_anomaly_type_infected", "l4d_anomaly_type_special", "l4d_anomaly_type_survivor" and "l4d_anomaly_type_witch" to control the damage type.
+	- Requested by "Sam B".
+
+1.9 (25-Jun-2022)
+	- Changed the classname of the anomaly to prevent conflicts with other plugins that were expecting an actual "prop_physics" entity.
+
+1.8 (18-Nov-2021)
+	- Changed forward "L4D_OnGameModeChange" to be compatible with "Left4DHooks" plugin version 1.63 and newer.
+	- Compatibility support for SourceMod 1.11. Fixed various warnings.
+	- Removed some old unused code.
+
+1.7 (12-Sep-2021)
+	- Fixed plugin conflict with those detecting the "tank_rock" entity. Thanks to "sonic155" for reporting.
+	- Now using the new "Left4DHooks" native and forward: "L4D_GetGameModeType" and "L4D_OnGameModeChange".
+	- Requires "Left4DHooks" version "1.54" or newer.
 
 1.6 (20-Jun-2021)
 	- Fixed not deleting the Anomaly when the plugin was toggled off.
@@ -70,6 +91,7 @@ native bool L4D_GetRandomPZSpawnPosition(int client, int zombieClass, int attemp
 native float L4D2Direct_GetFlowDistance(int client);
 native float L4D2Direct_GetMapMaxFlowDistance();
 native int L4D_GetHighestFlowSurvivor();
+native int L4D_GetGameModeType();
 
 
 #define CVAR_FLAGS				FCVAR_NOTIFY
@@ -102,14 +124,14 @@ static const char g_sSoundsZap[][]	=
 };
 
 
-ConVar g_hCvarAllow, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamageDist, g_hCvarDamageInfe, g_hCvarDamageSpec, g_hCvarDamageSurv, g_hCvarDamageWitch, g_hCvarDamageTime,
-		g_hCvarRandDist, g_hCvarRandMax, g_hCvarRandMin, g_hCvarSpawnMax, g_hCvarSpawnMin, g_hCvarMPGameMode;
+ConVar g_hCvarMPGameMode, g_hCvarAllow, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamageDist, g_hCvarDamageInfe, g_hCvarDamageSpec, g_hCvarDamageSurv, g_hCvarDamageWitch, g_hCvarDamageTime,
+		g_hCvarRandDist, g_hCvarRandMax, g_hCvarRandMin, g_hCvarSpawnMax, g_hCvarSpawnMin, g_hCvarTypeInfe, g_hCvarTypeSpec, g_hCvarTypeSurv, g_hCvarTypeWitch;
 
 Handle g_hTimer;
-bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2;
+bool g_bCvarAllow, g_bLeft4Dead2;
 float g_fCvarDamageDist, g_fCvarDamageTime, g_fCvarRandDist, g_fCvarRandMax, g_fCvarRandMin, g_fCvarSpawnMax, g_fCvarSpawnMin, g_fFlowMax, g_fFlowMin, g_fRandNext;
 float g_fTickDmgs, g_fTickMove, g_fTickHeight, g_vLastPos[3], g_vSpawnPos[3];
-int g_iCvarDamageInfe, g_iCvarDamageSpec, g_iCvarDamageSurv, g_iCvarDamageWitch;
+int g_iCvarDamageInfe, g_iCvarDamageSpec, g_iCvarDamageSurv, g_iCvarDamageWitch, g_iCvarTypeInfe, g_iCvarTypeSpec, g_iCvarTypeSurv, g_iCvarTypeWitch;
 int g_iAnomaly;
 int g_iLighting;
 int g_iPlayerSpawn, g_iRoundStart;
@@ -162,11 +184,18 @@ public void OnPluginStart()
 	g_hCvarRandMin =		CreateConVar(	"l4d_anomaly_random_min",			"2.0",					"0.0=Off. Display random sparks and sound after this many seconds minimum.", CVAR_FLAGS );
 	g_hCvarSpawnMax =		CreateConVar(	"l4d_anomaly_spawn_max",			"70.0",					"0.0=Off. Automatically spawns anomaly when Survivors pass between this minimum and maximum map flow distance percent.", CVAR_FLAGS, true, 0.0, true, 100.0 );
 	g_hCvarSpawnMin =		CreateConVar(	"l4d_anomaly_spawn_min",			"20.0",					"0.0=Off. Automatically spawns anomaly when Survivors pass between this minimum and maximum map flow distance percent.", CVAR_FLAGS, true, 0.0, true, 100.0 );
+	g_hCvarTypeInfe =		CreateConVar(	"l4d_anomaly_type_infected",		g_bLeft4Dead2 ? "33554432" : "536870912",						"The type of damage to deal to Common Infected.", CVAR_FLAGS );
+	g_hCvarTypeSpec =		CreateConVar(	"l4d_anomaly_type_special",			"16777216",				"The type of damage to deal to Special Infected.", CVAR_FLAGS );
+	g_hCvarTypeSurv =		CreateConVar(	"l4d_anomaly_type_survivor",		"16777216",				"The type of damage to deal to Survivors.", CVAR_FLAGS );
+	g_hCvarTypeWitch =		CreateConVar(	"l4d_anomaly_type_witch",			"64",					"The type of damage to deal to Witches.", CVAR_FLAGS );
 	CreateConVar(							"l4d_anomaly_version",				PLUGIN_VERSION,			"Anomaly plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,					"l4d_anomaly");
 
+		
+		
+			
+		
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
-	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModes.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
@@ -182,6 +211,10 @@ public void OnPluginStart()
 	g_hCvarRandMin.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSpawnMax.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSpawnMin.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarTypeInfe.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarTypeSpec.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarTypeSurv.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarTypeWitch.AddChangeHook(ConVarChanged_Cvars);
 
 
 
@@ -189,7 +222,8 @@ public void OnPluginStart()
 	// COMMANDS
 	// ====================================================================================================
 	RegAdminCmd("sm_anomaly",	CmdAnomaly,	ADMFLAG_ROOT, "Create an Anomaly where your crosshair is pointing.");
-	RegAdminCmd("sm_anom",		CmdAnom,	ADMFLAG_ROOT, "Create an Anomaly near you using the random spawn placement system.");
+	RegAdminCmd("sm_anom",		CmdAnom,	ADMFLAG_ROOT, "Create an Anomaly near you using the random spawn placement system. [Optional arg: number of seconds until spawn].");
+	RegAdminCmd("sm_anomoff",	CmdRemove,	ADMFLAG_ROOT, "Removes any active anomaly.");
 }
 
 public void OnPluginEnd()
@@ -199,7 +233,6 @@ public void OnPluginEnd()
 
 public void OnMapEnd()
 {
-	g_bMapStarted = false;
 	g_iRoundStart = 0;
 	g_iPlayerSpawn = 0;
 	g_vSpawnPos = view_as<float>({ 0.0, 0.0, 0.0 });
@@ -210,8 +243,6 @@ public void OnMapEnd()
 
 public void OnMapStart()
 {
-	g_bMapStarted = true;
-
 	PrecacheModel(MODEL_SPRITE);
 
 	PrecacheParticle(PARTICLE_ELMOS);
@@ -231,20 +262,55 @@ public void OnMapStart()
 // ====================================================================================================
 //					COMMANDS
 // ====================================================================================================
-public Action CmdAnom(int client, int args)
+Action CmdRemove(int client, int args)
 {
-	float vPos[3];
-	L4D_GetRandomPZSpawnPosition(client, g_bLeft4Dead2 ? 5 : 0, 10, vPos);
-
-	CreateAnomaly(vPos);
+	DeleteAnomaly(g_iAnomaly);
 	return Plugin_Handled;
 }
 
-public Action CmdAnomaly(int client, int args)
+Action CmdAnom(int client, int args)
+{
+	if( !g_bCvarAllow )
+	{
+		ReplyToCommand(client, "Plugin disabled by allow or mode cvars.");
+		return Plugin_Handled;
+	}
+
+	if( args != 0 )
+	{
+		char sTemp[6];
+		GetCmdArg(1, sTemp, sizeof(sTemp));
+		float time = StringToFloat(sTemp);
+		if( time > 0.0 )
+		{
+			delete g_hTimer;
+			g_fFlowMin = 0.0;
+
+			g_hTimer = CreateTimer(time, TimerSpawn);
+		}
+	}
+	else
+	{
+		float vPos[3];
+		L4D_GetRandomPZSpawnPosition(client, g_bLeft4Dead2 ? 5 : 0, 10, vPos);
+
+		CreateAnomaly(vPos);
+	}
+
+	return Plugin_Handled;
+}
+
+Action CmdAnomaly(int client, int args)
 {
 	if( !client )
 	{
 		ReplyToCommand(client, "Command can only be used %s", IsDedicatedServer() ? "in game on a dedicated server." : "in chat on a Listen server.");
+		return Plugin_Handled;
+	}
+
+	if( !g_bCvarAllow )
+	{
+		ReplyToCommand(client, "Plugin disabled by allow or mode cvars.");
 		return Plugin_Handled;
 	}
 
@@ -281,12 +347,12 @@ public void OnConfigsExecuted()
 	#endif
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -304,6 +370,10 @@ void GetCvars()
 	g_fCvarRandMin = g_hCvarRandMin.FloatValue;
 	g_fCvarSpawnMax = g_hCvarSpawnMax.FloatValue;
 	g_fCvarSpawnMin = g_hCvarSpawnMin.FloatValue;
+	g_iCvarTypeInfe = g_hCvarTypeInfe.IntValue;
+	g_iCvarTypeSpec = g_hCvarTypeSpec.IntValue;
+	g_iCvarTypeSurv = g_hCvarTypeSurv.IntValue;
+	g_iCvarTypeWitch = g_hCvarTypeWitch.IntValue;
 
 	if( g_fCvarSpawnMin && g_fCvarSpawnMax )
 		g_fFlowMin = GetRandomFloat(g_fCvarSpawnMin, g_fCvarSpawnMax);
@@ -340,41 +410,22 @@ void IsAllowed()
 }
 
 int g_iCurrentMode;
+public void L4D_OnGameModeChange(int gamemode)
+{
+	g_iCurrentMode = gamemode;
+}
+
 bool IsAllowedGameMode()
 {
-	if( g_bMapStarted == false )
-		return false;
-
 	if( g_hCvarMPGameMode == null )
 		return false;
 
+	if( g_iCurrentMode == 0 ) g_iCurrentMode = L4D_GetGameModeType();
+
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
-
-	// Commented out due to being used to determine Versus mode for spawning Anomaly in the same place for both teams:
-	// if( iCvarModesTog != 0 )
-	// {
-	g_iCurrentMode = 0;
-
-	int entity = CreateEntityByName("info_gamemode");
-	if( IsValidEntity(entity) )
-	{
-		DispatchSpawn(entity);
-		HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
-		HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
-		HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
-		HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
-		ActivateEntity(entity);
-		AcceptEntityInput(entity, "PostSpawnActivate");
-		if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
-			RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
-	}
-
-	if( iCvarModesTog && g_iCurrentMode == 0 )
-		return false;
 
 	if( iCvarModesTog && !(iCvarModesTog & g_iCurrentMode) )
 		return false;
-	// }
 
 	char sGameModes[64], sGameMode[64];
 	g_hCvarMPGameMode.GetString(sGameMode, sizeof(sGameMode));
@@ -399,24 +450,12 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
-{
-	if( strcmp(output, "OnCoop") == 0 )
-		g_iCurrentMode = 1;
-	else if( strcmp(output, "OnSurvival") == 0 )
-		g_iCurrentMode = 2;
-	else if( strcmp(output, "OnVersus") == 0 )
-		g_iCurrentMode = 4;
-	else if( strcmp(output, "OnScavenge") == 0 )
-		g_iCurrentMode = 8;
-}
-
 
 
 // ====================================================================================================
 //					ANOMALY SPAWN
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	g_iRoundStart = 0;
 	g_iPlayerSpawn = 0;
@@ -425,28 +464,30 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	delete g_hTimer;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	g_fFlowMax = L4D2Direct_GetMapMaxFlowDistance();
 
 	if( g_fFlowMin && g_hTimer == null ) g_hTimer = CreateTimer(1.0, TimerSpawn, _, TIMER_REPEAT);
+
+	return Plugin_Continue;
 }
 
-public Action TimerSpawn(Handle timer)
+Action TimerSpawn(Handle timer)
 {
 	float flow;
 	int client = L4D_GetHighestFlowSurvivor();
@@ -516,7 +557,7 @@ void DeleteAnomaly(int entity)
 		StopSound(entity, SNDCHAN_AUTO, SOUND_VENDOR3);
 
 		// Prevent plugin conflicts for any plugins detecting "tank_rock" in "OnEntityDestroyed":
-		DispatchKeyValue(entity, "classname", "weapon_pistol");
+		DispatchKeyValue(entity, "classname", "anomaly");
 
 		RemoveEntity(entity);
 	}
@@ -576,6 +617,9 @@ void CreateAnomaly(float vPos[3])
 	if( GetRandomInt(0, 3) == 0 )
 		EmitSoundToAll(SOUND_VENDOR3, entity, SNDCHAN_AUTO, SNDLEVEL_DISHWASHER); // Alarm sort of sound
 
+	// Change classname to prevent conflict with other plugins detecting "tank_rock".
+	DispatchKeyValue(entity, "classname", "anomaly"); // Using a random classname that doesn't exist to prevent conflicts with other plugins
+
 	// Think function
 	g_fRandNext = 0.0;
 	g_fTickMove = 0.0;
@@ -590,7 +634,7 @@ void CreateAnomaly(float vPos[3])
 // ====================================================================================================
 //					ANOMALY THINK
 // ====================================================================================================
-public Action TimerThink(Handle timer, any entity)
+Action TimerThink(Handle timer, int entity)
 {
 	float fTickTime = GetGameTime();
 
@@ -777,10 +821,10 @@ void DoDamage(int entity, int client, float vPos[3], int type = 0)
 	// Damage
 	switch( type )
 	{
-		case 2:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageSurv), DMG_PLASMA, -1, NULL_VECTOR, vEnd); // Survivor
-		case 3:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageSpec), DMG_PLASMA, -1, NULL_VECTOR, vEnd); // Special Infected
-		case 4:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageInfe), g_bLeft4Dead2 ? DMG_AIRBOAT : DMG_BUCKSHOT, -1, NULL_VECTOR, vEnd);	// Common L4D2 / L4D1
-		case 5:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageWitch), DMG_BLAST, -1, NULL_VECTOR, vEnd);	// Witch
+		case 2:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageSurv), g_iCvarTypeSurv, -1, NULL_VECTOR, vEnd); // Survivor
+		case 3:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageSpec), g_iCvarTypeSpec, -1, NULL_VECTOR, vEnd); // Special Infected
+		case 4:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageInfe), g_iCvarTypeInfe, -1, NULL_VECTOR, vEnd);	// Common L4D2 / L4D1
+		case 5:		SDKHooks_TakeDamage(client, entity, entity, float(g_iCvarDamageWitch),g_iCvarTypeWitch, -1, NULL_VECTOR, vEnd);	// Witch
 	}
 
 
@@ -809,7 +853,7 @@ void DoDamage(int entity, int client, float vPos[3], int type = 0)
 	}
 }
 
-public Action TimerColor(Handle timer)
+Action TimerColor(Handle timer)
 {
 	if( !g_iLighting || EntRefToEntIndex(g_iLighting) == INVALID_ENT_REFERENCE ) return Plugin_Stop;
 
@@ -1065,11 +1109,6 @@ bool SetTeleportEndPoint(int entity, float vPos[3], float vAng[3])
 	{
 		TR_GetEndPosition(vPos, trace);
 
-		// For returning the ground angle, we don't need in this plugin.
-		// float vNorm[3];
-		// TR_GetPlaneNormal(trace, vNorm);
-		// GetVectorAngles(vNorm, vAng);
-
 		delete trace;
 		return true;
 	}
@@ -1078,7 +1117,7 @@ bool SetTeleportEndPoint(int entity, float vPos[3], float vAng[3])
 	return false;
 }
 
-bool TraceFilter(int entity, int contentsMask, any ignore)
+bool TraceFilter(int entity, int contentsMask, int ignore)
 {
 	if( !entity || entity == ignore || !IsValidEntity(entity) ) // Don't hit WORLD, SELF, or INVALID entities
 		return false;

@@ -584,7 +584,7 @@ public int GetClientZC(int client)
 
 public Action Event_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-	if(AutoDifficulty.BoolValue) CreateTimer(1.0, SetTankHp, GetClientOfUserId(event.GetInt("userid")), TIMER_FLAG_NO_MAPCHANGE );
+	if(TankHealthAdjust.BoolValue) CreateTimer(1.0, SetTankHp, GetClientOfUserId(event.GetInt("userid")), TIMER_FLAG_NO_MAPCHANGE );
 }
 
 ////////////////////////////////////////////////////////////////////

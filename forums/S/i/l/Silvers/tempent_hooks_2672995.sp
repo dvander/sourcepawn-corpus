@@ -1,6 +1,6 @@
 /*
 *	TempEnt Hooks - DevTools
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.2"
+#define PLUGIN_VERSION 		"1.3"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.3 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.2 (30-Sep-2020)
 	- Fixed compile errors on SM 1.11.
@@ -126,7 +129,7 @@ public void OnPluginStart()
 	CreateTimer(0.5, TimerHook); // Wait for list to be generated.
 }
 
-public Action TimerHook(Handle timer)
+Action TimerHook(Handle timer)
 {
 	char sPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_TE_LIST);
@@ -138,10 +141,12 @@ public Action TimerHook(Handle timer)
 	if( g_aTempEnts_List.Size == 0 )
 	{
 		LogError("TempEnt list size 0.");
-		return;
+		return Plugin_Continue;
 	}
 
 	g_aTempEnts_Snap = g_aTempEnts_List.Snapshot();
+
+	return Plugin_Continue;
 }
 
 
@@ -149,7 +154,7 @@ public Action TimerHook(Handle timer)
 // ====================================================================================================
 // CVARS
 // ====================================================================================================
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -201,7 +206,7 @@ void GetCvars()
 // ====================================================================================================
 // COMMANDS
 // ====================================================================================================
-public Action CmdListen(int client, int args)
+Action CmdListen(int client, int args)
 {
 	if( g_aTempEnts_List.Size == 0 )
 	{
@@ -219,7 +224,7 @@ public Action CmdListen(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdStop(int client, int args)
+Action CmdStop(int client, int args)
 {
 	if( g_aTempEnts_List.Size == 0 )
 	{
@@ -236,7 +241,7 @@ public Action CmdStop(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdWatch(int client, int args)
+Action CmdWatch(int client, int args)
 {
 	if( g_aTempEnts_List.Size == 0 )
 	{
@@ -316,7 +321,7 @@ void UnhookAll()
 	g_aHookedTempEnt.Clear();
 }
 
-public Action Hooked_TempEnts(const char[] te_name, const int[] Players, int numClients, float delay)
+Action Hooked_TempEnts(const char[] te_name, const int[] Players, int numClients, float delay)
 {
 	ArrayList aHand;
 
@@ -357,7 +362,7 @@ public Action Hooked_TempEnts(const char[] te_name, const int[] Players, int num
 			}
 		}
 
-		if( msg[0] == 0 ) return;
+		if( msg[0] == 0 ) return Plugin_Continue;
 		msg[strlen(msg) - 1] = 0; // Remove last space
 
 
@@ -399,6 +404,8 @@ public Action Hooked_TempEnts(const char[] te_name, const int[] Players, int num
 			}
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 bool ParseConfigFile(const char[] file)
@@ -421,13 +428,13 @@ bool ParseConfigFile(const char[] file)
 	return (result == SMCError_Okay);
 }
 
-public SMCResult Config_NewSection(Handle parser, const char[] section, bool quotes)
+SMCResult Config_NewSection(Handle parser, const char[] section, bool quotes)
 {
 	g_iSection++;
 	return SMCParse_Continue;
 }
 
-public SMCResult Config_KeyValue(Handle parser, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
+SMCResult Config_KeyValue(Handle parser, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
 {
 	if( g_iSection == 2 && strcmp(key, "name") == 0 )
 	{
@@ -452,13 +459,13 @@ public SMCResult Config_KeyValue(Handle parser, const char[] key, const char[] v
 	return SMCParse_Continue;
 }
 
-public SMCResult Config_EndSection(Handle parser)
+SMCResult Config_EndSection(Handle parser)
 {
 	g_iSection--;
 	return SMCParse_Continue;
 }
 
-public void Config_End(Handle parser, bool halted, bool failed)
+void Config_End(Handle parser, bool halted, bool failed)
 {
 	if( failed )
 		SetFailState("Error: Cannot load the \"%s\" config.", CONFIG_TE_LIST);

@@ -1,5 +1,5 @@
 /*
-*          NAVIGATION (Search For: Do not allow caps)
+*		  NAVIGATION (Search For: Do not allow caps)
 *
 * -EVENTS - Events.
 * 
@@ -24,26 +24,26 @@
 *
 */
 
-
 //Include data
-#pragma newdecls required
-#pragma semicolon 1
 #include <sourcemod>
 #include <sdktools>
 //#include <sdktools_functions>
-//#include <sdkhooks>
+#include <sdkhooks>
 #include <adminmenu>
+
+#pragma newdecls required
+#pragma semicolon 1
 
 #define PLUGIN_NAME "[L4D2] Custom admin commands"
 #define PLUGIN_AUTHOR "honorcode23, Shadowysn (improvements)"
 #define PLUGIN_DESC "Allow admins to use new administrative or fun commands"
-#define PLUGIN_VERSION "1.3.8"
-#define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?t=133475"
+#define PLUGIN_VERSION "1.3.9e"
+#define PLUGIN_URL "https://forums.alliedmods.net/showpost.php?p=2704580&postcount=483"
 #define PLUGIN_NAME_SHORT "Custom admin commands"
 #define PLUGIN_NAME_TECH "l4d2_custom_commands"
 
 //Definitions needed for plugin functionality
-#define DEBUG 1
+#define DEBUG 0
 #define DESIRED_FLAGS ADMFLAG_UNBAN
 
 #define ARRAY_SIZE 5000
@@ -96,12 +96,12 @@ static Handle sdkCallPushPlayer = null;
 #define SIG_CallPushPlayer_LINUX "@_ZN13CTerrorPlayer5FlingERK6Vector17PlayerAnimEvent_tP20CBaseCombatCharacterf"
 #define SIG_CallPushPlayer_WINDOWS "\\x53\\x8B\\xDC\\x83\\xEC\\x08\\x83\\xE4\\xF0\\x83\\xC4\\x04\\x55\\x8B\\x6B\\x04\\x89\\x6C\\x24\\x04\\x8B\\xEC\\x81\\xEC\\xA8\\x00\\x00\\x00\\\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x8B\\x43\\x10"
 
-//static Handle sdkDetonateAcid = null;
-#define NAME_DetonateAcid "CSpitterProjectile_Detonate"
-#define SIG_DetonateAcid_LINUX "@_ZN18CSpitterProjectile8DetonateEv"
-#define SIG_DetonateAcid_WINDOWS "\\x55\\x8B\\xEC\\x81\\xEC\\x94\\x00\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x53\\x8B\\xD9"
-
 // Handles for SDKCalls (unused)
+//static Handle sdkDetonateAcid = null;
+//#define NAME_DetonateAcid "CSpitterProjectile_Detonate"
+//#define SIG_DetonateAcid_LINUX "@_ZN18CSpitterProjectile8DetonateEv"
+//#define SIG_DetonateAcid_WINDOWS "\\x55\\x8B\\xEC\\x81\\xEC\\x94\\x00\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x53\\x8B\\xD9"
+
 //static Handle sdkVomitInfected = null;
 //#define NAME_VomitInfected "CTerrorPlayer_OnHitByVomitJar"
 //#define SIG_VomitInfected_LINUX "@_ZN13CTerrorPlayer15OnHitByVomitJarEP20CBaseCombatCharacter"
@@ -113,17 +113,14 @@ static Handle sdkCallPushPlayer = null;
 //#define SIG_VomitSurvivor_WINDOWS "\\x55\\x8B\\xEC\\x83\\xEC\\x2A\\x53\\x56\\x57\\x8B\\xF1\\xE8\\x2A\\x2A\\x2A\\x2A\\x84\\xC0\\x74\\x2A\\x8B\\x06\\x8B"
 
 //static Handle sdkShoveSurv = null;
-#define NAME_ShoveSurv "CTerrorPlayer_OnStaggered"
-#define SIG_ShoveSurv_LINUX "@_ZN13CTerrorPlayer11OnStaggeredEP11CBaseEntityPK6Vector"
-#define SIG_ShoveSurv_WINDOWS "\\x53\\x8B\\xDC\\x83\\xEC\\x2A\\x83\\xE4\\xF0\\x83\\xC4\\x04\\x55\\x8B\\x6B\\x04\\x89\\x6C\\x24\\x04\\x8B\\xEC\\x83\\xEC\\x2A\\x56\\x57\\x8B\\xF1\\xE8\\x2A\\x2A\\x2A\\x2A\\x84\\xC0\\x0F\\x85\\x6E\\x08"
+//#define NAME_ShoveSurv "CTerrorPlayer_OnStaggered"
+//#define SIG_ShoveSurv_LINUX "@_ZN13CTerrorPlayer11OnStaggeredEP11CBaseEntityPK6Vector"
+//#define SIG_ShoveSurv_WINDOWS "\\x53\\x8B\\xDC\\x83\\xEC\\x2A\\x83\\xE4\\xF0\\x83\\xC4\\x04\\x55\\x8B\\x6B\\x04\\x89\\x6C\\x24\\x04\\x8B\\xEC\\x83\\xEC\\x2A\\x56\\x57\\x8B\\xF1\\xE8\\x2A\\x2A\\x2A\\x2A\\x84\\xC0\\x0F\\x85\\x6E\\x08"
 
 //static Handle sdkShoveInf = null;
-#define NAME_ShoveInf "CTerrorPlayer_OnShovedBySurvivor"
-#define SIG_ShoveInf_LINUX "@_ZN13CTerrorPlayer18OnShovedBySurvivorEPS_RK6Vector"
-#define SIG_ShoveInf_WINDOWS "\\x55\\x8B\\xEC\\x81\\xEC\\x2A\\x2A\\x2A\\x2A\\xA1\\x2A\\x2A\\x2A\\x2A\\x33\\xC5\\x89\\x45\\xFC\\x53\\x8B\\x5D\\x08\\x56\\x57\\x8B\\x7D\\x0C\\x8B\\xF1"
-
-//Cvars
-#define CVAR_INCAPMAX "survivor_max_incapacitated_count"
+//#define NAME_ShoveInf "CTerrorPlayer_OnShovedBySurvivor"
+//#define SIG_ShoveInf_LINUX "@_ZN13CTerrorPlayer18OnShovedBySurvivorEPS_RK6Vector"
+//#define SIG_ShoveInf_WINDOWS "\\x55\\x8B\\xEC\\x81\\xEC\\x2A\\x2A\\x2A\\x2A\\xA1\\x2A\\x2A\\x2A\\x2A\\x33\\xC5\\x89\\x45\\xFC\\x53\\x8B\\x5D\\x08\\x56\\x57\\x8B\\x7D\\x0C\\x8B\\xF1"
 
 TopMenu hTopMenu;
 
@@ -133,19 +130,21 @@ TopMenu hTopMenu;
  
 //Strings
 
+#define AUTOEXEC_CFG "l4d2_custom_commands"
+
 //Integers
 /* Refers to the last selected userid by the admin client index. Doesn't matter if the admins leaves and another using the same index gets in
  * because if this admin uses the same menu item, the last userid will be reset.
  */
-static int g_iCurrentUserId[MAXPLAYERS+1] = 0; 
-static int g_iLastGrabbedEntity[ARRAY_SIZE+1] = -1;
+int g_iCurrentUserId[MAXPLAYERS+1] = {0}; 
+int g_iLastGrabbedEntity[ARRAY_SIZE+1] = {-1};
 
 //Bools
-static bool g_bVehicleReady = false;
-static bool g_bStrike = false;
-static bool g_bGnomeRain = false;
-static bool g_bGrab[MAXPLAYERS+1] = false;
-static bool g_bGrabbed[ARRAY_SIZE+1] = false;
+bool g_bVehicleReady = false;
+bool g_bStrike = false;
+bool g_bGnomeRain = false;
+bool g_bGrab[MAXPLAYERS+1] = {false};
+bool g_bGrabbed[ARRAY_SIZE+1] = {false};
 //Floats
 
 //Handles (old)
@@ -162,21 +161,35 @@ static bool g_bGrabbed[ARRAY_SIZE+1] = false;
 //Vectors
 
 //CVARS
-static Handle g_cvarRadius = null;
-static Handle g_cvarPower = null;
-static Handle g_cvarDuration = null;
-static Handle g_cvarRainDur = null;
-static Handle g_cvarRainRadius = null;
-static Handle g_cvarLog = null;
-static Handle g_cvarAddType = null;
+ConVar g_cvarRadius,
+g_cvarPower,
+g_cvarDuration,
+g_cvarRainDur,
+g_cvarRainRadius,
+g_cvarLog,
+g_cvarAddType,
+g_cvarIncapacitated,
+g_cvarPPDecay;
+float g_fRadius, g_fPower, g_fDuration, g_fRainDur, g_fRainRadius, g_fPPDecay;
+bool g_bLog, g_bAddType;
+int g_iIncaps;
 
+UserMsg g_FadeUserMsgId;
+
+bool g_isSequel = false;
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
-	if (GetEngineVersion() == Engine_Left4Dead2)
+	EngineVersion ev = GetEngineVersion();
+	if (ev == Engine_Left4Dead)
 	{
 		return APLRes_Success;
 	}
-	strcopy(error, err_max, "Plugin only supports Left 4 Dead 2.");
+	else if (ev == Engine_Left4Dead2)
+	{
+		g_isSequel = true;
+		return APLRes_Success;
+	}
+	strcopy(error, err_max, "Plugin only supports Left 4 Dead and Left 4 Dead 2.");
 	return APLRes_SilentFailure;
 }
 
@@ -196,39 +209,69 @@ public void OnPluginStart()
 	
 	LogDebug("Creating necessary ConVars...");
 	//Cvars
-	CreateConVar("l4d2_custom_commands_version", PLUGIN_VERSION, "Version of Custom Admin Commands Plugin", FCVAR_SPONLY|FCVAR_NOTIFY|FCVAR_DONTRECORD);
-	g_cvarRadius = CreateConVar("l4d2_custom_commands_explosion_radius", "350", "Radius for the Create Explosion's command explosion");
-	g_cvarPower = CreateConVar("l4d2_custom_commands_explosion_power", "350", "Power of the Create Explosion's command explosion");
-	g_cvarDuration = CreateConVar("l4d2_custom_commands_explosion_duration", "15", "Duration of the Create Explosion's command explosion fire trace");
-	g_cvarRainDur = CreateConVar("l4d2_custom_commands_rain_duration", "10", "Time out for the gnome's rain or l4d1 survivors rain");
-	g_cvarRainRadius = CreateConVar("l4d2_custom_commands_rain_radius", "300", "Maximum radius of the gnome rain or l4d1 rain. Will also affect the air strike radius");
-	g_cvarLog = CreateConVar("l4d2_custom_commands_log", "1", "Log admin actions when they use a command? [1: Yes 0: No]");
-	g_cvarAddType = CreateConVar("l4d2_custom_commands_menutype", "1", "How should the commands be added to the menu? 0: Create new category 1: Add to default categories");
+	static char desc_str[64];
+	Format(desc_str, sizeof(desc_str), "%s version.", PLUGIN_NAME_SHORT);
+	static char cmd_str[64];
+	Format(cmd_str, sizeof(cmd_str), "%s_version", PLUGIN_NAME_TECH);
+	ConVar version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, desc_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	if (version_cvar != null)
+		version_cvar.SetString(PLUGIN_VERSION);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_explosion_radius", PLUGIN_NAME_TECH);
+	g_cvarRadius = CreateConVar(cmd_str, "350", "Radius for the Create Explosion's command explosion.", FCVAR_NONE, true, 0.0);
+	g_cvarRadius.AddChangeHook(CC_CCmd_Radius);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_explosion_power", PLUGIN_NAME_TECH);
+	g_cvarPower = CreateConVar(cmd_str, "350", "Power of the Create Explosion's command explosion.", FCVAR_NONE, true, 0.0);
+	g_cvarPower.AddChangeHook(CC_CCmd_Power);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_explosion_duration", PLUGIN_NAME_TECH);
+	g_cvarDuration = CreateConVar(cmd_str, "15", "Duration of the Create Explosion's command explosion fire trace.", FCVAR_NONE, true, 0.0);
+	g_cvarDuration.AddChangeHook(CC_CCmd_Duration);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_rain_duration", PLUGIN_NAME_TECH);
+	g_cvarRainDur = CreateConVar(cmd_str, "10", "Time out for the gnome's rain or l4d1 survivors rain.", FCVAR_NONE, true, 0.0);
+	g_cvarRainDur.AddChangeHook(CC_CCmd_RainDur);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_rain_radius", PLUGIN_NAME_TECH);
+	g_cvarRainRadius = CreateConVar(cmd_str, "300", "Maximum radius of the gnome rain or l4d1 rain.\nWill also affect the air strike radius.", FCVAR_NONE, true, 0.0);
+	g_cvarRainRadius.AddChangeHook(CC_CCmd_RainRadius);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_log", PLUGIN_NAME_TECH);
+	g_cvarLog = CreateConVar(cmd_str, "1", "Log admin actions when they use a command?", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_cvarLog.AddChangeHook(CC_CCmd_Log);
+	
+	Format(cmd_str, sizeof(cmd_str), "%s_menutype", PLUGIN_NAME_TECH);
+	g_cvarAddType = CreateConVar(cmd_str, "1", "How should the commands be added to the menu?\n0: Create new category.\n1: Add to default categories.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_cvarAddType.AddChangeHook(CC_CCmd_AddType);
+	
+	g_cvarIncapacitated = FindConVar("survivor_max_incapacitated_count");
+	g_cvarIncapacitated.AddChangeHook(CC_Find_Incapacitated);
+	g_cvarPPDecay = FindConVar("pain_pills_decay_rate");
+	g_cvarPPDecay.AddChangeHook(CC_Find_PPDecay);
+	
+	AutoExecConfig(true, AUTOEXEC_CFG);
+	SetCvarValues();
 	
 	LogDebug("Registering all admin and console commands...");
 	//Commands
 	RegAdminCmd("sm_vomitplayer", CmdVomitPlayer, DESIRED_FLAGS, "Vomits the desired player");
 	RegAdminCmd("sm_incapplayer", CmdIncapPlayer, DESIRED_FLAGS, "Incapacitates a survivor or tank");
 	RegAdminCmd("sm_smackillplayer", CmdSmackillPlayer, DESIRED_FLAGS, "Smacks a player to death, sending their body flying.");
+	RegAdminCmd("sm_rock", CmdRock, DESIRED_FLAGS, "Launch a tank rock.");
 	RegAdminCmd("sm_speedplayer", CmdSpeedPlayer, DESIRED_FLAGS, "Set a player's speed");
 	RegAdminCmd("sm_sethpplayer", CmdSetHpPlayer, DESIRED_FLAGS, "Set a player's health");
 	RegAdminCmd("sm_colorplayer", CmdColorPlayer, DESIRED_FLAGS, "Set a player's model color");
 	RegAdminCmd("sm_setexplosion", CmdSetExplosion, DESIRED_FLAGS, "Creates an explosion on your feet or where you are looking at");
 	RegAdminCmd("sm_pipeexplosion", CmdPipeExplosion, DESIRED_FLAGS, "Creates a pipebomb explosion on your feet or where you are looking at");
-	RegAdminCmd("sm_sizeplayer", CmdSizePlayer, DESIRED_FLAGS, "Resize a player's model (Most likely, their pants)");
 	RegAdminCmd("sm_norescue", CmdNoRescue, DESIRED_FLAGS, "Forces the rescue vehicle to leave");
 	RegAdminCmd("sm_dontrush", CmdDontRush, DESIRED_FLAGS, "Forces a player to re-appear in the starting safe zone");
 	RegAdminCmd("sm_changehp", CmdChangeHp, DESIRED_FLAGS, "Will switch a player's health between temporal or permanent");
 	RegAdminCmd("sm_airstrike", CmdAirstrike, DESIRED_FLAGS, "Will set an airstrike attack in the player's face");
-	RegAdminCmd("sm_gnomerain", CmdGnomeRain, DESIRED_FLAGS, "Will rain gnomes within your position");
-	RegAdminCmd("sm_gnomewipe", CmdGnomeWipe, DESIRED_FLAGS, "Will delete all the gnomes in the map");
 	RegAdminCmd("sm_godmode", CmdGodMode, DESIRED_FLAGS, "Will activate or deactivate godmode from player");
 	RegAdminCmd("sm_l4drain", CmdL4dRain, DESIRED_FLAGS, "Will rain left 4 dead 1 survivors");
 	RegAdminCmd("sm_colortarget", CmdColorTarget, DESIRED_FLAGS, "Will color the aiming target entity");
-	RegAdminCmd("sm_sizetarget", CmdSizeTarget, DESIRED_FLAGS, "Will size the aiming target entity");
-	RegAdminCmd("sm_sizeclass", CmdSizeClass, DESIRED_FLAGS, "Will size all entities of the defined classname");
 	RegAdminCmd("sm_shakeplayer", CmdShakePlayer, DESIRED_FLAGS, "Will shake a player screen during the desired amount of time");
-	RegAdminCmd("sm_charge", CmdCharge, DESIRED_FLAGS, "Will launch a survivor far away");
 	RegAdminCmd("sm_weaponrain", CmdWeaponRain, DESIRED_FLAGS, "Will rain the specified weapon");
 	RegAdminCmd("sm_cmdplayer", CmdConsolePlayer, DESIRED_FLAGS, "Will control a player's console");
 	RegAdminCmd("sm_bleedplayer", CmdBleedPlayer, DESIRED_FLAGS, "Will force a player to bleed");
@@ -245,8 +288,17 @@ public void OnPluginStart()
 	RegAdminCmd("sm_rcheat", CmdCheatRcon, DESIRED_FLAGS, "Bypass any command and executes it on the server console");
 	RegAdminCmd("sm_scanmodel", CmdScanModel, DESIRED_FLAGS, "Scans the model of an entity, if possible");
 	RegAdminCmd("sm_grabentity", CmdGrabEntity, DESIRED_FLAGS, "Grabs any entity, if possible");
-	RegAdminCmd("sm_acidspill", CmdAcidSpill, DESIRED_FLAGS, "Spawns a spitter's acid spill on your the desired player");
-	RegAdminCmd("sm_adren", CmdAdren, DESIRED_FLAGS, "Gives a player the adrenaline effect");
+	if (g_isSequel)
+	{
+		RegAdminCmd("sm_sizeplayer", CmdSizePlayer, DESIRED_FLAGS, "Resize a player's model (Most likely, their pants)");
+		RegAdminCmd("sm_sizeclass", CmdSizeClass, DESIRED_FLAGS, "Will size all entities of the defined classname");
+		RegAdminCmd("sm_sizetarget", CmdSizeTarget, DESIRED_FLAGS, "Will size the aiming target entity");
+		RegAdminCmd("sm_charge", CmdCharge, DESIRED_FLAGS, "Will launch a survivor far away");
+		RegAdminCmd("sm_acidspill", CmdAcidSpill, DESIRED_FLAGS, "Spawns a spitter's acid spill on your the desired player");
+		RegAdminCmd("sm_adren", CmdAdren, DESIRED_FLAGS, "Gives a player the adrenaline effect");
+		RegAdminCmd("sm_gnomerain", CmdGnomeRain, DESIRED_FLAGS, "Will rain gnomes within your position");
+		RegAdminCmd("sm_gnomewipe", CmdGnomeWipe, DESIRED_FLAGS, "Will delete all the gnomes in the map");
+	}
 	RegAdminCmd("sm_temphp", CmdTempHp, DESIRED_FLAGS, "Sets a player temporary health into the desired value");
 	RegAdminCmd("sm_revive", CmdRevive, DESIRED_FLAGS, "Revives an incapacitated player");
 	RegAdminCmd("sm_oldmovie", CmdOldMovie, DESIRED_FLAGS, "Sets a player into black and white");
@@ -262,6 +314,7 @@ public void OnPluginStart()
 	//Events
 	HookEvent("round_end", OnRoundEnd);
 	HookEvent("finale_vehicle_ready", OnVehicleReady);
+	if (g_isSequel) HookEvent("player_hurt", FixSpitDmgEffects);
 	
 	LogDebug("Loading Translations");
 	//Translations
@@ -284,8 +337,32 @@ public void OnPluginStart()
 		OnAdminMenuReady(topmenu);
 	}
 	
+	g_FadeUserMsgId = GetUserMessageId("Fade");
+	
 	LogDebug("####### Plugin is ready #######");
 }
+
+void CC_CCmd_Radius(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_fRadius =	convar.FloatValue; }
+void CC_CCmd_Power(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_fPower =		convar.FloatValue; }
+void CC_CCmd_Duration(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_fDuration =	convar.FloatValue; }
+void CC_CCmd_RainDur(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_fRainDur =	convar.FloatValue; }
+void CC_CCmd_RainRadius(ConVar convar, const char[] oldValue, const char[] newValue)	{ g_fRainRadius =	convar.FloatValue; }
+void CC_CCmd_Log(ConVar convar, const char[] oldValue, const char[] newValue)			{ g_bLog =		convar.BoolValue; }
+void CC_CCmd_AddType(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_bAddType =	convar.BoolValue; }
+void SetCvarValues()
+{
+	CC_CCmd_Radius(g_cvarRadius, "", "");
+	CC_CCmd_Power(g_cvarPower, "", "");
+	CC_CCmd_Duration(g_cvarDuration, "", "");
+	CC_CCmd_RainDur(g_cvarRainDur, "", "");
+	CC_CCmd_RainRadius(g_cvarRainRadius, "", "");
+	CC_CCmd_Log(g_cvarLog, "", "");
+	CC_CCmd_AddType(g_cvarAddType, "", "");
+	CC_Find_Incapacitated(g_cvarIncapacitated, "", "");
+	CC_Find_PPDecay(g_cvarPPDecay, "", "");
+}
+void CC_Find_Incapacitated(ConVar convar, const char[] oldValue, const char[] newValue)	{ g_iIncaps =	convar.IntValue; }
+void CC_Find_PPDecay(ConVar convar, const char[] oldValue, const char[] newValue) 		{ g_fPPDecay =	convar.FloatValue; }
 
 public void OnMapStart()
 {
@@ -293,6 +370,12 @@ public void OnMapStart()
 	PrecacheSound(EXPLOSION_SOUND);
 	PrecacheSound(EXPLOSION_SOUND2);
 	PrecacheSound(EXPLOSION_SOUND3);
+	static char sliceSnd[34];
+	for (int i = 1; i <= 6; i++)
+	{
+		Format(sliceSnd, sizeof(sliceSnd), "player/PZ/hit/zombie_slice_%i.wav", i);
+		PrecacheSound(sliceSnd);
+	}
 	
 	PrecacheModel(ZOEY_MODEL);
 	PrecacheModel(LOUIS_MODEL);
@@ -328,8 +411,27 @@ public void OnMapEnd()
 		g_bGrabbed[i] = false;
 	}
 }
+//g_bAlterSpit = false;
+public void OnEntityCreated(int entity, const char[] classname)
+{
+	if (classname[0] == 'i' && strcmp(classname, "insect_swarm", false) == 0)
+		SDKHook(entity, SDKHook_SpawnPost, AlterSpit);
+}
+void AlterSpit(int spit)
+{
+	if (!RealValidEntity(spit)) return;
+	
+	//PrintToServer("Found spit! %i", spit);
+	//PrintToServer("Spit team is %i", GetEntProp(spit, Prop_Send, "m_iTeamNum"));
+	int owner = GetEntPropEnt(spit, Prop_Send, "m_hOwnerEntity");
+	if (!RealValidEntity(owner))
+	{
+		SetEntProp(spit, Prop_Send, "m_iTeamNum", 3);
+		//SetEntPropEnt(spit, Prop_Send, "m_hOwnerEntity", client);
+	}
+}
 
-Action CmdCCRefresh(int client, any args)
+Action CmdCCRefresh(int client, int args)
 {
 	LogDebug("Refreshing the admin menu");
 	PrintToChat(client, "[SM] Refreshing the admin menu...");
@@ -340,7 +442,7 @@ Action CmdCCRefresh(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdHelp(int client, any args)
+Action CmdHelp(int client, int args)
 {
 	PrintToChat(client, "\x03********************** Custom Commands List **********************");
 	PrintToChat(client, "- \"sm_vomitplayer\": Vomits the desired player (Usage: sm_vomitplayer <#userid|name>) | Example: !vomitplayer @me");
@@ -432,66 +534,46 @@ Action CmdHelp(int client, any args)
 }
 
 // EVENTS //
-void OnVehicleReady(Handle event, const char[] event_name, bool dontBroadcast)
+void OnVehicleReady(Event event, const char[] event_name, bool dontBroadcast)
 {
 	g_bVehicleReady = true;
 }
 
-void OnRoundEnd(Handle event, const char[] event_name, bool dontBroadcast)
+void OnRoundEnd(Event event, const char[] event_name, bool dontBroadcast)
 {
 	g_bVehicleReady = false;
 }
 
 // COMMANDS //
-Action CmdVomitPlayer(int client, any args)
+Action CmdVomitPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_vomitplayer <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
-	/*char target_name[MAX_TARGET_LENGTH];
-	int target_list[MAXPLAYERS], target_count; bool tn_is_ml;
-	if ((target_count = ProcessTargetString(
-			arg,
-			client,
-			target_list,
-			MAXPLAYERS,
-			COMMAND_FILTER_ALIVE,
-			target_name,
-			sizeof(target_name),
-			tn_is_ml)) <= 0)
-	{
-		ReplyToTargetError(client, target_count);
-		return Plugin_Handled;
-	}*/
-	
-	//int target_list[MAXPLAYERS], target_count;
-	//Cmd_GetTargets(client, arg, target_list, target_count);
 	
 	int target_list[MAXPLAYERS];
 	int target_count = Cmd_GetTargets(client, arg, target_list);
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Vomit Player' command on '%N'", client, i);
 		VomitPlayer(target_list[i], client);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Vomit Player' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-Action CmdIncapPlayer(int client, any args)
+Action CmdIncapPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_incapplayer <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -499,22 +581,20 @@ Action CmdIncapPlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Incap Player' command on '%N'", client, i);
 		IncapPlayer(target_list[i], client);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Incap Player' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-Action CmdSmackillPlayer(int client, any args)
+Action CmdSmackillPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_smackillplayer <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -522,22 +602,58 @@ Action CmdSmackillPlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Smackill Player' command on '%N'", client, i);
 		SmackillPlayer(target_list[i], client);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Smackill Player' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-Action CmdSpeedPlayer(int client, any args)
+Action CmdRock(int client, int args)
+{
+	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
+	
+	static char arg[65];
+	if (args < 1 || args > 1)
+	{ strcopy(arg, sizeof(arg), "position"); }
+	else
+	{ GetCmdArg(1, arg, sizeof(arg)); }
+	
+	bool isSuccessful = false;
+	
+	if (StrContains(arg, "position", false) != -1)
+	{
+		float pos[3], ang[3];
+		GetClientAbsOrigin(client, pos);
+		GetClientEyeAngles(client, ang);
+		
+		LaunchRock(pos, ang);
+		isSuccessful = true;
+	}
+	else if (StrContains(arg, "cursor", false) != -1)
+	{
+		float VecOrigin[3], ang[3];
+		DoClientTrace(client, MASK_OPAQUE, true, VecOrigin);
+		GetClientEyeAngles(client, ang);
+		
+		LaunchRock(VecOrigin, ang);
+		isSuccessful = true;
+	}
+	
+	if (isSuccessful)
+	{ LogCommand("'%N' used the 'Set Explosion' command", client); }
+	else
+	{ PrintToChat(client, "[SM] Specify the explosion position"); }
+	return Plugin_Handled;
+}
+
+Action CmdSpeedPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 2)
 	{ PrintToChat(client, "[SM] Usage: sm_speedplayer <#userid|name> [value]"); return Plugin_Handled; }
 	
-	char arg[65], arg2[65]; float speed;
+	static char arg[65], arg2[65]; float speed;
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	speed = StringToFloat(arg2);
@@ -547,22 +663,20 @@ Action CmdSpeedPlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Speed Player' command on '%N' with value <%f>", client, i, speed);
 		ChangeSpeed(target_list[i], client, speed);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Speed Player' command on '%s' with value <%f>", name, arg, speed);
 	return Plugin_Handled;
 }
 
-Action CmdSetHpPlayer(int client, any args)
+Action CmdSetHpPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 2)
 	{ PrintToChat(client, "[SM] Usage: sm_sethpplayer <#userid|name> [amount]"); return Plugin_Handled; }
 	
-	char arg[65], arg2[65];
+	static char arg[65], arg2[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	int health = StringToInt(arg2);
@@ -572,22 +686,20 @@ Action CmdSetHpPlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Set Health' command on '%N' with value <%i>", client, i, health);
 		SetHealth(target_list[i], client, health);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Set Heealth' command on '%s' with value <%i>", name, arg, health);
 	return Plugin_Handled;
 }
 
-Action CmdColorPlayer(int client, any args)
+Action CmdColorPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 2)
 	{ PrintToChat(client, "[SM] Usage: sm_colorplayer <#userid|name> [R G B A]"); return Plugin_Handled; }
 	
-	char arg[65], arg2[65];
+	static char arg[65], arg2[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -596,15 +708,13 @@ Action CmdColorPlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Color Player' command on '%N' with value <%s>", client, i, arg2);
 		ChangeColor(target_list[i], client, arg2);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Speed Player' command on '%s' with value '%s'", name, arg, arg2);
 	return Plugin_Handled;
 }
 
-Action CmdColorTarget(int client, any args)
+Action CmdColorTarget(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -613,20 +723,21 @@ Action CmdColorTarget(int client, any args)
 	
 	int target = GetClientAimTarget(client, false);
 	if (!RealValidEntity(target))
-	{ PrintToChat(client, "[SM] Invalid entity or looking to nothing"); }
+	{ PrintToChat(client, "[SM] Invalid entity or looking to nothing"); return Plugin_Handled; }
 	
-	char arg[256];
+	static char arg[256];
 	GetCmdArg(1, arg, sizeof(arg));
 	DispatchKeyValue(target, "rendercolor", arg);
 	DispatchKeyValue(target, "color", arg);
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Colot Target' command", name);
+	static char class[64];
+	GetEntityClassname(target, class, sizeof(class));
+	
+	LogCommand("'%N' used the 'Color Target' command on entity '%i' of classname '%s' with value <%s>", client, target, class, arg);
 	return Plugin_Handled;
 }
 
-Action CmdSizeTarget(int client, any args)
+Action CmdSizeTarget(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -637,24 +748,24 @@ Action CmdSizeTarget(int client, any args)
 	if (!RealValidEntity(target))
 	{ PrintToChat(client, "[SM] Invalid entity or looking to nothing"); return Plugin_Handled; }
 	
-	char arg[24];
+	static char arg[24];
 	GetCmdArg(1, arg, sizeof(arg));
 	float scale = StringToFloat(arg);
 	SetEntPropFloat(target, Prop_Send, "m_flModelScale", scale);
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Size Target' command", name);
+	static char class[64];
+	GetEntityClassname(target, class, sizeof(class));
+	
+	LogCommand("'%N' used the 'Size Target' command on entity '%i' of classname '%s' with value <%s>", client, target, class, arg);
 	return Plugin_Handled;
 }
 
-Action CmdSizeClass(int client, any args)
+Action CmdSizeClass(int client, int args)
 {
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_sizeclass [classname] [scale]"); return Plugin_Handled; }
 	
-	char arg[128];
-	char arg2[24];
+	static char arg[128], arg2[24];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -667,9 +778,9 @@ Action CmdSizeClass(int client, any args)
 		{
 			if (!RealValidEntity(ent_class)) continue;
 			
-			char class[128];
+			static char class[64];
 			GetEntityClassname(ent_class, class, sizeof(class));
-			if (!StrEqual(class, arg, false)) continue;
+			if (strcmp(class, arg, false) != 0) continue;
 			
 			SetEntPropFloat(ent_class, Prop_Send, "m_flModelScale", scale);
 		}
@@ -679,13 +790,11 @@ Action CmdSizeClass(int client, any args)
 	
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Size Class' command", name);
+	LogCommand("'%N' used the 'Size Class' command on classname '%s' with value <%f>", client, arg, scale);
 	return Plugin_Handled;
 }
 
-Action CmdSetExplosion(int client, any args)
+Action CmdSetExplosion(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -694,7 +803,7 @@ Action CmdSetExplosion(int client, any args)
 	
 	bool isSuccessful = false;
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	if (StrContains(arg, "position", false) != -1)
 	{
@@ -729,7 +838,7 @@ Action CmdSetExplosion(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdPipeExplosion(int client, any args)
+Action CmdPipeExplosion(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -738,7 +847,7 @@ Action CmdPipeExplosion(int client, any args)
 	
 	bool isSuccessful = false;
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	if (StrContains(arg, "position", false) != -1)
 	{
@@ -773,14 +882,14 @@ Action CmdPipeExplosion(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdSizePlayer(int client, any args)
+Action CmdSizePlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 2)
 	{ PrintToChat(client, "[SM] Usage: sm_sizeplayer <#userid|name> [value]"); return Plugin_Handled; }
 	
-	char arg[65], arg2[65]; float scale;
+	static char arg[65], arg2[65]; float scale;
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	scale = StringToFloat(arg2);
@@ -790,16 +899,14 @@ Action CmdSizePlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Size Player' command on '%N' with value <%f>", client, i, scale);
 		ChangeScale(target_list[i], client, scale);
 	}
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Scale Player' command on '%s' with value <%f>", name, arg, scale);
 	return Plugin_Handled;
 }
 
-Action CmdNoRescue(int client, any args)
+Action CmdNoRescue(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -808,13 +915,13 @@ Action CmdNoRescue(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdDontRush(int client, any args)
+Action CmdDontRush(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_dontrush <#userid|name>"); return Plugin_Handled; }
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -822,23 +929,21 @@ Action CmdDontRush(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Anti Rush' command on '%N'", client, i);
 		TeleportBack(target_list[i], client);
 	}
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Anti Rush' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-/*Action CmdBugPlayer(int client, any args)
+/*Action CmdBugPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_bugplayer <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -851,12 +956,12 @@ Action CmdDontRush(int client, any args)
 	return Plugin_Handled;
 }*/
 
-/*Action CmdDestroyPlayer(int client, any args)
+/*Action CmdDestroyPlayer(int client, int args)
 {
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_destroyplayer <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -867,14 +972,14 @@ Action CmdDontRush(int client, any args)
 		LaunchMissile(target_list[i], client);
 	}
 	
-	char name[256];
+	static char name[MAX_NAME_LENGTH];
 	int target;
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (Cmd_CheckClient(i, -1, false, -1, false))
 		{
 			GetClientName(i, name, sizeof(name));
-			if (StrEqual(name, arg))
+			if (strcmp(name, arg, false) == 0)
 			{
 				target = i;
 			}
@@ -885,14 +990,14 @@ Action CmdDontRush(int client, any args)
 }
 */
 
-Action CmdAirstrike(int client, any args)
+Action CmdAirstrike(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_airstrike <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -900,16 +1005,14 @@ Action CmdAirstrike(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Airstrike' command on '%N'", client, i);
 		Airstrike(target_list[i]);
 	}
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Airstrike' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-Action CmdOldMovie(int client, any args)
+Action CmdOldMovie(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -918,7 +1021,7 @@ Action CmdOldMovie(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_oldmovie <#userid|name>");
 		return Plugin_Handled;
 	}
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -926,27 +1029,28 @@ Action CmdOldMovie(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		float health = GetClientHealth(client)+1.0;
 		BlackAndWhite(target_list[i], client);
 		SetEntityHealth(target_list[i], 1);
-		SetTempHealth(target_list[i], 50.0);
+		SetTempHealth(target_list[i], health);
 	}
 	return Plugin_Handled;
 }
 
-Action CmdChangeHp(int client, any args)
+Action CmdChangeHp(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_changehp <#userid|name> [perm | temp]"); return Plugin_Handled; }
 	
-	char arg[65], arg2[65];
+	static char arg[65], arg2[65];
 	int type = 0;
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
-	if (StrEqual(arg2, "perm"))
+	if (strncmp(arg2, "perm", 4, false) == 0)
 	{ type = 1; }
-	else if (StrEqual(arg2, "temp"))
+	else if (strncmp(arg2, "temp", 4, false) == 0)
 	{ type = 2; }
 	
 	if (type <= 0 || type > 2)
@@ -957,48 +1061,42 @@ Action CmdChangeHp(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Change Health Type' command on '%N' with value <%s>", client, i, arg2);
 		SwitchHealth(target_list[i], client, type);
 	}
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Change Health Type' command on '%s' with value <%s>", name, arg, arg2);
 	return Plugin_Handled;
 }
 
-Action CmdGnomeRain(int client, any args)
+Action CmdGnomeRain(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Gnome Rain' command");
+	LogCommand("'%N' used the 'Gnome Rain' command", client);
 	StartGnomeRain(client);
 	return Plugin_Handled;
 }
 
-Action CmdL4dRain(int client, any args)
+Action CmdL4dRain(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'L4D1 rain' command");
+	LogCommand("'%N' used the 'L4D1 Rain' command", client);
 	StartL4dRain(client);
 	return Plugin_Handled;
 }
 
-Action CmdGnomeWipe(int client, any args)
+Action CmdGnomeWipe(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
-	char classname[256];
+	static char classname[14];
 	int count = 0;
 	for (int i = MaxClients; i <= GetMaxEntities(); i++)
 	{
 		if (!RealValidEntity(i)) continue;
 		
 		GetEntityClassname(i, classname, sizeof(classname));
-		if (StrEqual(classname, "weapon_gnome"))
+		if (strcmp(classname, "weapon_gnome", false) == 0)
 		{
 			AcceptEntityInput(i, "Kill");
 			count++;
@@ -1007,22 +1105,20 @@ Action CmdGnomeWipe(int client, any args)
 	PrintToChat(client, "[SM] Succesfully wiped %i gnomes", count);
 	count = 0;
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
 	LogCommand("'%N' used the 'Gnome Wipe' command", client);
 	return Plugin_Handled;
 }
 
-/*Action CmdWipeBody(int client, any args)
+/*Action CmdWipeBody(int client, int args)
 {
-	char classname[256];
+	static char classname[32];
 	int count = 0;
 	for (int i = MaxClients; i <= GetMaxEntities(); i++)
 	{
 		if (!RealValidEntity(i)) continue;
 		
 		GetEntityClassname(i, classname, sizeof(classname));
-		if (StrEqual(classname, "prop_ragdoll"))
+		if (strcmp(classname, "prop_ragdoll", false) == 0)
 		{
 			AcceptEntityInput(i, "Kill");
 			count++;
@@ -1035,14 +1131,14 @@ Action CmdGnomeWipe(int client, any args)
 }
 */
 
-Action CmdGodMode(int client, any args)
+Action CmdGodMode(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_godmode <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -1050,23 +1146,27 @@ Action CmdGodMode(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'God Mode' command on '%N'", client, i);
 		GodMode(target_list[i], client);
 	}
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'God Mode' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-Action CmdCharge(int client, any args)
+Action CmdCharge(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
+	
+	if (sdkCallPushPlayer == null)
+	{
+		PrintToChat(client, "[SM] Charge command is unusable: gamedata signature for Fling is broken!");
+		return Plugin_Handled;
+	}
 	
 	if (args < 1)
 	{ PrintToChat(client, "[SM] Usage: sm_charge <#userid|name>"); return Plugin_Handled; }
 	
-	char arg[65];
+	static char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -1074,16 +1174,14 @@ Action CmdCharge(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Charge' command on '%N'", client, i);
 		Charge(target_list[i], client);
 	}
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Charge' command on '%s'", name, arg);
 	return Plugin_Handled;
 }
 
-Action CmdShakePlayer(int client, any args)
+Action CmdShakePlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1092,7 +1190,7 @@ Action CmdShakePlayer(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_shake <#userid|name> [duration]");
 		return Plugin_Handled;
 	}
-	char arg[65], arg2[65];
+	static char arg[65], arg2[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1103,15 +1201,14 @@ Action CmdShakePlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Shake' command on '%N' with value <%f>", client, i, duration);
 		Shake(target_list[i], client, duration);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Shake' command on '%s' with value <%f>", name, arg, duration);
+	
 	return Plugin_Handled;
 }
 
-Action CmdConsolePlayer(int client, any args)
+Action CmdConsolePlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1120,7 +1217,7 @@ Action CmdConsolePlayer(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_cmdplayer <#userid|name> [command]");
 		return Plugin_Handled;
 	}
-	char arg[65], arg2[65];
+	static char arg[65], arg2[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1129,15 +1226,14 @@ Action CmdConsolePlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Client Console' command on '%N' with value <%s>", client, i, arg2);
 		ClientCommand(target_list[i], arg2);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Client Console' command on '%s' with value <%s>", name, arg, arg2);
+	
 	return Plugin_Handled;
 }
 
-Action CmdWeaponRain(int client, any args)
+Action CmdWeaponRain(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1146,7 +1242,7 @@ Action CmdWeaponRain(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_weaponrain [weapon type] [Example: !weaponrain adrenaline]");
 		return Plugin_Handled;
 	}
-	char arg[65];
+	static char arg[65];
 	GetCmdArgString(arg, sizeof(arg));
 	if (IsValidWeapon(arg))
 	{
@@ -1156,13 +1252,13 @@ Action CmdWeaponRain(int client, any args)
 	{
 		PrintToChat(client, "[SM] Wrong weapon type");
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Weapon Rain' command", name);
+	
+	LogCommand("'%N' used the 'Weapon Rain' command with value <%s>", client, arg);
+	
 	return Plugin_Handled;
 }
 
-Action CmdBleedPlayer(int client, any args)
+Action CmdBleedPlayer(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1172,7 +1268,7 @@ Action CmdBleedPlayer(int client, any args)
 		return Plugin_Handled;
 	}
 	
-	char arg[65], arg2[65];
+	static char arg[65], arg2[65];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1183,30 +1279,28 @@ Action CmdBleedPlayer(int client, any args)
 	
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Bleed' command on '%N' with value <%f>", client, i, duration);
 		Bleed(target_list[i], client, duration);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Bleed' command on '%s' with value <%f>", name, arg, duration);
+	
 	return Plugin_Handled;
 }
 
-Action CmdHintText(int client, any args)
+Action CmdHintText(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
-	char arg2[65];
+	static char arg2[65];
 	GetCmdArgString(arg2, sizeof(arg2));
 	InstructorHint(arg2);
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Hint Text' command with value <%s>", name, arg2);
+	
+	LogCommand("'%N' used the 'Hint Text' command with value <%s>", client, arg2);
 	return Plugin_Handled;
 }
 
-Action CmdCheat(int client, any args)
+Action CmdCheat(int client, int args)
 {
-	char command[256], buffer2[256];
+	static char command[256], buffer2[256];
 	GetCmdArg(1, command, sizeof(command));
 	GetCmdArg(2, buffer2, sizeof(buffer2));
 	if (args < 1)
@@ -1221,7 +1315,8 @@ Action CmdCheat(int client, any args)
 		SetCommandFlags(command, cmdflags & ~FCVAR_CHEAT);
 		ServerCommand("%s", buffer2);
 		SetCommandFlags(command, cmdflags);
-		LogCommand("'Console' used the 'Cheat' command with value <%s>", buffer2);
+		
+		LogCommand("Console used the 'Cheat' command with value <%s>", buffer2);
 	}
 	else
 	{
@@ -1231,18 +1326,18 @@ Action CmdCheat(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdWipeEntity(int client, any args)
+Action CmdWipeEntity(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
-	char arg[256], class[64];
+	static char arg[128], class[64];
 	GetCmdArgString(arg, sizeof(arg));
 	int count = 0;
 	for (int i = MaxClients+1; i <= GetMaxEntities(); i++)
 	{
 		if (!RealValidEntity(i)) continue;
 		GetEntityClassname(i, class, sizeof(class));
-		if (StrEqual(class, arg))
+		if (strcmp(class, arg, false) == 0)
 		{
 			AcceptEntityInput(i, "Kill");
 			count++;
@@ -1250,13 +1345,12 @@ Action CmdWipeEntity(int client, any args)
 	}
 	PrintToChat(client, "[SM] Succesfully deleted %i <%s> entities", count, arg);
 	count = 0;
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Wipe Entity' command for classname <%s>", name, arg);
+	
+	LogCommand("'%N' used the 'Wipe Entity' command on classname <%s>", client, arg);
 	return Plugin_Handled;
 }
 
-Action CmdSetModel(int client, any args)
+Action CmdSetModel(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1266,7 +1360,7 @@ Action CmdSetModel(int client, any args)
 		PrintToChat(client, "Example: !setmodel @me models/props_interiors/table_bedside.mdl ");
 		return Plugin_Handled;
 	}
-	char arg[256], arg2[256];
+	static char arg[256], arg2[256];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1276,15 +1370,14 @@ Action CmdSetModel(int client, any args)
 	PrecacheModel(arg2);
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Set Model' command on '%N' with value <%s>", client, i, arg2);
 		SetEntityModel(target_list[i], arg2);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Set Model' command on '%s' with value <%s>", name, arg, arg2);
+	
 	return Plugin_Handled;
 }
 
-Action CmdSetModelEntity(int client, any args)
+Action CmdSetModelEntity(int client, int args)
 {
 	if (args < 2)
 	{
@@ -1292,17 +1385,17 @@ Action CmdSetModelEntity(int client, any args)
 		PrintToChat(client, "Example: !setmodelentity infected models/props_interiors/table_bedside.mdl");
 		return Plugin_Handled;
 	}
-	char arg[256], arg2[256], class[64];
+	static char arg[128], arg2[128], class[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	PrecacheModel(arg2);
 	int count = 0;
-	for (int i=MaxClients+1; i<=GetMaxEntities(); i++)
+	for (int i = MaxClients+1; i <= GetMaxEntities(); i++)
 	{
 		if (RealValidEntity(i))
 		{
-			GetEdictClassname(i, class, sizeof(class));
-			if (StrEqual(class, arg))
+			GetEntityClassname(i, class, sizeof(class));
+			if (strcmp(class, arg, false) == 0)
 			{
 				SetEntityModel(i, arg2);
 				count++;
@@ -1311,13 +1404,12 @@ Action CmdSetModelEntity(int client, any args)
 	}
 	PrintToChat(client, "[SM] Succesfully set the %s model to %i <%s> entities", arg2, count, arg);
 	count = 0;
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Set Model Entity' command on classname <%s>", name, arg2);
+	
+	LogCommand("'%N' used the 'Set Model Entity' command on classname '%s' with value <%s>", client, arg, arg2);
 	return Plugin_Handled;
 }
 
-Action CmdCreateParticle(int client, any args)
+Action CmdCreateParticle(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1327,7 +1419,7 @@ Action CmdCreateParticle(int client, any args)
 		PrintToChat(client, "Example: !createparticle @me no 5 (Teleports the particle to my position, but don't parent it and stop the effect in 5 seconds)");
 		return Plugin_Handled;
 	}
-	char arg[256], arg2[256], arg3[256], arg4[256];
+	static char arg[64], arg2[32], arg3[8], arg4[24];
 	
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
@@ -1338,11 +1430,11 @@ Action CmdCreateParticle(int client, any args)
 	int target_count = Cmd_GetTargets(client, arg, target_list, COMMAND_FILTER_CONNECTED);
 	
 	bool parent = false;
-	if (StrEqual(arg3, "yes"))
+	if (strncmp(arg3, "yes", 3, false) == 0)
 	{
 		parent = false;
 	}
-	else if (StrEqual(arg3, "no"))
+	else if (strncmp(arg3, "no", 2, false) == 0)
 	{
 		parent = true;
 	}
@@ -1353,15 +1445,14 @@ Action CmdCreateParticle(int client, any args)
 	float duration = StringToFloat(arg4);
 	for (int i = 0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Create Particle' command on '%N' with value <%s> <%s> <%f>", client, i, arg2, arg3, duration);
 		CreateParticle(target_list[i], arg2, parent, duration);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Create Particle' command on '%s' with value <%s> <%s> <%f>", name, arg, arg2, arg3, duration);
+	
 	return Plugin_Handled;
 }
 
-Action CmdIgnite(int client, any args)
+Action CmdIgnite(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1370,7 +1461,7 @@ Action CmdIgnite(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_ignite <#userid|name> [duration]");
 		return Plugin_Handled;
 	}
-	char arg[256], arg2[256];
+	static char arg[64], arg2[8];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1380,15 +1471,14 @@ Action CmdIgnite(int client, any args)
 	float duration = StringToFloat(arg2);
 	for (int i=0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Ignite Player' command on '%N' with value <%f>", client, i, duration);
 		IgnitePlayer(target_list[i], duration);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Ignite Player' command on '%s' with value <%f>", name, arg, duration);
+	
 	return Plugin_Handled;
 }
 
-Action CmdTeleport(int client, any args)
+Action CmdTeleport(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1397,7 +1487,7 @@ Action CmdTeleport(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_teleport <#userid|name>");
 		return Plugin_Handled;
 	}
-	char arg[256];
+	static char arg[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -1420,15 +1510,14 @@ Action CmdTeleport(int client, any args)
 	
 	for (int i=0; i < target_count; i++)
 	{
+		LogCommand("'%N' used the 'Teleport' command on '%N'", client, i);
 		TeleportEntity(target_list[i], VecOrigin, NULL_VECTOR, NULL_VECTOR);
 	}
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Teleport' command on '%s'", name, arg);
+	
 	return Plugin_Handled;
 }
 
-Action CmdTeleportEnt(int client, any args)
+Action CmdTeleportEnt(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1437,7 +1526,7 @@ Action CmdTeleportEnt(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_teleportent <classname>");
 		return Plugin_Handled;
 	}
-	char arg[256], class[128];
+	static char arg[64], class[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	int count = 0;
 	
@@ -1456,12 +1545,12 @@ Action CmdTeleportEnt(int client, any args)
 	float VecOrigin[3];
 	DoClientTrace(client, MASK_OPAQUE, true, VecOrigin);
 	
-	for (int i=1; i<=MaxClients; i++)
+	for (int i = 1; i < (GetMaxEntities()*2); i++)
 	{
 		if (RealValidEntity(i))
 		{
-			GetEdictClassname(i, class, sizeof(class));
-			if (StrEqual(class, arg))
+			GetEntityClassname(i, class, sizeof(class));
+			if (strcmp(class, arg, false) == 0)
 			{
 				TeleportEntity(i, VecOrigin, NULL_VECTOR, NULL_VECTOR);
 				count++;
@@ -1469,15 +1558,15 @@ Action CmdTeleportEnt(int client, any args)
 		}
 	}
 	PrintToChat(client, "[SM] Successfully teleported '%i' entities with <%s> classname", count, arg);
-	char name[256];
-	GetClientName(client, name, sizeof(name));
-	LogCommand("'%s' used the 'Teleport Entity' command on '%i' entities with classname <%s>", name, count, arg);
+	
+	LogCommand("'%N' used the 'Teleport Entity' command on '%i' entities with classname <%s>", client, count, arg);
+	
 	return Plugin_Handled;
 }
 
-Action CmdCheatRcon(int client, any args)
+Action CmdCheatRcon(int client, int args)
 {
-	char buffer[256], buffer2[256];
+	static char buffer[256], buffer2[256];
 	GetCmdArg(1, buffer, sizeof(buffer));
 	GetCmdArgString(buffer2, sizeof(buffer2));
 	if (args < 1)
@@ -1492,7 +1581,7 @@ Action CmdCheatRcon(int client, any args)
 		SetCommandFlags(buffer, cmdflags & ~FCVAR_CHEAT);
 		ServerCommand("%s", buffer2);
 		SetCommandFlags(buffer, cmdflags);
-		LogCommand("'Console' used the 'RCON Cheat' command with value <%s> <%s>", buffer, buffer2);
+		LogCommand("Console used the 'RCON Cheat' command with value <%s> <%s>", buffer, buffer2);
 	}
 	else
 	{
@@ -1500,14 +1589,16 @@ Action CmdCheatRcon(int client, any args)
 		SetCommandFlags(buffer, cmdflags & ~FCVAR_CHEAT);
 		ServerCommand("%s", buffer2);
 		SetCommandFlags(buffer, cmdflags);
-		LogCommand("'N' used the 'RCON Cheat' command with value <%s> <%s>", client, buffer, buffer2);
+		LogCommand("'%N' used the 'RCON Cheat' command with value <%s> <%s>", client, buffer, buffer2);
 	}	
 	return Plugin_Handled;
 }
 
-Action CmdScanModel(int client, any args)
+Action CmdScanModel(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
+	
+	static char classname[64];
 	
 	int entity = GetLookingEntity(client);
 	if (!RealValidEntity(entity))
@@ -1517,16 +1608,16 @@ Action CmdScanModel(int client, any args)
 	}
 	else
 	{
-		char model[256], classname[64];
+		static char model[PLATFORM_MAX_PATH];
 		GetEntPropString(entity, Prop_Data, "m_ModelName", model, sizeof(model));
-		GetEdictClassname(entity, classname, sizeof(classname));
+		GetEntityClassname(entity, classname, sizeof(classname));
 		PrintToChat(client, "\x04[SM] The model of the entity <%s>(%d) is \"%s\"", classname, entity, model);
 	}
-	LogCommand("%N used the 'Scan Model' command", client);
+	LogCommand("'%N' used the 'Scan Model' command on entity '%i' of classname '%s'", client, entity, classname);
 	return Plugin_Handled;
 }
 
-Action CmdGrabEntity(int client, any args)
+Action CmdGrabEntity(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1538,11 +1629,11 @@ Action CmdGrabEntity(int client, any args)
 	{
 		ReleaseLookingEntity(client);
 	}
-	LogCommand("%N used the 'Grab' command", client);
+	LogCommand("'%N' used the 'Grab' command", client);
 	return Plugin_Handled;
 }
 
-Action CmdAcidSpill(int client, any args)
+Action CmdAcidSpill(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1551,7 +1642,7 @@ Action CmdAcidSpill(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_acidspill <#userid|name>");
 		return Plugin_Handled;
 	}
-	char arg[256];
+	static char arg[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	//PrintToChatAll("Before: count %i list %i", target_count, target_list);
@@ -1566,7 +1657,7 @@ Action CmdAcidSpill(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdAdren(int client, any args)
+Action CmdAdren(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1575,7 +1666,7 @@ Action CmdAdren(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_adren <#userid|name> <seconds|15.0>");
 		return Plugin_Handled;
 	}
-	char arg[256], arg2[64];
+	static char arg[64], arg2[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1589,7 +1680,7 @@ Action CmdAdren(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdTempHp(int client, any args)
+Action CmdTempHp(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1598,7 +1689,7 @@ Action CmdTempHp(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_temphp <#userid|name> <amount>");
 		return Plugin_Handled;
 	}
-	char arg[256], arg2[256];
+	static char arg[64], arg2[12];
 	GetCmdArg(1, arg, sizeof(arg));
 	GetCmdArg(2, arg2, sizeof(arg2));
 	
@@ -1624,7 +1715,7 @@ Action CmdTempHp(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdRevive(int client, any args)
+Action CmdRevive(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1633,7 +1724,7 @@ Action CmdRevive(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_revive <#userid|name>");
 		return Plugin_Handled;
 	}
-	char arg[256];
+	static char arg[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -1646,7 +1737,7 @@ Action CmdRevive(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdPanic(int client, any args)
+Action CmdPanic(int client, int args)
 {
 	if (!Cmd_CheckClient(client, -1, false, -1, false))
 	{ PrintToServer("[SM] Creating a panic event..."); }
@@ -1656,7 +1747,7 @@ Action CmdPanic(int client, any args)
 	return Plugin_Handled;
 }
 
-Action CmdShove(int client, any args)
+Action CmdShove(int client, int args)
 {
 	if (!Cmd_CheckClient(client, client, false, -1, true)) return Plugin_Handled;
 	
@@ -1665,7 +1756,7 @@ Action CmdShove(int client, any args)
 		PrintToChat(client, "[SM] Usage: sm_shove <#userid|name>");
 		return Plugin_Handled;
 	}
-	char arg[256];
+	static char arg[64];
 	GetCmdArg(1, arg, sizeof(arg));
 	
 	int target_list[MAXPLAYERS];
@@ -1704,7 +1795,7 @@ public void OnAdminMenuReady(Handle aTopMenu)
 void AddMenuItems(TopMenu topmenu)
 {
 	//Add to default sourcemod categories
-	if (GetConVarBool(g_cvarAddType))
+	if (g_bAddType)
 	{
 		TopMenuObject players_commands = FindTopMenuCategory(topmenu, ADMINMENU_PLAYERCOMMANDS);
 		TopMenuObject server_commands = FindTopMenuCategory(topmenu, ADMINMENU_SERVERCOMMANDS);
@@ -1715,12 +1806,13 @@ void AddMenuItems(TopMenu topmenu)
 			AddToTopMenu(topmenu, "l4d2vomitplayer", TopMenuObject_Item, MenuItem_VomitPlayer, players_commands, "l4d2vomitplayer", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2incapplayer", TopMenuObject_Item, MenuItem_IncapPlayer, players_commands, "l4d2incapplayer", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2smackillplayer", TopMenuObject_Item, MenuItem_SmackillPlayer, players_commands, "l4d2smackillplayer", DESIRED_FLAGS);
+			AddToTopMenu(topmenu, "l4d2rock", TopMenuObject_Item, MenuItem_Rock, players_commands, "l4d2rock", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2speedplayer", TopMenuObject_Item, MenuItem_SpeedPlayer, players_commands, "l4d2speedplayer", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2sethpplayer", TopMenuObject_Item, MenuItem_SetHpPlayer, players_commands, "l4d2sethpplayer", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2colorplayer", TopMenuObject_Item, MenuItem_ColorPlayer, players_commands, "l4d2colorplayer", DESIRED_FLAGS);
-			AddToTopMenu(topmenu, "l4d2sizeplayer", TopMenuObject_Item, MenuItem_ScalePlayer, players_commands, "l4d2sizeplayer", DESIRED_FLAGS);
+			if (g_isSequel) AddToTopMenu(topmenu, "l4d2sizeplayer", TopMenuObject_Item, MenuItem_ScalePlayer, players_commands, "l4d2sizeplayer", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2shakeplayer", TopMenuObject_Item, MenuItem_ShakePlayer, players_commands, "l4d2shakeplayer", DESIRED_FLAGS);
-			AddToTopMenu(topmenu, "l4d2chargeplayer", TopMenuObject_Item, MenuItem_Charge, players_commands, "l4d2chargeplayer", DESIRED_FLAGS);
+			if (g_isSequel) AddToTopMenu(topmenu, "l4d2chargeplayer", TopMenuObject_Item, MenuItem_Charge, players_commands, "l4d2chargeplayer", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2teleplayer", TopMenuObject_Item, MenuItem_TeleportPlayer, players_commands, "l4d2teleplayer", DESIRED_FLAGS);
 			
 			AddToTopMenu(topmenu, "l4d2dontrush", TopMenuObject_Item, MenuItem_DontRush, players_commands, "l4d2dontrush", DESIRED_FLAGS);
@@ -1737,9 +1829,9 @@ void AddMenuItems(TopMenu topmenu)
 		{
 			AddToTopMenu(topmenu, "l4d2createexplosion", TopMenuObject_Item, MenuItem_CreateExplosion, server_commands, "l4d2createexplosion", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2norescue", TopMenuObject_Item, MenuItem_NoRescue, server_commands, "l4d2norescue", DESIRED_FLAGS);
-			AddToTopMenu(topmenu, "l4d2gnomerain", TopMenuObject_Item, MenuItem_GnomeRain, server_commands, "l4d2gnomerain", DESIRED_FLAGS);
+			if (g_isSequel) AddToTopMenu(topmenu, "l4d2gnomerain", TopMenuObject_Item, MenuItem_GnomeRain, server_commands, "l4d2gnomerain", DESIRED_FLAGS);
 			AddToTopMenu(topmenu, "l4d2survrain", TopMenuObject_Item, MenuItem_SurvRain, server_commands, "l4d2survrain", DESIRED_FLAGS);
-			AddToTopMenu(topmenu, "l4d2gnomewipe", TopMenuObject_Item, MenuItem_GnomeWipe, server_commands, "l4d2gnomewipe", DESIRED_FLAGS);
+			if (g_isSequel) AddToTopMenu(topmenu, "l4d2gnomewipe", TopMenuObject_Item, MenuItem_GnomeWipe, server_commands, "l4d2gnomewipe", DESIRED_FLAGS);
 		}
 		else
 		{
@@ -1811,7 +1903,7 @@ void BuildPlayerMenu(int client)
 	Menu menu = CreateMenu(MenuHandler_PlayerMenu);
 	SetMenuTitle(menu, "Player Commands");
 	SetMenuExitBackButton(menu, true);
-	AddMenuItem(menu, "l4d2chargeplayer", "Charge Player");
+	if (g_isSequel) AddMenuItem(menu, "l4d2chargeplayer", "Charge Player");
 	AddMenuItem(menu, "l4d2incapplayer", "Incap Player");
 	AddMenuItem(menu, "l4d2smackillplayer", "Smackill Player");
 	AddMenuItem(menu, "l4d2speedplayer", "Set Player Speed");
@@ -1852,55 +1944,42 @@ int MenuHandler_PlayerMenu(Handle menu, MenuAction action, int client, int param
 {
 	if (action == MenuAction_Select)
 	{
-		switch (param2)
+		if (g_isSequel)
 		{
-			case 0:
+			switch (param2)
 			{
-				DisplayChargePlayerMenu(client);
+				
+				case 0: DisplayChargePlayerMenu(client);
+				case 1: DisplayIncapPlayerMenu(client);
+				case 2: DisplaySmackillPlayerMenu(client);
+				case 3: DisplaySpeedPlayerMenu(client);
+				case 4: DisplaySetHpPlayerMenu(client);
+				case 5: DisplayColorPlayerMenu(client);
+				case 6: DisplayScalePlayerMenu(client);
+				case 7: DisplayShakePlayerMenu(client);
+				case 8: DisplayTeleportPlayerMenu(client);
+				case 9: DisplayDontRushMenu(client);
+				case 10: DisplayAirstrikeMenu(client);
+				case 11: DisplayChangeHpMenu(client);
+				case 12: DisplayGodModeMenu(client);
 			}
-			case 1:
+		}
+		else
+		{
+			switch (param2)
 			{
-				DisplayIncapPlayerMenu(client);
-			}
-			case 2:
-			{
-				DisplaySpeedPlayerMenu(client);
-			}
-			case 3:
-			{
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 4:
-			{
-				DisplayColorPlayerMenu(client);
-			}
-			case 5:
-			{
-				DisplayScalePlayerMenu(client);
-			}
-			case 6:
-			{
-				DisplayShakePlayerMenu(client);
-			}
-			case 7:
-			{
-				DisplayTeleportPlayerMenu(client);
-			}
-			case 8:
-			{
-				DisplayDontRushMenu(client);
-			}
-			case 9:
-			{
-				DisplayAirstrikeMenu(client);
-			}
-			case 10:
-			{
-				DisplayChangeHpMenu(client);
-			}
-			case 11:
-			{
-				DisplayGodModeMenu(client);
+				case 0: DisplayIncapPlayerMenu(client);
+				case 1: DisplaySmackillPlayerMenu(client);
+				case 2: DisplaySpeedPlayerMenu(client);
+				case 3: DisplaySetHpPlayerMenu(client);
+				case 4: DisplayColorPlayerMenu(client);
+				case 5: DisplayScalePlayerMenu(client);
+				case 6: DisplayShakePlayerMenu(client);
+				case 7: DisplayTeleportPlayerMenu(client);
+				case 8: DisplayDontRushMenu(client);
+				case 9: DisplayAirstrikeMenu(client);
+				case 10: DisplayChangeHpMenu(client);
+				case 11: DisplayGodModeMenu(client);
 			}
 		}
 	}
@@ -1915,6 +1994,7 @@ int MenuHandler_PlayerMenu(Handle menu, MenuAction action, int client, int param
 	{
 		CloseHandle(menu);
 	}
+	return 0;
 }
 
 int MenuHandler_GeneralMenu(Handle menu, MenuAction action, int client, int param2)
@@ -1944,6 +2024,7 @@ int MenuHandler_GeneralMenu(Handle menu, MenuAction action, int client, int para
 	{
 		CloseHandle(menu);
 	}
+	return 0;
 }
 
 int MenuHandler_ServerMenu(Handle menu, MenuAction action, int client, int param2)
@@ -1964,26 +2045,7 @@ int MenuHandler_ServerMenu(Handle menu, MenuAction action, int client, int param
 			}
 			case 2:
 			{
-				char classname[256];
-				int count = 0;
-				for (int i = MaxClients; i <= GetMaxEntities(); i++)
-				{
-					if (!RealValidEntity(i))
-					{
-						continue;
-					}
-					GetEdictClassname(i, classname, sizeof(classname));
-					if (StrEqual(classname, "weapon_gnome"))
-					{
-						AcceptEntityInput(i, "Kill");
-						count++;
-					}
-				}
-				PrintToChat(client, "[SM] Succesfully wiped %i gnomes", count);
-				count = 0;
-				char name[256];
-				GetClientName(client, name, sizeof(name));
-				LogCommand("%N used the 'Gnome Wipe' command", client);
+				CmdGnomeWipe(client, 0);
 			}
 		}
 	}
@@ -1998,6 +2060,7 @@ int MenuHandler_ServerMenu(Handle menu, MenuAction action, int client, int param
 	{
 		CloseHandle(menu);
 	}
+	return 0;
 }
 
 //---------------------------------Show Categories--------------------------------------------
@@ -2070,6 +2133,18 @@ void MenuItem_SmackillPlayer(Handle topmenu, TopMenuAction action, TopMenuObject
 	if (action == TopMenuAction_SelectOption)
 	{
 		DisplaySmackillPlayerMenu(param);
+	}
+}
+
+void MenuItem_Rock(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+{
+	if (action == TopMenuAction_DisplayOption)
+	{
+		Format(buffer, maxlength, "Launch Rock", "", param);
+	}
+	if (action == TopMenuAction_SelectOption)
+	{
+		CmdRock(param, 0);
 	}
 }
 
@@ -2161,41 +2236,41 @@ void NoRescue(int client)
 {
 	if (g_bVehicleReady)
 	{
-		char map[32];
+		static char map[32];
 		GetCurrentMap(map, sizeof(map));
-		if (StrEqual(map, "c1m4_atrium"))
+		if (strcmp(map, "c1m4_atrium", false) == 0)
 		{
 			CheatCommand(client, "ent_fire", "relay_car_escape trigger");
 			CheatCommand(client, "ent_fire", "car_camera enable");
 			EndGame();
 		}
-		else if (StrEqual(map, "c2m5_concert"))
+		else if (strcmp(map, "c2m5_concert", false) == 0)
 		{
 			CheatCommand(client, "ent_fire", "stadium_exit_left_chopper_prop setanimation exit2");
 			CheatCommand(client, "ent_fire", "stadium_exit_left_outro_camera enable");
 			EndGame();
 		}
-		else if (StrEqual(map, "c3m4_plantation"))
+		else if (strcmp(map, "c3m4_plantation", false) == 0)
 		{
 			CheatCommand(client, "ent_fire", "camera_outro setparentattachment attachment_cam");
 			CheatCommand(client, "ent_fire", "escape_boat_prop setanimation c3m4_outro_boat");
 			CheatCommand(client, "ent_fire", "camera_outro enable");
 			EndGame();
 		}
-		else if (StrEqual(map, "c4m5_milltown_escape"))
+		else if (strcmp(map, "c4m5_milltown_escape", false) == 0)
 		{
 			CheatCommand(client, "ent_fire", "model_boat setanimation c4m5_outro_boat");
 			CheatCommand(client, "ent_fire", "camera_outro setparent model_boat");
 			CheatCommand(client, "ent_fire", "camera_outro setparentattachment attachment_cam");
 			EndGame();
 		}
-		else if (StrEqual(map, "c5m5_bridge"))
+		else if (strcmp(map, "c5m5_bridge", false) == 0)
 		{
 			CheatCommand(client, "ent_fire", "heli_rescue setanimation 4lift");
 			CheatCommand(client, "ent_fire", "camera_outro enable");
 			EndGame();
 		}
-		else if (StrEqual(map, "c6m3_port"))
+		else if (strcmp(map, "c6m3_port", false) == 0)
 		{
 			CheatCommand(client, "ent_fire", "outro_camera_1 setparentattachment Attachment_1");
 			CheatCommand(client, "ent_fire", "car_dynamic Disable");
@@ -2215,8 +2290,6 @@ void NoRescue(int client)
 	else
 	{ PrintToChat(client, "[SM] Wait for the rescue vehicle to be ready first!"); }
 	
-	char name[256];
-	GetClientName(client, name, sizeof(name));
 	LogCommand("'%N' used the 'No Rescue' command", client);
 }
 
@@ -2290,26 +2363,7 @@ void MenuItem_GnomeWipe(Handle topmenu, TopMenuAction action, TopMenuObject obje
 	}
 	if (action == TopMenuAction_SelectOption)
 	{
-		char classname[256];
-		int count = 0;
-		for (int i = MaxClients; i <= GetMaxEntities(); i++)
-		{
-			if (!RealValidEntity(i))
-			{
-				continue;
-			}
-			GetEdictClassname(i, classname, sizeof(classname));
-			if (StrEqual(classname, "weapon_gnome"))
-			{
-				AcceptEntityInput(i, "Kill");
-				count++;
-			}
-		}
-		PrintToChat(param, "[SM] Succesfully wiped %i gnomes", count);
-		count = 0;
-		char name[256];
-		GetClientName(param, name, sizeof(name));
-		LogCommand("%N used the 'Gnome Wipe' command", param);
+		CmdGnomeWipe(param, 0);
 	}
 }
 
@@ -2333,7 +2387,7 @@ void MenuItem_ChangeHp(Handle topmenu, TopMenuAction action, TopMenuObject objec
 	}
 	if (action == TopMenuAction_SelectOption)
 	{
-		char classname[256];
+		static char classname[256];
 		int count = 0;
 		for (int i = MaxClients; i <= GetMaxEntities(); i++)
 		{
@@ -2341,8 +2395,8 @@ void MenuItem_ChangeHp(Handle topmenu, TopMenuAction action, TopMenuObject objec
 			{
 				continue;
 			}
-			GetEdictClassname(i, classname, sizeof(classname));
-			if (StrEqual(classname, "prop_ragdoll"))
+			GetEntityClassname(i, classname, sizeof(classname));
+			if (strcmp(classname, "prop_ragdoll", false) == 0)
 			{
 				AcceptEntityInput(i, "Kill");
 				count++;
@@ -2516,11 +2570,12 @@ int MenuSubHandler_SpeedPlayer(Handle menu4, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		GetMenuItem(menu4, param2, info, sizeof(info));
 		g_iCurrentUserId[client] = StringToInt(info);
 		DisplaySpeedValueMenu(client);
 	}
+	return 0;
 }
 
 int MenuSubHandler_SetHpPlayer(Handle menu5, MenuAction action, int client, int param2)
@@ -2539,11 +2594,12 @@ int MenuSubHandler_SetHpPlayer(Handle menu5, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		GetMenuItem(menu5, param2, info, sizeof(info));
 		g_iCurrentUserId[client] = StringToInt(info);
 		DisplaySetHpValueMenu(client);
 	}
+	return 0;
 }
 
 int MenuSubHandler_ChangeHp(Handle menu5, MenuAction action, int client, int param2)
@@ -2562,11 +2618,12 @@ int MenuSubHandler_ChangeHp(Handle menu5, MenuAction action, int client, int par
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		GetMenuItem(menu5, param2, info, sizeof(info));
 		g_iCurrentUserId[client] = StringToInt(info);
 		DisplayChangeHpStyleMenu(client);
 	}
+	return 0;
 }
 
 int MenuSubHandler_ColorPlayer(Handle menu6, MenuAction action, int client, int param2)
@@ -2585,11 +2642,12 @@ int MenuSubHandler_ColorPlayer(Handle menu6, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		GetMenuItem(menu6, param2, info, sizeof(info));
 		g_iCurrentUserId[client] = StringToInt(info);
 		DisplayColorValueMenu(client);
 	}
+	return 0;
 }
 
 int MenuSubHandler_ScalePlayer(Handle menu8, MenuAction action, int client, int param2)
@@ -2608,11 +2666,12 @@ int MenuSubHandler_ScalePlayer(Handle menu8, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		GetMenuItem(menu8, param2, info, sizeof(info));
 		g_iCurrentUserId[client] = StringToInt(info);
 		DisplayScaleValueMenu(client);
 	}
+	return 0;
 }
 
 int MenuSubHandler_ShakePlayer(Handle menu8, MenuAction action, int client, int param2)
@@ -2631,11 +2690,12 @@ int MenuSubHandler_ShakePlayer(Handle menu8, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		GetMenuItem(menu8, param2, info, sizeof(info));
 		g_iCurrentUserId[client] = StringToInt(info);
 		DisplayShakeValueMenu(client);
 	}
+	return 0;
 }
 
 void DisplaySpeedValueMenu(int client)
@@ -2744,15 +2804,18 @@ int MenuHandler_VomitPlayer(Handle menu2, MenuAction action, int client, int par
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu2, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
+		
+		LogCommand("'%N' used the 'Vomit Player' command on '%N'", client, target);
+		
 		VomitPlayer(target, client);
 		DisplayVomitPlayerMenu(client);
-		LogCommand("\"%N\" used the \"Vomit Player\" command on \"%N\"", client, target);
 	}
+	return 0;
 }
 
 int MenuHandler_TeleportPlayer(Handle menu2, MenuAction action, int client, int param2)
@@ -2771,35 +2834,21 @@ int MenuHandler_TeleportPlayer(Handle menu2, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu2, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
 		
-		/*float VecOrigin[3], VecAngles[3];
-		GetClientEyePosition(client, VecOrigin);
-		GetClientEyeAngles(client, VecAngles);
-		TR_TraceRayFilter(VecOrigin, VecAngles, MASK_OPAQUE, RayType_Infinite, TraceRayDontHitSelf, client);
-		if (TR_DidHit(null))
-		{
-			TR_GetEndPosition(VecOrigin);
-		}
-		else
-		{
-			PrintToChat(client, "Vector out of world geometry. Teleporting on origin instead");
-		}*/
-		
 		float VecOrigin[3];
 		DoClientTrace(client, MASK_OPAQUE, true, VecOrigin);
 		
+		LogCommand("'%N' used the 'Teleport' command on '%N'", client, target);
 		TeleportEntity(target, VecOrigin, NULL_VECTOR, NULL_VECTOR);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("'%s' used the 'Teleport' command on '%s'", name, name2);
+		
 		DisplayTeleportPlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_ChargePlayer(Handle menu2, MenuAction action, int client, int param2)
@@ -2818,18 +2867,18 @@ int MenuHandler_ChargePlayer(Handle menu2, MenuAction action, int client, int pa
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu2, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
+		
+		LogCommand("'%N' used the 'Charge' command on '%N'", client, target);
 		Charge(target, client);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'Charger' command on '%s'", name, name2);
+		
 		DisplayChargePlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_GodMode(Handle menu2, MenuAction action, int client, int param2)
@@ -2848,18 +2897,18 @@ int MenuHandler_GodMode(Handle menu2, MenuAction action, int client, int param2)
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu2, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
+		
+		LogCommand("'%N' used the 'God Mode' command on '%N'", client, target);
 		GodMode(target, client);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'God Mode' command on '%s'", name, name2);
+
 		DisplayGodModeMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_IncapPlayer(Handle menu3, MenuAction action, int client, int param2)
@@ -2878,18 +2927,18 @@ int MenuHandler_IncapPlayer(Handle menu3, MenuAction action, int client, int par
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu3, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
+		
+		LogCommand("'%N' used the 'Incap Player' command on '%N'", client, target);
 		IncapPlayer(target, client);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'Incap Player' command on '%s'", name, name2);
+		
 		DisplayIncapPlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_SmackillPlayer(Handle menu3, MenuAction action, int client, int param2)
@@ -2908,18 +2957,18 @@ int MenuHandler_SmackillPlayer(Handle menu3, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu3, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
+		
+		LogCommand("'%N' used the 'Smackill Player' command on '%N'", client, target);
 		SmackillPlayer(target, client);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'Smackill Player' command on '%s'", name, name2);
+		
 		DisplaySmackillPlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_SpeedPlayer(Handle menu2a, MenuAction action, int client, int param2)
@@ -2939,51 +2988,28 @@ int MenuHandler_SpeedPlayer(Handle menu2a, MenuAction action, int client, int pa
 	else if (action == MenuAction_Select)
 	{
 		int target = GetClientOfUserId(g_iCurrentUserId[client]);
+		
+		if (!Cmd_CheckClient(target, client, true, -1, true)) return 0;
+		
 		float speed = GetEntPropFloat(target, Prop_Send, "m_flLaggedMovementValue");
 		
 		switch (param2)
 		{
-			case 0:
-			{
-				speed *= 2;
-			}
-			case 1:
-			{
-				speed *= 3;
-			}
-			case 2:
-			{
-				speed /= 2;
-			}
-			case 3:
-			{
-				speed /= 3;
-			}
-			case 4:
-			{
-				speed /= 4;
-			}
-			case 5:
-			{
-				speed *= 4;
-			}
-			case 6:
-			{
-				speed = 0.0;
-			}
-			case 7:
-			{
-				speed = 1.0;
-			}
+			case 0: speed *= 2;
+			case 1: speed *= 3;
+			case 2: speed /= 2;
+			case 3: speed /= 3;
+			case 4: speed /= 4;
+			case 5: speed *= 4;
+			case 6: speed = 0.0;
+			case 7: speed = 1.0;
 		}
+		LogCommand("'%N' used the 'Speed Player' command on '%N' with value <%f>", client, target, speed);
+		
 		ChangeSpeed(target, client, speed);
 		DisplaySpeedPlayerMenu(client);
-		
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'Speed Player' command on '%s' with value <%f>", name, name2, speed);
 	}
+	return 0;
 }
 
 int MenuHandler_SetHpPlayer(Handle menu2b, MenuAction action, int client, int param2)
@@ -3004,62 +3030,26 @@ int MenuHandler_SetHpPlayer(Handle menu2b, MenuAction action, int client, int pa
 	{
 		int health;
 		int target = GetClientOfUserId(g_iCurrentUserId[client]);
+		
+		if (!Cmd_CheckClient(target, client, true, -1, true)) return 0;
+		
 		switch (param2)
 		{
-			case 0:
-			{
-				health = GetClientHealth(target) * 2;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 1:
-			{
-				health = GetClientHealth(target) * 3;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 2:
-			{
-				health = GetClientHealth(target) / 2;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 3:
-			{
-				health = GetClientHealth(target) / 3;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 4:
-			{
-				health = GetClientHealth(target) / 4;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 5:
-			{
-				health = GetClientHealth(target) * 4;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 6:
-			{
-				health = GetClientHealth(target) + 100;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
-			case 7:
-			{
-				health = GetClientHealth(target) + 50;
-				SetHealth(target, client, health);
-				DisplaySetHpPlayerMenu(client);
-			}
+			case 0: health = GetClientHealth(target) * 2;
+			case 1: health = GetClientHealth(target) * 3;
+			case 2: health = GetClientHealth(target) / 2;
+			case 3: health = GetClientHealth(target) / 3;
+			case 4: health = GetClientHealth(target) / 4;
+			case 5: health = GetClientHealth(target) * 4;
+			case 6: health = GetClientHealth(target) + 100;
+			case 7: health = GetClientHealth(target) + 50;
 		}
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'Set Health' command on '%s' with value <%i>", name, name2, health);
+		LogCommand("'%N' used the 'Set Health' command on '%N' with value <%i>", client, target, health);
+		
+		SetHealth(target, client, health);
+		DisplaySetHpPlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_ColorPlayer(Handle menu2c, MenuAction action, int client, int param2)
@@ -3079,54 +3069,27 @@ int MenuHandler_ColorPlayer(Handle menu2c, MenuAction action, int client, int pa
 	else if (action == MenuAction_Select)
 	{
 		int target = GetClientOfUserId(g_iCurrentUserId[client]);
+		
+		if (!Cmd_CheckClient(target, client, false, -1, true)) return 0;
+		
+		static char colorSelect[24];
 		switch (param2)
 		{
-			case 0:
-			{
-				ChangeColor(target, client, RED);
-				DisplayColorPlayerMenu(client);
-			}
-			case 1:
-			{
-				ChangeColor(target, client, BLUE);
-				DisplayColorPlayerMenu(client);
-			}
-			case 2:
-			{
-				ChangeColor(target, client, GREEN);
-				DisplayColorPlayerMenu(client);
-			}
-			case 3:
-			{
-				ChangeColor(target, client, YELLOW);
-				DisplayColorPlayerMenu(client);
-			}
-			case 4:
-			{
-				ChangeColor(target, client, BLACK);
-				DisplayColorPlayerMenu(client);
-			}
-			case 5:
-			{
-				ChangeColor(target, client, WHITE);
-				DisplayColorPlayerMenu(client);
-			}
-			case 6:
-			{
-				ChangeColor(target, client, TRANSPARENT);
-				DisplayColorPlayerMenu(client);
-			}
-			case 7:
-			{
-				ChangeColor(target, client, HALFTRANSPARENT);
-				DisplayColorPlayerMenu(client);
-			}
+			case 0: strcopy(colorSelect, sizeof(colorSelect), RED);
+			case 1: strcopy(colorSelect, sizeof(colorSelect), BLUE);
+			case 2: strcopy(colorSelect, sizeof(colorSelect), GREEN);
+			case 3: strcopy(colorSelect, sizeof(colorSelect), YELLOW);
+			case 4: strcopy(colorSelect, sizeof(colorSelect), BLACK);
+			case 5: strcopy(colorSelect, sizeof(colorSelect), WHITE);
+			case 6: strcopy(colorSelect, sizeof(colorSelect), TRANSPARENT);
+			case 7: strcopy(colorSelect, sizeof(colorSelect), HALFTRANSPARENT);
 		}
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("%s used the 'Set Color' command on '%s'", name, name2);
+		LogCommand("'%N' used the 'Color Player' command on '%N' with value <%s>", client, target, colorSelect);
+		
+		ChangeColor(target, client, colorSelect);
+		DisplayColorPlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_CreateExplosion(Handle menu, MenuAction action, int client, int param2)
@@ -3155,28 +3118,15 @@ int MenuHandler_CreateExplosion(Handle menu, MenuAction action, int client, int 
 			}
 			case 1:
 			{
-				/*float VecOrigin[3], VecAngles[3];
-				GetClientEyePosition(client, VecOrigin);
-				GetClientEyeAngles(client, VecAngles);
-				TR_TraceRayFilter(VecOrigin, VecAngles, MASK_OPAQUE, RayType_Infinite, TraceRayDontHitSelf, client);
-				if (TR_DidHit(null))
-				{
-					TR_GetEndPosition(VecOrigin);
-				}
-				else
-				{
-					PrintToChat(client, "Vector out of world geometry. Exploding on origin instead");
-				}*/
 				float VecOrigin[3];
 				DoClientTrace(client, MASK_OPAQUE, true, VecOrigin);
 				CreateExplosion(VecOrigin);
 			}
 		}
-		char name[256];
-		GetClientName(client, name, sizeof(name));
-		LogCommand("'%s' used the 'Set Explosion' command", name);
+		LogCommand("'%N' used the 'Set Explosion' command", client);
 		DisplayCreateExplosionMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_ScalePlayer(Handle menu2a, MenuAction action, int client, int param2)
@@ -3197,62 +3147,26 @@ int MenuHandler_ScalePlayer(Handle menu2a, MenuAction action, int client, int pa
 	{
 		float scale;
 		int target = GetClientOfUserId(g_iCurrentUserId[client]);
+		
+		if (!Cmd_CheckClient(target, client, false, -1, true)) return 0;
+		
 		switch (param2)
 		{
-			case 0:
-			{
-				scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale")  * 2;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 1:
-			{
-				scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale")  * 3;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 2:
-			{
-				scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale")  / 2;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 3:
-			{
-				scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale")  / 3;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 4:
-			{
-				scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale")  / 4;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 5:
-			{
-				scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale")  * 4;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 6:
-			{
-				scale = 0.0;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
-			case 7:
-			{
-				scale = 1.0;
-				ChangeScale(target, client, scale);
-				DisplayScalePlayerMenu(client);
-			}
+			case 0: scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale") * 2;
+			case 1: scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale") * 3;
+			case 2: scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale") / 2;
+			case 3: scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale") / 3;
+			case 4: scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale") / 4;
+			case 5: scale = GetEntPropFloat(target, Prop_Send, "m_flModelScale") * 4;
+			case 6: scale = 0.0;
+			case 7: scale = 1.0;
 		}
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("'%s' used the 'Scale Player' command on '%s' with value <%f>", name, name2, scale);
+		LogCommand("'%N' used the 'Size Player' command on '%N' with value <%f>", client, target, scale);
+		
+		ChangeScale(target, client, scale);
+		DisplayScalePlayerMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_ShakePlayer(Handle menu2a, MenuAction action, int client, int param2)
@@ -3272,49 +3186,26 @@ int MenuHandler_ShakePlayer(Handle menu2a, MenuAction action, int client, int pa
 	else if (action == MenuAction_Select)
 	{
 		int target = GetClientOfUserId(g_iCurrentUserId[client]);
+		
+		if (!Cmd_CheckClient(target, client, false, -1, true)) return 0;
+		
+		float duration = 0.0;
 		switch (param2)
 		{
-			case 0:
-			{
-				Shake(target, client, 60.0);
-				DisplayShakePlayerMenu(client);
-			}
-			case 1:
-			{
-				Shake(target, client, 45.0);
-				DisplayShakePlayerMenu(client);
-			}
-			case 2:
-			{
-				Shake(target, client, 30.0);
-				DisplayShakePlayerMenu(client);
-			}
-			case 3:
-			{
-				Shake(target, client, 15.0);
-				DisplayShakePlayerMenu(client);
-			}
-			case 4:
-			{
-				Shake(target, client, 10.0);
-				DisplayShakePlayerMenu(client);
-			}
-			case 5:
-			{
-				Shake(target, client, 5.0);
-				DisplayShakePlayerMenu(client);
-			}
-			case 6:
-			{
-				Shake(target, client, 1.0);
-				DisplayShakePlayerMenu(client);
-			}
+			case 0: duration = 60.0;
+			case 1: duration = 45.0;
+			case 2: duration = 30.0;
+			case 3: duration = 15.0;
+			case 4: duration = 10.0;
+			case 5: duration = 5.0;
+			case 6: duration = 1.0;
 		}
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("'%s' used the 'Shake Player' command on '%s'", name, name2);
+		LogCommand("'%N' used the 'Shake' command on '%N' with value <%f>", client, target, duration);
+		
+		Shake(target, client, duration);
+		DisplayShakePlayerMenu(client);
 	}
+	return 0;
 }
 
 /*int MenuHandler_BugPlayer(Handle menu9, MenuAction action, int client, int param2)
@@ -3333,7 +3224,7 @@ int MenuHandler_ShakePlayer(Handle menu2a, MenuAction action, int client, int pa
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu9, param2, info, sizeof(info));
 		userid = StringToInt(info);
@@ -3344,6 +3235,7 @@ int MenuHandler_ShakePlayer(Handle menu2a, MenuAction action, int client, int pa
 		AcceptEntityInput(target, "becomeragdoll");
 		DisplayBugPlayerMenu(client);
 	}
+	return 0;
 }*/
 	
 int MenuHandler_DontRush(Handle menu10, MenuAction action, int client, int param2)
@@ -3362,18 +3254,18 @@ int MenuHandler_DontRush(Handle menu10, MenuAction action, int client, int param
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu10, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
+		
+		LogCommand("'%N' used the 'Anti Rush' command on '%N'", client, target);
 		TeleportBack(target, client);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("'%s' used the 'Antirush' command on '%s'", name, name2);
+		
 		DisplayDontRushMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_Airstrike(Handle menu2, MenuAction action, int client, int param2)
@@ -3392,21 +3284,20 @@ int MenuHandler_Airstrike(Handle menu2, MenuAction action, int client, int param
 	}
 	else if (action == MenuAction_Select)
 	{
-		char info[32];
+		static char info[32];
 		int userid, target;
 		GetMenuItem(menu2, param2, info, sizeof(info));
 		userid = StringToInt(info);
 		target = GetClientOfUserId(userid);
 		
-		if (!Cmd_CheckClient(target, client, true, -1, true)) return;
+		if (!Cmd_CheckClient(target, client, true, -1, true)) return 0;
 		
+		LogCommand("'%N' used the 'Airstrike' command on '%N'", client, target);
 		Airstrike(target);
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(target, name2, sizeof(name2));
-		LogCommand("'%s' used the 'Airstrike' command on '%s'", name, name2);
+		
 		DisplayAirstrikeMenu(client);
 	}
+	return 0;
 }
 
 int MenuHandler_ChangeHpPlayer(Handle menu2, MenuAction action, int client, int param2)
@@ -3425,23 +3316,31 @@ int MenuHandler_ChangeHpPlayer(Handle menu2, MenuAction action, int client, int 
 	}
 	else if (action == MenuAction_Select)
 	{
+		int target = GetClientOfUserId(g_iCurrentUserId[client]);
+		
+		if (!Cmd_CheckClient(target, client, true, 1, true)) return 0;
+		
+		int type = 0;
+		static char temp_str[5];
 		switch (param2)
 		{
 			case 0:
 			{
-				SwitchHealth(GetClientOfUserId(g_iCurrentUserId[client]), client, 1);
+				type = 1;
+				strcopy(temp_str, sizeof(temp_str), "perm");
 			}
 			case 1:
 			{
-				SwitchHealth(GetClientOfUserId(g_iCurrentUserId[client]), client, 2);
+				type = 2;
+				strcopy(temp_str, sizeof(temp_str), "temp");
 			}
 		}
-		char name[256], name2[256];
-		GetClientName(client, name, sizeof(name));
-		GetClientName(GetClientOfUserId(g_iCurrentUserId[client]), name2, sizeof(name2));
-		LogCommand("'%s' used the 'Switch Health Style' command on '%s'", name, name2);
+		LogCommand("'%N' used the 'Change Health Type' command on '%N' with value <%s>", client, target, temp_str);
+		
+		SwitchHealth(target, client, type);
 		DisplayChangeHpMenu(client);
 	}
+	return 0;
 }
 // FUNCTIONS //
 void VomitPlayer(int client, int sender)
@@ -3452,7 +3351,10 @@ void VomitPlayer(int client, int sender)
 	if (!IsSurvivor(client) && !IsInfected(client))
 	{ PrintToChat(sender, "[SM] Spectators cannot be vomited!"); return; }
 	
-	Logic_RunScript("GetPlayerFromUserID(%d).HitWithVomit()", GetClientUserId(client));
+	if (g_isSequel)
+	{ Logic_RunScript("GetPlayerFromUserID(%d).HitWithVomit()", GetClientUserId(client)); }
+	else
+	{ SetDTCountdownTimer(client, "CTerrorPlayer", "m_itTimer", 15.0); }
 }
 
 void DoDamage(int client, int sender, int damage, int damageType = 0)
@@ -3463,7 +3365,7 @@ void DoDamage(int client, int sender, int damage, int damageType = 0)
 	if (IsValidClient(sender))
 	{ GetClientAbsOrigin(sender, spos); }
 	
-	char temp_str[32];
+	static char temp_str[32];
 	
 	int iDmgEntity = CreateEntityByName("point_hurt");
 	if (IsValidClient(sender) && client != sender)
@@ -3549,16 +3451,16 @@ void SmackillPlayer(int client, int sender)
 		float fPos[3];
 		GetClientAbsOrigin(client, fPos);
 		
-		CreateRagdoll(client);
+		if (g_isSequel) CreateRagdoll(client);
 		int body = FindEntityByClassname(-1, "survivor_death_model");
 		if (RealValidEntity(body))
 		{
 			for (int i = MaxClients; i < GetMaxEntities(); i++) {
 				if (!RealValidEntity(i)) continue;
 				
-				char classname[256];
+				static char classname[22];
 				GetEntityClassname(i, classname, sizeof(classname));
-				if (!StrEqual(classname, "survivor_death_model", false)) continue;
+				if (strcmp(classname, "survivor_death_model", false) != 0) continue;
 				
 				float bodyPos[3];
 				GetEntPropVector(i, Prop_Data, "m_vecOrigin", bodyPos);
@@ -3568,6 +3470,22 @@ void SmackillPlayer(int client, int sender)
 			}
 		}
 	}
+}
+
+void LaunchRock(const float origin[3], const float angles[3])
+{
+	int launcher = CreateEntityByName("env_rock_launcher");
+	if (!RealValidEntity(launcher)) return;
+	
+	DispatchKeyValueVector(launcher, "origin", origin);
+	DispatchKeyValueVector(launcher, "angles", angles);
+	//DispatchKeyValue(launcher, "RockDamageOverride", "1");
+	
+	DispatchSpawn(launcher);
+	ActivateEntity(launcher);
+	
+	AcceptEntityInput(launcher, "LaunchRock");
+	AcceptEntityInput(launcher, "Kill");
 }
 
 void CreateRagdoll(int client)
@@ -3619,9 +3537,9 @@ void CreateRagdoll(int client)
 		int effect = GetEntPropEnt(client, Prop_Send, "m_hEffectEntity");
 		if (RealValidEntity(effect))
 		{
-			char effectclass[64]; 
+			static char effectclass[13]; 
 			GetEntityClassname(effect, effectclass, sizeof(effectclass));
-			if (StrEqual(effectclass, "entityflame"))
+			if (strcmp(effectclass, "entityflame", false) == 0)
 			{ SetEntProp(Ragdoll, Prop_Send, "m_bOnFire", 1, 1); }
 		}
 	}
@@ -3658,12 +3576,12 @@ void ChangeColor(int client, int sender, const char[] color)
 
 void CreateExplosion(float carPos[3])
 {
-	char sRadius[256];
-	char sPower[256];
-	float flMxDistance = GetConVarFloat(g_cvarRadius);
-	float power = GetConVarFloat(g_cvarPower);
-	IntToString(GetConVarInt(g_cvarRadius), sRadius, sizeof(sRadius));
-	IntToString(GetConVarInt(g_cvarPower), sPower, sizeof(sPower));
+	static char sRadius[64];
+	static char sPower[64];
+	float flMxDistance = g_fRadius;
+	float power = g_fPower;
+	IntToString(RoundToNearest(flMxDistance), sRadius, sizeof(sRadius));
+	IntToString(RoundToNearest(power), sPower, sizeof(sPower));
 	int exParticle2 = CreateEntityByName("info_particle_system");
 	int exParticle3 = CreateEntityByName("info_particle_system");
 	int exTrace = CreateEntityByName("info_particle_system");
@@ -3748,10 +3666,8 @@ void CreateExplosion(float carPos[3])
 	AcceptEntityInput(exPhys, "Explode");
 	AcceptEntityInput(exHurt, "TurnOn");
 	
-	float duration = GetConVarFloat(g_cvarDuration);
-	
-	char temp_str[64];
-	Format(temp_str, sizeof(temp_str), "OnUser1 !self:Kill::%f:1", duration+1.5);
+	static char temp_str[64];
+	Format(temp_str, sizeof(temp_str), "OnUser1 !self:Kill::%f:1", g_fDuration+1.5);
 	
 	SetVariantString(temp_str);
 	AcceptEntityInput(exParticle, "AddOutput");
@@ -3773,12 +3689,12 @@ void CreateExplosion(float carPos[3])
 	SetVariantString(temp_str);
 	AcceptEntityInput(exHurt, "AddOutput");
 	
-	Format(temp_str, sizeof(temp_str), "OnUser1 !self:Stop::%f:1", duration);
+	Format(temp_str, sizeof(temp_str), "OnUser1 !self:Stop::%f:1", g_fDuration);
 	SetVariantString(temp_str);
 	AcceptEntityInput(exTrace, "AddOutput");
 	AcceptEntityInput(exTrace, "FireUser1");
 	
-	Format(temp_str, sizeof(temp_str), "OnUser1 !self:TurnOff::%f:1", duration);
+	Format(temp_str, sizeof(temp_str), "OnUser1 !self:TurnOff::%f:1", g_fDuration);
 	SetVariantString(temp_str);
 	AcceptEntityInput(exHurt, "AddOutput");
 	AcceptEntityInput(exHurt, "FireUser1");
@@ -3833,6 +3749,11 @@ void PipeExplosion(int client, float carPos[3])
 
 void FlingPlayer(int client, float vector[3], int attacker, float stunTime = 3.0)
 {
+	if (sdkCallPushPlayer == null)
+	{
+		PrintToServer("[%s] Fling signature is broken!", PLUGIN_NAME_SHORT);
+		return;
+	}
 	SDKCall(sdkCallPushPlayer, client, vector, 76, attacker, stunTime);
 }
 
@@ -3852,7 +3773,7 @@ void Charge(int client, int sender)
 	addVel[0] = ratio[0]*-1 * 500.0;
 	addVel[1] = ratio[1]*-1 * 500.0;
 	addVel[2] = 500.0;
-	SDKCall(sdkCallPushPlayer, client, addVel, 76, sender, 7.0);
+	FlingPlayer(client, addVel, sender, 7.0);
 }
 
 void Bleed(int client, int sender, float duration)
@@ -3887,7 +3808,7 @@ void Bleed(int client, int sender, float duration)
 	ActivateEntity(Particle);
 	AcceptEntityInput(Particle, "start");
 	
-	char temp_str[64];
+	static char temp_str[64];
 	Format(temp_str, sizeof(temp_str), "OnUser1 !self:Kill::%f:1", duration);
 	
 	SetVariantString(temp_str);
@@ -3904,161 +3825,161 @@ void ChangeScale(int client, int sender, float scale)
 
 void TeleportBack(int client, int sender)
 {
-	char map[32]; float pos[3];
+	static char map[32]; float pos[3];
 	GetCurrentMap(map, sizeof(map));
 	if (!Cmd_CheckClient(client, sender, true, -1, true)) return;
 	
-	if (StrEqual(map, "c1m1_hotel"))
+	if (strcmp(map, "c1m1_hotel", false) == 0)
 	{
 		pos[0] = 568.0;
 		pos[1] = 5707.0;
 		pos[2] = 2848.0;
 	}
-	else if (StrEqual(map, "c1m2_streets"))
+	else if (strcmp(map, "c1m2_streets", false) == 0)
 	{
 		pos[0] = 2049.0;
 		pos[1] = 4460.0;
 		pos[2] = 1235.0;
 	}
-	else if (StrEqual(map, "c1m3_mall"))
+	else if (strcmp(map, "c1m3_mall", false) == 0)
 	{
 		pos[0] = 6697.0;
 		pos[1] = -1424.0;
 		pos[2] = 86.0;
 	}
-	else if (StrEqual(map, "c1m4_atrium"))
+	else if (strcmp(map, "c1m4_atrium", false) == 0)
 	{	
 		pos[0] = -2046.0;
 		pos[1] = -4641.0;
 		pos[2] = 598.0;
 	}
-	else if (StrEqual(map, "c2m1_highway"))
+	else if (strcmp(map, "c2m1_highway", false) == 0)
 	{
 		pos[0] = 10855.0;
 		pos[1] = 7864.0;
 		pos[2] = -488.0;
 	}
-	else if (StrEqual(map, "c2m2_fairgrounds"))
+	else if (strcmp(map, "c2m2_fairgrounds", false) == 0)
 	{
 		pos[0] = 1653.0;
 		pos[1] = 2796.0;
 		pos[2] = 32.0;
 	}
-	else if (StrEqual(map, "c2m3_coaster"))
+	else if (strcmp(map, "c2m3_coaster", false) == 0)
 	{
 		pos[0] = 4336.0;
 		pos[1] = 2048.0;
 		pos[2] = -1.0;
 	}
-	else if (StrEqual(map, "c2m4_barns"))
+	else if (strcmp(map, "c2m4_barns", false) == 0)
 	{
 		pos[0] = 3057.0;
 		pos[1] = 3632.0;
 		pos[2] = -152.0;
 	}
-	else if (StrEqual(map, "c2m5_concert"))
+	else if (strcmp(map, "c2m5_concert", false) == 0)
 	{
 		pos[0] = -938.0;
 		pos[1] = 2194.0;
 		pos[2] = -193.0;
 	}
-	else if (StrEqual(map, "c3m1_plankcountry"))
+	else if (strcmp(map, "c3m1_plankcountry", false) == 0)
 	{
 		pos[0] = -12549.0;
 		pos[1] = 10488.0;
 		pos[2] = 270.0;
 	}
-	else if (StrEqual(map, "c3m2_swamp"))
+	else if (strcmp(map, "c3m2_swamp", false) == 0)
 	{
 		pos[0] = -8158.0;
 		pos[1] = 7531.0;
 		pos[2] = 32.0;
 	}
-	else if (StrEqual(map, "c3m3_shantytown"))
+	else if (strcmp(map, "c3m3_shantytown", false) == 0)
 	{
 		pos[0] = -5718.0;
 		pos[1] = 2137.0;
 		pos[2] = 170.0;
 	}
-	else if (StrEqual(map, "c3m4_plantation"))
+	else if (strcmp(map, "c3m4_plantation", false) == 0)
 	{
 		pos[0] = -5027.0;
 		pos[1] = -1662.0;
 		pos[2] = -34.0;
 	}
-	else if (StrEqual(map, "c4m1_milltown_a"))
+	else if (strcmp(map, "c4m1_milltown_a", false) == 0)
 	{
 		pos[0] = -7097.0;
 		pos[1] = 7706.0;
 		pos[2] = 175.0;
 	}
-	else if (StrEqual(map, "c4m2_sugarmill_a"))
+	else if (strcmp(map, "c4m2_sugarmill_a", false) == 0)
 	{
 		pos[0] = 3617.0;
 		pos[1] = -1659.0;
 		pos[2] = 270.0;
 	}
-	else if (StrEqual(map, "c4m3_sugarmill_b"))
+	else if (strcmp(map, "c4m3_sugarmill_b", false) == 0)
 	{
 		pos[0] = -1788.0;
 		pos[1] = -13701.0;
 		pos[2] = 170.0;
 	}
-	else if (StrEqual(map, "c4m4_milltown_b"))
+	else if (strcmp(map, "c4m4_milltown_b", false) == 0)
 	{
 		pos[0] = 3883.0;
 		pos[1] = -1484.0;
 		pos[2] = 270.0;
 	}
-	else if (StrEqual(map, "c4m5_milltown_escape"))
+	else if (strcmp(map, "c4m5_milltown_escape", false) == 0)
 	{
 		pos[0] = -3146.0;
 		pos[1] = 7818.0;
 		pos[2] = 182.0;
 	}
-	else if (StrEqual(map, "c5m1_waterfront"))
+	else if (strcmp(map, "c5m1_waterfront", false) == 0)
 	{
 		pos[0] = 790.0;
 		pos[1] = 686.0;
 		pos[2] = -419.0;
 	}
-	else if (StrEqual(map, "c5m2_park"))
+	else if (strcmp(map, "c5m2_park", false) == 0)
 	{
 		pos[0] = -4119.0;
 		pos[1] = -1263.0;
 		pos[2] = -281.0;
 	}
-	else if (StrEqual(map, "c5m3_cemetery"))
+	else if (strcmp(map, "c5m3_cemetery", false) == 0)
 	{
 		pos[0] = 6361.0;
 		pos[1] = 8372.0;
 		pos[2] = 62.0;
 	}
-	else if (StrEqual(map, "c5m4_quarter"))
+	else if (strcmp(map, "c5m4_quarter", false) == 0)
 	{
 		pos[0] = -3235.0;
 		pos[1] = 4849.0;
 		pos[2] = 130.0;
 	}
-	else if (StrEqual(map, "c5m5_bridge"))
+	else if (strcmp(map, "c5m5_bridge", false) == 0)
 	{
 		pos[0] = -12062.0;
 		pos[1] = 5913.0;
 		pos[2] = 574.0;
 	}
-	else if (StrEqual(map, "c6m1_riverbank"))
+	else if (strcmp(map, "c6m1_riverbank", false) == 0)
 	{
 		pos[0] = 913.0;
 		pos[1] = 3750.0;
 		pos[2] = 156.0;
 	}
-	else if (StrEqual(map, "c6m2_bedlam"))
+	else if (strcmp(map, "c6m2_bedlam", false) == 0)
 	{
 		pos[0] = 3014.0;
 		pos[1] = -1216.0;
 		pos[2] = -233.0;
 	}
-	else if (StrEqual(map, "c6m3_port"))
+	else if (strcmp(map, "c6m3_port", false) == 0)
 	{
 		pos[0] = -2364.0;
 		pos[1] = -471.0;
@@ -4092,7 +4013,7 @@ void EndGame()
 	
 	GetClientEyePosition(sender, flCpos);
 	GetClientEyeAngles(sender, flCang);
-	char angles[32];
+	static char angles[32];
 	Format(angles, sizeof(angles), "%f %f %f", flCang[0], flCang[1], flCang[2]);
 	
 	//Missile is being created
@@ -4128,23 +4049,25 @@ void Airstrike(int client)
 {
 	g_bStrike = true;
 	CreateTimer(6.0, timerStrikeTimeout, _, TIMER_FLAG_NO_MAPCHANGE);
-	CreateTimer(1.0, timerStrike, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(1.0, timerStrike, GetClientUserId(client), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
 Action timerStrikeTimeout(Handle timer)
 {
 	g_bStrike = false;
+	return Plugin_Continue;
 }
 
-Action timerStrike(Handle timer, any client)
+Action timerStrike(Handle timer, int client)
 {
+	client = GetClientOfUserId(client);
 	if (!g_bStrike)
 	{
 		return Plugin_Stop;
 	}
 	float pos[3];
 	GetClientAbsOrigin(client, pos);
-	float radius = GetConVarFloat(g_cvarRainRadius);
+	float radius = g_fRainRadius;
 	pos[0] += GetRandomFloat(radius*-1, radius);
 	pos[1] += GetRandomFloat(radius*-1, radius);
 	CreateExplosion(pos);		
@@ -4155,14 +4078,15 @@ void BlackAndWhite(int client, int sender)
 {
 	if (!Cmd_CheckClient(client, sender, true, -1, true)) return;
 	
-	//SetEntProp(client, Prop_Send, "m_currentReviveCount", GetConVarInt(FindConVar(CVAR_INCAPMAX))-1);
-	//SetEntProp(client, Prop_Send, "m_isIncapacitated", 1);
-	
-	//SDKCall(sdkRevive, client);
-	//RevivePlayer(client);
 	if (GetEntProp(client, Prop_Send, "m_isIncapacitated")) RevivePlayer(client);
 	
-	Logic_RunScript("GetPlayerFromUserID(%d).SetReviveCount(%i)", GetClientUserId(client), GetConVarInt(FindConVar(CVAR_INCAPMAX)));
+	if (g_isSequel)
+	{ Logic_RunScript("GetPlayerFromUserID(%d).SetReviveCount(%i)", GetClientUserId(client), g_iIncaps); }
+	else
+	{
+		SetEntProp(client, Prop_Send, "m_currentReviveCount", g_iIncaps);
+		// side note: m_bIsOnThirdStrike doesn't exist for L4D1
+	}
 }
 
 void SwitchHealth(int client, int sender, int type)
@@ -4189,23 +4113,23 @@ void SwitchHealth(int client, int sender, int type)
 
 void WeaponRain(const char[] weapon, int sender)
 {
-	char item[64];
+	static char item[64];
 	Format(item, sizeof(item), "weapon_%s", weapon);
 	
 	g_bGnomeRain = true;
 	
-	CreateTimer(GetConVarFloat(g_cvarRainDur), timerRainTimeout, TIMER_FLAG_NO_MAPCHANGE);
-	Handle dpack = CreateDataPack();
-	WritePackCell(dpack, sender);
+	CreateTimer(g_fRainDur, timerRainTimeout, TIMER_FLAG_NO_MAPCHANGE);
+	DataPack dpack = CreateDataPack();
+	WritePackCell(dpack, GetClientUserId(sender));
 	WritePackString(dpack, item);
 	CreateTimer(0.1, timerSpawnWeapon, dpack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
 Action timerSpawnWeapon(Handle timer, Handle dpack)
 {
-	char item[96];
+	static char item[96];
 	ResetPack(dpack);
-	int client = ReadPackCell(dpack);
+	int client = GetClientOfUserId(ReadPackCell(dpack));
 	ReadPackString(dpack, item, sizeof(item));
 	
 	int weap = CreateEntityByName(item);
@@ -4217,7 +4141,7 @@ Action timerSpawnWeapon(Handle timer, Handle dpack)
 	float pos[3];
 	GetClientAbsOrigin(client, pos);
 	pos[2] += 350.0;
-	float radius = GetConVarFloat(g_cvarRainRadius);
+	float radius = g_fRainRadius;
 	pos[0] += GetRandomFloat(radius*-1, radius);
 	pos[1] += GetRandomFloat(radius*-1, radius);
 	TeleportEntity(weap, pos, NULL_VECTOR, NULL_VECTOR);	
@@ -4227,15 +4151,15 @@ Action timerSpawnWeapon(Handle timer, Handle dpack)
 void StartGnomeRain(int client)
 {
 	g_bGnomeRain = true;
-	CreateTimer(GetConVarFloat(g_cvarRainDur), timerRainTimeout, _, TIMER_FLAG_NO_MAPCHANGE);
-	CreateTimer(0.1, timerSpawnGnome, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(g_fRainDur, timerRainTimeout, _, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.1, timerSpawnGnome, GetClientUserId(client), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
 void StartL4dRain(int client)
 {
 	g_bGnomeRain = true;
-	CreateTimer(GetConVarFloat(g_cvarRainDur), timerRainTimeout, _, TIMER_FLAG_NO_MAPCHANGE);
-	CreateTimer(0.7, timerSpawnL4d, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(g_fRainDur, timerRainTimeout, _, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.7, timerSpawnL4d, GetClientUserId(client), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
 void GodMode(int client, int sender)
@@ -4257,10 +4181,12 @@ void GodMode(int client, int sender)
 Action timerRainTimeout(Handle timer)
 {
 	g_bGnomeRain = false;
+	return Plugin_Continue;
 }
 
 Action timerSpawnGnome(Handle timer, int client)
 {
+	client = GetClientOfUserId(client);
 	float pos[3];
 	int gnome = CreateEntityByName("weapon_gnome");
 	DispatchSpawn(gnome);
@@ -4270,7 +4196,7 @@ Action timerSpawnGnome(Handle timer, int client)
 	
 	GetClientAbsOrigin(client, pos);
 	pos[2] += 350.0;
-	float radius = GetConVarFloat(g_cvarRainRadius);
+	float radius = g_fRainRadius;
 	pos[0] += GetRandomFloat(radius*-1, radius);
 	pos[1] += GetRandomFloat(radius*-1, radius);
 	TeleportEntity(gnome, pos, NULL_VECTOR, NULL_VECTOR);	
@@ -4279,6 +4205,7 @@ Action timerSpawnGnome(Handle timer, int client)
 
 Action timerSpawnL4d(Handle timer, int client)
 {
+	client = GetClientOfUserId(client);
 	float pos[3];
 	int body = CreateEntityByName("prop_ragdoll");
 	switch (GetRandomInt(1,3))
@@ -4294,7 +4221,7 @@ Action timerSpawnL4d(Handle timer, int client)
 	
 	GetClientAbsOrigin(client, pos);
 	pos[2] += 350.0;
-	float radius = GetConVarFloat(g_cvarRainRadius);
+	float radius = g_fRainRadius;
 	pos[0] += GetRandomFloat(radius*-1, radius);
 	pos[1] += GetRandomFloat(radius*-1, radius);
 	TeleportEntity(body, pos, NULL_VECTOR, NULL_VECTOR);	
@@ -4322,10 +4249,10 @@ void Shake(int client, int sender, float duration)
 	Handle hBf = StartMessageOne("Shake", client);
 	if (hBf != null)
 	{
-		BfWriteByte(hBf, 0);                
-		BfWriteFloat(hBf, 16.0);            // shake magnitude/amplitude
-		BfWriteFloat(hBf, 0.5);                // shake noise frequency
-		BfWriteFloat(hBf, duration);                // shake lasts this long
+		BfWriteByte(hBf, 0);				
+		BfWriteFloat(hBf, 16.0);			// shake magnitude/amplitude
+		BfWriteFloat(hBf, 0.5);				// shake noise frequency
+		BfWriteFloat(hBf, duration);				// shake lasts this long
 		EndMessage();
 	}
 }
@@ -4379,43 +4306,47 @@ void OnTrigger_DisableInstructor(const char[] output, int caller, int activator,
 
 bool IsValidWeapon(const char[] weapon)
 {
-	if (StrEqual(weapon, "rifle")
-	|| StrEqual(weapon, "rifle_desert")
-	|| StrEqual(weapon, "rifle_ak47")
-	|| StrEqual(weapon, "sniper_military")
-	|| StrEqual(weapon, "shotgun_spas")
-	|| StrEqual(weapon, "shotgun_chrome")
-	|| StrEqual(weapon, "smg")
-	|| StrEqual(weapon, "pumpshotgun")
-	|| StrEqual(weapon, "first_aid_kit")
-	|| StrEqual(weapon, "chainsaw")
-	|| StrEqual(weapon, "adrenaline")
-	|| StrEqual(weapon, "autoshotgun")
-	|| StrEqual(weapon, "sniper_scout")
-	|| StrEqual(weapon, "molotov")
-	|| StrEqual(weapon, "upgradepack_incendiary")
-	|| StrEqual(weapon, "upgradepack_explosive")
-	|| StrEqual(weapon, "pain_pills")
-	|| StrEqual(weapon, "pipe_bomb")
-	|| StrEqual(weapon, "vomitjar")
-	|| StrEqual(weapon, "smg_silenced")
-	|| StrEqual(weapon, "smg_mp5")
-	|| StrEqual(weapon, "sniper_awp")
-	|| StrEqual(weapon, "sniper_scout")
-	|| StrEqual(weapon, "rifle_sg552")
-	|| StrEqual(weapon, "gnome")
-	|| StrEqual(weapon, "pistol_magnum")
-	|| StrEqual(weapon, "hunting_rifle")
-	|| StrEqual(weapon, "pistol")
-	|| StrEqual(weapon, "grenade_launcher")
-	|| StrEqual(weapon, "pistol_magnum")
-	|| StrEqual(weapon, "gascan")
-	|| StrEqual(weapon, "propanetank")
-	|| StrEqual(weapon, "rifle_m60")
-	|| StrEqual(weapon, "defibrillator"))
+	if (strcmp(weapon, "rifle") == 0
+	|| strcmp(weapon, "smg") == 0
+	|| strcmp(weapon, "pumpshotgun") == 0
+	|| strcmp(weapon, "first_aid_kit") == 0
+	|| strcmp(weapon, "autoshotgun") == 0
+	|| strcmp(weapon, "molotov") == 0
+	|| strcmp(weapon, "pain_pills") == 0
+	|| strcmp(weapon, "pipe_bomb") == 0
+	|| strcmp(weapon, "hunting_rifle") == 0
+	|| strcmp(weapon, "pistol") == 0
+	|| strcmp(weapon, "gascan") == 0
+	|| strcmp(weapon, "propanetank") == 0)
 	{ return true; }
-	else 
-	{ return false; }
+	
+	if (!g_isSequel) return false;
+	
+	// L4D2 only weapons
+	if (strcmp(weapon, "rifle_desert") == 0
+	|| strcmp(weapon, "rifle_ak47") == 0
+	|| strcmp(weapon, "sniper_military") == 0
+	|| strcmp(weapon, "shotgun_spas") == 0
+	|| strcmp(weapon, "shotgun_chrome") == 0
+	|| strcmp(weapon, "chainsaw") == 0
+	|| strcmp(weapon, "adrenaline") == 0
+	|| strcmp(weapon, "sniper_scout") == 0
+	|| strcmp(weapon, "upgradepack_incendiary") == 0
+	|| strcmp(weapon, "upgradepack_explosive") == 0
+	|| strcmp(weapon, "vomitjar") == 0
+	|| strcmp(weapon, "smg_silenced") == 0
+	|| strcmp(weapon, "smg_mp5") == 0
+	|| strcmp(weapon, "sniper_awp") == 0
+	|| strcmp(weapon, "sniper_scout") == 0
+	|| strcmp(weapon, "rifle_sg552") == 0
+	|| strcmp(weapon, "gnome") == 0
+	|| strcmp(weapon, "pistol_magnum") == 0
+	|| strcmp(weapon, "grenade_launcher") == 0
+	|| strcmp(weapon, "rifle_m60") == 0
+	|| strcmp(weapon, "defibrillator") == 0)
+	{ return true; }
+	
+	return false;
 }
 
 void CreateParticle(int client, const char[] Particle_Name, bool parent, float duration)
@@ -4448,7 +4379,7 @@ void CreateParticle(int client, const char[] Particle_Name, bool parent, float d
 	ActivateEntity(Particle);
 	AcceptEntityInput(Particle, "start");
 	
-	char variant_str[128];
+	static char variant_str[128];
 	Format(variant_str, sizeof(variant_str), "OnUser1 !self:Hurt::%f:1", duration);
 	SetVariantString(variant_str);
 	AcceptEntityInput(Particle, "AddOutput");
@@ -4462,7 +4393,7 @@ void IgnitePlayer(int client, float duration)
 		float pos[3];
 		GetClientAbsOrigin(client, pos);
 		
-		char sUser[256];
+		static char sUser[256];
 		IntToString(GetClientUserId(client)+25, sUser, sizeof(sUser));
 		
 		CreateParticle(client, BURN_IGNITE_PARTICLE, true, duration);
@@ -4479,7 +4410,7 @@ void IgnitePlayer(int client, float duration)
 		SetVariantString("OnUser1 !self:Hurt::0.1:1");
 		AcceptEntityInput(Damage, "AddOutput");
 		
-		char variant_str[128];
+		static char variant_str[64];
 		Format(variant_str, sizeof(variant_str), "OnUser1 !self:Kill::%f:1", duration);
 		SetVariantString(variant_str);
 		AcceptEntityInput(Damage, "AddOutput");
@@ -4499,15 +4430,17 @@ bool TraceRayDontHitSelf(int entity, int mask, any data)
 }
 // DEVELOPMENT //
 
-Action CmdEntityInfo(int client, any args)
+Action CmdEntityInfo(int client, int args)
 {
-	char classname[128];
+	static char classname[64];
 	int entity = GetClientAimTarget(client, false);
 
 	if (!RealValidEntity(entity))
-	{ ReplyToCommand(client, CMD_INVALID_ENT); }
+	{ ReplyToCommand(client, CMD_INVALID_ENT); return Plugin_Handled; }
+	
 	GetEntityClassname(entity, classname, sizeof(classname));
 	PrintToChat(client, "classname: %s", classname);
+	return Plugin_Handled;
 }
 
 void PrecacheParticle(const char[] ParticleName)
@@ -4527,13 +4460,13 @@ void PrecacheParticle(const char[] ParticleName)
 
 void LogCommand(const char[] format, any ...)
 {
-	if (!GetConVarBool(g_cvarLog)) return;
+	if (!g_bLog) return;
 	
-	char buffer[512];
+	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 2);
 	Handle file;
 	
-	char FileName[256], sTime[256];
+	static char FileName[256], sTime[256];
 	FormatTime(sTime, sizeof(sTime), "%Y%m%d");
 	BuildPath(Path_SM, FileName, sizeof(FileName), "logs/customcmds_%s.log", sTime);
 	file = OpenFile(FileName, "a+");
@@ -4546,11 +4479,11 @@ void LogCommand(const char[] format, any ...)
 void LogDebug(const char[] format, any ...)
 {
 	#if DEBUG
-	char buffer[512];
+	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 2);
 	Handle file;
 	
-	char FileName[256], sTime[256];
+	static char FileName[256], sTime[256];
 	FormatTime(sTime, sizeof(sTime), "%Y%m%d");
 	BuildPath(Path_SM, FileName, sizeof(FileName), "logs/customcmds_%s.log", sTime);
 	file = OpenFile(FileName, "a+");
@@ -4576,7 +4509,7 @@ void GrabLookingEntity(int client)
 		g_iLastGrabbedEntity[client] = entity;
 		PrintToChat(client, "[SM] You are now grabbing an entity");
 		
-		char sName[64], sObjectName[64];
+		static char sName[64], sObjectName[64];
 		Format(sName, sizeof(sName), "%d", GetClientUserId(client)+25);
 		Format(sObjectName, sizeof(sObjectName), "%d", entity+100);
 		
@@ -4627,6 +4560,90 @@ void CreateAcidSpill(int client, int sender)
 		SDKCall(sdkDetonateAcid, iAcid);
 	}*/
 	Logic_RunScript("DropSpit(Vector(%f, %f, %f))", vecPos[0], vecPos[1], vecPos[2]);
+	
+	// The spit dropped by DropSpit is initially a spitter_projectile
+	// it oddly doesn't transfer team over to insect_swarm, so do it on timer
+	//CreateTimer(0.5, AlterSpit, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+	//g_bAlterSpit = true;
+	//CreateTimer(1.0, DoAlterSpit, _, TIMER_FLAG_NO_MAPCHANGE);
+}
+/*Action SetAlterSpitFalse(Handle timer)
+{ g_bAlterSpit = false; return Plugin_Continue; }*/
+/*Action AlterSpit(Handle timer, int client)
+{
+	client = GetClientOfUserId(client);
+	for (int i = MaxClients; i < GetMaxEntities(); i++)
+	{
+		if (!RealValidEntity(i)) continue;
+		static char classname[14];
+		GetEntityClassname(i, classname, sizeof(classname));
+		if (classname[0] != 'i' || (strcmp(classname, "insect_swarm", false) != 0)) continue;
+		
+		//PrintToServer("Found spit! %i", i);
+		//PrintToServer("Spit team is %i", GetEntProp(i, Prop_Send, "m_iTeamNum"));
+		int owner = GetEntPropEnt(i, Prop_Send, "m_hOwnerEntity");
+		if (!RealValidEntity(owner))
+		{
+			SetEntProp(i, Prop_Send, "m_iTeamNum", 3);
+			//SetEntPropEnt(i, Prop_Send, "m_hOwnerEntity", client);
+		}
+		//return i;
+		//break;
+	}
+	return Plugin_Continue;
+}*/
+void FixSpitDmgEffects(Event event, const char[] event_name, bool dontBroadcast)
+{
+	int entity = event.GetInt("attackerentid", 0);
+	
+	static char classname[14];
+	GetEntityClassname(entity, classname, sizeof(classname));
+	if (classname[0] != 'i' || strcmp(classname, "insect_swarm", false) != 0) return;
+	
+	int client = GetClientOfUserId(event.GetInt("userid", 0));
+	if (!IsValidClient(client)) return;
+	int team = GetClientTeam(client);
+	if (team != 2 && team != 4) return;
+	
+	//RequestFrame(PlaySpitDmgSound, GetClientUserId(client));
+	static char sliceSnd[34];
+	Format(sliceSnd, sizeof(sliceSnd), "player/PZ/hit/zombie_slice_%i.wav", GetRandomInt(1, 6));
+	EmitSoundToAll(sliceSnd, client, SNDCHAN_AUTO, 85, SND_NOFLAGS, 0.7, GetRandomInt(95, 105));
+	// PlayerZombie.AttackHit just crashes the game
+	/*SetVariantString("PainLevel:Minor:0.1");
+	AcceptEntityInput(client, "AddContext");
+	SetVariantString("Pain");
+	AcceptEntityInput(client, "SpeakResponseConcept");*/
+	
+	//PrintToServer("spit team: %i", GetEntProp(entity, Prop_Send, "m_iTeamNum"));
+	
+	int duration = 360;
+	int holdtime = 0;
+	int flags = 1;
+	int color[4] = { 255, 0, 0, 32 };
+	
+	int clients[2];
+	clients[0] = client;
+	Handle message = StartMessageEx(g_FadeUserMsgId, clients, 1);
+	if (GetUserMessageType() == UM_Protobuf)
+	{
+		Protobuf pb = UserMessageToProtobuf(message);
+		pb.SetInt("duration", duration);
+		pb.SetInt("hold_time", holdtime);
+		pb.SetInt("flags", flags);
+		pb.SetColor("clr", color);
+	}
+	else
+	{
+		BfWriteShort(message, duration);
+		BfWriteShort(message, holdtime);
+		BfWriteShort(message, flags);
+		BfWriteByte(message, color[0]);
+		BfWriteByte(message, color[1]);
+		BfWriteByte(message, color[2]);
+		BfWriteByte(message, color[3]);
+	}
+	EndMessage();
 }
 
 void SetAdrenalineEffect(int client, int sender, float timelimit = -1.0)
@@ -4642,7 +4659,10 @@ void SetAdrenalineEffect(int client, int sender, float timelimit = -1.0)
 
 void SetTempHealth(int client, float flAmount)
 {
-	Logic_RunScript("GetPlayerFromUserID(%d).SetHealthBuffer(%f)", GetClientUserId(client), flAmount);
+	if (g_isSequel)
+	{ Logic_RunScript("GetPlayerFromUserID(%d).SetHealthBuffer(%f)", GetClientUserId(client), flAmount); }
+	else
+	{ SetEntPropFloat(client, Prop_Send, "m_healthBuffer", flAmount); }
 	//SDKCall(sdkSetBuffer, client, flAmount);
 }
 
@@ -4660,7 +4680,30 @@ void RevivePlayer_Cmd(int client, int sender)
 void RevivePlayer(int client)
 {
 	if (!GetEntProp(client, Prop_Send, "m_isIncapacitated") && !GetEntProp(client, Prop_Send, "m_isHangingFromLedge")) return;
-	Logic_RunScript("GetPlayerFromUserID(%d).ReviveFromIncap()", GetClientUserId(client));
+	if (g_isSequel)
+	{ Logic_RunScript("GetPlayerFromUserID(%d).ReviveFromIncap()", GetClientUserId(client)); }
+	else
+	{
+		// TODOL4D1
+		/*int ReviveHealth = 30;
+		if (GetEntProp(client, Prop_Send, "m_isIncapacitated") == 1)
+		{ ReviveHealth[client] = GetConVarFloat(selfrevive_health_incap); }
+		if (view_as<bool>(GetEntProp(client, Prop_Send, "m_isHangingFromLedge")))
+		{ ReviveHealth[client] = GetConVarFloat(selfrevive_health_ledge); }*/
+		int revOwner = GetEntPropEnt(client, Prop_Send, "m_reviveOwner");
+		SetEntPropEnt(client, Prop_Send, "m_reviveTarget", client);
+		SetEntPropEnt(client, Prop_Send, "m_reviveOwner", client);
+		if (RealValidEntity(revOwner))
+		{
+			// No choice but to set the revive owner to themselves
+			// Their animation for picking up still plays but eh, deal with it
+			SetEntProp(revOwner, Prop_Send, "m_reviveTarget", 0);
+			SetEntProp(revOwner, Prop_Send, "m_iProgressBarDuration", 0);
+			SetEntPropFloat(revOwner, Prop_Send, "m_flProgressBarStartTime", 0.0);
+		}
+		SetEntProp(client, Prop_Send, "m_iProgressBarDuration", 0);
+		SetEntPropFloat(client, Prop_Send, "m_flProgressBarStartTime", 0.0);
+	}
 }
 
 void ShovePlayer_Cmd(int client, int sender)
@@ -4670,68 +4713,68 @@ void ShovePlayer_Cmd(int client, int sender)
 	float vecOrigin[3];
 	GetClientAbsOrigin(sender, vecOrigin);
 	
-	Logic_RunScript("GetPlayerFromUserID(%d).Stagger(Vector(%f, %f, %f))", GetClientUserId(client), vecOrigin[0], vecOrigin[1], vecOrigin[2]);
-	
-	/*if (GetClientTeam(client) == 2 || GetClientTeam(client) == 4)
-	{
-		float vecOrigin[3];
-		GetClientAbsOrigin(sender, vecOrigin);
-		SDKCall(sdkShoveSurv, client, sender, vecOrigin);
-	}
-	else if (GetClientTeam(client) == 3)
-	{
-		float vecOrigin[3];
-		GetClientAbsOrigin(sender, vecOrigin);
-		SDKCall(sdkShoveInf, client, sender, vecOrigin);
-	}
+	if (g_isSequel)
+	{ Logic_RunScript("GetPlayerFromUserID(%d).Stagger(Vector(%f, %f, %f))", GetClientUserId(client), vecOrigin[0], vecOrigin[1], vecOrigin[2]); }
 	else
 	{
-		PrintToChat(sender, CMD_INVALID_CL);
-	}*/
+		// TODOL4D1 UNFINISHED
+		SetDTCountdownTimer(client, "CTerrorPlayer", "m_staggerTimer", 1.0);
+		SetEntPropVector(client, Prop_Send, "m_staggerDir", {0.0, 90.0, 90.0});
+		float startOrigin[3];
+		GetClientAbsOrigin(client, startOrigin);
+		SetEntPropVector(client, Prop_Send, "m_staggerStart", startOrigin);
+		SetEntPropFloat(client, Prop_Send, "m_staggerDist", 250.0);
+		/*
+		Table: m_staggerTimer (offset 8048) (type DT_CountdownTimer)
+			Member: m_duration (offset 4) (type float) (bits 0) (NoScale)
+			Member: m_timestamp (offset 8) (type float) (bits 0) (NoScale)
+		Member: m_staggerStart (offset 8060) (type vector) (bits 0) (CoordMP)
+		Member: m_staggerDir (offset 8072) (type vector) (bits 0) (CoordMP)
+		Member: m_staggerDist (offset 8084) (type float) (bits 0) (NoScale|CoordMP)
+		*/
+	}
 }
 
 int GetClientTempHealth(int client)
 {
 	//First filter -> Must be a valid client and not a spectator (They dont have health).
-    if (!Cmd_CheckClient(client, -1, true, -1, false)) return -1;
-    
-    //First, we get the amount of temporal health the client has
-    float buffer = GetEntPropFloat(client, Prop_Send, "m_healthBuffer");
-    
-    //We declare the permanent and temporal health variables
-    float TempHealth;
-    
-    //In case the buffer is 0 or less, we set the temporal health as 0, because the client has not used any pills or adrenaline yet
-    if (buffer <= 0.0)
-    {
-        TempHealth = 0.0;
-    }
-    
-    //In case it is higher than 0, we proceed to calculate the temporl health
-    else
-    {
-        //This is the difference between the time we used the temporal item, and the current time
-        float difference = GetGameTime() - GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
-        
-        //We get the decay rate from this convar (Note: Adrenaline uses this value)
-        float decay = GetConVarFloat(FindConVar("pain_pills_decay_rate"));
-        
-        //This is a constant we create to determine the amount of health. This is the amount of time it has to pass
-        //before 1 Temporal HP is consumed.
-        float constant = 1.0/decay;
-        
-        //Then we do the calcs
-        TempHealth = buffer - (difference / constant);
-    }
-    
-    //If the temporal health resulted less than 0, then it is just 0.
-    if (TempHealth < 0.0)
-    {
-        TempHealth = 0.0;
-    }
-    
-    //Return the value
-    return RoundToFloor(TempHealth);
+	if (!Cmd_CheckClient(client, -1, true, -1, false)) return -1;
+	
+	//First, we get the amount of temporal health the client has
+	float buffer = GetEntPropFloat(client, Prop_Send, "m_healthBuffer");
+	
+	//We declare the permanent and temporal health variables
+	float TempHealth;
+	
+	//In case the buffer is 0 or less, we set the temporal health as 0, because the client has not used any pills or adrenaline yet
+	if (buffer <= 0.0)
+	{
+		TempHealth = 0.0;
+	}
+	
+	//In case it is higher than 0, we proceed to calculate the temporl health
+	else
+	{
+		//This is the difference between the time we used the temporal item, and the current time
+		float difference = GetGameTime() - GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
+		
+		//We get the decay rate from this convar (Note: Adrenaline uses this value)
+		//This is a constant we create to determine the amount of health. This is the amount of time it has to pass
+		//before 1 Temporal HP is consumed.
+		float constant = 1.0/g_fPPDecay;
+		
+		//Then we do the calcs
+		TempHealth = buffer - (difference / constant);
+	}
+	
+	//If the temporal health resulted less than 0, then it is just 0.
+	if (TempHealth < 0.0)
+	{
+		TempHealth = 0.0;
+	}
+	
+	//Return the value
+	return RoundToFloor(TempHealth);
 }
 
 void RemoveTempHealth(int client)
@@ -4744,7 +4787,11 @@ void PanicEvent()
 {
 	int Director = CreateEntityByName("info_director");
 	DispatchSpawn(Director);
-	AcceptEntityInput(Director, "ForcePanicEvent");
+	switch (g_isSequel)
+	{
+		case true: AcceptEntityInput(Director, "ForcePanicEvent");
+		case false: AcceptEntityInput(Director, "PanicEvent");
+	}
 	AcceptEntityInput(Director, "Kill");
 }
 
@@ -4771,6 +4818,8 @@ int GetLookingEntity(int client)
 
 void Logic_RunScript(const char[] sCode, any ...) 
 {
+	if (!g_isSequel) return;
+	
 	int iScriptLogic = FindEntityByTargetname(-1, PLUGIN_SCRIPTLOGIC);
 	if (!RealValidEntity(iScriptLogic))
 	{
@@ -4779,36 +4828,38 @@ void Logic_RunScript(const char[] sCode, any ...)
 		DispatchSpawn(iScriptLogic);
 	}
 	
-	char sBuffer[512]; 
+	static char sBuffer[512]; 
 	VFormat(sBuffer, sizeof(sBuffer), sCode, 2); 
 	
 	SetVariantString(sBuffer); 
 	AcceptEntityInput(iScriptLogic, "RunScriptCode");
 }
 
-int FindEntityByTargetname(int index, const char[] findname, bool onlyNetworked = false)
+void SetDTCountdownTimer(int entity, const char[] classname, const char[] timer_str, float duration)
+{
+	int info = FindSendPropInfo(classname, timer_str);
+	SetEntDataFloat(entity, (info+4), duration, true);
+	SetEntDataFloat(entity, (info+8), GetGameTime()+duration, true);
+}
+
+stock int FindEntityByTargetname(int index, const char[] findname, bool onlyNetworked = false)
 {
 	for (int i = index; i < (onlyNetworked ? GetMaxEntities() : (GetMaxEntities()*2)); i++) {
 		if (!RealValidEntity(i)) continue;
-		char name[128];
+		static char name[128];
 		GetEntPropString(i, Prop_Data, "m_iName", name, sizeof(name));
-		if (!StrEqual(name, findname, false)) continue;
+		if (strcmp(name, findname, false) == 0) continue;
 		return i;
 	}
 	return -1;
 }
 
-bool IsSurvivor(int client)
-{
-	return (GetClientTeam(client) == 2 || GetClientTeam(client) == 4);
-}
+stock bool IsSurvivor(int client)
+{ return (GetClientTeam(client) == 2 || GetClientTeam(client) == 4); }
+stock bool IsInfected(int client)
+{ return (GetClientTeam(client) == 3); }
 
-bool IsInfected(int client)
-{
-	return (GetClientTeam(client) == 3);
-}
-
-void EmitAmbientGenericSound(float[3] pos, const char[] snd_str)
+void EmitAmbientGenericSound(float pos[3], const char[] snd_str)
 {
 	int snd_ent = CreateEntityByName("ambient_generic");
 	
@@ -4824,25 +4875,25 @@ void EmitAmbientGenericSound(float[3] pos, const char[] snd_str)
 	AcceptEntityInput(snd_ent, "Kill");
 }
 
-bool IsValidClient(int client, bool replaycheck = true)
+stock bool IsValidClient(int client, bool replaycheck = true, bool isLoop = false)
 {
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	//if (GetEntProp(client, Prop_Send, "m_bIsCoaching")) return false;
-	if (replaycheck)
+	if ((isLoop || client > 0 && client <= MaxClients) && IsClientInGame(client))
 	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		if (HasEntProp(client, Prop_Send, "m_bIsCoaching")) // TF2, CSGO?
+			if (view_as<bool>(GetEntProp(client, Prop_Send, "m_bIsCoaching"))) return false;
+		if (replaycheck)
+		{
+			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		}
+		return true;
 	}
-	return true;
+	return false;
 }
 
-bool RealValidEntity(int entity)
-{
-	if (entity <= 0 || !IsValidEntity(entity)) return false;
-	return true;
-}
+stock bool RealValidEntity(int entity)
+{ return (entity > 0 && IsValidEntity(entity)); }
 
-bool Cmd_CheckClient(int client, int sender = -1, bool must_be_alive = false, int must_be_survivor = -1, bool print = true)
+stock bool Cmd_CheckClient(int client, int sender = -1, bool must_be_alive = false, int must_be_survivor = -1, bool print = true)
 {
 	if (!IsValidClient(client))
 	{ if (print && IsValidClient(sender)) PrintToChat(sender, CMD_INVALID_CL); return false; }
@@ -4864,9 +4915,9 @@ bool Cmd_CheckClient(int client, int sender = -1, bool must_be_alive = false, in
 	return true;
 }
 
-/*bool Cmd_GetTargets(int client, const char[] arg, int[] target_list, int target_count, int filter = COMMAND_FILTER_ALIVE)
+/*stock bool Cmd_GetTargets(int client, const char[] arg, int[] target_list, int target_count, int filter = COMMAND_FILTER_ALIVE)
 {
-	char target_name[MAX_TARGET_LENGTH];
+	static char target_name[MAX_TARGET_LENGTH]; target_name[0] = '\0';
 	bool tn_is_ml;
 	if ((target_count = ProcessTargetString(
 			arg,
@@ -4881,9 +4932,9 @@ bool Cmd_CheckClient(int client, int sender = -1, bool must_be_alive = false, in
 	return true;
 }*/
 
-int Cmd_GetTargets(int client, const char[] arg, int[] target_list, int filter = COMMAND_FILTER_ALIVE)
+stock int Cmd_GetTargets(int client, const char[] arg, int[] target_list, int filter = COMMAND_FILTER_ALIVE)
 {
-	char target_name[MAX_TARGET_LENGTH];
+	static char target_name[MAX_TARGET_LENGTH]; target_name[0] = '\0';
 	int target_count;
 	bool tn_is_ml;
 	if ((target_count = ProcessTargetString(
@@ -4903,7 +4954,7 @@ int Cmd_GetTargets(int client, const char[] arg, int[] target_list, int filter =
 {
 	int cmd_result[2]; cmd_result[0] = -1; cmd_result[1] = -1;
 	
-	char target_name[MAX_TARGET_LENGTH];
+	static char target_name[MAX_TARGET_LENGTH];
 	int target_list[MAXPLAYERS], target_count;
 	bool tn_is_ml;
 	if ((target_count = ProcessTargetString(
@@ -4921,7 +4972,7 @@ int Cmd_GetTargets(int client, const char[] arg, int[] target_list, int filter =
 	return cmd_result;
 }*/
 
-void DoClientTrace(int client, int mask = MASK_OPAQUE, bool print_to_cl = false, float[3] targ_vec)
+void DoClientTrace(int client, int mask = MASK_OPAQUE, bool print_to_cl = false, float targ_vec[3])
 {
 	if (!IsValidClient(client)) return;
 	
@@ -4941,7 +4992,7 @@ void DoClientTrace(int client, int mask = MASK_OPAQUE, bool print_to_cl = false,
 
 void GetGamedata()
 {
-	char filePath[PLATFORM_MAX_PATH];
+	static char filePath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, filePath, sizeof(filePath), "gamedata/%s.txt", GAMEDATA);
 	if ( FileExists(filePath) )
 	{
@@ -4953,7 +5004,7 @@ void GetGamedata()
 		
 		Handle fileHandle = OpenFile(filePath, "w");
 		if (fileHandle == null)
-		{ SetFailState("[SM] Couldn't generate gamedata file!"); }
+		{ PrintToServer("[SM] Couldn't generate gamedata file!"); return; }
 		
 		WriteFileLine(fileHandle, "\"Games\"");
 		WriteFileLine(fileHandle, "{");
@@ -4968,7 +5019,7 @@ void GetGamedata()
 		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_CallPushPlayer_WINDOWS);
 		WriteFileLine(fileHandle, "				\"mac\"	\"%s\"", SIG_CallPushPlayer_LINUX);
 		WriteFileLine(fileHandle, "			}");
-		WriteFileLine(fileHandle, "			\"%s\"", NAME_DetonateAcid);
+		/*WriteFileLine(fileHandle, "			\"%s\"", NAME_DetonateAcid);
 		WriteFileLine(fileHandle, "			{");
 		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
 		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_DetonateAcid_LINUX);
@@ -4988,7 +5039,7 @@ void GetGamedata()
 		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_ShoveInf_LINUX);
 		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_ShoveInf_WINDOWS);
 		WriteFileLine(fileHandle, "				\"mac\"	\"%s\"", SIG_ShoveInf_LINUX);
-		WriteFileLine(fileHandle, "			}");
+		WriteFileLine(fileHandle, "			}");*/
 		WriteFileLine(fileHandle, "		}");
 		WriteFileLine(fileHandle, "	}");
 		WriteFileLine(fileHandle, "}");
@@ -4996,7 +5047,7 @@ void GetGamedata()
 		CloseHandle(fileHandle);
 		hConf = LoadGameConfigFile(GAMEDATA);
 		if (hConf == null)
-		{ SetFailState("[SM] Failed to load auto-generated gamedata file!"); }
+		{ PrintToServer("[SM] Failed to load auto-generated gamedata file!"); return; }
 		
 		PrintToServer("[SM] %s successfully generated %s.txt gamedata file!", PLUGIN_NAME, GAMEDATA);
 	}
@@ -5006,18 +5057,18 @@ void GetGamedata()
 void PrepSDKCall()
 {
 	if (hConf == null)
-	{ SetFailState("Unable to find %s.txt gamedata.", GAMEDATA); return; }
+	{ PrintToServer("Unable to find %s.txt gamedata.", GAMEDATA); return; }
 	
 	StartPrepSDKCall(SDKCall_Player);
 	if (!PrepSDKCall_SetFromConf(hConf, SDKConf_Signature, NAME_CallPushPlayer))
-	{ SetFailState("[SM] Failed to set %s %s from config!", PLUGIN_NAME_SHORT, NAME_CallPushPlayer); }
+	{ PrintToServer("[%s] Failed to set %s from config!", PLUGIN_NAME_SHORT, NAME_CallPushPlayer); return; }
 	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
 	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);
 	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer);
 	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
 	sdkCallPushPlayer = EndPrepSDKCall();
 	if (sdkCallPushPlayer == null)
-	{ SetFailState("Cannot initialize %s SDKCall, signature is broken.", NAME_CallPushPlayer); return; }
+	{ PrintToServer("[%s] Cannot initialize %s SDKCall, signature is broken.", PLUGIN_NAME_SHORT, NAME_CallPushPlayer); return; }
 	
 	/*StartPrepSDKCall(SDKCall_Entity);
 	if (!PrepSDKCall_SetFromConf(hConf, SDKConf_Signature, NAME_DetonateAcid))

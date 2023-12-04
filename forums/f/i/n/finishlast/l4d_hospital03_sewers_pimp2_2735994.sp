@@ -16,18 +16,28 @@ int dynamic_prop_button;
 
 public void OnPluginStart()
 {
+
+	PrecacheModel("models/props_lab/freightelevatorbutton.mdl",true);
+	PrecacheSound("models/props_doors/roll-up_door_open.mdl",true);
+	PrecacheSound("models/props_interiors/door_sliding_breakable01.mdl",true);
+	PrecacheModel("models/props_lab/freightelevatorbutton.mdl",true);
+	PrecacheSound("ambient/machines/wall_move4.wav");
+
 	HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
 	//HookEvent("round_end", Round_End_Hook);
+	HookEvent("round_end", event_round_end, EventHookMode_PostNoCopy);
+
 }
 
 
 public void OnMapEnd()
 {
-	/* Clean up timers */
-	if (g_timer != INVALID_HANDLE) {
-		delete(g_timer);
-		g_timer = INVALID_HANDLE;
-	}  
+delete g_timer;
+}
+
+public void event_round_end(Event event, const char[] name, bool dontBroadcast)
+{
+delete g_timer;
 }
 
 public void event_round_freeze_end(Event event, const char[] name, bool dontBroadcast)
@@ -114,8 +124,6 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 // Create dynamic model 
 void CreateModel(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname) 
 { 
-	PrecacheModel("models/props_lab/freightelevatorbutton.mdl"); 
-     
 	dynamic_prop = CreateEntityByName("prop_dynamic"); 
      
 	if(dynamic_prop == -1) return; 
@@ -141,7 +149,6 @@ void CreateModel(const float fwd[3], const float ang[3], const char[] origin, co
 
 void CreateButton(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname) 
 { 
-	PrecacheModel("models/props_lab/freightelevatorbutton.mdl"); 
 
 	dynamic_prop_button = CreateEntityByName("func_button"); 
      
@@ -195,7 +202,7 @@ public void OnPressed(const char[] output, int caller, int activator, float dela
 	// Remove glow entity from func_button
 	SetEntProp(dynamic_prop_button, Prop_Send, "m_glowEntity", -1); 
 
-	g_timer = CreateTimer(0.01, gate, _, TIMER_REPEAT);
+	g_timer = CreateTimer(0.1, gate, _, TIMER_REPEAT);
 	
 }
 
@@ -223,6 +230,7 @@ public Action gate(Handle timer)
 	{
 		numlift = 0;
 		SetConVarInt(FindConVar("sb_unstick"), 1);
+		g_timer = null;
 		return Plugin_Stop;
 	}
  
@@ -237,16 +245,16 @@ public Action gate(Handle timer)
 		EmitSoundToAll(SOUND, ent_dynamic_block1);
 		numsound = 0;
 	}
-
 	return Plugin_Continue;
 
 }
 
 public void OnTouch(int client, int other)
 {
-if(other>=0){
+//PrintToChatAll("%i", other);
 
-if(IsFakeClient(other) && GetClientTeam(other) == 2)
+if(other > 0 && other <= MaxClients){
+if(IsClientInGame(other) && IsFakeClient(other) && GetClientTeam(other) == 2)
 {
 SetConVarInt(FindConVar("sb_unstick"), 0);
 //PrintToChatAll ("touched");

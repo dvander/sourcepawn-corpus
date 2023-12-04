@@ -1,6 +1,8 @@
+// New:
+// gib spawn volume respects npc size, eg. kid, crawler
+
 // TO-DO: 
 // - ran rotation & ran torque
-// - gib spawn volume respects npc size, eg. kid, crawler
 // - gibs corresponds to damage type, burn to crisp, poison into slime etc
 #pragma semicolon 1
 #define DEBUG 1
@@ -8,12 +10,20 @@
 #include <sourcemod>
 #include <sdktools>
 
+#define GIB_CLASS_NAME "prop_gib_merz"
 new Handle:sv_gibsys_num_gibs_rib = INVALID_HANDLE;
 new Handle:sv_gibsys_maxhealth_ratio = INVALID_HANDLE;
 new Handle:sv_gibsys_mindamage_threshold = INVALID_HANDLE;
 new Handle:sv_gibsys_gib_speed = INVALID_HANDLE;
+new Handle:sv_gibsys_model_rib = INVALID_HANDLE;
+new Handle:sv_gibsys_model_skull = INVALID_HANDLE;
+new Handle:sv_gibsys_model_pelvis = INVALID_HANDLE;
+new Handle:sv_gibsys_model_spine = INVALID_HANDLE;
+new Handle:sv_gibsys_particle_splat = INVALID_HANDLE;
+new Handle:sv_gibsys_particle_gib = INVALID_HANDLE;
+new Handle:sv_gibsys_no_particle = INVALID_HANDLE;
 
-const MAX_GIBS = 30;
+const MAX_GIBS = 100;
 int gibPool[MAX_GIBS];
 int gibPool_pt;
 
@@ -25,7 +35,7 @@ public Plugin myinfo =
 	name = "Gibbing System",
 	author = "RhymeOfRime",
 	description = "Gib zombies & players upon death by extra-fatal damage.",
-	version = "2.00",
+	version = "4.00",
 	url = "rhymeofrime.site.nfoservers.com"
 };
 
@@ -35,12 +45,22 @@ public void OnPluginStart()
 	
 	// ConVars
 	sv_gibsys_num_gibs_rib = CreateConVar("sv_gibsys_num_gibs_rib", "3", "Number of ribs to spawn on death (max gibs will be constrained by MAX_GIBS, check the code)");
-	sv_gibsys_maxhealth_ratio = CreateConVar("sv_gibsys_maxhealth_ratio", "0.8", "Gibbing criteria 1: Additional damage (pass 0hp) must exceed this portion of maxhealth. Eg. 0.8 means 80% of maxhealth");
+	sv_gibsys_maxhealth_ratio = CreateConVar("sv_gibsys_maxhealth_ratio", "0.0", "Gibbing criteria 1: Additional damage (pass 0hp) must exceed this portion of maxhealth. Eg. 0.8 means 80% of maxhealth");
 	sv_gibsys_mindamage_threshold = CreateConVar("sv_gibsys_mindamage_threshold", "-800.0", "Gibbing criteria 2: Health must be less than this level (Constant for all character). Eg. -800 means character will gib having health below -800hp");
 	sv_gibsys_gib_speed = CreateConVar("sv_gibsys_gib_speed", "100", "Min speed in which gib flies. Eg. 100 means character gibs flies in 100 units/second when health drops just barely meet gibbing criteria, faster if higher damage");
+	sv_gibsys_no_particle = CreateConVar("sv_gibsys_no_particle", "0", "Bloodless gib? [0/1]");
+	
+	// Customization
+	sv_gibsys_model_rib = CreateConVar("sv_gibsys_model_rib", "models/gibs/hgibs_rib.mdl", "Model path");
+	sv_gibsys_model_skull = CreateConVar("sv_gibsys_model_skull", "models/gibs/hgibs.mdl", "Model path");
+	sv_gibsys_model_pelvis = CreateConVar("sv_gibsys_model_pelvis", "models/gibs/hgibs_scapula.mdl", "Model path");
+	sv_gibsys_model_spine = CreateConVar("sv_gibsys_model_spine", "models/gibs/hgibs_spine.mdl", "Model path");
+	sv_gibsys_particle_splat = CreateConVar("sv_gibsys_particle_splat", "headshot_burst_splat_2", "Model path");
+	sv_gibsys_particle_gib = CreateConVar("sv_gibsys_particle_gib", "headshot_blood_splats", "Model path");
 	
 	// chat command
 	RegAdminCmd("sm_gibsys_printGibPoolIndex", Command_debugGibPool, ADMFLAG_ROOT, "(Debug) Print gib pool indices in console");
+	RegAdminCmd("sm_gibsys_test", Command_test, ADMFLAG_ROOT, "(Debug) test effect");
 	RegConsoleCmd("sm_gibme", Command_gibme, "Gib explode myself (Only when not infected)");
 
 	// Hooks certain events to be referenced later on.
@@ -51,6 +71,23 @@ public void OnPluginStart()
 	
 	PrintToServer("======== [SM GibSys] Initialization completed ========\n ");
 }
+
+public Action:Command_test(client, args)
+{
+	int clientEntID = client==0?1:client;
+	float position[3], angles[3];
+	GetClientAbsOrigin(clientEntID, position);
+	//GetClientEyeAngles(clientEntID, angles);
+	int smoke = PrecacheModel("particle/smokesprites_0009.vmt", true);
+	TE_SetupSmoke(position, smoke, 100, 2);
+	TE_SendToAll();
+	
+	//
+	
+	
+	return Plugin_Handled;
+}
+
 
 // TO-DO not working
 public Action:Command_gibme(client, args)
@@ -89,10 +126,22 @@ public Action:Command_debugGibPool(client, args)
 
 public OnMapStart()
 {
-	PrecacheModel("models/gibs/hgibs_scapula.mdl");
-	PrecacheModel("models/gibs/hgibs_spine.mdl");
-	PrecacheModel("models/gibs/hgibs.mdl");
-	PrecacheModel("models/gibs/hgibs_rib.mdl");
+	char path_pelvis[256];
+	GetConVarString(sv_gibsys_model_pelvis, path_pelvis, 256);
+	PrecacheModel(path_pelvis);
+	
+	char path_spine[256];
+	GetConVarString(sv_gibsys_model_spine, path_spine, 256);
+	PrecacheModel(path_spine);
+	
+	char path_skull[256];
+	GetConVarString(sv_gibsys_model_skull, path_skull, 256);
+	PrecacheModel(path_skull);
+	
+	char path_rib[256];
+	GetConVarString(sv_gibsys_model_rib, path_rib, 256);
+	PrecacheModel(path_rib);
+
 	PrecacheSound("physics/flesh/flesh_bloody_break.wav", true);
 	
 	clearPool();
@@ -122,7 +171,9 @@ public void clearPool()
 public void GibPerson(int entID, float gibSpeed, bool isNPC)
 {
 	EmitSoundToAll("physics/flesh/flesh_bloody_break.wav", entID, _, _, _, 1.0);
-		
+	
+	// Emit blood
+
 	// hide ragdoll
 	if(isNPC)
 	{
@@ -137,29 +188,68 @@ public void GibPerson(int entID, float gibSpeed, bool isNPC)
 		}
 	}
 	
+
+	
+	// 
+	float vecMax[3], vecMin[3];
+	GetEntPropVector(entID, Prop_Data, "m_vecMaxs", vecMax);
+	GetEntPropVector(entID, Prop_Data, "m_vecMins", vecMin);
+	float widthX = vecMax[0] - vecMin[0];
+	float widthY = vecMax[1] - vecMin[1];
+	float height = vecMax[2] - vecMin[2];
+	
 	// get zombie position
 	float zombiePosition[3];
 	GetEntPropVector(entID, Prop_Send, "m_vecOrigin", zombiePosition);
 	
 	// spawn pelvis
-	zombiePosition[2] += 30;
-	spawnGib("models/gibs/hgibs_scapula.mdl", 2, zombiePosition, 10.0, gibSpeed);
+	float pelvisPosition[3];
+	pelvisPosition[0] = zombiePosition[0];
+	pelvisPosition[1] = zombiePosition[1];
+	pelvisPosition[2] = zombiePosition[2] + height*0.32;
+	char path_pelvis[256];
+	GetConVarString(sv_gibsys_model_pelvis, path_pelvis, 256);
+	PrecacheModel(path_pelvis);
+	spawnGib(path_pelvis, 2, pelvisPosition, widthX/2.0, widthY/2.0, 0.0, gibSpeed);
 	
 	// spawn spine
-	zombiePosition[2] += 15;
-	spawnGib("models/gibs/hgibs_spine.mdl", 1, zombiePosition, 10.0, gibSpeed);
+	float spinePosition[3];
+	spinePosition[0] = zombiePosition[0];
+	spinePosition[1] = zombiePosition[1];
+	spinePosition[2] = zombiePosition[2] + height*0.53;
+	//zombiePosition[2] += 15;
+	char path_spine[256];
+	GetConVarString(sv_gibsys_model_spine, path_spine, 256);
+	PrecacheModel(path_spine);
+	spawnGib(path_spine, 1, spinePosition, widthX/2.0, widthY/2.0, 0.0, gibSpeed);
 	
 	// spawn main blood particle
 	// particle name: nmrih_suicide_grenade
-	spawnParticle("headshot_burst_splat_2", NULL_VECTOR, zombiePosition, 10.0);
+	char particle_splat[256];
+	GetConVarString(sv_gibsys_particle_splat, particle_splat, 256);
+	spawnParticle(particle_splat, NULL_VECTOR, spinePosition, 10.0);
 	
 	// spawn ribs
-	zombiePosition[2] += 15;
-	spawnGib("models/gibs/hgibs_rib.mdl", GetConVarInt(sv_gibsys_num_gibs_rib), zombiePosition, 32.0, gibSpeed);
+	float ribPosition[3];
+	ribPosition[0] = zombiePosition[0];
+	ribPosition[1] = zombiePosition[1];
+	ribPosition[2] = zombiePosition[2] + height*0.62;
+	//zombiePosition[2] += 15;
+	char path_rib[256];
+	GetConVarString(sv_gibsys_model_rib, path_rib, 256);
+	PrecacheModel(path_rib);
+	spawnGib(path_rib, GetConVarInt(sv_gibsys_num_gibs_rib), ribPosition, widthX/2.0, widthY/2.0, height/2.0, gibSpeed);
 
 	// spawn head
-	zombiePosition[2] += 8;
-	spawnGib("models/gibs/hgibs.mdl", 1, zombiePosition, 0.0, gibSpeed);
+	float headPosition[3];
+	headPosition[0] = zombiePosition[0];
+	headPosition[1] = zombiePosition[1];
+	headPosition[2] = zombiePosition[2] + height*0.84;
+	//zombiePosition[2] += 8;
+	char path_skull[256];
+	GetConVarString(sv_gibsys_model_skull, path_skull, 256);
+	PrecacheModel(path_skull);
+	spawnGib(path_skull, 1, headPosition, widthX/2.0, widthY/2.0, 0.0, gibSpeed);
 }
 
 
@@ -196,6 +286,11 @@ public Action:OnNPCKilled(Handle:event, const String:name[], bool:dontBroadcast)
 }
 public void spawnParticle(const String:particleName[], const Float:angles[3], const Float:position[3], float duration)
 {
+	if(GetConVarInt(sv_gibsys_no_particle) == 1)
+	{
+		return;
+	}
+	
 	new particle = CreateEntityByName("info_particle_system");
 	
 	// set particle effect
@@ -206,11 +301,15 @@ public void spawnParticle(const String:particleName[], const Float:angles[3], co
 		ActivateEntity(particle);
 		TeleportEntity(particle, position, angles, NULL_VECTOR);
 		AcceptEntityInput(particle, "start");
-		CreateTimer(duration, Timer_RemoveParticle, particle);
+		CreateTimer(duration, Timer_RemoveParticle, EntIndexToEntRef(particle)); // Thanks Dysphie
 	}
 }
-public void spawnGib(const String:model[], int number_gibs, const Float:spawnCenterPosition[3], float variance, float gibSpeed)
+public void spawnGib(const String:model[], int number_gibs, const Float:spawnCenterPosition[3], float varX, float varY, float varZ, float gibSpeed)
 {	
+	if(!FileExists(model, true))
+	{
+		return;
+	}
 	// Budget Clamp by frame
 	int currTime = GetTime();
 	if(currTime != latestSpawnTime) 
@@ -226,7 +325,7 @@ public void spawnGib(const String:model[], int number_gibs, const Float:spawnCen
 	// Spawn gibs
 	for (new i = 0; i < gibCountToSpawn; i++)
 	{
-		int gib_entIdx = CreateEntityByName("prop_physics");
+		int gib_entIdx = CreateEntityByName("prop_physics_override");
 
 		// Set entity name
 		char gibName[32];
@@ -241,21 +340,39 @@ public void spawnGib(const String:model[], int number_gibs, const Float:spawnCen
 		{
 			if(IsValidEntity(gib_entIdx))
 			{
+				DispatchKeyValue(gib_entIdx,"classname", GIB_CLASS_NAME);
+				
 				// Only collide with world geometry
 				SetEntProp(gib_entIdx, Prop_Send, "m_CollisionGroup", 1);
 			
 				// Set position & velocity & attach trail
-				float pos[3], vel[3];
-				pos[0] = spawnCenterPosition[0] + GetRandomFloat(variance / 2.0, variance / 2.0);
-				pos[1] = spawnCenterPosition[1] + GetRandomFloat(variance / 2.0, variance / 2.0);
-				pos[2] = spawnCenterPosition[2] + GetRandomFloat(variance / 2.0, variance / 2.0);
+				float pos[3], vel[3], ang[3], angVel[3];
+				pos[0] = spawnCenterPosition[0] + GetRandomFloat(varX / 2.0, varX / 2.0);
+				pos[1] = spawnCenterPosition[1] + GetRandomFloat(varY / 2.0, varY / 2.0);
+				pos[2] = spawnCenterPosition[2] + GetRandomFloat(varZ / 2.0, varZ / 2.0);
 
 				vel[0] = GetRandomFloat(-gibSpeed, gibSpeed);
 				vel[1] = GetRandomFloat(-gibSpeed, gibSpeed);
 				vel[2] = GetRandomFloat(-gibSpeed, gibSpeed * 2.0);
 				
-				TeleportEntity(gib_entIdx, pos, NULL_VECTOR, vel);
-				AttachParticle(gib_entIdx, "headshot_blood_splats");
+				ang[0] = GetRandomFloat(-180.0, 180.0);
+				ang[1] = GetRandomFloat(-180.0, 180.0);
+				ang[2] = GetRandomFloat(-180.0, 180.0);
+				
+				//float angVelSpeed = gibSpeed * 18000.0/1000.0;
+				//angVel[0] = GetRandomFloat(-angVelSpeed, angVelSpeed);
+				//angVel[1] = GetRandomFloat(-angVelSpeed, angVelSpeed);
+				//angVel[2] = GetRandomFloat(-angVelSpeed, angVelSpeed);
+				
+				TeleportEntity(gib_entIdx, pos, ang, vel);
+				//SetEntPropVector(gib_entIdx, Prop_Data, "m_vecAngVelocity", angVel);
+				if(GetConVarInt(sv_gibsys_no_particle) != 1)
+				{
+					char particle_gib[256];
+					GetConVarString(sv_gibsys_particle_gib, particle_gib, 256);
+					int particle = AttachParticle(gib_entIdx, particle_gib);
+					CreateTimer(10.0, Timer_RemoveParticle, EntIndexToEntRef(particle));
+				}
 				
 				// Pool gibs
 				if(gibPool_pt >= MAX_GIBS)// Warp index
@@ -272,7 +389,7 @@ public void spawnGib(const String:model[], int number_gibs, const Float:spawnCen
 					char oldGibModelName[128];
 					GetEntPropString(oldGibID, Prop_Data, "m_ModelName", oldGibModelName, 128);
 	
-					if(IsValidEntity(oldGibID) && strcmp(oldGibClassName, "prop_physics") == 0)
+					if(IsValidEntity(oldGibID) && strcmp(oldGibClassName, GIB_CLASS_NAME) == 0)
 					{
 						AcceptEntityInput(oldGibID, "kill");
 					}
@@ -288,8 +405,14 @@ public void spawnGib(const String:model[], int number_gibs, const Float:spawnCen
 	}
 }
 
-public Action:Timer_RemoveParticle(Handle:Timer, any:ent)
+public Action:Timer_RemoveParticle(Handle:Timer, any:entref)
 {
+	// Thanks Dysphie
+	int ent = EntRefToEntIndex(entref);
+	if (ent == -1) {
+		return Plugin_Continue;
+	}
+	
 	char className[32];
 	GetEntityClassname(ent, className, 32);
 
@@ -301,7 +424,7 @@ public Action:Timer_RemoveParticle(Handle:Timer, any:ent)
 	return Plugin_Handled;
 }
 
-AttachParticle(ent, String:particleType[])
+int AttachParticle(ent, String:particleType[])
 {
 	new particle = CreateEntityByName("info_particle_system");
 	
@@ -330,7 +453,11 @@ AttachParticle(ent, String:particleType[])
 		
 		ActivateEntity(particle);
 		AcceptEntityInput(particle, "start");
+		
+		return particle;
 	}
+	
+	return -1;
 }
 
 public bool IsClientInfected(Client)

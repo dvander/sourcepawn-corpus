@@ -1,14 +1,15 @@
 #include <sourcemod>
 #include <tf2_stocks>
 #include <clientprefs>
+#include <tf2attributes>
 
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.3"
 
 Handle g_hEquipWearable;
-Handle g_hFashionItems[5] = INVALID_HANDLE;
+Handle g_hFashionItems[5] = {INVALID_HANDLE, ...};
 
 public Plugin myinfo = 
 {
@@ -23,7 +24,7 @@ public void OnPluginStart()
 {
 	RegConsoleCmd("sm_fashion", fashion_Mode);
 
-	GameData hTF2 = new GameData("sm-tf2.games"); // sourcemod's tf2 gamdata
+	GameData hTF2 = new GameData("sm-tf2.games"); // sourcemod's tf2 gamedata
 
 	if (!hTF2)
 		SetFailState("This plugin is designed for a TF2 dedicated server only.");
@@ -56,13 +57,17 @@ public Action fashion_Mode(int client, int args)
 
 public Action Menu_fashion(int client)
 {
-	Handle menu = CreateMenu(FMenu, MenuAction_Select | MenuAction_End | MenuAction_DisplayItem);
+	Menu menu = CreateMenu(FMenu, MenuAction_Select | MenuAction_End | MenuAction_DisplayItem);
 	SetMenuTitle(menu, "Fashion Menu");
 
 	AddMenuItem(menu, "99999", "Remove Items");
 
 	if (TF2_GetPlayerClass(client) == TFClass_Heavy)
 	{	
+		AddMenuItem(menu, "70124", "Heavy - Heavy Heating");
+		AddMenuItem(menu, "70148", "Heavy - Mishas Maw");
+		AddMenuItem(menu, "70147", "Heavy - Mooshanka");
+		AddMenuItem(menu, "70146", "Heavy - Squatters Right");
 		AddMenuItem(menu, "70008", "Heavy - FrakenHeavy");
 		AddMenuItem(menu, "70009", "Heavy - Grand Duchess");
 		AddMenuItem(menu, "70010", "Heavy - Minsk Beast");
@@ -76,6 +81,10 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_DemoMan)
 	{	
+		AddMenuItem(menu, "70123", "Demoman - Plaid Lad");
+		AddMenuItem(menu, "70143", "Demoman - Hawaiian Hangover");
+		AddMenuItem(menu, "70144", "Demoman - Head Banger");
+		AddMenuItem(menu, "70145", "Demoman - Aerobatics Demonstrator");
 		AddMenuItem(menu, "70012", "Demoman - Highland Hound");	
 		AddMenuItem(menu, "70030", "Demoman - South of the Border");
 		AddMenuItem(menu, "70031", "Demoman - Cursed Captain");
@@ -88,6 +97,11 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Soldier)
 	{	
+		AddMenuItem(menu, "70138", "Soldier - Firearm Protector");
+		AddMenuItem(menu, "70153", "Soldier - Cranial Cowl");
+		AddMenuItem(menu, "70137", "Soldier - War Dog");
+		AddMenuItem(menu, "70136", "Soldier - Poopy Doe");
+		AddMenuItem(menu, "70135", "Soldier - War Blunder");
 		AddMenuItem(menu, "70013", "Soldier - Tin Soldier");		
 		AddMenuItem(menu, "70014", "Soldier - Federal Express");
 		AddMenuItem(menu, "70035", "Soldier - Colonial");
@@ -103,6 +117,12 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Scout)
 	{	
+		AddMenuItem(menu, "70154", "Scout - Special Delivery"); //Calling card bonus
+		AddMenuItem(menu, "70121", "Scout - Throttlehead");
+		AddMenuItem(menu, "70152", "Scout - Masked Fiend");
+		AddMenuItem(menu, "70151", "Scout - Computron 5000");		
+		AddMenuItem(menu, "70134", "Scout - Meal Dealer");		
+		AddMenuItem(menu, "70133", "Scout - Grounded Flyboy");
 		AddMenuItem(menu, "70015", "Scout - Wicked Good Ninja");
 		AddMenuItem(menu, "70016", "Scout - Deep Fried Dummy");	
 		AddMenuItem(menu, "70017", "Scout - Isolationist");
@@ -122,6 +142,11 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Pyro)
 	{
+		AddMenuItem(menu, "70142", "Pyro - Propaniac");
+		AddMenuItem(menu, "70122", "Pyro - Partizan");
+		AddMenuItem(menu, "70141", "Pyro - Balloonicorn");
+		AddMenuItem(menu, "70140", "Pyro - Fire Breather");
+		AddMenuItem(menu, "70139", "Pyro - Reel Fly Hat");
 		AddMenuItem(menu, "70023", "Pyro - Dr Grordborts Moonman");
 		AddMenuItem(menu, "70024", "Pyro - Sons of Arsonry");	
 		AddMenuItem(menu, "70025", "Pyro - Ronin Roaster");
@@ -142,6 +167,7 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Sniper)
 	{
+		AddMenuItem(menu, "70128", "Sniper - Crosshair Cardigan");
 		AddMenuItem(menu, "70039", "Sniper - Camouflage");
 		AddMenuItem(menu, "70040", "Sniper - Marsupial Man");
 		AddMenuItem(menu, "70041", "Sniper - Mangaroo");
@@ -157,6 +183,7 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Spy)
 	{
+		AddMenuItem(menu, "70129", "Spy - Frostbite Bonnet");
 		AddMenuItem(menu, "70046", "Spy - Gravelpit Emperor");	
 		AddMenuItem(menu, "70047", "Spy - Invisible Rogue");
 		AddMenuItem(menu, "70048", "Spy - Automatic Pilot");
@@ -173,6 +200,9 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Medic)
 	{		
+		AddMenuItem(menu, "70127", "Medic - Octoberfester");
+		AddMenuItem(menu, "70132", "Medic - Victorian Villainy");
+		AddMenuItem(menu, "70131", "Medic - Fizzy Pharmacist");
 		AddMenuItem(menu, "70053", "Medic - Dr Gogglestache");	
 		AddMenuItem(menu, "70054", "Medic - Private Eye");
 		AddMenuItem(menu, "70055", "Medic - Coldfront Commander");
@@ -188,6 +218,10 @@ public Action Menu_fashion(int client)
 	}
 	if (TF2_GetPlayerClass(client) == TFClass_Engineer)
 	{
+		AddMenuItem(menu, "70126", "Engineer - Underminers Overcoat");
+		AddMenuItem(menu, "70149", "Engineer - Pony Express");
+		AddMenuItem(menu, "70125", "Engineer - Arctic Mole");
+		AddMenuItem(menu, "70150", "Engineer - Wavefinder");
 		AddMenuItem(menu, "70062", "Engineer - Buzz Killer");
 		AddMenuItem(menu, "70063", "Engineer - Braniac");
 		AddMenuItem(menu, "70064", "Engineer - Texas");
@@ -200,6 +234,7 @@ public Action Menu_fashion(int client)
 		AddMenuItem(menu, "70108", "Engineer - Eingineer");
 	}
 
+	AddMenuItem(menu, "70130", "Colonel Kringle");
 	AddMenuItem(menu, "70120", "Covid Mask");	
 	AddMenuItem(menu, "70001", "Batman");
 	AddMenuItem(menu, "70002", "Saxton Outfit");
@@ -215,9 +250,11 @@ public Action Menu_fashion(int client)
 	AddMenuItem(menu, "70115", "Breadcrab and Loaf Loafers");	
 	
 	DisplayMenu(menu, client, MENU_TIME_FOREVER);
+	
+	return Plugin_Handled;
 }
 
-public int FMenu(Handle menu, MenuAction action, int param1, int param2)
+public int FMenu(Menu menu, MenuAction action, int param1, int param2)
 {
 	switch (action)
 	{
@@ -227,6 +264,7 @@ public int FMenu(Handle menu, MenuAction action, int param1, int param2)
 
 			char item[64];
 			GetMenuItem(menu, param2, item, sizeof(item));
+			DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);  //Added to keep menu open after selection
 
 			if (StrEqual(item, "99999"))
 			{
@@ -1040,6 +1078,13 @@ public int FMenu(Handle menu, MenuAction action, int param1, int param2)
 				CreateHat(param1, 568, 10, 6); //Frontier Flyboy
 				CreateHat(param1, 569, 10, 6); //Legend of Bugfoot
 
+				int Weapon = GetPlayerWeaponSlot(param1, TFWeaponSlot_Melee);
+				if(IsValidEntity(Weapon))
+				{
+					//TF2Attrib_SetByName(Weapon, "voice pitch scale", 1.45);
+					TF2Attrib_SetByName(Weapon, "SET BONUS: special dsp", 134.0);
+				}
+
 				SetClientCookie(param1, g_hFashionItems[0], "567");
 				SetClientCookie(param1, g_hFashionItems[1], "568");
 				SetClientCookie(param1, g_hFashionItems[2], "569");
@@ -1773,10 +1818,9 @@ public int FMenu(Handle menu, MenuAction action, int param1, int param2)
 				
 				SetClientCookie(param1, g_hFashionItems[0], "31176");
 				SetClientCookie(param1, g_hFashionItems[1], "31177");
-				SetClientCookie(param1, g_hFashionItems[1], "31163");				
-				SetClientCookie(param1, g_hFashionItems[2], "31078");
-				SetClientCookie(param1, g_hFashionItems[3], "-1");
-				SetClientCookie(param1, g_hFashionItems[4], "-1");					
+				SetClientCookie(param1, g_hFashionItems[2], "31163");				
+				SetClientCookie(param1, g_hFashionItems[3], "31078");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
 			}
 			else if (StrEqual(item, "70120")) //Particulate Protector
 			{
@@ -1788,19 +1832,450 @@ public int FMenu(Handle menu, MenuAction action, int param1, int param2)
 				SetClientCookie(param1, g_hFashionItems[2], "-1");
 				SetClientCookie(param1, g_hFashionItems[3], "-1");
 				SetClientCookie(param1, g_hFashionItems[4], "-1");					
+			}
+			else if (StrEqual(item, "70121")) //Throttlehead
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31282, 10, 6); //Throttlehead
+				CreateHat(param1, 31339, 10, 6); //Motley Sleeves
+				CreateHat(param1, 31281, 10, 6); //Ripped Rider	
+				CreateHat(param1, 30889, 10, 6); //Transparent Trousers
+				CreateHat(param1, 30561, 10, 6); //Bootenkhamuns		
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31282");
+				SetClientCookie(param1, g_hFashionItems[1], "31339");
+				SetClientCookie(param1, g_hFashionItems[2], "31281");				
+				SetClientCookie(param1, g_hFashionItems[3], "30889");
+				SetClientCookie(param1, g_hFashionItems[4], "30561");
+			}
+			else if (StrEqual(item, "70122")) //Partizan
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31329, 10, 6); //Partizan
+				CreateHat(param1, 31328, 10, 6); //Firebrand
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31329");
+				SetClientCookie(param1, g_hFashionItems[1], "31328");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70123")) //Plaid Lad
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31341, 10, 6); //Plaid Lad
+				CreateHat(param1, 31342, 10, 6); //Glasgow Bankroll
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31341");
+				SetClientCookie(param1, g_hFashionItems[1], "31342");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70124")) //Heavy Heating
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31345, 10, 6); //Ol Reliable
+				CreateHat(param1, 31346, 10, 6); //Heavy Heating
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31345");
+				SetClientCookie(param1, g_hFashionItems[1], "31346");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70125")) //Arctic Mole
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31333, 10, 6); //Arctic Mole
+				CreateHat(param1, 31332, 10, 6); //Cool Warm Sweater
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31333");
+				SetClientCookie(param1, g_hFashionItems[1], "31332");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70126")) //Underminers Overcoat
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31331, 10, 6); //Soft Hard Hat
+				CreateHat(param1, 31334, 10, 6); //Underminers Overcoat
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31331");
+				SetClientCookie(param1, g_hFashionItems[1], "31334");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70127")) //Octoberfester
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31344, 10, 6); //Octoberfester
+				CreateHat(param1, 31343, 10, 6); //Wooly Pulli
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31344");
+				SetClientCookie(param1, g_hFashionItems[1], "31343");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70128")) //Crosshair Cardigan
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31323, 10, 6); //Trappers Flap
+				CreateHat(param1, 31340, 10, 6); //Crosshair Cardigan
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31323");
+				SetClientCookie(param1, g_hFashionItems[1], "31340");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70129")) //Frostbite Bonnet
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31337, 10, 6); //Frostbite Bonnet
+				CreateHat(param1, 31338, 10, 6); //Infiltrators Insulation
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31337");
+				SetClientCookie(param1, g_hFashionItems[1], "31338");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70130")) //Colonel Kringle
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31325, 10, 6); //Colonel Kringle
+				CreateHat(param1, 31324, 10, 6); //Battle Bear
+				CreateHat(param1, 486, 10, 6); //Summer Shades
+				CreateHat(param1, 619, 10, 6); //Flair				
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31325");
+				SetClientCookie(param1, g_hFashionItems[1], "31324");
+				SetClientCookie(param1, g_hFashionItems[2], "486");				
+				SetClientCookie(param1, g_hFashionItems[3], "619");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70131")) //Fizzy Pharmacist
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31265, 10, 6); //Soda Cap
+				CreateHat(param1, 31266, 10, 6); //Fizzy Farmacist
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31265");
+				SetClientCookie(param1, g_hFashionItems[1], "31266");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70132")) //Victorian Villiany
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31300, 10, 6); //Victorian Villiany
+				CreateHat(param1, 31299, 10, 6); //Lavish Labwear
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31300");
+				SetClientCookie(param1, g_hFashionItems[1], "31299");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70133")) //Grounded Flyboy
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 30576, 10, 6); //Co Pilot
+				CreateHat(param1, 31138, 10, 6); //Grounded Flyboy
+				CreateHat(param1, 30754, 10, 6); //Hot Heels
+				
+				SetClientCookie(param1, g_hFashionItems[0], "30576");
+				SetClientCookie(param1, g_hFashionItems[1], "31138");
+				SetClientCookie(param1, g_hFashionItems[2], "30754");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70134")) //Meal Dealer
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31197, 10, 6); //Fried Batter
+				CreateHat(param1, 31196, 10, 6); //Meal Dealer
+				CreateHat(param1, 31195, 10, 6); //Fast Food
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31197");
+				SetClientCookie(param1, g_hFashionItems[1], "31196");
+				SetClientCookie(param1, g_hFashionItems[2], "31195");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70135")) //War Blunder
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 30984, 10, 6); //Sky High Fly Guy
+				CreateHat(param1, 31337, 10, 6); //War Blunder
+				
+				SetClientCookie(param1, g_hFashionItems[0], "30984");
+				SetClientCookie(param1, g_hFashionItems[1], "31337");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70136")) //Poopy Doe
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31228, 10, 6); //Poopy Doe
+				CreateHat(param1, 31276, 10, 6); //Chaser
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31228");
+				SetClientCookie(param1, g_hFashionItems[1], "31276");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70137")) //War Dog
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31230, 10, 6); //War Dog
+				CreateHat(param1, 31276, 10, 6); //Chaser
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31230");
+				SetClientCookie(param1, g_hFashionItems[1], "31276");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70138")) //Firearm Protector
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31310, 10, 6); //Firearm Protector
+				CreateHat(param1, 31311, 10, 6); //Safety Stripes
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31310");
+				SetClientCookie(param1, g_hFashionItems[1], "31311");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70139")) //Reel Fly Hat
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31186, 10, 6); //Reel Fly Hat
+				CreateHat(param1, 31188, 10, 6); //Water Waders
+				CreateHat(param1, 31187, 10, 6); //Hook Line and Cinder
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31186");
+				SetClientCookie(param1, g_hFashionItems[1], "31188");
+				SetClientCookie(param1, g_hFashionItems[2], "31187");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70140")) //Fire Breather
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31317, 10, 6); //Fire Breather
+				CreateHat(param1, 31263, 10, 6); //Kazan Karategi
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31317");
+				SetClientCookie(param1, g_hFashionItems[1], "31263");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70141")) //Balloonicorn
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 30799, 10, 6); //Combustible Cutie	
+				CreateHat(param1, 30928, 10, 6); //Balloonihoodie
+				CreateHat(param1, 745, 10, 6); //Infernal Orchestrina		
+				CreateHat(param1, 738, 10, 6); //Balloonicorn Pet
+				CreateHat(param1, 31318, 10, 6); //Magical Mount	
+				
+				SetClientCookie(param1, g_hFashionItems[0], "30799");
+				SetClientCookie(param1, g_hFashionItems[1], "30928");
+				SetClientCookie(param1, g_hFashionItems[2], "745");				
+				SetClientCookie(param1, g_hFashionItems[3], "738");
+				SetClientCookie(param1, g_hFashionItems[4], "31318");
+			}
+			else if (StrEqual(item, "70142")) //Propaniac
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31296, 10, 6); //Propaniac
+				CreateHat(param1, 31328, 10, 6); //Firebrand
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31296");
+				SetClientCookie(param1, g_hFashionItems[1], "31328");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70143")) //Hawaiian Hangover
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 30430, 10, 6); //Seeing Double
+				CreateHat(param1, 31274, 10, 6); //Hawaiian Hangover
+				CreateHat(param1, 31275, 10, 6); //Barefoot Brawler				
+				
+				SetClientCookie(param1, g_hFashionItems[0], "30430");
+				SetClientCookie(param1, g_hFashionItems[1], "31274");
+				SetClientCookie(param1, g_hFashionItems[2], "31275");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70144")) //Head Banger
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31273, 10, 6); //Headbanger
+				CreateHat(param1, 31037, 10, 6); //Dynamite Abs
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31273");
+				SetClientCookie(param1, g_hFashionItems[1], "31037");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70145")) //Aerobatics Demonstrator
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 30024, 10, 6); //Cyborg Stunt Helmet
+				CreateHat(param1, 30793, 10, 6); //Aerobatics Demonstrator
+				
+				SetClientCookie(param1, g_hFashionItems[0], "30024");
+				SetClientCookie(param1, g_hFashionItems[1], "30793");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70146")) //Squatters Right
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31267, 10, 6); //Squatters Right
+				CreateHat(param1, 31268, 10, 6); //Combat Casual
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31267");
+				SetClientCookie(param1, g_hFashionItems[1], "31268");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70147")) //Mooshanka
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31255, 10, 6); //Squatters Right
+				CreateHat(param1, 31268, 10, 6); //Combat Casual
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31255");
+				SetClientCookie(param1, g_hFashionItems[1], "31268");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70148")) //Mishas Maw
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31315, 10, 6); //Mishas Maw
+				CreateHat(param1, 31268, 10, 6); //Combat Casual
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31315");
+				SetClientCookie(param1, g_hFashionItems[1], "31268");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70149")) //Pony Express
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31297, 10, 6); //Dustbowl Devil
+				CreateHat(param1, 31264, 10, 6); //Western Wraps
+				CreateHat(param1, 31319, 10, 6); //Pony Express
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31297");
+				SetClientCookie(param1, g_hFashionItems[1], "31264");
+				SetClientCookie(param1, g_hFashionItems[2], "31319");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70150")) //Wavefinder
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31148, 10, 6); //Wavefinder
+				CreateHat(param1, 30402, 10, 6); //Tools of the Trade
+				CreateHat(param1, 30749, 10, 6); //Winter Backup
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31148");
+				SetClientCookie(param1, g_hFashionItems[1], "30402");
+				SetClientCookie(param1, g_hFashionItems[2], "30749");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70151")) //Computron 5000
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31232, 10, 6); //Computron 5000
+				CreateHat(param1, 30888, 10, 6); //Jungle Jersey			
+				CreateHat(param1, 30890, 10, 6); //Forest Footwear
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31232");
+				SetClientCookie(param1, g_hFashionItems[1], "30888");
+				SetClientCookie(param1, g_hFashionItems[2], "30890");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70152")) //Masked Fiend
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31303, 10, 6); //Masked Fiend
+				CreateHat(param1, 31302, 10, 6); //Imps Imprint	
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31303");
+				SetClientCookie(param1, g_hFashionItems[1], "31302");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70153")) //Cranial Cowl
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 31312, 10, 6); //Cranial Cowl
+				CreateHat(param1, 31276, 10, 6); //Chaser
+				
+				SetClientCookie(param1, g_hFashionItems[0], "31312");
+				SetClientCookie(param1, g_hFashionItems[1], "31276");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+			}
+			else if (StrEqual(item, "70154")) //Special Delivery
+			{
+				TF2_RemoveCosmetics(param1);
+				CreateHat(param1, 219, 10, 6); //Milkman
+								
+				int Weapon = GetPlayerWeaponSlot(param1, TFWeaponSlot_Melee);
+				if(IsValidEntity(Weapon))
+				{
+					TF2Attrib_SetByName(Weapon, "SET BONUS: calling card on kill", 1.0);
+				}				
+				
+				SetClientCookie(param1, g_hFashionItems[0], "219");
+				SetClientCookie(param1, g_hFashionItems[1], "-1");
+				SetClientCookie(param1, g_hFashionItems[2], "-1");				
+				SetClientCookie(param1, g_hFashionItems[3], "-1");
+				SetClientCookie(param1, g_hFashionItems[4], "-1");
+				
 			}			
 		}
-	case MenuAction_End:
-		{
-			//param1 is MenuEnd reason, if canceled param2 is MenuCancel reason
-			CloseHandle(menu);
-		}
+//	case MenuAction_End:
+	//param1 is MenuEnd reason, if canceled param2 is MenuCancel reason
+	//Note: This section removed to keep menu open after selection
+//		{
+//			CloseHandle(menu);
+//		}
 	}
-	return;
+	
+	return 0;
 }
 
 
-public Action EventChangeClass(Handle event, const char[] name, bool dontBroadcast)
+public void EventChangeClass(Handle event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if(!IsFakeClient(client) && IsClientInGame(client))
@@ -1813,7 +2288,7 @@ public Action EventChangeClass(Handle event, const char[] name, bool dontBroadca
 	}
 }
 
-public Action EventInventoryApplication(Handle event, const char[] name, bool dontBroadcast)
+public void EventInventoryApplication(Handle event, const char[] name, bool dontBroadcast)
 {
 	char strItemsindex[5][65];
 	int strItem[5];
@@ -1860,7 +2335,7 @@ public Action EventInventoryApplication(Handle event, const char[] name, bool do
 		if (strItem[4] > 0)
 		{
 			CreateHat(client, strItem[4], 10, 6);
-		}	
+		}
 	}
 }
 
@@ -1889,6 +2364,9 @@ bool CreateHat(int client, int itemindex, int level, int quality)
 	SetEntProp(hat, Prop_Send, "m_iEntityLevel", level);
 	SetEntProp(hat, Prop_Send, "m_iEntityQuality", quality);
 	SetEntProp(hat, Prop_Send, "m_bValidatedAttachedEntity", 1);
+	
+	SetEntProp(hat, Prop_Send, "m_iAccountID", GetSteamAccountID(client));
+	SetEntPropEnt(hat, Prop_Send, "m_hOwnerEntity", client);	
 	
 	DispatchSpawn(hat);
 	SDKCall(g_hEquipWearable, client, hat);

@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION		"1.8"
+/*
+*	Mini Gun Spawner
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (11-Dec-2022)
+	- Various changes to tidy up code.
 
 1.8 (10-May-2020)
 	- Extra checks to prevent "IsAllowedGameMode" throwing errors.
@@ -164,7 +187,7 @@ void DeleteEntity(int index)
 			}
 			SetEntPropEnt(entity, Prop_Send, "m_owner", -1);
 		}
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 	}
 }
 
@@ -178,12 +201,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -272,7 +295,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -303,29 +326,30 @@ void UnhookEvents()
 	UnhookEvent("player_spawn",			Event_PlayerSpawn,	EventHookMode_PostNoCopy);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadGuns();
+	return Plugin_Continue;
 }
 
 void LoadGuns()
@@ -433,7 +457,7 @@ void SetupMG(int client, float vAng[3] = NULL_VECTOR, float vPos[3] = NULL_VECTO
 	}
 }
 
-public bool TraceFilter(int entity, int contentsMask, any client)
+bool TraceFilter(int entity, int contentsMask, any client)
 {
 	if( entity == client )
 		return false;
@@ -488,7 +512,7 @@ void SpawnMG(float vAng[3], float vPos[3], int type)
 // ====================================================================================================
 //					sm_mg
 // ====================================================================================================
-public Action CmdMachineGun(int client, int args)
+Action CmdMachineGun(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -518,7 +542,7 @@ public Action CmdMachineGun(int client, int args)
 // ====================================================================================================
 //					sm_mgsave
 // ====================================================================================================
-public Action CmdMachineGunSave(int client, int args)
+Action CmdMachineGunSave(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -604,7 +628,7 @@ public Action CmdMachineGunSave(int client, int args)
 // ====================================================================================================
 //					sm_mglist
 // ====================================================================================================
-public Action CmdMachineGunList(int client, int args)
+Action CmdMachineGunList(int client, int args)
 {
 	float vPos[3];
 	int i, ent, count;
@@ -634,7 +658,7 @@ public Action CmdMachineGunList(int client, int args)
 // ====================================================================================================
 //					sm_mgdel
 // ====================================================================================================
-public Action CmdMachineGunDelete(int client, int args)
+Action CmdMachineGunDelete(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -769,7 +793,7 @@ public Action CmdMachineGunDelete(int client, int args)
 // ====================================================================================================
 //					sm_mgclear
 // ====================================================================================================
-public Action CmdMachineGunClear(int client, int args)
+Action CmdMachineGunClear(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -785,7 +809,7 @@ public Action CmdMachineGunClear(int client, int args)
 // ====================================================================================================
 //					sm_mgwipe
 // ====================================================================================================
-public Action CmdMachineGunWipe(int client, int args)
+Action CmdMachineGunWipe(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{

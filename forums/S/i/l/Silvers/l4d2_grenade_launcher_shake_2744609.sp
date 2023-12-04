@@ -1,6 +1,6 @@
 /*
 *	Grenade Launcher Screen Shake
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1"
+#define PLUGIN_VERSION 		"1.2"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.2 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.1 (30-Jun-2021)
 	- Fixed "Invalid edict" error. Thanks to "Iizuka07" for reporting.
@@ -142,12 +145,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -235,7 +238,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -254,7 +257,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 // To detect Grenade Launcher Projectile detonation (whilst supporting Flare Gun plugin).
 // There is no event or easy method to detect detonation. This uses sound event and OnEntityDestroyed to match.
-public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags)
+Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags)
 {
 	if(
 		(strcmp(sample, "weapons/hegrenade/explode1.wav") == 0 ) ||
@@ -268,6 +271,8 @@ public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_M
 	{
 		g_fExplode = GetGameTime() + 0.1;
 	}
+
+	return Plugin_Continue;
 }
 
 public void OnEntityDestroyed(int entity)

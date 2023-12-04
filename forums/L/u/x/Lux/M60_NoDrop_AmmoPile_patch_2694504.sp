@@ -25,7 +25,7 @@
 #pragma newdecls required
 
 #define GAMEDATA "M60_GrenadeLauncher_patches"
-#define PLUGIN_VERSION	"1.0.7"
+#define PLUGIN_VERSION	"1.0.9"
 
 
 Address M60_Drop = Address_Null;
@@ -66,6 +66,8 @@ public void OnPluginStart()
 	Patch_M60_Ammo(hGamedata);
 	
 	delete hGamedata;
+	
+	CreateTimer(1.0, UpdateClips, INVALID_HANDLE, TIMER_REPEAT);
 }
 
 public void OnClientPutInServer(int client)
@@ -115,6 +117,28 @@ public Action OnM60AllowPreserveClip(int client, int weapon)
 		SetEntProp(weapon, Prop_Data, "m_iClip1", --iClip);
 }
 
+public Action UpdateClips(Handle timer)
+{
+	for(int i = MaxClients+1; i <= 2048; ++i)
+	{
+		if(g_bM60AddedClip[i])
+			continue;
+		
+		if(!IsValidEntRef(g_iM60Ref[i]))
+		{
+			g_bM60AddedClip[i] = false;
+			continue;
+		}
+		
+		int iClip = GetEntProp(i, Prop_Data, "m_iClip1");
+		if(iClip <= 0 && GetEntPropEnt(i, Prop_Send, "m_hOwnerEntity") == -1)
+		{
+			g_bM60AddedClip[i] = true;
+			SetEntProp(i, Prop_Data, "m_iClip1", 1);
+		}
+	}
+	return Plugin_Continue;
+}
 
 void Patch_M60_Drop(Handle &hGamedata)
 {

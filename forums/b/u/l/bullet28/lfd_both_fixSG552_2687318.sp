@@ -4,6 +4,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
+#include <sourcescramble>
 
 public Plugin myinfo =
 {
@@ -14,17 +15,15 @@ public Plugin myinfo =
 	url = ""
 }
 
-int zoomOffset;
-Address hZoomAddress;
-int initZoomAddressValue;
-Handle g_hNative_Scope;
+Handle hCycleZoom;
+MemoryPatch hZoomPatch;
 
 bool bPatched;
 bool bLastFrameWasInZoom[MAXPLAYERS+1];
 bool bUnZooming[MAXPLAYERS+1];
 
 public void OnPluginStart() {
-	Handle hGameData = LoadGameConfigFile("lfd_both_fixSG552");
+	GameData hGameData = LoadGameConfigFile("lfd_both_fixSG552");
 	
 	StartPrepSDKCall(SDKCall_Entity);
 	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Virtual, "CTerrorGun::CycleZoom") == false) {
@@ -32,27 +31,17 @@ public void OnPluginStart() {
 		return;
 	}
 	
-	g_hNative_Scope = EndPrepSDKCall();
-	if (g_hNative_Scope == null) {
+	hCycleZoom = EndPrepSDKCall();
+	if (hCycleZoom == null) {
 		SetFailState("Failed to create SDKCall: \"CTerrorGun::CycleZoom\"");
 		return;
 	}
 
-	zoomOffset = GameConfGetOffset(hGameData, "zoom_offset");
-	if (zoomOffset == -1) {
-		SetFailState("Failed to find offset: \"zoom_offset\"");
-		return;
-	}
-
-	hZoomAddress = GameConfGetAddress(hGameData, "CTerrorGun::ShouldUnzoom");
-	if (!hZoomAddress) {
-		SetFailState("Failed to find signature: \"CTerrorGun::ShouldUnzoom\"");
-		return;
-	}
+	hZoomPatch = MemoryPatch.CreateFromConf(hGameData, "zoom");
+	if (!hZoomPatch) LogMessage("Failed to create patch for \"zoom\". Skiping...");
+	else if (!hZoomPatch.Validate()) LogMessage("Failed to verify patch for \"zoom\". Skiping...");
 
 	delete hGameData;
-
-	initZoomAddressValue = LoadFromAddress(hZoomAddress + view_as<Address>(zoomOffset), NumberType_Int8);
 
 	HookEvent("weapon_fire", eventWeaponFire);
 }
@@ -76,7 +65,7 @@ public Action eventWeaponFire(Event event, const char[] name, bool dontBroadcast
 	if (clip != 1)
 		return;
 
-	SDKCall(g_hNative_Scope, weapon);
+	SDKCall(hCycleZoom, weapon);
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float fAngles[3], int &weapon) {
@@ -122,23 +111,17 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 }
 
 void UnZoom(int client, int activeWeapon, bool bFalling) {
-	/* For compatibility with https://forums.alliedmods.net/showthread.php?t=317662 */
-	ConVar cvarPatchZoom = FindConVar("sm_patch_zoom");
-	if (cvarPatchZoom != null && cvarPatchZoom.IntValue > 0) {
-		return;
-	}
-
 	bUnZooming[client] = true;
 
 	if (!bPatched) {
-		StoreToAddress(hZoomAddress + view_as<Address>(zoomOffset), 0x00, NumberType_Int8);
+		hZoomPatch.Enable();
 		RequestFrame(FrameUnPatchZoom);
 		bPatched = true;
 	}
 
 	if (zoomToggleAllowed(client)) {
 		if (!bFalling) bUnZooming[client] = false;
-		SDKCall(g_hNative_Scope, activeWeapon);
+		SDKCall(hCycleZoom, activeWeapon);
 	}
 }
 
@@ -148,7 +131,7 @@ public void FrameUnPatchZoom() {
 			
 			if (zoomToggleAllowed(i)) {
 				int m_hActiveWeapon = GetEntPropEnt(i, Prop_Send, "m_hActiveWeapon");
-				SDKCall(g_hNative_Scope, m_hActiveWeapon);
+				SDKCall(hCycleZoom, m_hActiveWeapon);
 				bUnZooming[i] = false;
 			
 			} else {
@@ -160,7 +143,7 @@ public void FrameUnPatchZoom() {
 		bUnZooming[i] = false;
 	}
 
-	StoreToAddress(hZoomAddress + view_as<Address>(zoomOffset), initZoomAddressValue, NumberType_Int8);
+	hZoomPatch.Disable();
 	bPatched = false;
 }
 

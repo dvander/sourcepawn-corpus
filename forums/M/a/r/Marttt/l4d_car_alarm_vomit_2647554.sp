@@ -62,9 +62,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_PROP_CAR_ALARM      "prop_car_alarm"
-#define CLASSNAME_ENV_INSTRUCTOR_HINT "env_instructor_hint"
-
 #define TEAM_SPECTATOR                1
 #define TEAM_SURVIVOR                 2
 #define TEAM_INFECTED                 3
@@ -83,35 +80,34 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Bots;
-static ConVar g_hCvar_Flags;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_Msg;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Bots;
+ConVar g_hCvar_Flags;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_Msg;
 
 // ====================================================================================================
 // bool - Plugin Cvar Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bLeft4DHooks;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCarAlarmStarted;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Bots;
-static bool   g_bCvar_Flags;
+bool g_bL4D2;
+bool g_bLeft4DHooks;
+bool g_bEventsHooked;
+bool g_bCarAlarmStarted;
+bool g_bCvar_Enabled;
+bool g_bCvar_Bots;
+bool g_bCvar_Flags;
 
 // ====================================================================================================
 // int - Plugin Cvar Variables
 // ====================================================================================================
-static int    g_iCvar_Flags;
-static int    g_iCvar_Team;
-static int    g_iCvar_Msg;
+int g_iCvar_Flags;
+int g_iCvar_Team;
+int g_iCvar_Msg;
 
 // ====================================================================================================
 // string - Plugin Cvar Variables
 // ====================================================================================================
-static char   g_sCvar_Flags[27];
+char g_sCvar_Flags[27];
 
 // ====================================================================================================
 // left4dhooks - Plugin Dependencies
@@ -155,7 +151,6 @@ public void OnPluginStart()
 {
     LoadPluginTranslations();
 
-    // Register Plugin ConVars
     CreateConVar("l4d_car_alarm_vomit_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled = CreateConVar("l4d_car_alarm_vomit_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Bots    = CreateConVar("l4d_car_alarm_vomit_bots", "1", "Enables/Disables the plugin behaviour on Survivor bots.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -173,6 +168,7 @@ public void OnPluginStart()
     HookConVarChange(g_hCvar_Team, Event_ConVarChanged);
     HookConVarChange(g_hCvar_Msg, Event_ConVarChanged);
 
+    // Load plugin configs from .cfg
     AutoExecConfig(true, CONFIG_FILENAME);
 
     // Admin Commands
@@ -181,7 +177,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -197,20 +193,18 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
@@ -229,9 +223,9 @@ void GetCvars()
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -241,7 +235,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -255,14 +249,14 @@ public void HookEvents(bool hook)
 // ====================================================================================================
 // Hook Events (L4D2)
 // ====================================================================================================
-public void Event_TriggeredCarAlarm(Event event, const char[] name, bool dontBroadcast)
+void Event_TriggeredCarAlarm(Event event, const char[] name, bool dontBroadcast)
 {
     if (!g_bLeft4DHooks)
         return;
 
-    int attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+    int attacker = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(attacker))
+    if (attacker == 0)
         return;
 
     if (IsFakeClient(attacker) && !g_bCvar_Bots)
@@ -304,7 +298,7 @@ public void Event_TriggeredCarAlarm(Event event, const char[] name, bool dontBro
 // ====================================================================================================
 // Hook Events (L4D1)
 // ====================================================================================================
-public void LateLoad()
+void LateLoad()
 {
     if (g_bL4D2)
         return;
@@ -312,7 +306,7 @@ public void LateLoad()
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_PROP_CAR_ALARM)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "prop_car_alarm")) != INVALID_ENT_REFERENCE)
     {
         HookSingleEntityOutput(entity, "OnCarAlarmStart", OnCarAlarmStart, true);
         HookSingleEntityOutput(entity, "OnTakeDamage", OnTakeDamage);
@@ -324,21 +318,15 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
+    if (entity < 0)
+        return;
+
     if (g_bL4D2)
         return;
 
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 'p')
-        return;
-
-    if (StrEqual(classname, CLASSNAME_PROP_CAR_ALARM))
+    if (StrEqual(classname, "prop_car_alarm"))
     {
-        HookSingleEntityOutput(entity, "OnCarAlarmStart", OnCarAlarmStart);
+        HookSingleEntityOutput(entity, "OnCarAlarmStart", OnCarAlarmStart, true);
         HookSingleEntityOutput(entity, "OnTakeDamage", OnTakeDamage);
         SDKHook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
     }
@@ -346,21 +334,21 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnCarAlarmStart(const char[] output, int caller, int activator, float delay)
+void OnCarAlarmStart(const char[] output, int caller, int activator, float delay)
 {
     g_bCarAlarmStarted = true;
 }
 
 /****************************************************************************************************/
 
-public void OnTakeDamage(const char[] output, int caller, int activator, float delay)
+void OnTakeDamage(const char[] output, int caller, int activator, float delay)
 {
     CheckAlarm(caller, activator);
 }
 
 /****************************************************************************************************/
 
-public void OnStartTouchPost(int entity, int other)
+void OnStartTouchPost(int entity, int other)
 {
     CheckAlarm(entity, other);
 }
@@ -448,9 +436,9 @@ void PrintInstructorHintText(int client, char[] message, any ...)
     GetEntPropString(client, Prop_Data, "m_iName", clienttargetname, sizeof(clienttargetname));
 
     char hintTarget[28];
-    Format(hintTarget, sizeof(hintTarget), "l4d_car_alarm_vomit_hint_%d", client);
+    Format(hintTarget, sizeof(hintTarget), "l4d_car_alarm_vomit_hint_%i", client);
 
-    int entity = CreateEntityByName(CLASSNAME_ENV_INSTRUCTOR_HINT);
+    int entity = CreateEntityByName("env_instructor_hint");
     DispatchKeyValue(client, "targetname", hintTarget);
     DispatchKeyValue(entity, "hint_target", hintTarget);
     DispatchKeyValue(entity, "targetname", "l4d_car_alarm_vomit");
@@ -465,13 +453,13 @@ void PrintInstructorHintText(int client, char[] message, any ...)
     AcceptEntityInput(entity, "AddOutput");
     AcceptEntityInput(entity, "FireUser1");
 
-    DispatchKeyValue(client, "targetname", clienttargetname); // rollback the client targetname
+    DispatchKeyValue(client, "targetname", clienttargetname); // Rollback the client targetname
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -481,11 +469,11 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_car_alarm_vomit_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_car_alarm_vomit_enabled : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d_car_alarm_vomit_bots : %b (%s)", g_bCvar_Bots, g_bCvar_Bots ? "true" : "false");
-    PrintToConsole(client, "l4d_car_alarm_vomit_flags : %s (%d)", g_sCvar_Flags, g_iCvar_Flags);
+    PrintToConsole(client, "l4d_car_alarm_vomit_flags : %s (%i)", g_sCvar_Flags, g_iCvar_Flags);
     PrintToConsole(client, "l4d_car_alarm_vomit_displayto : %i", g_iCvar_Team);
     PrintToConsole(client, "l4d_car_alarm_vomit_msgdisplay : %i", g_iCvar_Msg);
     PrintToConsole(client, "");
-    PrintToConsole(client, "----------------------------------------------------------------------");
+    PrintToConsole(client, "---------------------------- Other Infos  ----------------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "left4dhooks : %s", g_bLeft4DHooks ? "true" : "false");
     PrintToConsole(client, "");
@@ -525,19 +513,6 @@ bool IsValidClient(int client)
 /****************************************************************************************************/
 
 /**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-/****************************************************************************************************/
-
-/**
  * Returns the team flag from a team.
  *
  * @param team          Team index.
@@ -572,7 +547,7 @@ int GetTeamFlag(int team)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);
@@ -600,7 +575,7 @@ public void CPrintToChat(int client, char[] message, any ...)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintHintText(int client, char[] message, any ...)
+void CPrintHintText(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

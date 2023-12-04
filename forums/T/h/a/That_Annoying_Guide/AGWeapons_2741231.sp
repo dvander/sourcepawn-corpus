@@ -540,7 +540,7 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 					}
 				}
 				
-				int rnd3 = GetRandomUInt(1,9);
+				int rnd3 = GetRandomUInt(1,8);
 				TF2_RemoveWeaponSlot(client, 2);
 				
 				switch (rnd3)
@@ -591,98 +591,105 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 						{
 						case 1:
 							{
-								CreateWeapon(client, "tf_weapon_bat_fish", 572, 6);
+								int rnd25 = GetRandomUInt(1,2);
+								switch (rnd25)
+								{
+								case 1:
+									{
+										CreateWeapon(client, "tf_weapon_bat_fish", 572, 6);
+									}
+								case 2:
+									{
+										int rnd7 = GetRandomUInt(1,3);
+										switch (rnd7)
+										{
+										case 1:
+											{
+												CreateWeapon(client, "tf_weapon_bat_fish", 221, 6);
+											}
+										case 2:
+											{
+												CreateWeapon(client, "tf_weapon_bat_fish", 999, 6);
+											}
+										case 3:
+											{
+												CreateWeapon(client, "tf_weapon_bat_fish", 221, 16);
+											}
+										}
+									}
+								}
 							}
 						case 2:
 							{
-								int rnd7 = GetRandomUInt(1,3);
+								int rnd7 = GetRandomUInt(1,13);
 								switch (rnd7)
 								{
 								case 1:
 									{
-										CreateWeapon(client, "tf_weapon_bat_fish", 221, 6);
+										CreateWeapon(client, "tf_weapon_bat", 264, 6);
 									}
 								case 2:
 									{
-										CreateWeapon(client, "tf_weapon_bat_fish", 999, 6);
+										CreateWeapon(client, "tf_weapon_bat", 423, 11);
 									}
 								case 3:
 									{
-										CreateWeapon(client, "tf_weapon_bat_fish", 221, 16);
+										CreateWeapon(client, "tf_weapon_bat", 474, 6);
 									}
-								}
-							}
-						}
-					}
-				case 9:
-					{
-						int rnd7 = GetRandomUInt(1,13);
-						switch (rnd7)
-						{
-						case 1:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 264, 6);
-							}
-						case 2:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 423, 11);
-							}
-						case 3:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 474, 6);
-							}
-						case 4:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 880, 6);
-							}
-						case 5:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 939, 6);
-							}
-						case 6:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 954, 11);
-							}
-						case 7:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 1013, 6);
-							}
-						case 8:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 1071, 11);
-							}
-						case 9:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 1123, 6);
-							}
-						case 10:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 1127, 6);
-							}
-						case 11:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 30667, 15);
-							}
-						case 12:
-							{
-								CreateWeapon(client, "tf_weapon_bat", 30758, 6);
-							}
-						case 13:
-							{
-								int rnd9 = GetRandomUInt(1,3);
-								switch (rnd9)
-								{
-								case 1:
+								case 4:
 									{
-										CreateWeapon(client, "tf_weapon_bat", 190, 11);
+										CreateWeapon(client, "tf_weapon_bat", 880, 6);
 									}
-								case 2:
+								case 5:
 									{
-										CreateWeapon(client, "tf_weapon_bat", 660, 6);
+										CreateWeapon(client, "tf_weapon_bat", 939, 6);
 									}
-								case 3:
+								case 6:
 									{
-										CreateWeapon(client, "tf_weapon_bat", 0, 5);
+										CreateWeapon(client, "tf_weapon_bat", 954, 11);
+									}
+								case 7:
+									{
+										CreateWeapon(client, "tf_weapon_bat", 1013, 6);
+									}
+								case 8:
+									{
+										CreateWeapon(client, "tf_weapon_bat", 1071, 11);
+									}
+								case 9:
+									{
+										CreateWeapon(client, "tf_weapon_bat", 1123, 6);
+									}
+								case 10:
+									{
+										CreateWeapon(client, "tf_weapon_bat", 1127, 6);
+									}
+								case 11:
+									{
+										CreateWeapon(client, "tf_weapon_bat", 30667, 15);
+									}
+								case 12:
+									{
+										CreateWeapon(client, "tf_weapon_bat", 30758, 6);
+									}
+								case 13:
+									{
+										int rnd9 = GetRandomUInt(1,3);
+										switch (rnd9)
+										{
+										case 1:
+											{
+												CreateWeapon(client, "tf_weapon_bat", 190, 11);
+											}
+										case 2:
+											{
+												CreateWeapon(client, "tf_weapon_bat", 660, 6);
+											}
+										case 3:
+											{
+												CreateWeapon(client, "tf_weapon_bat", 0, 5);
+											}
+										}
 									}
 								}
 							}
@@ -1127,7 +1134,7 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 			{
 				if (!g_bMedieval)
 				{
-					int rnd = GetRandomUInt(1,7);
+					int rnd = GetRandomUInt(1,6);
 					TF2_RemoveWeaponSlot(client, 0);
 
 					switch (rnd)
@@ -1309,10 +1316,6 @@ public Action Timer_GiveWeapons(Handle timer, any data)
 									}
 								}
 							}
-						}
-					case 7:
-						{
-							CreateWeapon(client, "tf_weapon_rocketlauncher", 730, 6);
 						}
 					}
 					
@@ -4244,7 +4247,7 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 	if (quality == 16)
 	{
 		quality = 14;
-		int rndp = GetRandomInt(1,106);
+		int rndp = GetRandomInt(1,119);
 		switch(rndp)
 		{
 		case 1:
@@ -4670,6 +4673,58 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 		case 106:
 			{
 				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(275));
+			}
+		case 107:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(287));
+			}
+		case 108:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(291));
+			}
+		case 109:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(294));
+			}
+		case 110:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(285));
+			}
+		case 111:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(289));
+			}
+		case 112:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(295));
+			}
+		case 113:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(297));
+			}
+		case 114:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(284));
+			}
+		case 115:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(286));
+			}
+		case 116:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(290));
+			}
+		case 117:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(292));
+			}
+		case 118:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(293));
+			}
+		case 119:
+			{
+				TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(296));
 			}
 		}
 		if (GetRandomUInt(1,8) < 7)

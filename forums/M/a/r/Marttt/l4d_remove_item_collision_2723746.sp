@@ -2,6 +2,10 @@
 // ====================================================================================================
 Change Log:
 
+1.0.6 (17-September-2021)
+    - Added support to gnome and cola (L4D2 only)
+    - Fixed a L4D2 only bug where gascans explode on melee hit. (thanks "Forgetest" for reporting)
+
 1.0.5 (11-April-2021)
     - Added cvar to enable motion on shove.
 
@@ -30,8 +34,8 @@ Change Log:
 // ====================================================================================================
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Remove Weapons/Carryables Collision"
 #define PLUGIN_AUTHOR                 "Mart"
-#define PLUGIN_DESCRIPTION            "Changes the collision from all weapons or carryables to collide only with the world and static stuff"
-#define PLUGIN_VERSION                "1.0.5"
+#define PLUGIN_DESCRIPTION            "Changes the collision from all weapons or carryables to collide only with the world and stuff"
+#define PLUGIN_VERSION                "1.0.6"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328327"
 
 // ====================================================================================================
@@ -73,36 +77,46 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define MODEL_GASCAN                       "models/props_junk/gascan001a.mdl"
-#define MODEL_PROPANECANISTER              "models/props_junk/propanecanister001a.mdl"
-#define MODEL_OXYGENTANK                   "models/props_equipment/oxygentank01.mdl"
-#define MODEL_FIREWORKS_CRATE              "models/props_junk/explosive_box001.mdl"
+#define MODEL_GASCAN                  "models/props_junk/gascan001a.mdl"
+#define MODEL_PROPANECANISTER         "models/props_junk/propanecanister001a.mdl"
+#define MODEL_OXYGENTANK              "models/props_equipment/oxygentank01.mdl"
+#define MODEL_FIREWORKS_CRATE         "models/props_junk/explosive_box001.mdl"
+#define MODEL_GNOME                   "models/props_junk/gnome.mdl"
+#define MODEL_COLA                    "models/w_models/weapons/w_cola.mdl"
 
 #define COLLISION_GROUP_DEBRIS_TRIGGER     2
+
+#define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Motion;
-static ConVar g_hCvar_ShoveMotion;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Motion;
+ConVar g_hCvar_ShoveMotion;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Motion;
-static bool   g_bCvar_ShoveMotion;
+bool g_bL4D2;
+bool g_bCvar_Enabled;
+bool g_bCvar_Motion;
+bool g_bCvar_ShoveMotion;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_Gascan = -1;
-static int    g_iModel_PropaneCanister = -1;
-static int    g_iModel_OxygenTank = -1;
-static int    g_iModel_FireworksCrate = -1;
+int g_iModel_Gascan = -1;
+int g_iModel_PropaneCanister = -1;
+int g_iModel_OxygenTank = -1;
+int g_iModel_FireworksCrate = -1;
+int g_iModel_Gnome = -1;
+int g_iModel_Cola = -1;
+
+// ====================================================================================================
+// entity - Plugin Variables
+// ====================================================================================================
+bool ge_bIsGascan[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -151,7 +165,11 @@ public void OnMapStart()
     g_iModel_PropaneCanister = PrecacheModel(MODEL_PROPANECANISTER, true);
     g_iModel_OxygenTank = PrecacheModel(MODEL_OXYGENTANK, true);
     if (g_bL4D2)
+    {
         g_iModel_FireworksCrate = PrecacheModel(MODEL_FIREWORKS_CRATE, true);
+        g_iModel_Gnome = PrecacheModel(MODEL_GNOME, true);
+        g_iModel_Cola = PrecacheModel(MODEL_COLA, true);
+    }
 }
 
 /****************************************************************************************************/
@@ -160,21 +178,19 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_Motion = g_hCvar_Motion.BoolValue;
@@ -183,11 +199,8 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
-    if (!g_bCvar_Enabled)
-        return;
-
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
@@ -214,10 +227,7 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     switch (classname[0])
@@ -239,7 +249,17 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnNextFrameWeapons(int entityRef)
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
+        return;
+
+    ge_bIsGascan[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void OnNextFrameWeapons(int entityRef)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -249,12 +269,17 @@ public void OnNextFrameWeapons(int entityRef)
     if (entity == INVALID_ENT_REFERENCE)
         return;
 
+    int modelIndex = GetEntProp(entity, Prop_Send, "m_nModelIndex");
+
+    if (modelIndex == g_iModel_Gascan)
+        ge_bIsGascan[entity] = true;
+
     RemoveColision(entity);
 }
 
 /****************************************************************************************************/
 
-public void OnNextFramePhysics(int entityRef)
+void OnNextFramePhysics(int entityRef)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -268,6 +293,7 @@ public void OnNextFramePhysics(int entityRef)
 
     if (modelIndex == g_iModel_Gascan)
     {
+        ge_bIsGascan[entity] = true;
         RemoveColision(entity);
         return;
     }
@@ -292,11 +318,23 @@ public void OnNextFramePhysics(int entityRef)
         RemoveColision(entity);
         return;
     }
+
+    if (modelIndex == g_iModel_Gnome)
+    {
+        RemoveColision(entity);
+        return;
+    }
+
+    if (modelIndex == g_iModel_Cola)
+    {
+        RemoveColision(entity);
+        return;
+    }
 }
 
 /****************************************************************************************************/
 
-public void RemoveColision(int entity)
+void RemoveColision(int entity)
 {
     SetEntProp(entity, Prop_Send, "m_CollisionGroup", COLLISION_GROUP_DEBRIS_TRIGGER);
 
@@ -305,7 +343,7 @@ public void RemoveColision(int entity)
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
@@ -315,11 +353,24 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
         if (g_bCvar_ShoveMotion)
             return Plugin_Continue;
     }
-    else
+
+    // L4D2 weapon_gascan bug fix - Prevent gascans exploding from melee attacks like in vanilla
+    if (g_bL4D2 && ge_bIsGascan[victim] && IsValidEntity(weapon) && HasEntProp(weapon, Prop_Send, "m_bInMeleeSwing"))
     {
+        damage = 0.0;
+
         if (g_bCvar_Motion)
-            return Plugin_Continue;
+            return Plugin_Changed;
+
+        damageForce[0] = 0.0;
+        damageForce[1] = 0.0;
+        damageForce[2] = 0.0;
+
+        return Plugin_Changed;
     }
+
+    if (g_bCvar_Motion)
+        return Plugin_Continue;
 
     damageForce[0] = 0.0;
     damageForce[1] = 0.0;
@@ -329,23 +380,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 }
 
 // ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
-}
-
-// ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");

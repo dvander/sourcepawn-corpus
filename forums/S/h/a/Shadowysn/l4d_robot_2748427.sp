@@ -8,7 +8,7 @@
 #define PLUGIN_NAME "[L4D1/2] Robot Guns"
 #define PLUGIN_AUTHOR "Pan Xiaohai, Shadowysn (edit)"
 #define PLUGIN_DESC "Use automatic robot guns to passively attack."
-#define PLUGIN_VERSION "1.5"
+#define PLUGIN_VERSION "1.5b"
 #define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?t=130177"
 #define PLUGIN_NAME_SHORT "Robot Guns"
 #define PLUGIN_NAME_TECH "l4d_robot"
@@ -155,7 +155,7 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	char temp_str[32];
+	static char temp_str[32];
 	
 	Format(temp_str, sizeof(temp_str), "%s_limit", PLUGIN_NAME_TECH);
  	l4d_robot_limit = CreateConVar(temp_str, "2", "Number of Robots [0-3]", FCVAR_NONE);
@@ -187,19 +187,17 @@ public void OnPluginStart()
 	HookConVarChange(l4d_robot_glow, ConVarChange);
 	GetConVar();
 
-	char GameName[16];
+	static char GameName[13];
 	GetConVarString(FindConVar("mp_gamemode"), GameName, sizeof(GameName));
 	
-	if (StrEqual(GameName, "survival", false))
+	if (strncmp(GameName, "survival", 8, false) == 0)
 		GameMode = 3;
-	else if (StrEqual(GameName, "versus", false) || StrEqual(GameName, "teamversus", false) || StrEqual(GameName, "scavenge", false) || StrEqual(GameName, "teamscavenge", false))
+	else if (strncmp(GameName, "versus", 6, false) == 0 || strncmp(GameName, "teamversus", 10, false) == 0 || strncmp(GameName, "scavenge", 8, false) == 0 || strcmp(GameName, "teamscavenge", false) == 0)
 		GameMode = 2;
-	else if (StrEqual(GameName, "coop", false) || StrEqual(GameName, "realism", false))
+	else if (strncmp(GameName, "coop", 4, false) == 0 || strncmp(GameName, "realism", 7, false) == 0)
 		GameMode = 1;
 	else
-	{
 		GameMode = 0;
- 	}
  
  	RegConsoleCmd("sm_robot", sm_robot);
 	//HookEvent("player_use", player_use, EventHookMode_Post);
@@ -235,7 +233,7 @@ void GetConVar()
  	robot_damagefactor = GetConVarFloat(l4d_robot_damagefactor);
 	robot_messages = GetConVarInt(l4d_robot_messages);
 	GetConVarString(l4d_robot_glow, robot_glow, sizeof(robot_glow));
-	char str[10];
+	static char str[10];
 	for (int i = 0; i < WEAPONCOUNT; i++)
 	{
 		Format(str, sizeof(str), "%d", RoundFloat(weaponbulletdamage[i] * robot_damagefactor));
@@ -376,14 +374,14 @@ void DelRobot(int ent)
 {
 	if (!RealValidEntity(ent)) return;
 	
-	/*char item[65];
+	/*static char item[7];
 	GetEntityClassname(ent, item, sizeof(item));
-	if (StrContains(item, "weapon") >= 0)
+	if (strcmp(item, "weapon") == 0)
 	{*/
-		AcceptEntityInput(ent, "Kill");
+	AcceptEntityInput(ent, "Kill");
 	//}
 }
- 
+
 void Release(int controller, bool del = true)
 {
 	int r = robot[controller];
@@ -434,26 +432,26 @@ Action sm_robot(int client, int args)
 
 	if (args >= 1)
 	{
-		char arg[128];
+		static char arg[24];
 		GetCmdArg(1, arg, sizeof(arg));
-		if (StrContains(arg, "hunting", false)!=-1) weapontype[client]=0;
-		else if (StrContains(arg, "rifle", false)!=-1) weapontype[client]=1;
-		else if (StrContains(arg, "auto", false)!=-1) weapontype[client]=2;
-		else if (StrContains(arg, "pump", false)!=-1) weapontype[client]=3;
-		else if (StrContains(arg, "smg", false)!=-1) weapontype[client]=4;
-		else if (StrContains(arg, "pistol", false)!=-1) weapontype[client]=5;
-		else if (StrContains(arg, "magnum", false)!=-1 && L4D2Version) weapontype[client]=6;
-		else if (StrContains(arg, "ak47", false)!=-1 && L4D2Version) weapontype[client]=7;
-		else if (StrContains(arg, "desert", false)!=-1 && L4D2Version) weapontype[client]=8;
-		else if (StrContains(arg, "sg552", false)!=-1 && L4D2Version) weapontype[client]=9;
-		else if (StrContains(arg, "m60", false)!=-1 && L4D2Version) weapontype[client]=10;
-		else if (StrContains(arg, "chrome", false)!=-1 && L4D2Version) weapontype[client]=11;
-		else if (StrContains(arg, "spas", false)!=-1 && L4D2Version) weapontype[client]=12;
-		else if (StrContains(arg, "military", false)!=-1 && L4D2Version) weapontype[client]=13;
-		else if (StrContains(arg, "scout", false)!=-1 && L4D2Version) weapontype[client]=14;
-		else if (StrContains(arg, "awp", false)!=-1 && L4D2Version) weapontype[client]=15;
-		else if (StrContains(arg, "mp5", false)!=-1 && L4D2Version) weapontype[client]=16;
-		else if (StrContains(arg, "silenced", false)!=-1 && L4D2Version) weapontype[client]=17;
+		if (strncmp(arg, "hunting", 7, false) == 0) weapontype[client]=0;
+		else if (strncmp(arg, "rifle", 5, false) == 0) weapontype[client]=1;
+		else if (strncmp(arg, "auto", 4, false) == 0) weapontype[client]=2;
+		else if (strncmp(arg, "pump", 4, false) == 0) weapontype[client]=3;
+		else if (strncmp(arg, "smg", 3, false) == 0) weapontype[client]=4;
+		else if (strncmp(arg, "pistol", 6, false) == 0) weapontype[client]=5;
+		else if (strncmp(arg, "magnum", 6, false) == 0 && L4D2Version) weapontype[client]=6;
+		else if (strncmp(arg, "ak47", 4, false) == 0 && L4D2Version) weapontype[client]=7;
+		else if (strncmp(arg, "desert", 6, false) == 0 && L4D2Version) weapontype[client]=8;
+		else if (strncmp(arg, "sg552", 5, false) == 0 && L4D2Version) weapontype[client]=9;
+		else if (strncmp(arg, "m60", 3, false) == 0 && L4D2Version) weapontype[client]=10;
+		else if (strncmp(arg, "chrome", 6, false) == 0 && L4D2Version) weapontype[client]=11;
+		else if (strncmp(arg, "spas", 4, false) == 0 && L4D2Version) weapontype[client]=12;
+		else if (strncmp(arg, "military", 8, false) == 0 && L4D2Version) weapontype[client]=13;
+		else if (strncmp(arg, "scout", 5, false) == 0 && L4D2Version) weapontype[client]=14;
+		else if (strncmp(arg, "awp", 3, false) == 0 && L4D2Version) weapontype[client]=15;
+		else if (strncmp(arg, "mp5", 3, false) == 0 && L4D2Version) weapontype[client]=16;
+		else if (strncmp(arg, "silenced", 8, false) == 0 && L4D2Version) weapontype[client]=17;
 		else
 		{
 			if (L4D2Version)
@@ -496,10 +494,10 @@ void AddRobot(int client, bool showmsg = false)
 
 	AddVectors(pos, v2, v1);  // v1 explode taget
 	
-	char temp_str[128];
 	int temp_ent = CreateEntityByName(MODEL[weapontype[client]]);
 	if (!RealValidEntity(temp_ent)) return;
 	DispatchSpawn(temp_ent);
+	static char temp_str[128];
 	GetEntPropString(temp_ent, Prop_Data, "m_ModelName", temp_str, sizeof(temp_str));
 	AcceptEntityInput(temp_ent, "Kill");
 	
@@ -510,6 +508,7 @@ void AddRobot(int client, bool showmsg = false)
 	DispatchKeyValue(ent, "model", temp_str);
 	DispatchKeyValue(ent, "glowcolor", robot_glow);
 	DispatchKeyValue(ent, "glowstate", "2");
+	//DispatchKeyValue(ent, "targetname", MODEL[weapontype[client]]);
 	DispatchSpawn(ent);
 	TeleportEntity(ent, v1, NULL_VECTOR, NULL_VECTOR);
 	
@@ -750,9 +749,9 @@ int ScanCommon(int client, float rpos[3])
 	for (int i = MaxClients+1; i <= GetMaxEntities(); i++)
 	{
 		if (!RealValidEntity(i)) continue;
-		char classname[32];
+		static char classname[9];
 		GetEntityClassname(i, classname, sizeof(classname));
-		if (!StrEqual(classname, "infected", false)) continue;
+		if (strcmp(classname, "infected", false) != 0) continue;
 		
 		int health = GetEntProp(i, Prop_Data, "m_iHealth");
 		if (health <= 0) continue;
@@ -885,7 +884,7 @@ void FireBullet(int controller, int bot, float infectedpos[3], float botorigin[3
 	}
 	return pointHurt;
 }
-char N[10];
+static char N[10];
 void DoPointHurtForInfected(int wtype, int victim, int attacker = 0)
 {
 	if (!RealValidEntity(g_PointHurt))
@@ -905,10 +904,9 @@ void DoPointHurtForInfected(int wtype, int victim, int attacker = 0)
 	}
 }*/
 
-int DoDamage(int wtype, int target, int sender)
+void DoDamage(int wtype, int target, int sender)
 {
 	if (!RealValidEntity(target)) return;
-	
 	if (!RealValidEntity(sender)) return;
 	
 	int robot_var = sender;
@@ -959,9 +957,9 @@ bool TraceRayDontHitSelfAndLive(int entity, int mask, any data)
 	}
 	else if (RealValidEntity(entity))
 	{
-		char classname[32];
+		static char classname[9];
 		GetEntityClassname(entity, classname, sizeof(classname));
-		if (StrEqual(classname, "infected", false))
+		if (strcmp(classname, "infected", false) == 0)
 		{
 			return false;
 		}

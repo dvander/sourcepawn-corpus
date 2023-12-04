@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.0"
+/*
+*	Pause Messages Block
+*	Copyright (C) 2021 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.1"
 
 /*=======================================================================================
 	Plugin Info:
@@ -12,6 +32,9 @@
 ========================================================================================
 	Change Log:
 
+1.1 (20-Jul-2021)
+	- Added support for the "Pause plugin" by "CanadaRox, Sir, Forgetest". Thanks to "Tank Rush" for reporting.
+
 1.0 (06-Feb-2020)
 	- Initial release.
 
@@ -24,6 +47,7 @@
 #include <sdktools>
 
 bool g_bLeft4Dead2;
+ConVar g_hCvarPause;
 
 
 
@@ -42,6 +66,8 @@ public Plugin myinfo =
 public void OnPluginStart()
 {
 	CreateConVar("l4d_pause_message_version", PLUGIN_VERSION, "Pause Messages Block plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+
+	g_hCvarPause = FindConVar("sv_pausable");
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -84,5 +110,7 @@ public void OnConfigsExecuted()
 
 public Action CommandBlock(int client, const char[] command, int argc) 
 {
-	return Plugin_Handled;
+	if( g_hCvarPause.IntValue == 0) // Check if games pausable and allow, otherwise block.
+		return Plugin_Handled;
+	return Plugin_Continue;
 }

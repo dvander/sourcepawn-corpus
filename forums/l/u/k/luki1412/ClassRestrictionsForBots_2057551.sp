@@ -4,7 +4,7 @@
 #pragma newdecls required
 #pragma semicolon 1
 
-#define PLUGIN_VERSION "3.01"
+#define PLUGIN_VERSION "3.04"
 
 #define TF_CLASS_DEMOMAN		4
 #define TF_CLASS_ENGINEER		9
@@ -29,6 +29,7 @@ public Plugin myinfo =
 	url         = "https://forums.alliedmods.net/member.php?u=43109"
 }
 
+bool g_bLateLoad;
 ConVar g_hCvEnabled;
 ConVar g_hCvLimits[4][10];
 
@@ -40,13 +41,14 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_Failure;
 	}
 	
+	g_bLateLoad = late;
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-	ConVar g_hCvVersion = CreateConVar("sm_crb_version", PLUGIN_VERSION, "TF2 Class Restrictions for Bots version cvar", FCVAR_NOTIFY|FCVAR_DONTRECORD);
-	g_hCvEnabled                               = CreateConVar("sm_crb_enabled",       "1",  "Enables/disables restricting classes for bots");
+	ConVar hCvVersion = CreateConVar("sm_crb_version", PLUGIN_VERSION, "TF2 Class Restrictions for Bots version cvar", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	g_hCvEnabled                                = CreateConVar("sm_crb_enabled",       "1",  "Enables/disables restricting classes for bots");
 	g_hCvLimits[TF_TEAM_BLU][TF_CLASS_DEMOMAN]  = CreateConVar("sm_crb_blu_demomen",   "-1", "Limits BLU bot demomen");
 	g_hCvLimits[TF_TEAM_BLU][TF_CLASS_ENGINEER] = CreateConVar("sm_crb_blu_engineers", "-1", "Limits BLU bot engineers");
 	g_hCvLimits[TF_TEAM_BLU][TF_CLASS_HEAVY]    = CreateConVar("sm_crb_blu_heavies",   "-1", "Limits BLU bot heavies");
@@ -66,10 +68,14 @@ public void OnPluginStart()
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SOLDIER]  = CreateConVar("sm_crb_red_soldiers",  "-1", "Limits RED bot soldiers");
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SPY]      = CreateConVar("sm_crb_red_spies",     "-1", "Limits RED bot spies");	
 
-	HookEvent("player_spawn", Event_PlayerSpawn);
+	AutoExecConfig(true, "Class_Restrictions_For_Bots");
+	if (g_bLateLoad)
+	{
+		OnConfigsExecuted();
+	}
 
-	AutoExecConfig(true, "Class_Restrictions_For_Bots");	
-	SetConVarString(g_hCvVersion, PLUGIN_VERSION);	
+	HookEvent("player_spawn", Event_PlayerSpawn);
+	SetConVarString(hCvVersion, PLUGIN_VERSION);	
 }
 //built in class limit needs to be disabled
 public void OnConfigsExecuted() 
@@ -77,6 +83,9 @@ public void OnConfigsExecuted()
 	SetConVarInt(FindConVar("tf_classlimit"), 0);
 	SetConVarString(FindConVar("tf_bot_force_class"), "");
 	SetConVarInt(FindConVar("tf_bot_reevaluate_class_in_spawnroom"), 0);
+	char mapName[PLATFORM_MAX_PATH];
+	GetCurrentMap(mapName, sizeof(mapName));
+	ServerCommand("exec \"sourcemod/Class_Restrictions_For_Bots/%s.cfg\"", mapName);
 }
 //there is no space, so the server admins set up the cvars incorrectly. lets warn them through logs
 void NoSpace()
@@ -353,7 +362,7 @@ bool IsFull(int iTeam, int iClass)
 int SelectFreeClass(int iTeam)
 {
 	int x = 0;
-	int classes[9] = 0;
+	int classes[9] = {0, ...};
 
 	for(int i = 1; i <= 9; i++)
 	{
@@ -385,5 +394,5 @@ int GetRandomUInt(int min, int max)
 //basic check for players
 bool IsPlayerHereLoop(int client)
 {
-	return (IsClientConnected(client) && IsClientInGame(client) && IsFakeClient(client));
+	return (IsClientInGame(client) && IsFakeClient(client));
 }

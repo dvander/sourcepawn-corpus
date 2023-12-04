@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.1 (08-July-2023)
+    - Refactored code.
+
 1.0.0 (09-January-2021)
     - Initial release.
 
@@ -10,7 +13,7 @@ Change Log:
 
 /**
 if you want to do that through the stripper extension (http://www.bailopan.net/stripper/#install) instead a plugin,
-add the following lines to the global.cfg or to <mapname>.cfg file:
+add the following lines to the global.cfg or to <map>.cfg file:
 
 modify:
 {
@@ -23,7 +26,7 @@ modify:
         "allowincap" "0"
     }
 }
-*/
+**/
 
 // ====================================================================================================
 // Plugin Info - define
@@ -31,7 +34,7 @@ modify:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Trigger Multiple Ignore Incapacitated"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Allow trigger_multiple entities to ignore incapacitated players to trigger"
-#define PLUGIN_VERSION                "1.0.0"
+#define PLUGIN_VERSION                "1.0.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=329848"
 
 // ====================================================================================================
@@ -73,18 +76,56 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_TRIGGER_MULTIPLE    "trigger_multiple"
+#define ALLOWINCAPTOUCH_NO            0
 
 // ====================================================================================================
-// Plugin Cvars
+// enum structs - Plugin Variables
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
+PluginData plugin;
 
 // ====================================================================================================
-// bool - Plugin Variables
+// enums / enum structs
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
+enum struct PluginCvars
+{
+    ConVar l4d_triggers_ignore_incap_version;
+    ConVar l4d_triggers_ignore_incap_enable;
+
+    void Init()
+    {
+        this.l4d_triggers_ignore_incap_version = CreateConVar("l4d_triggers_ignore_incap_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.l4d_triggers_ignore_incap_enable  = CreateConVar("l4d_triggers_ignore_incap_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+
+        this.l4d_triggers_ignore_incap_enable.AddChangeHook(Event_ConVarChanged);
+
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
+
+/****************************************************************************************************/
+
+enum struct PluginData
+{
+    PluginCvars cvars;
+
+    bool enabled;
+
+    void Init()
+    {
+        this.cvars.Init();
+        this.RegisterCmds();
+    }
+
+    void GetCvarValues()
+    {
+        this.enabled = this.cvars.l4d_triggers_ignore_incap_enable.BoolValue;
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_print_cvars_l4d_triggers_ignore_incap", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
@@ -106,100 +147,78 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-    CreateConVar("l4d_triggers_ignore_incap_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled = CreateConVar("l4d_triggers_ignore_incap_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    plugin.Init();
+}
 
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
+/****************************************************************************************************/
 
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_print_cvars_l4d_triggers_ignore_incap", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
 public void OnConfigsExecuted()
 {
-    GetCvars();
-
-    g_bConfigLoaded = true;
+    plugin.GetCvarValues();
 
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void LateLoad()
 {
-    GetCvars();
-}
+    if (!plugin.enabled)
+        return;
 
-/****************************************************************************************************/
-
-public void GetCvars()
-{
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-}
-
-/****************************************************************************************************/
-
-public void LateLoad()
-{
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_TRIGGER_MULTIPLE)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "trigger_multiple")) != INVALID_ENT_REFERENCE)
     {
-        OnSpawnPost(entity);
+        RequestFrame(Frame_LateLoad, EntIndexToEntRef(entity));
     }
+}
+
+/****************************************************************************************************/
+
+void Frame_LateLoad(int entityRef)
+{
+    int entity = EntRefToEntIndex(entityRef);
+
+    if (entity == INVALID_ENT_REFERENCE)
+        return;
+
+    OnSpawnPost(entity);
 }
 
 /****************************************************************************************************/
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (!plugin.enabled)
         return;
 
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
-    if (classname[0] != 't')
-        return;
-
-    if (StrEqual(classname, CLASSNAME_TRIGGER_MULTIPLE))
+    if (StrEqual(classname, "trigger_multiple"))
         SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
 {
-    RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
-}
-
-/****************************************************************************************************/
-
-public void OnNextFrame(int entityRef)
-{
-    if (!g_bCvar_Enabled)
-        return;
-
-    int entity = EntRefToEntIndex(entityRef);
-
-    if (entity == INVALID_ENT_REFERENCE)
-        return;
-
-    SetEntProp(entity, Prop_Data, "m_bAllowIncapTouch", 0);
+    SetEntProp(entity, Prop_Data, "m_bAllowIncapTouch", ALLOWINCAPTOUCH_NO);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -207,24 +226,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "-------------- Plugin Cvars (l4d_triggers_ignore_incap) --------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_triggers_ignore_incap_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_triggers_ignore_incap_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
+    PrintToConsole(client, "l4d_triggers_ignore_incap_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

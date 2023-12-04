@@ -2,10 +2,10 @@
 #include <sourcemod>
 #include <left4dhooks>
 #include <sdktools>
-#pragma newdecls required;
+//#pragma newdecls required;
 #pragma tabsize 0;
 
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.0.1"
 
 #define TEAM_SURVIVOR	2
 #define TEAM_INFECTED	3
@@ -26,7 +26,7 @@ public Plugin myinfo =
 	url = "https://vk.com/bru7us"
 }
 
-public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) 
 {
     EngineVersion Engine = GetEngineVersion();
 
@@ -56,24 +56,17 @@ public void OnPluginStart()
 
     //------------------ Delete Tank's triggering on Minigun and .50 cal. (Special thanks to BHaType for this code) ------------------
     GameData data = new GameData("l4d2_minigun_victim");
-    
-    Address pAddr = data.GetAddress("TankAttack::Update") + view_as<Address>(data.GetOffset("PatсhOffset"));
-    
-    int size_t = data.GetOffset("PatchCount");
-    int i;
-    
-    for (i = 0; i <= size_t; i++)
-        StoreToAddress(pAddr + view_as<Address>(i), 0x90, NumberType_Int8);
-
-    StoreToAddress(pAddr + view_as<Address>(size_t + 1), 0x31, NumberType_Int8);
-    
-    #if defined LINUX
-        StoreToAddress(pAddr + view_as<Address>(size_t + 2), 0xC0, NumberType_Int8);
-    #else
-        StoreToAddress(pAddr + view_as<Address>(size_t + 2), 0xC9, NumberType_Int8);
-    #endif
-    
-    delete data;
+	
+	int offs = data.GetOffset("PatсhOffset");
+	Address ptr = data.GetAddress("ForEachSurvivor<MinigunnerScan>") + view_as<Address>(offs);
+	
+	switch ( offs == 17 )
+	{
+		case true: StoreToAddress(ptr, 0xEB, NumberType_Int8);
+		case false: StoreToAddress(ptr, 0x00, NumberType_Int8);
+	}
+	
+	delete data;
     //--------------------------------------------------------------------------------------------------------------------------------
 }
 
@@ -435,4 +428,13 @@ stock bool IsClientTank(int client)
 		return true;
 	
 	return false;
+}
+
+public void OnClientDisconnect(client)
+{
+	if (IsValidClientIndex(client))
+	if (IsClientInGame(client))
+    if (GetClientTeam(client) == TEAM_SURVIVOR)
+    if (IsPlayerAlive(client))
+		VomitedSurvivor[client] = false;
 }

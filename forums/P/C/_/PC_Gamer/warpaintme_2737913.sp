@@ -1,11 +1,28 @@
-#include <sourcemod>
 #include <tf2_stocks>
 #include <tf2attributes>
 
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "2.0"
+#define PLUGIN_VERSION "2.3"
+
+public const int festiveWeps[224] = { 
+	35, 37, 41, 44, 130, 172, 192, 193, 194, 196, 197, 200, 201, 202, 203,
+	205, 206, 207, 208, 209, 210, 211, 214, 215, 220, 221, 228, 304, 305, 308,
+	312, 326, 327, 329, 351, 401, 402, 404, 411, 415, 424, 425, 447, 448, 449, 
+	649, 740, 996, 997, 1104, 1151, 1153, 1178, 15000, 15001, 15002, 15003, 15004, 15005, 15006,
+	15007, 15008, 15009, 15010, 15011, 15012, 15013, 15013, 15014, 15015, 15016, 15017, 15018, 15019, 15020,
+	15021, 15022, 15023, 15024, 15025, 15026, 15027, 15028, 15029, 15030, 15031, 15032, 15033, 15034, 15035,
+	15035, 15036, 15037, 15038, 15039, 15040, 15041, 15041, 15042, 15043, 15044, 15045, 15046, 15046, 15047,
+	15048, 15049, 15050, 15051, 15052, 15053, 15054, 15055, 15056, 15056, 15057, 15058, 15059, 15060, 15060,
+	15061, 15061, 15062, 15062, 15063, 15064, 15065, 15066, 15067, 15068, 15069, 15070, 15071, 15072, 15073,
+	15074, 15075, 15076, 15077, 15078, 15079, 15081, 15082, 15083, 15084, 15085, 15086, 15087, 15088, 15089,
+	15090, 15091, 15092, 15094, 15095, 15096, 15097, 15098, 15099, 15100, 15100, 15101, 15101, 15102, 15102,
+	15103, 15104, 15105, 15106, 15107, 15108, 15109, 15110, 15111, 15112, 15113, 15114, 15115, 15116, 15117,
+	15118, 15119, 15121, 15122, 15123, 15123, 15124, 15125, 15126, 15126, 15128, 15129, 15129, 15130, 15131,
+	15132, 15133, 15134, 15135, 15136, 15137, 15138, 15139, 15140, 15141, 15142, 15143, 15144, 15145, 15146,
+	15147, 15148, 15148, 15149, 15150, 15151, 15152, 15153, 15154, 15155, 15156, 15157, 15158 };
+
 
 public Plugin myinfo = 
 {
@@ -38,7 +55,7 @@ public void OnMapStart()
 	}	
 }
 
-public Action Command_givewarpaint(int client, int args)
+Action Command_givewarpaint(int client, int args)
 {
 	char arg1[32];
 	if (args < 1)
@@ -49,11 +66,10 @@ public Action Command_givewarpaint(int client, int args)
 	}
 	GetCmdArg(1, arg1, sizeof(arg1));
 	int paint = StringToInt(arg1);	
-	if ((paint < 200) || (paint > 391) || (paint >283 && paint < 300) || (paint >310 && paint <390))
+	if ((paint < 200) || (paint > 297 && paint < 300) || (paint > 310 && paint < 390) || (paint > 390 && paint < 400)|| (paint > 410 && paint < 15000) || (paint > 15158))
 	{
-
 		ReplyToCommand(client, "warpaintme <warpaint id>");
-		ReplyToCommand(client, "warpaint ids: 200-283, 300-310, 390, 391"); 		
+		ReplyToCommand(client, "warpaint ids: 200-297, 300-310, 390, 391, 400-410, 15000-15158"); 		
 	}
 	else
 	{
@@ -63,7 +79,7 @@ public Action Command_givewarpaint(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_giveopwarpaint(int client, int args)
+Action Command_giveopwarpaint(int client, int args)
 {
 	char arg1[32];
 	if (args < 1)
@@ -75,11 +91,11 @@ public Action Command_giveopwarpaint(int client, int args)
 	}
 	GetCmdArg(1, arg1, sizeof(arg1));
 	int paint = StringToInt(arg1);	
-	if ((paint < 200) || (paint > 391) || (paint >283 && paint < 300) || (paint >310 && paint <390))
+	if ((paint < 200) || (paint > 297 && paint < 300) || (paint > 310 && paint < 390) || (paint > 390 && paint < 400)|| (paint > 410 && paint < 15000) || (paint > 15158))
 	{
 
 		ReplyToCommand(client, "opwarpaintme <warpaint id>");
-		ReplyToCommand(client, "warpaint ids: 200-283, 300-310, 390, 391"); 		
+		ReplyToCommand(client, "warpaint ids: 200-297, 300-310, 390, 391, 400-410, 15000-15158"); 		
 	}
 	else
 	{
@@ -90,7 +106,7 @@ public Action Command_giveopwarpaint(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_givewarpainttotarget(int client, int args)
+Action Command_givewarpainttotarget(int client, int args)
 {
 	char arg1[32];
 	if (args < 1)
@@ -131,11 +147,11 @@ public Action Command_givewarpainttotarget(int client, int args)
 
 	GetCmdArg(2, arg2, sizeof(arg2));
 	int paint = StringToInt(arg2);	
-	if ((paint < 200) || (paint > 391) || (paint >283 && paint < 300) || (paint >310 && paint <390))
+	if ((paint < 200) || (paint > 297 && paint < 300) || (paint > 310 && paint < 390) || (paint > 390 && paint < 400)|| (paint > 410 && paint < 15000) || (paint > 15158))
 	{
 
 		ReplyToCommand(client, "warpaint <target> <warpaint id>");
-		ReplyToCommand(client, "warpaint ids: 200-283, 300-310, 390, 391"); 		
+		ReplyToCommand(client, "warpaint ids: 200-297, 300-310, 390, 391, 400-410, 15000-15158"); 		
 	}
 	else
 	{
@@ -149,7 +165,7 @@ public Action Command_givewarpainttotarget(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action Command_giveopwarpainttotarget(int client, int args)
+Action Command_giveopwarpainttotarget(int client, int args)
 {
 	char arg1[32];
 	if (args < 1)
@@ -189,11 +205,11 @@ public Action Command_giveopwarpainttotarget(int client, int args)
 	
 	GetCmdArg(2, arg2, sizeof(arg2));
 	int paint = StringToInt(arg2);	
-	if ((paint < 200) || (paint > 391) || (paint >283 && paint < 300) || (paint >310 && paint <390))
+	if ((paint < 200) || (paint > 297 && paint < 300) || (paint > 310 && paint < 390) || (paint > 390 && paint < 400)|| (paint > 410 && paint < 15000) || (paint > 15158))
 	{
 
 		ReplyToCommand(client, "warpaint <target> <warpaint id>");
-		ReplyToCommand(client, "warpaint ids: 200-283, 300-310, 390, 391"); 		
+		ReplyToCommand(client, "warpaint ids: 200-297, 300-310, 390, 391, 400-410, 15000-15158"); 		
 	}
 	else
 	{
@@ -208,21 +224,28 @@ public Action Command_giveopwarpainttotarget(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action GiveWarPaint(int client)
+Action GiveWarPaint(int client)
 {
 	PrintToChat(client, "You now have Warpaint weapons.");
 	PrintToChat(client, "You will lose the weapons when you die or touch a locker.");	
 	PrintToChat(client, "To pick a specifc warpaint use:  warpaintme <warpaint id>");
-	PrintToChat(client, "warpaint ids: 200-283, 300-310, 390, 391"); 	
+	PrintToChat(client, "warpaint ids: 200-297, 300-310, 390, 391, 400-410, 15000-15158"); 	
 	
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Scout)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 220)//Shortstop
@@ -239,9 +262,16 @@ public Action GiveWarPaint(int client)
 			}
 
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}		
 			int myslot1 = GetIndexOfWeaponSlot(client, 1);
 			if(myslot1 == 449)//Winger
@@ -254,10 +284,17 @@ public Action GiveWarPaint(int client)
 			}
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 
 		CreateWeapon(client, "tf_weapon_bat_fish", 221, 6, 96, 2, paint);
@@ -269,10 +306,17 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 228)//Black Box
@@ -289,9 +333,16 @@ public Action GiveWarPaint(int client)
 			}
 
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			int myslot1 = GetIndexOfWeaponSlot(client, 1);
 			if(myslot1 == 415)//Reserve Shooter
@@ -309,10 +360,17 @@ public Action GiveWarPaint(int client)
 			}
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 		
 		CreateWeapon(client, "tf_weapon_shovel", 447, 6, 96, 2, paint);
@@ -324,10 +382,17 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 215)//Degreaser
@@ -340,9 +405,16 @@ public Action GiveWarPaint(int client)
 			}
 
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}		
 			int myslot1 = GetIndexOfWeaponSlot(client, 1);
 			if(myslot1 == 351)//Detonator
@@ -367,10 +439,17 @@ public Action GiveWarPaint(int client)
 			}
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 		
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
@@ -390,10 +469,17 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{	
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 308)//Loc n Load
@@ -409,9 +495,16 @@ public Action GiveWarPaint(int client)
 				CreateWeapon(client, "tf_weapon_grenadelauncher", 1151, 6, 98, 0, paint);
 			}		
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			if(myslot0 != 308 && myslot0 != 996 && myslot0 != 1151 && myslot0 > 0)
 			{
@@ -419,9 +512,16 @@ public Action GiveWarPaint(int client)
 			}
 
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}		
 			int myslot1 = GetIndexOfWeaponSlot(client, 1);
 			if(myslot1 != -1)
@@ -430,10 +530,17 @@ public Action GiveWarPaint(int client)
 			}
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 		
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
@@ -457,10 +564,17 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 312)//Brass Beast
@@ -472,9 +586,16 @@ public Action GiveWarPaint(int client)
 				CreateWeapon(client, "tf_weapon_minigun", 424, 6, 98, 0, paint);
 			}
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			if(myslot0 != 312 && myslot0 != 424)
 			{
@@ -482,9 +603,16 @@ public Action GiveWarPaint(int client)
 			}
 
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}		
 			int myslot1 = GetIndexOfWeaponSlot(client, 1);
 			if(myslot1 == 425)//Family Business
@@ -508,10 +636,17 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}		
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 997)//Rescue Ranger
@@ -524,17 +659,31 @@ public Action GiveWarPaint(int client)
 			}
 
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 			CreateWeapon(client, "tf_weapon_pistol", 209, 6, 97, 1, paint);
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
 		if(myslot2 == 329)//Jag
@@ -553,27 +702,48 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 
 			CreateWeapon(client, "tf_weapon_medigun", 211, 6, 97, 1, paint);
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 
 		CreateWeapon(client, "tf_weapon_crossbow", 305, 6, 98, 0, paint);
 
 		paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
@@ -593,10 +763,17 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
@@ -606,9 +783,16 @@ public Action GiveWarPaint(int client)
 				CreateWeapon(client, "tf_weapon_sniperrifle_decap", 402, 6, 98, 0, paint);
 			}
 			paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}		
 
 			if(myslot0 != 402)
@@ -621,19 +805,33 @@ public Action GiveWarPaint(int client)
 			if(myslot1 > 0) //NOT Razorback, danger shield, or cozy camper
 			{
 				paint = GetRandomUInt(200, 283);
-				if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+				if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 				{		
-					paint = GetRandomUInt(300, 310);
+					if(GetRandomUInt(1,2)== 1)
+					{
+						paint = GetRandomUInt(300, 310);
+					}
+					else
+					{
+						paint = GetRandomUInt(400, 410);
+					}
 				}		
 
 				CreateWeapon(client, "tf_weapon_smg", 203, 6, 97, 1, paint);
 			}
 		}
 
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
 		}
 
 		CreateWeapon(client, "tf_weapon_club", 401, 6, 96, 2, paint);
@@ -645,20 +843,34 @@ public Action GiveWarPaint(int client)
 	{
 		if (!g_bMedieval)
 		{
-			int paint = GetRandomUInt(200, 283);
-			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+			int paint = GetRandomUInt(200, 297);
+			if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 			{		
-				paint = GetRandomUInt(300, 310);
+				if(GetRandomUInt(1,2)== 1)
+				{
+					paint = GetRandomUInt(300, 310);
+				}
+				else
+				{
+					paint = GetRandomUInt(400, 410);
+				}
 			}
 
 			CreateWeapon(client, "tf_weapon_revolver", 210, 6, 98, 0, paint);
 		}
 		
-		int paint = GetRandomUInt(200, 283);
-		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274)
+		int paint = GetRandomUInt(200, 297);
+		if(paint == 216 || paint == 219 || paint == 222 || paint == 227 || paint == 229 || paint == 231 || paint == 233 || paint == 274 || paint == 288)
 		{		
-			paint = GetRandomUInt(300, 310);
-		}
+			if(GetRandomUInt(1,2)== 1)
+			{
+				paint = GetRandomUInt(300, 310);
+			}
+			else
+			{
+				paint = GetRandomUInt(400, 410);
+			}
+	}
 
 		CreateWeapon(client, "tf_weapon_knife", 194, 6, 96, 2, paint);
 		
@@ -670,12 +882,30 @@ public Action GiveWarPaint(int client)
 	return Plugin_Handled;
 }
 
-void MakeWarPaint(int client, int paint)
+Action MakeWarPaint(int client, int paint)
 {
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Scout)
 	{
 		if (!g_bMedieval)
 		{	
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15002 || paint == 15015 || paint == 15021 || paint == 15029 || paint == 15036 || paint == 15053 || paint == 15065 || paint == 15069 || paint == 15106 || paint == 15107 || paint == 15108 || paint == 15131 || paint == 15151 || paint == 15167)
+				{
+					CreateWeapon(client, "tf_weapon_scattergun", paint, 6, 98, 0, 0);
+				}
+				else if (paint == 15013 || paint == 15018 || paint == 15035 || paint == 15041 || paint == 15046 || paint == 15056 || paint == 15060 || paint == 15061 || paint == 15100 || paint == 15101 || paint == 15102 || paint == 15126 || paint == 15148)
+				{
+					CreateWeapon(client, "tf_weapon_handgun_scout_secondary", paint, 6, 97, 1, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 220)//Shortstop
 			{
@@ -701,13 +931,37 @@ void MakeWarPaint(int client, int paint)
 			}
 		}
 
+		if (paint > 14999)
+		{
+			return Plugin_Handled;
+		}
+		
 		CreateWeapon(client, "tf_weapon_bat_fish", 221, 6, 96, 2, paint);
+		return Plugin_Handled;
 	}
 
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Soldier)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15006 || paint == 15014 || paint == 15028 || paint == 15043 || paint == 15052 || paint == 15057 || paint == 15081 || paint == 15104 || paint == 15105 || paint == 15129 || paint == 15130 || paint == 15150)
+				{
+					CreateWeapon(client, "tf_weapon_rocketlauncher", paint, 6, 98, 0, 0);
+				}
+				else if (paint == 15003 || paint == 15016 || paint == 15044 || paint == 15047 || paint == 15085 || paint == 15109 || paint == 15132 || paint == 15133 || paint == 15152)
+				{
+					CreateWeapon(client, "tf_weapon_shotgun_soldier", paint, 6, 99, 1, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 228)//Black Box
 			{
@@ -737,13 +991,36 @@ void MakeWarPaint(int client, int paint)
 				CreateWeapon(client, "tf_weapon_shotgun_soldier", 199, 6, 97, 1, paint);
 			}
 		}
+		if (paint > 14999)
+		{
+			return Plugin_Handled;
+		}
 		
-		CreateWeapon(client, "tf_weapon_shovel", 447, 6, 96, 2, paint);		
+		CreateWeapon(client, "tf_weapon_shovel", 447, 6, 96, 2, paint);
+		return Plugin_Handled;		
 	}
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Pyro)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15005 || paint == 15017 || paint == 15030 || paint == 15034 || paint == 15049 || paint == 15054 || paint == 15066 || paint == 15067 || paint == 15068 || paint == 15089 || paint == 15090 || paint == 15115 || paint == 15141)
+				{
+					CreateWeapon(client, "tf_weapon_flamethrower", paint, 6, 98, 0, 0);
+				}
+				else if (paint == 15003 || paint == 15016 || paint == 15044 || paint == 15047 || paint == 15085 || paint == 15109 || paint == 15132 || paint == 15133 || paint == 15152)
+				{
+					CreateWeapon(client, "tf_weapon_shotgun_pyro", paint, 6, 99, 1, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 215)//Degreaser
 			{
@@ -776,6 +1053,11 @@ void MakeWarPaint(int client, int paint)
 				CreateWeapon(client, "tf_weapon_shotgun_pyro", 199, 6, 97, 1, paint);
 			}
 		}
+		
+		if (paint > 14999)
+		{
+			return Plugin_Handled;
+		}		
 
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
 		if(myslot2 == 326)//Back Scratcher
@@ -786,11 +1068,30 @@ void MakeWarPaint(int client, int paint)
 		{
 			CreateWeapon(client, "tf_weapon_fireaxe", 214, 6, 96, 2, paint);
 		}
+		return Plugin_Handled;
 	}
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_DemoMan)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15077 || paint == 15079 || paint == 15091 || paint == 15092 || paint == 15116 || paint == 15117 || paint == 15142 || paint == 15158)
+				{
+					CreateWeapon(client, "tf_weapon_grenadelauncher", paint, 6, 98, 0, 0);
+				}
+				else if (paint == 15009 || paint == 15012 || paint == 15024 || paint == 15038 || paint == 15045 || paint == 15048 || paint == 15082 || paint == 15083 || paint == 15084 || paint == 15113 || paint == 15137 || paint == 15138 || paint == 15155)
+				{
+					CreateWeapon(client, "tf_weapon_pipebomblauncher", 207, 6, 97, 1, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 308)//Loc n Load
 			{
@@ -816,6 +1117,11 @@ void MakeWarPaint(int client, int paint)
 			}
 		}
 
+		if (paint > 14999)
+		{
+			return Plugin_Handled;
+		}	
+		
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
 		if(myslot2 == 172)//Scotsmans Skullcutter
 		{
@@ -829,11 +1135,30 @@ void MakeWarPaint(int client, int paint)
 		{
 			CreateWeapon(client, "tf_weapon_sword", 404, 6, 96, 2, paint);
 		}
+		return Plugin_Handled;		
 	}		
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Heavy)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15004 || paint == 15020 || paint == 15026 || paint == 15031 || paint == 15040 || paint == 15055 || paint == 15086 || paint == 15087 || paint == 15088 || paint == 15098 || paint == 15099 || paint == 15123 || paint == 15124 || paint == 15147)
+				{
+					CreateWeapon(client, "tf_weapon_minigun", paint, 6, 98, 0, 0);
+				}
+				else if (paint == 15003 || paint == 15016 || paint == 15044 || paint == 15047 || paint == 15085 || paint == 15109 || paint == 15132 || paint == 15133 || paint == 15152)
+				{
+					CreateWeapon(client, "tf_weapon_shotgun_hwg", paint, 6, 99, 1, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 312)//Brass Beast
 			{
@@ -862,11 +1187,34 @@ void MakeWarPaint(int client, int paint)
 				CreateWeapon(client, "tf_weapon_shotgun_hwg", 199, 6, 97, 1, paint);
 			}
 		}
+		return Plugin_Handled;
 	}
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Engineer)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15003 || paint == 15016 || paint == 15044 || paint == 15047 || paint == 15085 || paint == 15109 || paint == 15132 || paint == 15133 || paint == 15152)
+				{
+					CreateWeapon(client, "tf_weapon_shotgun_primary", paint, 6, 99, 0, 0);
+				}
+				else if (paint == 15013 || paint == 15018 || paint == 15035 || paint == 15041 || paint == 15046 || paint == 15056 || paint == 15060 || paint == 15061 || paint == 15100 || paint == 15101 || paint == 15102 || paint == 15126 || paint == 15148)
+				{
+					CreateWeapon(client, "tf_weapon_pistol", paint, 6, 97, 1, 0);
+				}
+				else if (paint == 15073 || paint == 15074 || paint == 15075 || paint == 15139 || paint == 15140 || paint == 15114 || paint == 15156)
+				{
+					CreateWeapon(client, "tf_weapon_wrench", paint, 6, 96, 2, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 			if(myslot0 == 997)//Rescue Ranger
 			{
@@ -880,6 +1228,15 @@ void MakeWarPaint(int client, int paint)
 			CreateWeapon(client, "tf_weapon_pistol", 209, 6, 99, 1, paint);
 		}
 		
+		if (paint > 14999)
+		{
+			if (paint == 15073 || paint == 15074 || paint == 15075 || paint == 15139 || paint == 15140 || paint == 15114 || paint == 15156)
+			{
+				CreateWeapon(client, "tf_weapon_wrench", paint, 6, 96, 2, 0);
+			}
+			return Plugin_Handled;
+		}
+		
 		int myslot2 = GetIndexOfWeaponSlot(client, 2);
 		if(myslot2 == 329)//Jag
 		{
@@ -889,13 +1246,28 @@ void MakeWarPaint(int client, int paint)
 		{
 			CreateWeapon(client, "tf_weapon_wrench", 197, 6, 96, 2, paint);
 		}
+		return Plugin_Handled;
 	}
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Medic)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15008 || paint == 15010 || paint == 15025 || paint == 15039 || paint == 15050 || paint == 15078 || paint == 15097 || paint == 15121 || paint == 15122 || paint == 15123 || paint == 15145 || paint == 15146)
+				{
+					CreateWeapon(client, "tf_weapon_medigun", paint, 6, 99, 1, 0);
+					return Plugin_Handled;
+				}
+			}
+
 			CreateWeapon(client, "tf_weapon_medigun", 211, 6, 99, 1, paint);
 		}
+
+		if (paint > 14999)
+		{
+			return Plugin_Handled;
+		}	
 
 		CreateWeapon(client, "tf_weapon_crossbow", 305, 6, 99, 0, paint);
 		
@@ -913,6 +1285,24 @@ void MakeWarPaint(int client, int paint)
 	{
 		if (!g_bMedieval)
 		{
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15000 || paint == 15007 || paint == 15019 || paint == 15023 || paint == 15033 || paint == 15059 || paint == 15070 || paint == 15071 || paint == 15111 || paint == 15112 || paint == 15135 || paint == 15136 || paint == 15154)
+				{
+					CreateWeapon(client, "tf_weapon_sniperrifle", paint, 6, 99, 0, 0);
+				}
+				else if (paint == 15001 || paint == 15022 || paint == 15032 || paint == 15037 || paint == 15058 || paint == 15076 || paint == 15110 || paint == 15134 || paint == 15153)
+				{
+					CreateWeapon(client, "tf_weapon_smg", paint, 6, 99, 1, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+
 			int myslot0 = GetIndexOfWeaponSlot(client, 0);
 
 			if(myslot0 == 402)//Bazaar Bargain
@@ -931,17 +1321,51 @@ void MakeWarPaint(int client, int paint)
 			}
 		}
 		
+		if (paint > 14999)
+		{
+			return Plugin_Handled;
+		}
+
 		CreateWeapon(client, "tf_weapon_club", 401, 6, 96, 2, paint);
 	}
 	if (IsValidClient(client) && TF2_GetPlayerClass(client) == TFClass_Spy)
 	{
 		if (!g_bMedieval)
 		{		
+			if (paint > 14999 && paint < 15158)
+			{
+				if (paint == 15011 || paint == 15027 || paint == 15042 || paint == 15051 || paint == 15062 || paint == 15063 || paint == 15064 || paint == 15103 || paint == 15128 || paint == 15127 || paint == 15149)
+				{
+					CreateWeapon(client, "tf_weapon_revolver", paint, 6, 99, 0, 0);
+				}
+				else if (paint == 15062 || paint == 15094 || paint == 15095 || paint == 15096 || paint == 15118 || paint == 15119 || paint == 15143 || paint == 15144)
+				{
+					CreateWeapon(client, "tf_weapon_knife", paint, 6, 99, 2, 0);
+				}				
+				else
+				{
+					ReplyToCommand(client, "Invalid warpaint id for this player class.");
+					return Plugin_Handled;
+				}
+				return Plugin_Handled;
+			}
+			
+			
 			CreateWeapon(client, "tf_weapon_revolver", 210, 6, 99, 0, paint);
 		}
 		
-		CreateWeapon(client, "tf_weapon_knife", 194, 6, 99, 2, paint);		
+		if (paint == 15062 || paint == 15094 || paint == 15095 || paint == 15096 || paint == 15118 || paint == 15119 || paint == 15143 || paint == 15144)
+		{
+			CreateWeapon(client, "tf_weapon_knife", paint, 6, 99, 2, 0);
+		}
+		else
+		{
+			CreateWeapon(client, "tf_weapon_knife", 194, 6, 99, 2, paint);
+			return Plugin_Handled;
+		}
 	}
+	
+	return Plugin_Handled;
 }
 
 bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int level, int slot, int paint)
@@ -954,7 +1378,7 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 	{
 		return false;
 	}
-	
+
 	quality = 15;
 	
 	char entclass[64];
@@ -973,22 +1397,18 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 		SetEntData(weapon, FindSendPropInfo(entclass, "m_iEntityLevel"), GetRandomUInt(1,99));
 	}
 
-	TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(paint));	//Set Warpaint
-	
-	if(itemindex == 200 || itemindex == 220 || itemindex == 448 || itemindex == 15002 || itemindex == 15015 || itemindex == 15021 || itemindex == 15029 || itemindex == 15036 || itemindex == 15053 || itemindex == 15065 || itemindex == 15069 || itemindex == 15106 || itemindex == 15107 || itemindex == 15108 || itemindex == 15131 || itemindex == 15151 || itemindex == 15157 || itemindex == 449 || itemindex == 15013 || itemindex == 15018 || itemindex == 15035 || itemindex == 15041 || itemindex == 15046 || itemindex == 15056 || itemindex == 15060 || itemindex == 15061 || itemindex == 15100 || itemindex == 15101
-			|| itemindex == 15102 || itemindex == 15126 || itemindex == 15148 || itemindex == 44 || itemindex == 221 || itemindex == 205 || itemindex == 228 || itemindex == 1104 || itemindex == 15006 || itemindex == 15014 || itemindex == 15028 || itemindex == 15043 || itemindex == 15052 || itemindex == 15057 || itemindex == 15081 || itemindex == 15104 || itemindex == 15105 || itemindex == 15129 || itemindex == 15130 || itemindex == 15150 || itemindex == 196 || itemindex == 447 || itemindex == 208 || itemindex == 215 || itemindex == 1178 || itemindex == 15005 || itemindex == 15017 || itemindex == 15030 || itemindex == 15034
-			|| itemindex == 15049 || itemindex == 15054 || itemindex == 15066 || itemindex == 15067 || itemindex == 15068 || itemindex == 15089 || itemindex == 15090 || itemindex == 15115 || itemindex == 15141 || itemindex == 351 || itemindex == 740 || itemindex == 192 || itemindex == 214 || itemindex == 326 || itemindex == 206 || itemindex == 308 || itemindex == 996 || itemindex == 1151 || itemindex == 15077 || itemindex == 15079 || itemindex == 15091 || itemindex == 15092 || itemindex == 15116 || itemindex == 15117 || itemindex == 15142 || itemindex == 15158 || itemindex == 207 || itemindex == 130 || itemindex == 15009
-			|| itemindex == 15012 || itemindex == 15024 || itemindex == 15038 || itemindex == 15045 || itemindex == 15048 || itemindex == 15082 || itemindex == 15083 || itemindex == 15084 || itemindex == 15113 || itemindex == 15137 || itemindex == 15138 || itemindex == 15155 || itemindex == 172 || itemindex == 327 || itemindex == 404 || itemindex == 202 || itemindex == 41 || itemindex == 312 || itemindex == 424 || itemindex == 15004 || itemindex == 15020 || itemindex == 15026 || itemindex == 15031 || itemindex == 15040 || itemindex == 15055 || itemindex == 15086 || itemindex == 15087 || itemindex == 15088 || itemindex == 15098
-			|| itemindex == 15099 || itemindex == 15123 || itemindex == 15124 || itemindex == 15125 || itemindex == 15147 || itemindex == 425 || itemindex == 997 || itemindex == 197 || itemindex == 329 || itemindex == 15073 || itemindex == 15074 || itemindex == 15075 || itemindex == 15139 || itemindex == 15140 || itemindex == 15114 || itemindex == 15156 || itemindex == 305 || itemindex == 211 || itemindex == 15008 || itemindex == 15010 || itemindex == 15025 || itemindex == 15039 || itemindex == 15050 || itemindex == 15078 || itemindex == 15097 || itemindex == 15121 || itemindex == 15122 || itemindex == 15123 || itemindex == 15145
-			|| itemindex == 15146 || itemindex == 35 || itemindex == 411 || itemindex == 37 || itemindex == 304 || itemindex == 201 || itemindex == 402 || itemindex == 15000 || itemindex == 15007 || itemindex == 15019 || itemindex == 15023 || itemindex == 15033 || itemindex == 15059 || itemindex == 15070 || itemindex == 15071 || itemindex == 15072 || itemindex == 15111 || itemindex == 15112 || itemindex == 15135 || itemindex == 15136 || itemindex == 15154 || itemindex == 203 || itemindex == 15001 || itemindex == 15022 || itemindex == 15032 || itemindex == 15037 || itemindex == 15058 || itemindex == 15076 || itemindex == 15110
-			|| itemindex == 15134 || itemindex == 15153 || itemindex == 193 || itemindex == 401 || itemindex == 210 || itemindex == 15011 || itemindex == 15027 || itemindex == 15042 || itemindex == 15051 || itemindex == 15062 || itemindex == 15063 || itemindex == 15064 || itemindex == 15103 || itemindex == 15128 || itemindex == 15129 || itemindex == 15149 || itemindex == 194 || itemindex == 649 || itemindex == 15062 || itemindex == 15094 || itemindex == 15095 || itemindex == 15096 || itemindex == 15118 || itemindex == 15119 || itemindex == 15143 || itemindex == 15144 || itemindex == 209 || itemindex == 15013 || itemindex == 15018
-			|| itemindex == 15035 || itemindex == 15041 || itemindex == 15046 || itemindex == 15056 || itemindex == 15060 || itemindex == 15061 || itemindex == 15100 || itemindex == 15101 || itemindex == 15102 || itemindex == 15126 || itemindex == 15148 || itemindex == 415 || itemindex == 15003 || itemindex == 15016 || itemindex == 15044 || itemindex == 15047 || itemindex == 15085 || itemindex == 15109 || itemindex == 15132 || itemindex == 15133 || itemindex == 15152 || itemindex == 1153)
+	if (paint > 0)
 	{
-		if(GetRandomUInt(1,30) == 1)
+		TF2Attrib_SetByDefIndex(weapon, 834, view_as<float>(paint));	//Set Warpaint	
+	}
+	
+	if(FindIfCanBeFestive(itemindex))
+	{
+		if(GetRandomInt(1,30) == 1) //festive check
 		{
 			TF2Attrib_SetByDefIndex(weapon, 2053, 1.0);
 		}
-	}
+	}	
 	
 	if (GetRandomUInt(1,10) == 1)
 	{
@@ -1010,8 +1430,9 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 		TF2Attrib_SetByDefIndex(weapon, 214, view_as<float>(GetRandomUInt(0, 9000)));
 	}
 	
-	//	TF2Attrib_SetByDefIndex(weapon, 725, GetRandomFloat(0.0,1.0));  //Weapon texture wear
-
+	//TF2Attrib_SetByDefIndex(weapon, 725, GetRandomFloat(0.0,1.0));  //Weapon texture random wear
+	TF2Attrib_SetByDefIndex(weapon, 725, 0.0);  //Weapon texture Factory New
+	
 	DispatchSpawn(weapon);
 	EquipPlayerWeapon(client, weapon); 
 
@@ -1045,7 +1466,7 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 			|| itemindex == 194				
 			|| itemindex == 210)	
 	{
-		if ((slot < 2) && (GetRandomUInt(1,5) == 1))
+		if (GetRandomUInt(1,5) == 1)
 		{
 			SetEntData(weapon, FindSendPropInfo(entclass, "m_iEntityQuality"), 5);
 			TF2_SwitchtoSlot(client, slot);
@@ -1074,7 +1495,7 @@ bool CreateWeapon(int client, char[] classname, int itemindex, int quality, int 
 	return true;
 }
 
-public Action MakeOP(int client) 
+Action MakeOP(int client) 
 {
 	g_bIsWarPainted[client] = true;
 	
@@ -1814,33 +2235,6 @@ stock void TF2_SwitchtoSlot(int client, int slot)
 	}
 }
 
-public Action TimerHealth(Handle timer, any client)
-{
-	int hp = GetPlayerMaxHp(client);
-	
-	if (hp > 0)
-	{
-		SetEntityHealth(client, hp);
-	}
-}
-
-int GetPlayerMaxHp(int client)
-{
-	if (!IsClientConnected(client))
-	{
-		return -1;
-	}
-
-	int entity = GetPlayerResourceEntity();
-
-	if (entity == -1)
-	{
-		return -1;
-	}
-
-	return GetEntProp(entity, Prop_Send, "m_iMaxHealth", _, client);
-}
-
 stock bool IsValidClient(int client, bool nobots = true)
 { 
 	if (client <= 0 || client > MaxClients)
@@ -1857,7 +2251,7 @@ stock int GetIndexOfWeaponSlot(int client, int iSlot)
 
 stock int GetClientCloakIndex(int client)
 {
-	return GetWeaponIndex(GetPlayerWeaponSlot(client, TFWeaponSlot_Watch));
+	return GetWeaponIndex(GetPlayerWeaponSlot(client, 4));
 }
 
 stock int GetWeaponIndex(int iWeapon)
@@ -1892,7 +2286,7 @@ stock bool IsValidEnt(int iEnt)
 
 stock int GetSlotFromPlayerWeapon(int client, int iWeapon)
 {
-	for (new i = 0; i <= 5; i++)
+	for (int i = 0; i <= 5; i++)
 	{
 		if (iWeapon == GetPlayerWeaponSlot(client, i))
 		{
@@ -1911,4 +2305,15 @@ stock void TF2_SetHealth(int client, int NewHealth)
 {
 	SetEntProp(client, Prop_Send, "m_iHealth", NewHealth, 1);
 	SetEntProp(client, Prop_Data, "m_iHealth", NewHealth, 1);
+}
+
+bool FindIfCanBeFestive(const int def)
+{
+	for(int i = 0; i < sizeof(festiveWeps); i++)
+	{
+		if(festiveWeps[i] == def)
+		return true;
+	}
+
+	return false;
 }

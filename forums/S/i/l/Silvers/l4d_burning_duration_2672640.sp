@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.3"
+/*
+*	Special Infected Burn Duration
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.4"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.4 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.3 (04-Jun-2020)
 	- Fixed the plugin not always working 100% of the time.
@@ -122,12 +145,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -255,7 +278,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -272,7 +295,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -293,7 +316,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 	}
 }
 
-public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -314,7 +337,7 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 	}
 }
 
-public Action Event_WitchSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_WitchSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_fCvarFlameWitch )
 	{
@@ -328,17 +351,20 @@ public Action Event_WitchSpawn(Event event, const char[] name, bool dontBroadcas
 // ====================================================================================================
 //					DAMAGE
 // ====================================================================================================
-public Action OnTakeDamageS(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageS(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype & DMG_BURN ) OnDamage(victim, TYPE_SPECIAL);
+	return Plugin_Continue;
 }
-public Action OnTakeDamageT(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageT(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype & DMG_BURN ) OnDamage(victim, TYPE_TANK);
+	return Plugin_Continue;
 }
-public Action OnTakeDamageW(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageW(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype & DMG_BURN ) OnDamage(victim, TYPE_WITCH);
+	return Plugin_Continue;
 }
 
 void OnDamage(int victim, int type)

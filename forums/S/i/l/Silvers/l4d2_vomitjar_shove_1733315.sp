@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.8"
+/*
+*	Vomitjar Shove
+*	Copyright (C) 2021 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (01-Nov-2022)
+	- Added cvar "l4d2_vomitjar_shove_keys" to optionally require holding "R" before shoving. Requested by "Iciaria".
+
+1.8a (14-Nov-2021)
+	- Updated GameData signatures to avoid breaking when detoured by the "Left4DHooks" plugin.
 
 1.8 (10-May-2020)
 	- Added better error log message when gamedata file is missing.
@@ -68,8 +94,8 @@
 
 
 Handle sdkOnVomitedUpon, sdkVomitInfected, sdkVomitSurvivor;
-ConVar g_hCvarAllow, g_hCvarInfected, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarPunch, g_hCvarRadius, g_hCvarSplash;
-int g_iCvarInfected, g_iCvarPunch, g_iCvarRadius, g_iCvarSplash, g_iPunches[MAX_ENTS][2];
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarInfected, g_hCvarKeys, g_hCvarPunch, g_hCvarRadius, g_hCvarSplash;
+int g_iCvarInfected, g_iCvarKeys, g_iCvarPunch, g_iCvarRadius, g_iCvarSplash, g_iPunches[MAX_ENTS][2];
 bool g_bCvarAllow, g_bMapStarted;
 
 
@@ -140,10 +166,11 @@ public void OnPluginStart()
 	g_hCvarModes = CreateConVar(	"l4d2_vomitjar_shove_modes",			"",				"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff = CreateConVar(	"l4d2_vomitjar_shove_modes_off",		"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog = CreateConVar(	"l4d2_vomitjar_shove_modes_tog",		"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
+	g_hCvarInfected = CreateConVar(	"l4d2_vomitjar_shove_infected",			"511",			"Which infected to affect: 1=Common, 2=Witch, 4=Smoker, 8=Boomer, 16=Hunter, 32=Spitter, 64=Jockey, 128=Charger, 256=Tank, 511=All.", CVAR_FLAGS );
+	g_hCvarKeys = CreateConVar(		"l4d2_vomitjar_shove_keys",				"1",			"Which key combination to use when shoving: 1=Shove key. 2=Reload + Shove keys.", CVAR_FLAGS );
 	g_hCvarPunch = CreateConVar(	"l4d2_vomitjar_shove_punch",			"5",			"0=Unlimited. How many times can a player hit zombies with the vomitjar before it breaks.", CVAR_FLAGS );
 	g_hCvarRadius = CreateConVar(	"l4d2_vomitjar_shove_radius",			"50",			"0=Only the player holding the vomitjar. Distance to splash nearby survivors when the vomitjar breaks.", CVAR_FLAGS );
 	g_hCvarSplash = CreateConVar(	"l4d2_vomitjar_shove_splash",			"10",			"Chance out of 100 to splash self and nearby players when the vomitjar breaks.", CVAR_FLAGS );
-	g_hCvarInfected = CreateConVar(	"l4d2_vomitjar_shove_infected",			"511",			"Which infected to affect: 1=Common, 2=Witch, 4=Smoker, 8=Boomer, 16=Hunter, 32=Spitter, 64=Jockey, 128=Charger, 256=Tank, 511=All.", CVAR_FLAGS );
 	CreateConVar(					"l4d2_vomitjar_shove_version",			PLUGIN_VERSION,	"Vomitjar Shove plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,			"l4d2_vomitjar_shove");
 
@@ -153,10 +180,11 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarInfected.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarKeys.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarPunch.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRadius.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSplash.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarInfected.AddChangeHook(ConVarChanged_Cvars);
 }
 
 public void OnMapStart()
@@ -181,12 +209,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -194,6 +222,7 @@ public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char
 void GetCvars()
 {
 	g_iCvarInfected = g_hCvarInfected.IntValue;
+	g_iCvarKeys = g_hCvarKeys.IntValue;
 	g_iCvarPunch = g_hCvarPunch.IntValue;
 	g_iCvarRadius = g_hCvarRadius.IntValue;
 	g_iCvarSplash = g_hCvarSplash.IntValue;
@@ -278,7 +307,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -295,7 +324,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
 {
 	int infected = g_iCvarInfected & (1<<0);
 	int witch = g_iCvarInfected & (1<<1);
@@ -303,39 +332,46 @@ public void Event_EntityShoved(Event event, const char[] name, bool dontBroadcas
 	{
 		int client = GetClientOfUserId(event.GetInt("attacker"));
 
-		int weapon = CheckWeapon(client);
-		if( weapon )
+		if( g_iCvarKeys == 1 || GetClientButtons(client) & IN_RELOAD )
 		{
-			int target = event.GetInt("entityid");
-
-			static char sTemp[12];
-			GetEdictClassname(target, sTemp, sizeof(sTemp));
-
-			if( (infected && strcmp(sTemp, "infected") == 0 ) || (witch && strcmp(sTemp, "witch") == 0) )
+			int weapon = CheckWeapon(client);
+			if( weapon )
 			{
-				HurtPlayer(target, client, false);
-				DoRemove(client, weapon);
+				int target = event.GetInt("entityid");
+
+				static char sTemp[12];
+				GetEdictClassname(target, sTemp, sizeof(sTemp));
+
+				if( (infected && strcmp(sTemp, "infected") == 0 ) || (witch && strcmp(sTemp, "witch") == 0) )
+				{
+					HurtPlayer(target, client, false);
+					DoRemove(client, weapon);
+				}
 			}
 		}
 	}
 }
 
-public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("attacker"));
-	int target = GetClientOfUserId(event.GetInt("userid"));
 
-	if( GetClientTeam(target) == 3 )
+	if( g_iCvarKeys == 1 || GetClientButtons(client) & IN_RELOAD )
 	{
-		int weapon = CheckWeapon(client);
-		if( weapon )
+		int target = GetClientOfUserId(event.GetInt("userid"));
+
+		if( GetClientTeam(target) == 3 )
 		{
-			int class = GetEntProp(target, Prop_Send, "m_zombieClass") + 1;
-			if( class == 9 ) class = 8;
-			if( g_iCvarInfected & (1 << class) )
+			int weapon = CheckWeapon(client);
+			if( weapon )
 			{
-				HurtPlayer(target, client, true);
-				DoRemove(client, weapon);
+				int class = GetEntProp(target, Prop_Send, "m_zombieClass") + 1;
+				if( class == 9 ) class = 8;
+				if( g_iCvarInfected & (1 << class) )
+				{
+					HurtPlayer(target, client, true);
+					DoRemove(client, weapon);
+				}
 			}
 		}
 	}
@@ -372,7 +408,7 @@ void DoRemove(int client, int weapon)
 	if( remove )
 	{
 		RemovePlayerItem(client, weapon);
-		AcceptEntityInput(weapon, "Kill");
+		RemoveEntity(weapon);
 		EmitSoundToAll(SOUND_BREAK, client);
 
 		if( g_iCvarSplash > 0 )

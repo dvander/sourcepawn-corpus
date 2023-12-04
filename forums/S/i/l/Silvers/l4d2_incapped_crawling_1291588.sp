@@ -1,6 +1,6 @@
 /*
 *	Incapped Crawling with Animation
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.8"
+#define PLUGIN_VERSION 		"2.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+2.9 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 2.8 (04-Mar-2021)
 	- Increased a model string variable to support custom models with longer names. Thanks to "Sappykun" for fixing.
@@ -393,17 +396,17 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
-public void ConVarChanged_Speed(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Speed(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	g_iSpeed = g_hCvarSpeeds.IntValue;
 	g_hCvarSpeed.IntValue = g_iSpeed;
@@ -415,7 +418,7 @@ void GetCvars()
 	g_bGlow = g_hCvarGlow.BoolValue;
 	g_iHint = g_hCvarHint.IntValue;
 	g_iHints = g_hCvarHintS.IntValue;
-	g_iHurt = g_hCvarHurt.IntValue;
+	g_iHurt = g_hCvarHurt.IntValue;
 	g_iRate = g_hCvarRate.IntValue;
 	g_iSpeed = g_hCvarSpeeds.IntValue;
 	g_bSpit = g_hCvarSpit.BoolValue;
@@ -504,7 +507,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -542,13 +545,13 @@ void UnhookEvents()
 // ====================================================================================================
 //					EVENT - ROUND START / END
 // ====================================================================================================
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bRoundOver = false;
 	CreateTimer(0.1, TimerRoundStart);
 }
 
-public Action TimerRoundStart(Handle timer)
+Action TimerRoundStart(Handle timer)
 {
 	if( g_bCvarAllow )
 	{
@@ -561,9 +564,11 @@ public Action TimerRoundStart(Handle timer)
 		g_fClientHurt[i] = 0.0;
 		g_iClone[i] = 0;
 	}
+
+	return Plugin_Continue;
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bRoundOver = true;
 	g_hCvarCrawl.IntValue = 0;
@@ -574,7 +579,7 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 // ====================================================================================================
 //					EVENT - PLAYER HURT
 // ====================================================================================================
-public void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 {
 	if( !g_bSpit && event.GetInt("type") == 263168 )	// Crawling in spit not allowed & acid damage type
 	{
@@ -588,7 +593,7 @@ public void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 // ====================================================================================================
 //					EVENT - INCAPACITATED
 // ====================================================================================================
-public void Event_Incapped(Event event, const char[] name, bool dontBroadcast)
+void Event_Incapped(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( !IsFakeClient(client) && GetClientTeam(client) == 2 )
@@ -604,12 +609,12 @@ public void Event_Incapped(Event event, const char[] name, bool dontBroadcast)
 }
 
 // Display hint message, allow crawling
-public Action TimerResetStart(Handle timer, any client)
+Action TimerResetStart(Handle timer, any client)
 {
 	client = GetClientOfUserId(client);
 
 	if( g_bRoundOver || !g_iHint || (g_iHint < 3 && g_iDisplayed[client] >= g_iHints) || !IsValidClient(client) )
-		return;
+		return Plugin_Continue;
 
 	g_iDisplayed[client]++;
 	static char sBuffer[128];
@@ -636,6 +641,8 @@ public Action TimerResetStart(Handle timer, any client)
 			PrintHintText(client, sBuffer);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 
@@ -653,7 +660,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if(
 		buttons & IN_FORWARD &&
 		GetEntProp(client, Prop_Send, "m_isIncapacitated", 1) &&
-		GetEntProp(client, Prop_Send, "m_isHangingFromLedge") == 0
+		GetEntProp(client, Prop_Send, "m_isHangingFromLedge", 1) == 0
 	)
 	{
 		if(
@@ -691,7 +698,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 // ====================================================================================================
 //					ANIMATION
 // ====================================================================================================
-public Action PlayAnim(int client)
+Action PlayAnim(int client)
 {
 	// Prediction
 	SendConVarValue(client, g_hCvarCrawl, "1");
@@ -706,7 +713,7 @@ public Action PlayAnim(int client)
 	if( clone == -1 )
 	{
 		LogError("Failed to create %s '%s' (%N)", g_bCrazy ? "prop_dynamic" : "commentary_dummy", sModel, client);
-		return;
+		return Plugin_Continue;
 	}
 
 	if( coach )		SetEntityModel(clone, MODEL_NICK);
@@ -753,17 +760,17 @@ public Action PlayAnim(int client)
 	//LMC
 
 	// Coach anim - Bone merge - Ignore if LMC handling.
-	if( coach && iEntity < 1 )
+	if( iEntity < 1 )
 	{
 		int cloneCoach = CreateEntityByName(g_bCrazy ? "prop_dynamic" : "commentary_dummy");
 		if( cloneCoach == -1 )
 		{
 			LogError("Failed to create clone coach.");
-			return;
+			return Plugin_Continue;
 		}
 
 		SetEntityRenderMode(clone, RENDER_NONE); // Hide original clone.
-		SetEntityModel(cloneCoach, MODEL_COACH);
+		SetEntityModel(cloneCoach, sModel);
 		SetEntProp(cloneCoach, Prop_Send, "m_fEffects", EF_BONEMERGE|EF_NOSHADOW|EF_PARENT_ANIMATES);
 
 		// Attach to survivor
@@ -784,7 +791,7 @@ public Action PlayAnim(int client)
 	}
 
 	// Disable Glow
-	if(!g_bGlow)
+	if( !g_bGlow )
 		SetEntProp(client, Prop_Send, "m_bSurvivorGlowEnabled", 0);
 
 	// Thirdperson view
@@ -792,9 +799,11 @@ public Action PlayAnim(int client)
 		GotoThirdPerson(client);
 	else if( g_iView == 2 )
 		SDKHook(clone, SDKHook_SetTransmit, OnTransmit);
+
+	return Plugin_Continue;
 }
 
-public Action OnTransmit(int entity, int client)
+Action OnTransmit(int entity, int client)
 {
 	if( g_iClone[client]
 		&& EntRefToEntIndex(g_iClone[client]) == entity
@@ -810,7 +819,7 @@ public Action OnTransmit(int entity, int client)
 // ====================================================================================================
 //					DAMAGE PLAYER
 // ====================================================================================================
-public Action TimerHurt(Handle timer)
+Action TimerHurt(Handle timer)
 {
 	bool bIsCrawling;
 
@@ -864,7 +873,7 @@ void GotoFirstPerson(int client)
 	SetEntProp(client, Prop_Send, "m_bDrawViewmodel", 1);
 }
 
-public bool IsValidClient(int client)
+bool IsValidClient(int client)
 {
 	if( client && IsClientInGame(client) && IsPlayerAlive(client) && GetClientTeam(client) == 2 )
 		return true;
@@ -906,7 +915,7 @@ void RemoveClone(int client)
 		}
 		//LMC
 
-		AcceptEntityInput(clone, "Kill");
+		RemoveEntity(clone);
 
 		if( IsPlayerAlive(client) )
 		{

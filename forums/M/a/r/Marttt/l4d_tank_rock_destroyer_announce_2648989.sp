@@ -2,11 +2,11 @@
 // ====================================================================================================
 Change Log:
 
+1.1.1 (18-December-2021)
+    - Added cvar to control which attacker team should trigger the message.
+
 1.1.0 (28-January-2021)
     - New version released.
-    - Fixed wrong attacker outputting to the chat. (thanks to "Crasher_3637")
-    - Added Hungarian (hu) translation. (thanks to "KasperH")
-    - Added Russian (ru) translation. (thanks to "Zheldorg")
 
 1.0.0 (26-April-2019)
     - Initial release.
@@ -20,7 +20,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Tank Rock Destroyer Announce"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Announces which player destroyed the rock thrown by the Tank"
-#define PLUGIN_VERSION                "1.1.0"
+#define PLUGIN_VERSION                "1.1.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=315818"
 
 // ====================================================================================================
@@ -63,8 +63,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_TANK_ROCK           "tank_rock"
-
 #define MODEL_CONCRETE_CHUNK          "models/props_debris/concrete_chunk01a.mdl"
 #define MODEL_TREE_TRUNK              "models/props_foliage/tree_trunk.mdl"
 
@@ -83,27 +81,32 @@ public Plugin myinfo =
 #define TYPE_CONCRETE_CHUNK           (1 << 0) // 1 | 001
 #define TYPE_TREE_TRUNK               (1 << 1) // 2 | 010
 
+#define MAXENTITIES                   2048
+
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Team;
-static ConVar g_hCvar_Self;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Team;
+ConVar g_hCvar_TeamAttacker;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Team;
-static bool   g_bCvar_Self;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_Rock = -1;
-static int    g_iModel_Trunk = -1;
-static int    g_iCvar_Team;
+int g_iModel_Rock = -1;
+int g_iModel_Trunk = -1;
+int g_iCvar_Team;
+int g_iCvar_TeamAttacker;
+
+// ====================================================================================================
+// entity - Plugin Variables
+// ====================================================================================================
+bool ge_bOnTakeDamageAlivePostHooked[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -128,15 +131,16 @@ public void OnPluginStart()
     LoadPluginTranslations();
 
     CreateConVar("l4d_tank_rock_destroyer_announce", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled = CreateConVar("l4d_tank_rock_destroyer_announce_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Team    = CreateConVar("l4d_tank_rock_destroyer_announce_team", "3", "Which teams should the message be transmitted to.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
-    g_hCvar_Self    = CreateConVar("l4d_tank_rock_destroyer_announce_self", "1", "Should the message be transmitted to those who destroyed it.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_Enabled      = CreateConVar("l4d_tank_rock_destroyer_announce_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_Team         = CreateConVar("l4d_tank_rock_destroyer_announce_team", "7", "Which teams should the message be transmitted to.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
+    g_hCvar_TeamAttacker = CreateConVar("l4d_tank_rock_destroyer_announce_team_attacker", "1", "Which teams should trigger the message.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
 
     // Hook plugin ConVars change
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
     g_hCvar_Team.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Self.AddChangeHook(Event_ConVarChanged);
+    g_hCvar_TeamAttacker.AddChangeHook(Event_ConVarChanged);
 
+    // Load plugin configs from .cfg
     AutoExecConfig(true, CONFIG_FILENAME);
 
     // Admin Commands
@@ -169,38 +173,35 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_iCvar_Team = g_hCvar_Team.IntValue;
-    g_bCvar_Team = (g_iCvar_Team > 0);
-    g_bCvar_Self = g_hCvar_Self.BoolValue;
+    g_iCvar_TeamAttacker = g_hCvar_TeamAttacker.IntValue;
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_TANK_ROCK)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "tank_rock")) != INVALID_ENT_REFERENCE)
     {
-        SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnTakeDamageAlivePost);
+        HookEntity(entity);
     }
 }
 
@@ -208,22 +209,37 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 't')
-        return;
-
-    if (StrEqual(classname, CLASSNAME_TANK_ROCK))
-        SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnTakeDamageAlivePost);
+    if (StrEqual(classname, "tank_rock"))
+        HookEntity(entity);
 }
 
 /****************************************************************************************************/
 
-public void OnTakeDamageAlivePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3])
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
+        return;
+
+    ge_bOnTakeDamageAlivePostHooked[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void HookEntity(int entity)
+{
+    if (ge_bOnTakeDamageAlivePostHooked[entity])
+        return;
+
+    ge_bOnTakeDamageAlivePostHooked[entity] = true;
+    SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnTakeDamageAlivePost);
+}
+
+/****************************************************************************************************/
+
+void OnTakeDamageAlivePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3])
 {
     if (!g_bCvar_Enabled)
         return;
@@ -231,46 +247,55 @@ public void OnTakeDamageAlivePost(int victim, int attacker, int inflictor, float
     if (GetEntProp(victim, Prop_Data, "m_iHealth") > 0)
         return;
 
-    if (!g_bCvar_Team)
+    if (!IsValidClient(attacker))
         return;
 
-    if (!IsValidClient(attacker))
+    if (!(GetTeamFlag(GetClientTeam(attacker)) & g_iCvar_TeamAttacker))
         return;
 
     int type = GetRockType(victim);
 
-    for (int client = 1; client <= MaxClients; client++)
+    OutputMessage(attacker, type);
+}
+
+/****************************************************************************************************/
+
+void OutputMessage(int client, int type)
+{
+    for (int target = 1; target <= MaxClients; target++)
     {
-        if (!IsClientInGame(client))
+        if (!IsValidPrintTarget(target))
             continue;
-
-        if (IsFakeClient(client))
-            continue;
-
-        if (attacker == client)
-        {
-            if (!g_bCvar_Self)
-                continue;
-        }
-        else
-        {
-            if (!(GetTeamFlag(GetClientTeam(client)) & g_iCvar_Team))
-                continue;
-        }
 
         switch (type)
         {
-            case TYPE_CONCRETE_CHUNK: CPrintToChat(client, "%t", "Rock", attacker);
-            case TYPE_TREE_TRUNK: CPrintToChat(client, "%t", "Trunk", attacker);
-            case TYPE_UNKNOWN: CPrintToChat(client, "%t", "Unknown", attacker);
+            case TYPE_CONCRETE_CHUNK: CPrintToChat(target, "%t", "Rock", client);
+            case TYPE_TREE_TRUNK: CPrintToChat(target, "%t", "Trunk", client);
+            case TYPE_UNKNOWN: CPrintToChat(target, "%t", "Unknown", client);
         }
     }
+}
+
+/****************************************************************************************************/
+
+bool IsValidPrintTarget(int target)
+{
+    if (!IsClientInGame(target))
+        return false;
+
+    if (IsFakeClient(target))
+        return false;
+
+    if (!(GetTeamFlag(GetClientTeam(target)) & g_iCvar_Team))
+        return false;
+
+    return true;
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -279,8 +304,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_tank_rock_destroyer_announce : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_tank_rock_destroyer_announce_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_tank_rock_destroyer_announce_team : %i (%s)", g_iCvar_Team, g_bCvar_Team ? "true" : "false");
-    PrintToConsole(client, "l4d_tank_rock_destroyer_announce_self : %i (%s)", g_bCvar_Self, g_bCvar_Self ? "true" : "false");
+    PrintToConsole(client, "l4d_tank_rock_destroyer_announce_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
+    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_tank_rock_destroyer_announce_team_attacker : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_TeamAttacker,
+    g_iCvar_TeamAttacker & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_TeamAttacker & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_TeamAttacker & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_TeamAttacker & FLAG_TEAM_HOLDOUT ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -313,19 +340,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }
 
 /****************************************************************************************************/
@@ -386,7 +400,7 @@ int GetRockType(int entity)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

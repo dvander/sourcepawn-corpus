@@ -4,16 +4,16 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "1.10"
+#define PLUGIN_VERSION "1.33"
 
-bool g_bTouched[MAXPLAYERS+1];
 bool g_bMVM;
 bool g_bLateLoad;
 ConVar g_hCVTimer;
 ConVar g_hCVEnabled;
 ConVar g_hCVTeam;
+ConVar g_hCVMVMSupport;
 Handle g_hWearableEquip;
-Handle g_hGameConfig;
+Handle g_hTouched[MAXPLAYERS+1];
 
 public Plugin myinfo = 
 {
@@ -42,8 +42,9 @@ public void OnPluginStart()
 	g_hCVEnabled = CreateConVar("sm_gbc_enabled", "1", "Enables/disables this plugin", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_hCVTimer = CreateConVar("sm_gbc_delay", "0.1", "Delay for giving cosmetics to bots", FCVAR_NONE, true, 0.1, true, 30.0);
 	g_hCVTeam = CreateConVar("sm_gbc_team", "1", "Team to give cosmetics to: 1-both, 2-red, 3-blu", FCVAR_NONE, true, 1.0, true, 3.0);
+	g_hCVMVMSupport = CreateConVar("sm_gbc_mvm", "0", "Enables/disables giving bots cosmetics when MVM mode is enabled", FCVAR_NONE, true, 0.0, true, 1.0);
 
-	HookEvent("post_inventory_application", player_inv);
+	OnEnabledChanged(g_hCVEnabled, "", "");
 	HookConVarChange(g_hCVEnabled, OnEnabledChanged);
 	
 	SetConVarString(hCVversioncvar, PLUGIN_VERSION);
@@ -54,15 +55,15 @@ public void OnPluginStart()
 		OnMapStart();
 	}
 	
-	g_hGameConfig = LoadGameConfigFile("give.bots.cosmetics");
+	GameData hGameConfig = LoadGameConfigFile("give.bots.stuff");
 	
-	if (!g_hGameConfig)
+	if (!hGameConfig)
 	{
-		SetFailState("Failed to find give.bots.cosmetics.txt gamedata! Can't continue.");
+		SetFailState("Failed to find give.bots.stuff.txt gamedata! Can't continue.");
 	}	
 	
 	StartPrepSDKCall(SDKCall_Player);
-	PrepSDKCall_SetFromConf(g_hGameConfig, SDKConf_Virtual, "EquipWearable");
+	PrepSDKCall_SetFromConf(hGameConfig, SDKConf_Virtual, "EquipWearable");
 	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
 	g_hWearableEquip = EndPrepSDKCall();
 	
@@ -70,6 +71,8 @@ public void OnPluginStart()
 	{
 		SetFailState("Failed to prepare the SDKCall for giving cosmetics. Try updating gamedata or restarting your server.");
 	}
+
+	delete hGameConfig;
 }
 
 public void OnEnabledChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -94,7 +97,7 @@ public void OnMapStart()
 
 public void OnClientDisconnect(int client)
 {
-	g_bTouched[client] = false;
+	delete g_hTouched[client];
 }
 
 public void player_inv(Handle event, const char[] name, bool dontBroadcast) 
@@ -106,10 +109,10 @@ public void player_inv(Handle event, const char[] name, bool dontBroadcast)
 
 	int userd = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userd);
-	
-	if (!g_bTouched[client] && !g_bMVM && IsPlayerHere(client))
+	delete g_hTouched[client];
+
+	if ((!g_bMVM || (g_bMVM && GetConVarBool(g_hCVMVMSupport))) && IsPlayerHere(client))
 	{
-		g_bTouched[client] = true;
 		int team = GetClientTeam(client);
 		int team2 = GetConVarInt(g_hCVTeam);
 		float timer = GetConVarFloat(g_hCVTimer);
@@ -118,20 +121,20 @@ public void player_inv(Handle event, const char[] name, bool dontBroadcast)
 		{
 			case 1:
 			{
-				CreateTimer(timer, Timer_GiveHat, userd, TIMER_FLAG_NO_MAPCHANGE);
+				g_hTouched[client] = CreateTimer(timer, Timer_GiveHat, userd, TIMER_FLAG_NO_MAPCHANGE);
 			}
 			case 2:
 			{
 				if (team == 2)
 				{
-					CreateTimer(timer, Timer_GiveHat, userd, TIMER_FLAG_NO_MAPCHANGE);
+					g_hTouched[client] = CreateTimer(timer, Timer_GiveHat, userd, TIMER_FLAG_NO_MAPCHANGE);
 				}
 			}
 			case 3:
 			{
 				if (team == 3)
 				{
-					CreateTimer(timer, Timer_GiveHat, userd, TIMER_FLAG_NO_MAPCHANGE);
+					g_hTouched[client] = CreateTimer(timer, Timer_GiveHat, userd, TIMER_FLAG_NO_MAPCHANGE);
 				}
 			}
 		}
@@ -141,11 +144,11 @@ public void player_inv(Handle event, const char[] name, bool dontBroadcast)
 public Action Timer_GiveHat(Handle timer, any data)
 {
 	int client = GetClientOfUserId(data);
-	g_bTouched[client] = false;
+	g_hTouched[client] = null;
 	
 	if (!GetConVarInt(g_hCVEnabled) || !IsPlayerHere(client))
 	{
-		return;
+		return Plugin_Stop;
 	}
 
 	int team = GetClientTeam(client);
@@ -157,19 +160,19 @@ public Action Timer_GiveHat(Handle timer, any data)
 		{
 			if (team != 2)
 			{
-				return;
+				return Plugin_Stop;
 			}
 		}
 		case 3:
 		{
 			if (team != 3)
 			{
-				return;
+				return Plugin_Stop;
 			}
 		}
 	}
 	
-	if (!g_bMVM)
+	if (!g_bMVM || (g_bMVM && GetConVarBool(g_hCVMVMSupport)))
 	{
 		bool face = false;
 	
@@ -362,7 +365,7 @@ public Action Timer_GiveHat(Handle timer, any data)
 			}
 		}
 		
-		if ( !face )
+		if (!face)
 		{
 			int rnd2 = GetRandomUInt(0,10);
 			switch (rnd2)
@@ -514,22 +517,24 @@ public Action Timer_GiveHat(Handle timer, any data)
 				CreateHat(client, 718, 6); //Merc Medal
 			}
 		}
-	}	
+	}
+
+	return Plugin_Continue;
 }
 
-bool CreateHat(int client, int itemindex, int quality, int level = 0)
+bool CreateHat(int client, int itemindex, int quality = 6, int level = 0)
 {
 	int hat = CreateEntityByName("tf_wearable");
 	
 	if (!IsValidEntity(hat))
 	{
+		LogError("Failed to create a valid entity with class name [tf_wearable]! Skipping.");
 		return false;
 	}
 	
 	char entclass[64];
 	GetEntityNetClass(hat, entclass, sizeof(entclass));
 	SetEntData(hat, FindSendPropInfo(entclass, "m_iItemDefinitionIndex"), itemindex);
-	SetEntData(hat, FindSendPropInfo(entclass, "m_bInitialized"), 1);
 	SetEntData(hat, FindSendPropInfo(entclass, "m_iEntityQuality"), quality);
 
 	if (level)
@@ -541,14 +546,22 @@ bool CreateHat(int client, int itemindex, int quality, int level = 0)
 		SetEntData(hat, FindSendPropInfo(entclass, "m_iEntityLevel"), GetRandomUInt(1,100));
 	}
 	
-	DispatchSpawn(hat);
+	SetEntData(hat, FindSendPropInfo(entclass, "m_bInitialized"), 1);
+
+	if (!DispatchSpawn(hat)) 
+	{
+		LogError("The created cosmetic entity [Class name: tf_wearable, Item index: %i, Index: %i], failed to spawn! Skipping.", itemindex, hat);
+		AcceptEntityInput(hat, "Kill");
+		return false;
+	}
+
 	SDKCall(g_hWearableEquip, client, hat);
 	return true;
 } 
 
 bool IsPlayerHere(int client)
 {
-	return (client && IsClientInGame(client) && IsFakeClient(client));
+	return (client && IsClientInGame(client) && IsFakeClient(client) && !IsClientReplay(client) && !IsClientSourceTV(client));
 }
 
 int GetRandomUInt(int min, int max)

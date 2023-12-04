@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.10"
+#define PLUGIN_VERSION 		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (01-Dec-2021)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+	- Minor change to fix bad coding practice.
 
 1.10 (29-Jun-2021)
 	- Fixed the plugin not always deactivating in finales. Thanks to "KoMiKoZa" for reporting.
@@ -380,7 +384,7 @@ void ResetPlugin()
 
 public Action TimerDelayCheck(Handle timer)
 {
-	g_bIsFinale = FindEntityByClassname(MaxClients + 1, "trigger_finale") != INVALID_ENT_REFERENCE;
+	g_bIsFinale = FindEntityByClassname(-1, "trigger_finale") != INVALID_ENT_REFERENCE;
 
 	IsAllowed();
 
@@ -388,6 +392,8 @@ public Action TimerDelayCheck(Handle timer)
 
 	if( g_bCvarAllow && !g_bIsFinale )
 		g_hTimer = CreateTimer(g_fCvarTimer, TimerUpdate, _, TIMER_REPEAT);
+
+	return Plugin_Continue;
 }
 
 

@@ -3,7 +3,7 @@
 #define DEBUG
 
 #define PLUGIN_AUTHOR "Hardy`(stephen473)"
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.3"
 
 #include <sourcemod>
 #include <sdktools>
@@ -22,7 +22,7 @@ public Plugin myinfo =
 	author = PLUGIN_AUTHOR,
 	description = "Allows players to execute server/client commands via shortcuts",
 	version = PLUGIN_VERSION,
-	url = "http://pluginsatis.com"
+	url = "https://steamcommunity.com/id/kHardy & Discord: Hardy`#3792"
 };
 
 public void OnPluginStart()
@@ -113,31 +113,72 @@ public void SearchCommandInArg(int client, const char[] sArg)
 	
 	char sFlag[32];
 	hCommand.GetString("flag", sFlag, sizeof(sFlag));
-			
+
+	if (StrContains(sFlag, "STEAM") != -1)
+	{
+		char sAuthID[32];
+		GetClientAuthId(client, AuthId_Steam2, sAuthID, 32);
+		
+		if (!StrEqual(sFlag, sAuthID))
+		{
+			return;
+		}
+	}
+	
 	int iFlag = ReadFlagString(sFlag);
 			
 	if (!CheckCommandAccess(client, "sm_commandshortcuts", iFlag, true))
 	return;
 	
 	char sCommand[32];
-	int iCommandType;
+	int iCommandType, iDelay;
 			
 	hCommand.GetString("command", sCommand, sizeof(sCommand));		
 	hCommand.GetValue("type", iCommandType);		
+	hCommand.GetValue("delay", iDelay);
 	
-	if (StrContains(sCommand, "{player}") != -1)
+	if (StrContains(sCommand, "	") != -1)
 	{
 		char sIndex[12];		
 		Format(sIndex, sizeof(sIndex), "#%d", GetClientUserId(client));		
 		ReplaceString(sCommand, sizeof(sCommand), "{player}", sIndex);
 	}
 	
-	iCommandType == 1 ? ServerCommand(sCommand):ClientCommand(client, sCommand);
-	
+	if (iDelay > 0)
+	{
+		DataPack hPack = new DataPack();
+		
+		CreateDataTimer(float(iDelay), Timer_ApplyCommand, hPack, TIMER_FLAG_NO_MAPCHANGE);
+		
+		hPack.WriteString(sCommand);
+		hPack.WriteCell(iCommandType);
+		hPack.WriteCell(GetClientUserId(client));
+		hPack.Reset();		
+	}
+
+	else
+		iCommandType == 1 ? ServerCommand(sCommand):ClientCommand(client, sCommand);
+		
 	if (g_cNotification.BoolValue)
 		PrintToChatAll(" [SM] Player \x03%N \x01triggered an shortcut! \x04(%s)", client, sArg);		
 		
 	delete hCommand;			
+}
+
+public Action Timer_ApplyCommand(Handle timer, DataPack hPack)
+{
+	char sCommand[32];
+	
+	hPack.ReadString(sCommand, 32);
+	
+	int iCommandType = hPack.ReadCell();
+	int client = hPack.ReadCell();
+	
+	if (!client)return;
+	
+	iCommandType == 1 ? ServerCommand(sCommand):ClientCommand(client, sCommand);	
+	
+	delete hPack;
 }
 
 bool IsCommandRegistered(const char[] sArg)
@@ -157,7 +198,7 @@ bool IsCommandRegistered(const char[] sArg)
 	return iRegisterCommand == 1;
 }
 
-public void ReadCFG()
+void ReadCFG()
 {
 	g_aCommands.Clear();
 	g_aShortCuts.Clear();
@@ -178,6 +219,7 @@ public void ReadCFG()
 		
 		int iCommandType = hKv.GetNum("type");
 		int iRegisterCommand = hKv.GetNum("registershortcut");
+		float fDelay = hKv.GetFloat("delay");
 		
 		StringMap hCommand = new StringMap();
 		
@@ -186,6 +228,7 @@ public void ReadCFG()
 		hCommand.SetString("command", sCommand);		
 		hCommand.SetValue("type", iCommandType);		
 		hCommand.SetValue("registershortcut", iRegisterCommand);
+		hCommand.SetValue("delay", view_as<int>(fDelay));
 		
 		g_aShortCuts.PushString(sShortCut);
 		g_aCommands.Push(hCommand);

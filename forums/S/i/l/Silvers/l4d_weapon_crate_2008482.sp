@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.7"
+/*
+*	Weapon Crate
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.7 (10-May-2020)
 	- Blocked glow command from L4D1 which does not support glows.
@@ -370,12 +393,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -484,7 +507,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -501,29 +524,30 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(false);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		CreateTimer(1.0, tmrStart, _, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action tmrStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadSpawns();
+	return Plugin_Continue;
 }
 
 
@@ -798,7 +822,7 @@ void MoveSideway(const float vPos[3], const float vAng[3], float vReturn[3], flo
 // ====================================================================================================
 //					sm_weapon_crate
 // ====================================================================================================
-public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
+int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Cancel )
 	{
@@ -815,18 +839,22 @@ public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		g_hMenuList.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
-public int TypeMenuHandler(Menu menu, MenuAction action, int client, int index)
+int TypeMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
 		g_iType[client] = index;
 		g_hMenuList.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
-public Action CmdSpawnerTemp(int client, int args)
+Action CmdSpawnerTemp(int client, int args)
 {
 	if( !client )
 	{
@@ -873,7 +901,7 @@ void CmdSpawnerTempMenu(int client, int weapon)
 // ====================================================================================================
 //					sm_weapon_crate_save
 // ====================================================================================================
-public Action CmdSpawnerSave(int client, int args)
+Action CmdSpawnerSave(int client, int args)
 {
 	if( !client )
 	{
@@ -972,7 +1000,7 @@ void CmdSpawnerSaveMenu(int client, int weapon)
 // ====================================================================================================
 //					sm_weapon_crate_del
 // ====================================================================================================
-public Action CmdSpawnerDel(int client, int args)
+Action CmdSpawnerDel(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1125,7 +1153,7 @@ public Action CmdSpawnerDel(int client, int args)
 // ====================================================================================================
 //					sm_weapon_crate_clear
 // ====================================================================================================
-public Action CmdSpawnerClear(int client, int args)
+Action CmdSpawnerClear(int client, int args)
 {
 	if( !client )
 	{
@@ -1142,7 +1170,7 @@ public Action CmdSpawnerClear(int client, int args)
 // ====================================================================================================
 //					sm_weapon_crate_wipe
 // ====================================================================================================
-public Action CmdSpawnerWipe(int client, int args)
+Action CmdSpawnerWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -1193,7 +1221,7 @@ public Action CmdSpawnerWipe(int client, int args)
 // ====================================================================================================
 //					sm_weapon_crate_glow
 // ====================================================================================================
-public Action CmdSpawnerGlow(int client, int args)
+Action CmdSpawnerGlow(int client, int args)
 {
 	static bool glow;
 	glow = !glow;
@@ -1225,7 +1253,7 @@ void VendorGlow(int glow)
 // ====================================================================================================
 //					sm_weapon_crate_list
 // ====================================================================================================
-public Action CmdSpawnerList(int client, int args)
+Action CmdSpawnerList(int client, int args)
 {
 	float vPos[3];
 	int count;
@@ -1245,7 +1273,7 @@ public Action CmdSpawnerList(int client, int args)
 // ====================================================================================================
 //					sm_weapon_crate_tele
 // ====================================================================================================
-public Action CmdSpawnerTele(int client, int args)
+Action CmdSpawnerTele(int client, int args)
 {
 	if( args == 1 )
 	{
@@ -1272,7 +1300,7 @@ public Action CmdSpawnerTele(int client, int args)
 // ====================================================================================================
 //					MENU ANGLE
 // ====================================================================================================
-public Action CmdSpawnerAng(int client, int args)
+Action CmdSpawnerAng(int client, int args)
 {
 	ShowMenuAng(client);
 	return Plugin_Handled;
@@ -1284,7 +1312,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1294,6 +1322,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1346,7 +1376,7 @@ void SetAngle(int client, int index)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdSpawnerPos(int client, int args)
+Action CmdSpawnerPos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -1358,7 +1388,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1368,6 +1398,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -1577,7 +1609,7 @@ void RemoveSpawn(int index)
 
 	entity = g_iSpawns[index][0];
 	g_iSpawns[index][0] = 0;
-	if( IsValidEntRef(entity) )	AcceptEntityInput(entity, "kill");
+	if( IsValidEntRef(entity) )	RemoveEntity(entity);
 
 	entity = g_iSpawns[index][1];
 	g_iSpawns[index][1] = 0;
@@ -1587,7 +1619,7 @@ void RemoveSpawn(int index)
 		client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 		if( client < 0 || client > MaxClients || !IsClientInGame(client) )
 		{
-			AcceptEntityInput(entity, "kill");
+			RemoveEntity(entity);
 		}
 	}
 }
@@ -1600,6 +1632,7 @@ void RemoveSpawn(int index)
 float GetGroundHeight(float vPos[3])
 {
 	float vAng[3];
+
 	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, _TraceFilter);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
@@ -1651,7 +1684,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }

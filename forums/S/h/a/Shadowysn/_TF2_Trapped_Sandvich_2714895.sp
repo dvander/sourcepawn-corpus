@@ -1,34 +1,34 @@
-#pragma newdecls required
-#pragma semicolon 1
-
 #define PLUGIN_NAME "[TF2] Trapped Sandvich"
 #define PLUGIN_AUTHOR "Shadowysn"
-#define PLUGIN_DESC "Heavies can press RELOAD whilst eating a Sandvich to throw a trapped sandvich."
-#define PLUGIN_VERSION "1.0.0"
-#define PLUGIN_URL ""
+#define PLUGIN_DESC "Heavies can press RELOAD whilst carrying a Sandvich to throw a trapped sandvich."
+#define PLUGIN_VERSION "1.0.3c"
+#define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?t=326857"
 #define PLUGIN_NAME_SHORT "Trapped Sandvich"
 #define PLUGIN_NAME_TECH "trapped_sandvich"
 
 #define SANDVICH_MDL "models/items/plate.mdl"
 #define CLASS_TRAP "item_healthkit_small"
-#define TARGETNAME_TRAP "plugin_trapped_sandvich"
+static const char TARGETNAME_TRAP[] = "plugin_trapped_sandvich";
 
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
 #include <tf2_stocks>
 
-//static int oldHealth[MAXPLAYERS+1] = 0;
-static int trappedSandvich[MAXPLAYERS+1] = INVALID_ENT_REFERENCE;
-static int healonhit_Amount[MAXPLAYERS+1] = -1;
+#pragma newdecls required
+#pragma semicolon 1
 
-ConVar TrappedSandvich_Enable;
-ConVar TrappedSandvich_Damage;
-//ConVar TrappedSandvich_NotifyHurt;
-ConVar TrappedSandvich_NotifyClassChange;
-ConVar TrappedSandvich_NotifyDeath;
+//static int oldHealth[MAXPLAYERS+1] = {0};
+static int trappedSandvich[MAXPLAYERS+1] = {INVALID_ENT_REFERENCE};
+static int healonhit_Amount[MAXPLAYERS+1] = {-1};
 
-ConVar version_cvar;
+static ConVar TrappedSandvich_Enable;
+static ConVar TrappedSandvich_Damage;
+//static ConVar TrappedSandvich_NotifyHurt;
+static ConVar TrappedSandvich_NotifyClassChange;
+static ConVar TrappedSandvich_NotifyDeath;
+bool g_bEnable, g_bNotifyClassChange, g_bNotifyDeath;
+int g_iDamage;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -51,33 +51,32 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	char temp_str[128];
-	char desc_str[256];
-	
-	Format(temp_str, sizeof(temp_str), "sm_%s_enable", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "Allow Heavies to throw trapped sandviches by holding RELOAD while throwing a Sandvich.");
-	TrappedSandvich_Enable = CreateConVar(temp_str, "1", desc_str, FCVAR_NONE, true, 0.0, true, 1.0);
-	
-	Format(temp_str, sizeof(temp_str), "sm_%s_damage", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "Additional damage to add to victims of trapped sandviches.");
-	TrappedSandvich_Damage = CreateConVar(temp_str, "0.0", desc_str, FCVAR_NONE, true, 0.0);
-	
-	//Format(temp_str, sizeof(temp_str), "sm_%s_notify_hurt", PLUGIN_NAME_TECH);
-	//strcopy(desc_str, sizeof(desc_str), "Notify players when they get hurt by a trapped sandvich?");
-	//TrappedSandvich_NotifyHurt = CreateConVar(temp_str, "1.0", desc_str, FCVAR_NONE, true, 0.0, true, 1.0);
-	
-	Format(temp_str, sizeof(temp_str), "sm_%s_notify_classchange", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "Notify players that change to Heavy about how to throw trapped sandviches?");
-	TrappedSandvich_NotifyClassChange = CreateConVar(temp_str, "1.0", desc_str, FCVAR_NONE, true, 0.0, true, 1.0);
-	
-	Format(temp_str, sizeof(temp_str), "sm_%s_notify_death", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "Notify players when they ate a trapped sandvich which caused them to die?");
-	TrappedSandvich_NotifyDeath = CreateConVar(temp_str, "1.0", desc_str, FCVAR_NONE, true, 0.0, true, 1.0);
-	
-	Format(desc_str, sizeof(desc_str), "%s version", PLUGIN_NAME_SHORT);
-	version_cvar = CreateConVar("sm_trapped_sandvich_version", PLUGIN_VERSION, desc_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	static char desc_str[64];
+	Format(desc_str, sizeof(desc_str), "%s version.", PLUGIN_NAME_SHORT);
+	static char cmd_str[64];
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_version", PLUGIN_NAME_TECH);
+	ConVar version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, desc_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
 	if (version_cvar != null)
 		SetConVarString(version_cvar, PLUGIN_VERSION);
+	
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_enable", PLUGIN_NAME_TECH);
+	TrappedSandvich_Enable = CreateConVar(cmd_str, "1", "Allow Heavies to throw trapped sandviches by holding RELOAD while throwing a Sandvich.", FCVAR_NONE, true, 0.0, true, 1.0);
+	TrappedSandvich_Enable.AddChangeHook(CC_TS_Enable);
+	
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_damage", PLUGIN_NAME_TECH);
+	TrappedSandvich_Damage = CreateConVar(cmd_str, "50.0", "Damage to deal to victims of trapped sandviches.", FCVAR_NONE, true, 0.0);
+	TrappedSandvich_Damage.AddChangeHook(CC_TS_Damage);
+	
+	//Format(cmd_str, sizeof(cmd_str), "sm_%s_notify_hurt", PLUGIN_NAME_TECH);
+	//TrappedSandvich_NotifyHurt = CreateConVar(cmd_str, "1.0", "Notify players when they get hurt by a trapped sandvich?", FCVAR_NONE, true, 0.0, true, 1.0);
+	
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_notify_classchange", PLUGIN_NAME_TECH);
+	TrappedSandvich_NotifyClassChange = CreateConVar(cmd_str, "1.0", "Notify players that change to Heavy about how to throw trapped sandviches?", FCVAR_NONE, true, 0.0, true, 1.0);
+	TrappedSandvich_NotifyClassChange.AddChangeHook(CC_TS_NotifyClassChange);
+	
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_notify_death", PLUGIN_NAME_TECH);
+	TrappedSandvich_NotifyDeath = CreateConVar(cmd_str, "1.0", "Notify players when they ate a trapped sandvich which caused them to die?", FCVAR_NONE, true, 0.0, true, 1.0);
+	TrappedSandvich_NotifyDeath.AddChangeHook(CC_TS_NotifyDeath);
 	
 	HookEvent("player_team", player_team, EventHookMode_Post);
 	HookEvent("player_death", player_death, EventHookMode_Pre);
@@ -85,6 +84,7 @@ public void OnPluginStart()
 	HookEvent("player_changeclass", player_changeclass, EventHookMode_Post);
 	
 	AutoExecConfig(true, "TF2_Trapped_Sandvich");
+	SetCvars();
 	LoadTranslations("trapped_sandvich.phrases");
 }
 
@@ -96,14 +96,26 @@ public void OnPluginEnd()
 	}
 }
 
-void player_team(Handle event, const char[] name, bool dontBroadcast) 
+void CC_TS_Enable(ConVar convar, const char[] oldValue, const char[] newValue)				{ g_bEnable =			convar.BoolValue;	}
+void CC_TS_Damage(ConVar convar, const char[] oldValue, const char[] newValue)				{ g_iDamage =			convar.IntValue;	}
+void CC_TS_NotifyClassChange(ConVar convar, const char[] oldValue, const char[] newValue)	{ g_bNotifyClassChange =	convar.BoolValue;	}
+void CC_TS_NotifyDeath(ConVar convar, const char[] oldValue, const char[] newValue)			{ g_bNotifyDeath =		convar.BoolValue;	}
+void SetCvars()
 {
-	int userid = GetEventInt(event, "userid");
+	CC_TS_Enable(TrappedSandvich_Enable, "", "");
+	CC_TS_Damage(TrappedSandvich_Damage, "", "");
+	CC_TS_NotifyClassChange(TrappedSandvich_NotifyClassChange, "", "");
+	CC_TS_NotifyDeath(TrappedSandvich_NotifyDeath, "", "");
+}
+
+void player_team(Event event, const char[] name, bool dontBroadcast) 
+{
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
 	if (!IsValidClient(client)) return;
 	
 	int sandvich = trappedSandvich[client];
-	if (!IsValidEntity(sandvich) || sandvich <= 0) return;
+	if (!RealValidEntity(sandvich)) return;
 	
 	SetEntPropEnt(sandvich, Prop_Send, "m_hOwnerEntity", -1);
 	SetVariantString("OnUser1 !self:Kill::15.0:-1"); // Only allow for a max of 15 seconds of life time after being invalidated.
@@ -112,71 +124,79 @@ void player_team(Handle event, const char[] name, bool dontBroadcast)
 	trappedSandvich[client] = INVALID_ENT_REFERENCE;
 }
 
-void player_changeclass(Handle event, const char[] name, bool dontBroadcast) 
+void player_changeclass(Event event, const char[] name, bool dontBroadcast) 
 {
-	if (!GetConVarBool(TrappedSandvich_Enable) || !GetConVarBool(TrappedSandvich_NotifyClassChange)) return;
+	if (!g_bEnable || !g_bNotifyClassChange) return;
 	
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
 	if (!IsValidClient(client)) return;
 	
-	TFClassType class = view_as<TFClassType>(GetEventInt(event, "class"));
+	TFClassType class = view_as<TFClassType>(event.GetInt("class", 0));
 	if (class != TFClass_Heavy) return;
 	
-	CreateTimer(1.0, player_changeclass_Timer, client, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(1.0, player_changeclass_Timer, userid, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 Action player_changeclass_Timer(Handle timer, int client)
 {
-	if (!IsValidClient(client)) return;
+	client = GetClientOfUserId(client);
+	
+	if (!IsValidClient(client)) return Plugin_Continue;
 	
 	PrintHintText(client, "%t", "Trapped Sandvich Hint");
+	return Plugin_Continue;
 }
 
-void player_death(Handle event, const char[] name, bool dontBroadcast) 
+void player_death(Event event, const char[] name, bool dontBroadcast) 
 {
-	int userid = GetEventInt(event, "userid");
+	int userid = event.GetInt("userid", 0);
 	int client = GetClientOfUserId(userid);
 	if (!IsValidClient(client)) return;
 	
-	int inflictorID = GetEventInt(event, "inflictor_entindex");
+	int inflictorID = event.GetInt("inflictor_entindex", 0);
+	if (inflictorID < 0) return;
 	int inflictor = EntIndexToEntRef(inflictorID);
-	char targetname[PLATFORM_MAX_PATH+1];
+	static char targetname[32];
 	GetEntPropString(inflictor, Prop_Data, "m_iName", targetname, sizeof(targetname));
 	
-	if (StrContains(targetname, TARGETNAME_TRAP, false) < 0) return;
+	//PrintToServer("targetname: %s\nstrncmp trapped_sandvich: %i", targetname, strncmp(targetname, TARGETNAME_TRAP, sizeof(TARGETNAME_TRAP)-1, false));
+	if (strncmp(targetname, TARGETNAME_TRAP, sizeof(TARGETNAME_TRAP)-1) != 0) return;
 	
-	SetEventString(event, "weapon", TARGETNAME_TRAP);
-	SetEventString(event, "weapon_logclassname", TARGETNAME_TRAP);
+	event.SetString("weapon", TARGETNAME_TRAP);
+	event.SetString("weapon_logclassname", TARGETNAME_TRAP);
 	
-	if (!GetConVarBool(TrappedSandvich_NotifyDeath)) return;
+	if (!g_bNotifyDeath) return;
 	
-	CreateTimer(0.25, player_death_Timer, client, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.25, player_death_Timer, userid, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 Action player_death_Timer(Handle timer, int client)
 {
-	if (!IsValidClient(client)) return;
+	client = GetClientOfUserId(client);
+	if (!IsValidClient(client)) return Plugin_Continue;
 	
 	PrintHintText(client, "%t", "Died By Trapped Sandvich");
+	return Plugin_Continue;
 }
 
-void player_healonhit(Handle event, const char[] name, bool dontBroadcast) 
+Action player_healonhit(Event event, const char[] name, bool dontBroadcast) 
 {
-	int client = GetEventInt(event, "entindex");
-	if (!IsValidClient(client)) return;
+	int client = event.GetInt("entindex", 0);
+	if (!IsValidClient(client)) return Plugin_Continue;
 	
-	int amount = GetEventInt(event, "amount");
-	if (amount <= 0) return;
+	int amount = event.GetInt("amount", 0);
+	if (amount <= 0) return Plugin_Continue;
 	
 	healonhit_Amount[client] = amount;
-	//SetEventInt(event, "amount", -amount-GetConVarInt(TrappedSandvich_Damage));
-	SetEventBroadcast(event, true);
+	//event.SetInt("amount", -amount-g_iDamage);
+	//event.BroadcastDisabled = true;
+	return Plugin_Handled;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if (GetConVarBool(TrappedSandvich_Enable) && StrEqual(classname, "item_healthkit_medium"))
+	if (g_bEnable && classname[0] == 'i' && strcmp(classname, "item_healthkit_medium", false) == 0)
 	{
 		SDKHook(entity, SDKHook_SpawnPost, RemoveOldSandvich);
 	}
@@ -185,7 +205,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 void RemoveOldSandvich(int entity)
 {
 	SDKUnhook(entity, SDKHook_SpawnPost, RemoveOldSandvich);
-	/*char test_info[256];
+	/*static char test_info[256];
 	GetEntPropString(entity, Prop_Data, "m_ModelName", test_info, sizeof(test_info));
 	PrintToChatAll("%s", test_info);*/
 	
@@ -197,18 +217,18 @@ void RemoveOldSandvich(int entity)
 	PrintToChatAll("m_vecMins: %f %f %f  m_vecMaxs: %f %f %f", vecMins[0], vecMins[1], vecMins[2], vecMaxs[0], vecMaxs[1], vecMaxs[2]);*/
 	
 	int client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-	if (!IsPlayerAliveOrNotGhost(client)) return;
+	if (!IsValidClient(client) || !IsPlayerAliveNotGhost(client)) return;
 	
 	RemoveTrappedSandvich(trappedSandvich[client]);
 	
 	if (!(GetClientButtons(client) & IN_RELOAD)) return;
 	
 	int slotS = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary);
-	if (!IsValidEntity(slotS)) return;
+	if (!RealValidEntity(slotS)) return;
 	//PrintToChatAll("%i", GetEntProp(slotS, Prop_Send, "m_bBroken"));
 	
 	int wep_index = -1;
-	if (IsValidEntity(slotS) && HasEntProp(slotS, Prop_Send, "m_iItemDefinitionIndex"))
+	if (RealValidEntity(slotS) && HasEntProp(slotS, Prop_Send, "m_iItemDefinitionIndex"))
 	{ wep_index = GetEntProp(slotS, Prop_Send, "m_iItemDefinitionIndex"); }
 	
 	// 42 = Sandvich.
@@ -226,7 +246,7 @@ void RemoveOldSandvich(int entity)
 	
 	int new_ent = SpawnTrappedSandvich(entity, vecVelocity);
 	
-	if (!IsValidEntity(new_ent) || new_ent <= 0)
+	if (!RealValidEntity(new_ent))
 	{
 		PrintToServer("[SM] [Trapped Sandvich] Something went wrong whilst trying to spawn a trapped sandvich!");
 		return;
@@ -235,18 +255,20 @@ void RemoveOldSandvich(int entity)
 	AcceptEntityInput(entity, "Kill");
 }
 
-Action PreventPickup_Timer(Handle timer, int entity)
+Action PreventPickup_Timer(Handle timer, int ent_ref)
 {
-	if (!IsValidEntity(entity))
-	{ return; }
+	int entity = EntRefToEntIndex(ent_ref);
+	
+	if (!RealValidEntity(entity)) return Plugin_Continue;
 	
 	SetEntProp(entity, Prop_Send, "m_iTeamNum", 0);
+	return Plugin_Continue;
 }
 
 /*Action OnFakeSandvichPickup(int entity, int client)
 {
 	PrintToChatAll("Prevent!!");
-	if (IsPlayerAliveOrNotGhost(client))
+	if (IsPlayerAliveNotGhost(client))
 	{ return Plugin_Handled; }
 	return Plugin_Continue;
 }
@@ -259,7 +281,7 @@ Action PreventPickup_End(Handle timer, int entity)
 void HookTouch(int entity, bool boolean = true)
 {
 	PrintToChatAll("HookTouch");
-	if (!IsValidEntity(entity)) return;
+	if (!RealValidEntity(entity)) return;
 	if (boolean)
 	{
 		SDKHook(entity, SDKHook_Touch, OnFakeSandvichPickup);
@@ -274,9 +296,9 @@ void HookTouch(int entity, bool boolean = true)
 
 /*public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float[3] vel, float[3] angles, int& weapon)
 {
-	if (!GetConVarBool(TrappedSandvich_Enable)) return;
+	if (!g_bEnable) return;
 	
-	if (!IsPlayerAliveOrNotGhost(client)) return;
+	if (!IsPlayerAliveNotGhost(client)) return;
 	PrintToChatAll("%i", !(buttons & IN_RELOAD));
 	if (!TF2_IsPlayerInCondition(client, TFCond_Taunting)) return;
 	if (oldHealth[client] <= 0)
@@ -285,13 +307,13 @@ void HookTouch(int entity, bool boolean = true)
 	if (!(buttons & IN_RELOAD)) return;
 	
 	int active_wep = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	if (!IsValidEntity(active_wep)) return;
+	if (!RealValidEntity(active_wep)) return;
 	
 	//TFClassType class = TF2_GetPlayerClass(client);
 	//if (class != TFClass_Heavy) return;
 	
 	int wep_index = -1;
-	if (IsValidEntity(active_wep) && HasEntProp(active_wep, Prop_Send, "m_iItemDefinitionIndex"))
+	if (RealValidEntity(active_wep) && HasEntProp(active_wep, Prop_Send, "m_iItemDefinitionIndex"))
 	{ wep_index = GetEntProp(active_wep, Prop_Send, "m_iItemDefinitionIndex"); }
 	PrintToChatAll("%i", wep_index);
 	// 42 = Sandvich.
@@ -303,9 +325,9 @@ void HookTouch(int entity, bool boolean = true)
 
 /*public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float[3] vel, float[3] angles, int& weapon)
 {
-	if (!GetConVarBool(TrappedSandvich_Enable)) return;
+	if (!g_bEnable) return;
 	
-	if (!IsPlayerAliveOrNotGhost(client)) return;
+	if (!IsPlayerAliveNotGhost(client)) return;
 	PrintToChatAll("%i", !(buttons & IN_RELOAD));
 	
 	if (oldHealth[client] <= 0)
@@ -314,13 +336,13 @@ void HookTouch(int entity, bool boolean = true)
 	if (!(buttons & IN_RELOAD) || !(buttons & IN_ATTACK2)) return;
 	
 	int active_wep = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	if (!IsValidEntity(active_wep)) return;
+	if (!RealValidEntity(active_wep)) return;
 	
 	//TFClassType class = TF2_GetPlayerClass(client);
 	//if (class != TFClass_Heavy) return;
 	
 	int wep_index = -1;
-	if (IsValidEntity(active_wep) && HasEntProp(active_wep, Prop_Send, "m_iItemDefinitionIndex"))
+	if (RealValidEntity(active_wep) && HasEntProp(active_wep, Prop_Send, "m_iItemDefinitionIndex"))
 	{ wep_index = GetEntProp(active_wep, Prop_Send, "m_iItemDefinitionIndex"); }
 	PrintToChatAll("%i", wep_index);
 	// 42 = Sandvich.
@@ -334,25 +356,26 @@ void HookTouch(int entity, bool boolean = true)
 	
 }*/
 
-int SpawnTrappedSandvich(int entity, const float Velocity[3])
+int SpawnTrappedSandvich(int entity, const float velocity[3])
 {
 	int client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 	
-	if (!IsPlayerAliveOrNotGhost(client)) return -1;
+	if (!IsValidClient(client) || !IsPlayerAliveNotGhost(client)) return -1;
 	
 	int pack = CreateEntityByName(CLASS_TRAP);
 	DispatchKeyValue(pack, "AutoMaterialize", "0");
-	DispatchKeyValue(pack, "velocity", "0.0 0.0 0.1");
-	DispatchKeyValue(pack, "basevelocity", "0.0 0.0 0.1");
+	DispatchKeyValue(pack, "velocity", "0.0 0.0 1.0");
+	DispatchKeyValue(pack, "basevelocity", "0.0 0.0 1.0");
 	
-	char temp_str[128];
+	static char temp_str[32];
 	Format(temp_str, sizeof(temp_str), "%s_%i", TARGETNAME_TRAP, EntRefToEntIndex(pack));
 	DispatchKeyValue(pack, "targetname", temp_str);
 	
-	float ent_pos[3];
-	GetEntPropVector(entity, Prop_Data, "m_vecOrigin", ent_pos);
+	float origin[3];
+	GetEntPropVector(entity, Prop_Data, "m_vecOrigin", origin);
 	
-	TeleportEntity(pack, ent_pos, NULL_VECTOR, Velocity);
+	DispatchKeyValueVector(pack, "origin", origin);
+	TeleportEntity(pack, NULL_VECTOR, NULL_VECTOR, velocity);
 	
 	SetEntProp(pack, Prop_Data, "m_bActivateWhenAtRest", 1);
 	SetEntProp(pack, Prop_Send, "m_ubInterpolationFrame", 0);
@@ -366,7 +389,7 @@ int SpawnTrappedSandvich(int entity, const float Velocity[3])
 	//CreateTimer(1.0, PreventPickup_End, entity, TIMER_FLAG_NO_MAPCHANGE);
 	
 	SetEntProp(pack, Prop_Send, "m_iTeamNum", 1); // This helps keep both teams from picking it up prematurely, including the thrower
-	CreateTimer(0.5, PreventPickup_Timer, pack, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.5, PreventPickup_Timer, EntIndexToEntRef(pack), TIMER_FLAG_NO_MAPCHANGE);
 	
 	DispatchSpawn(pack);
 	ActivateEntity(pack);
@@ -411,11 +434,11 @@ int SpawnTrappedSandvich(int entity, const float Velocity[3])
 
 void RemoveTrappedSandvich(int sandvich)
 {
-	if (!IsValidEntity(sandvich) || sandvich <= INVALID_ENT_REFERENCE) return;
+	if (!RealValidEntity(sandvich)) return;
 	
-	char classname[PLATFORM_MAX_PATH+1];
+	static char classname[21];
 	GetEntityClassname(sandvich, classname, sizeof(classname));
-	if (StrEqual(classname, CLASS_TRAP, false))
+	if (strcmp(classname, CLASS_TRAP, false) == 0)
 	{
 		AcceptEntityInput(sandvich, "Kill");
 	}
@@ -423,9 +446,9 @@ void RemoveTrappedSandvich(int sandvich)
 
 void Output_OnPlayerTouch(const char[] output, int caller, int activator, float delay)
 {
-	if (!IsPlayerAliveOrNotGhost(activator) || !IsValidEntity(caller)) return;
+	if (!IsValidClient(activator) || !IsPlayerAliveNotGhost(activator) || !RealValidEntity(caller)) return;
 	
-	/*float damage = GetConVarFloat(TrappedSandvich_Damage);
+	/*float damage = g_iDamage;
 	if (damage <= 0.0) return;
 	
 	TFClassType class = TF2_GetPlayerClass(activator);
@@ -433,15 +456,13 @@ void Output_OnPlayerTouch(const char[] output, int caller, int activator, float 
 	{ damage += 35.0; } // 100.0
 	else if (class == TFClass_Heavy)
 	{ damage += 105.0; } // 170.0*/
-	int damage_int = healonhit_Amount[activator]+GetConVarInt(TrappedSandvich_Damage);
+	int damage_int = g_iDamage;
 	float damage = damage_int+0.0;
-	
-	if (damage <= 0.0) return;
 	
 	int thrower = GetEntPropEnt(caller, Prop_Send, "m_hOwnerEntity");
 	int thrower_team = -1;
-	int caller_initialteam = GetEntProp(caller, Prop_Data, "m_iInitialTeamNum"); // Time to check if thrower's team still matches caller's team
 	int slotS = -1;
+	int caller_initialteam = GetEntProp(caller, Prop_Data, "m_iInitialTeamNum"); // Time to check if thrower's team still matches caller's team
 	if (IsValidClient(thrower) && GetClientTeam(thrower) == caller_initialteam) // If it does, then set them as the damage dealer.
 	{
 		thrower_team = GetClientTeam(thrower);
@@ -457,27 +478,27 @@ void Output_OnPlayerTouch(const char[] output, int caller, int activator, float 
 	{
 		EmitGameSoundToAll("Flesh.BulletImpact", activator);
 		SetEntityHealth(activator, GetClientHealth(activator)-healonhit_Amount[activator]);
-		SDKHooks_TakeDamage(activator, caller, thrower, damage, DMG_CLUB|DMG_PREVENT_PHYSICS_FORCE, slotS);
+		if (damage > 0.0)
+			SDKHooks_TakeDamage(activator, caller, thrower, damage, DMG_CLUB|DMG_PREVENT_PHYSICS_FORCE, slotS);
 	}
 }
+
+bool RealValidEntity(int entity)
+{ return (entity > 0 && IsValidEntity(entity)); }
 
 bool IsValidClient(int client, bool replaycheck = true)
 {
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	if (GetEntProp(client, Prop_Send, "m_bIsCoaching")) return false;
-	if (replaycheck)
+	if (client > 0 && client <= MaxClients && IsClientInGame(client) && 
+	!GetEntProp(client, Prop_Send, "m_bIsCoaching")) // TF2
 	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		if (replaycheck)
+		{
+			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		}
+		return true;
 	}
-	return true;
+	return false;
 }
 
-bool IsPlayerAliveOrNotGhost(int client)
-{
-	if (!IsValidClient(client))
-	{ return false; }
-	if (!IsPlayerAlive(client) || TF2_IsPlayerInCondition(client, TFCond_HalloweenGhostMode))
-	{ return false; }
-	return true;
-}
+bool IsPlayerAliveNotGhost(int client)
+{ return (IsPlayerAlive(client) && !TF2_IsPlayerInCondition(client, TFCond_HalloweenGhostMode)); }

@@ -1,6 +1,6 @@
 /*
 *	Pour Gas
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.13"
+#define PLUGIN_VERSION 		"1.15"
 
 /*======================================================================================
 	Plugin Info:
@@ -26,11 +26,18 @@
 *	Name	:	[L4D2] Pour Gas
 *	Author	:	SilverShot
 *	Descrp	:	Players can pour gascans onto the ground, which can be ignited.
-*	Link	:	https://forums.alliedmods.net/showthread.php?t=187567
+*	Link	:	https://forums.alliedmods.net/showthread.php?t=187568
 *	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
 
 ========================================================================================
 	Change Log:
+
+1.15 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
+1.14 (28-Sep-2021)
+	- Added a warning when the translation files are missing.
+	- Changed method of creating an explosive to prevent it being visible (still sometimes shows, but probably less).
 
 1.13 (01-Jul-2021)
 	- Added a warning message to suggest installing the "Scavenge Score Fix - Gascan Pouring" plugin if missing.
@@ -203,7 +210,7 @@ public void OnAllPluginsLoaded()
 	// Scavenge Score Fix
 	if( FindConVar("l4d2_scavenge_score_fix") == null )
 	{
-		LogMessage("\n==========\nWarning: You should install \"[L4D2] Scavenge Score Fix - Gascan Pouring\" to prevent affecting the score when pouring gas in Scavenge style events. https://forums.alliedmods.net/showthread.php?t=187686\n==========\n");
+		LogMessage("\n==========\nWarning: You should install \"[L4D2] Scavenge Score Fix - Gascan Pouring\" to prevent affecting the score when pouring gas in Scavenge style events: https://forums.alliedmods.net/showthread.php?t=187686\n==========\n");
 	}
 }
 
@@ -228,6 +235,10 @@ public void OnPluginStart()
 
 	delete hGameData;
 	*/
+
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "translations/pourgas.phrases.txt");
+	if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"translations/pourgas.phrases.txt\".\nRead installation instructions again.\n==========");
 
 	LoadTranslations("pourgas.phrases");
 
@@ -324,7 +335,7 @@ void ResetPlugin()
 	{
 		if( IsValidEntRef(g_iRefuel[i][1]) )
 		{
-			AcceptEntityInput(g_iRefuel[i][1], "Kill");
+			RemoveEntity(g_iRefuel[i][1]);
 		}
 
 		if( IsClientInGame(i) )
@@ -350,12 +361,12 @@ void ResetPlugin()
 		for( int x = 0; x < MAX_PUDDLE; x++ )
 		{
 			if( IsValidEntRef(g_iPuddles[i][x]) )
-				AcceptEntityInput(g_iPuddles[i][x], "Kill");
+				RemoveEntity(g_iPuddles[i][x]);
 			g_iPuddles[i][x] = 0;
 		}
 
 		if( IsValidEntRef(g_iCans[i]) )
-			AcceptEntityInput(g_iCans[i], "Kill");
+			RemoveEntity(g_iCans[i]);
 		g_iCans[i] = 0;
 	}
 }
@@ -370,17 +381,17 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Inferno(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Inferno(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	if( !g_bBlockSound ) g_iCvarInferno = g_hCvarInferno.IntValue;
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -513,7 +524,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -530,7 +541,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS - Pickup gascan / Hints
 // ====================================================================================================
-public void Event_GascanPickup(Event event, const char[] name, bool dontBroadcast)
+void Event_GascanPickup(Event event, const char[] name, bool dontBroadcast)
 {
 	char sTemp[8];
 	event.GetString("item", sTemp, sizeof(sTemp));
@@ -585,7 +596,7 @@ void HintMessages(int client)
 // ====================================================================================================
 //					PRETHINK - Holding gascan / pouring
 // ====================================================================================================
-public void OnPreThink(int client)
+void OnPreThink(int client)
 {
 	if( g_hTimeout[client] == null )
 	{
@@ -606,7 +617,7 @@ public void OnPreThink(int client)
 					}
 					else
 					{
-						AcceptEntityInput(entity, "Kill");
+						RemoveEntity(entity);
 						OnUseFinished("", g_iRefuel[client][1], client, 0.0);
 						ResetClient(client);
 					}
@@ -655,7 +666,7 @@ void ResetClient(int client)
 	{
 		SetEntProp(client, Prop_Send, "m_iHideHUD", 0);
 		SDKUnhook(client, SDKHook_WeaponCanSwitchTo, WeaponCanSwitchTo);
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 	}
 }
 
@@ -747,7 +758,7 @@ void StartPouring(int client)
 // ====================================================================================================
 //					EFFECTS - POURING FINISHED
 // ====================================================================================================
-public void OnUseCancelled(const char[] output, int entity, int activator, float delay)
+void OnUseCancelled(const char[] output, int entity, int activator, float delay)
 {
 	int client = GetEntProp(entity, Prop_Data, "m_iHammerID");
 	g_iRefuel[client][1] = 0;
@@ -755,15 +766,15 @@ public void OnUseCancelled(const char[] output, int entity, int activator, float
 
 	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, WeaponCanSwitchTo);
 
-	AcceptEntityInput(entity, "Kill");
+	RemoveEntity(entity);
 }
 
-public Action WeaponCanSwitchTo(int client, int weapon)
+Action WeaponCanSwitchTo(int client, int weapon)
 {
 	return Plugin_Handled;
 }
 
-public void OnUseFinished(const char[] output, int entity, int activator, float delay)
+void OnUseFinished(const char[] output, int entity, int activator, float delay)
 {
 	int client = GetEntProp(entity, Prop_Data, "m_iHammerID");
 	g_iRefuel[client][0] = 0;
@@ -772,7 +783,7 @@ public void OnUseFinished(const char[] output, int entity, int activator, float 
 
 	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, WeaponCanSwitchTo);
 
-	AcceptEntityInput(entity, "Kill");
+	RemoveEntity(entity);
 
 	if( g_iHooked[client] == 1 )
 	{
@@ -865,7 +876,7 @@ public void OnUseFinished(const char[] output, int entity, int activator, float 
 	g_hTimeout[client] = CreateTimer(g_fCvarTimeout, TimerBlock, GetClientUserId(client));
 }
 
-public Action TimerBlock(Handle timer, any client)
+Action TimerBlock(Handle timer, any client)
 {
 	client = GetClientOfUserId(client);
 	if( client )
@@ -873,6 +884,8 @@ public Action TimerBlock(Handle timer, any client)
 		g_iBlocked[client] = 0;
 		g_hTimeout[client] = null;
 	}
+
+	return Plugin_Continue;
 }
 
 public void OnClientDisconnect(int client)
@@ -880,7 +893,7 @@ public void OnClientDisconnect(int client)
 	delete g_hTimeout[client];
 }
 
-public Action OnTakeDamageDynamic(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageDynamic(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype & DMG_BURN || damagetype & DMG_BULLET || damagetype & DMG_BLAST )
 	{
@@ -898,15 +911,17 @@ public Action OnTakeDamageDynamic(int victim, int &attacker, int &inflictor, flo
 		HookSingleEntityOutput(victim, "OnUser3", OnUser3);
 		SetEntProp(victim, Prop_Data, "m_iHammerID", GetEntProp(victim, Prop_Data, "m_iHammerID"));
 	}
+
+	return Plugin_Continue;
 }
 
-public void OnUser3(const char[] output, int caller, int activator, float delay)
+void OnUser3(const char[] output, int caller, int activator, float delay)
 {
 	int victim = caller;
 	float vPos[3];
 	char sTemp[32];
 	GetEntPropVector(victim, Prop_Data, "m_vecOrigin", vPos);
-	AcceptEntityInput(victim, "Kill");
+	RemoveEntity(victim);
 
 
 	// Explode Particle
@@ -1116,7 +1131,7 @@ void CreatePuddle(int client, bool delay = false)
 	}
 }
 
-public void OnUserOil(const char[] output, int caller, int activator, float delay)
+void OnUserOil(const char[] output, int caller, int activator, float delay)
 {
 	int index = -1;
 	int entref = EntIndexToEntRef(caller);
@@ -1142,22 +1157,24 @@ public void OnUserOil(const char[] output, int caller, int activator, float dela
 	}
 }
 
-public Action TimerBlood(Handle timer, any entity)
+Action TimerBlood(Handle timer, any entity)
 {
 	if( (entity = EntRefToEntIndex(entity)) != INVALID_ENT_REFERENCE && IsValidEntity(entity) )
 	{
 		AcceptEntityInput(entity, "Start");
 	}
+
+	return Plugin_Continue;
 }
 
-public bool TraceFilter(int entity, int contentsMask)
+bool TraceFilter(int entity, int contentsMask)
 {
 	if( entity <= MaxClients || !IsValidEntity(entity) || GetEntProp(entity, Prop_Data, "m_iHammerID") == 9109382 )
 		return false;
 	return true;
 }
 
-public Action OnTakeDamagePhysics(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamagePhysics(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype & DMG_BURN )
 	{
@@ -1185,7 +1202,7 @@ public void OnClientPutInServer(int client)
 		SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( g_iCvarHold == 0 )
 	{
@@ -1268,11 +1285,11 @@ void CreateFires(int target, int client, bool delay)
 
 	int entity = g_iPuddles[index][INDEX_BLOOD];
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 
 	entity = g_iPuddles[index][INDEX_TRIG];
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "Kill");
+		RemoveEntity(entity);
 
 	g_iPuddles[index][INDEX_TRIG] = 0;
 	g_iPuddles[index][INDEX_BLOOD] = 0;
@@ -1281,23 +1298,35 @@ void CreateFires(int target, int client, bool delay)
 	entity = CreateEntityByName("prop_physics");
 	if( entity != -1 )
 	{
-		DispatchKeyValue(entity, "disableshadows", "1");
-		SetEntityModel(entity, MODEL_GASCAN);
+		DispatchKeyValue(entity, "model", MODEL_GASCAN);
 
+		// Hide from view (multiple hides still show the gascan for a split second sometimes, but works better than only using 1 of them)
+		SDKHook(entity, SDKHook_SetTransmit, OnTransmitExplosive);
+
+		// Hide from view
+		int flags = GetEntityFlags(entity);
+		SetEntityFlags(entity, flags|FL_EDICT_DONTSEND);
+
+		// Make invisible
+		SetEntityRenderMode(entity, RENDER_TRANSALPHAADD);
+		SetEntityRenderColor(entity, 0, 0, 0, 0);
+
+		// Prevent collision and movement
+		SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1, 1);
+		SetEntityMoveType(entity, MOVETYPE_NONE);
+
+		// Teleport
 		float vPos[3];
 		GetEntPropVector(target, Prop_Data, "m_vecOrigin", vPos);
 		vPos[2] += 15.0;
 		TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+
+		// Spawn
 		DispatchSpawn(entity);
 
+		// Set attacker
 		SetEntPropEnt(entity, Prop_Data, "m_hPhysicsAttacker", client);
 		SetEntPropFloat(entity, Prop_Data, "m_flLastPhysicsInfluenceTime", GetGameTime());
-		SetEntProp(entity, Prop_Send, "m_iGlowType", 3);
-		SetEntProp(entity, Prop_Send, "m_glowColorOverride", 2);
-		SetEntProp(entity, Prop_Send, "m_CollisionGroup", 1);
-		SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(entity, 0, 0, 0, 0);
-		SetEntityMoveType(entity, MOVETYPE_NONE);
 
 		char sTemp[40];
 		Format(sTemp, sizeof(sTemp), "OnUser1 !self:FireUser2::%f:-1", delay ? g_fCvarChain : 0.2);
@@ -1307,10 +1336,15 @@ void CreateFires(int target, int client, bool delay)
 		HookSingleEntityOutput(entity, "OnUser2", OnBreakPhysics, true);
 	}
 
-	AcceptEntityInput(target, "Kill");
+	RemoveEntity(target);
 }
 
-public void OnBreakPhysics(const char[] output, int caller, int activator, float delay)
+Action OnTransmitExplosive(int entity, int client)
+{
+	return Plugin_Handled;
+}
+
+void OnBreakPhysics(const char[] output, int caller, int activator, float delay)
 {
 	g_bBlockSound = true;
 	g_hCvarInferno.IntValue = g_iCvarBurn < 1 ? 99999 : g_iCvarBurn;
@@ -1335,13 +1369,13 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-public void OnPostThink(int entity)
+void OnPostThink(int entity)
 {
 	SetEntProp(entity, Prop_Send, "m_fireXDelta", 1, 4, 0);
 	SetEntProp(entity, Prop_Send, "m_fireCount", 1);
 }
 
-public Action TimerFire(Handle timer, any target)
+Action TimerFire(Handle timer, any target)
 {
 	if( EntRefToEntIndex(target) != INVALID_ENT_REFERENCE )
 	{
@@ -1389,9 +1423,11 @@ public Action TimerFire(Handle timer, any target)
 			AcceptEntityInput(entity, "SetParent", target);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags)
+Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags)
 {
 	if( g_bBlockSound && sample[0] == 'w' && sample[8] == 'm' )
 	{
@@ -1422,7 +1458,7 @@ void StaggerClient(int iUserID, const float fPos[3])
 	Format(sBuffer, sizeof(sBuffer), "GetPlayerFromUserID(%d).Stagger(Vector(%d,%d,%d))", iUserID, RoundFloat(fPos[0]), RoundFloat(fPos[1]), RoundFloat(fPos[2]));
 	SetVariantString(sBuffer);
 	AcceptEntityInput(iScriptLogic, "RunScriptCode");
-	AcceptEntityInput(iScriptLogic, "Kill");
+	RemoveEntity(iScriptLogic);
 }
 
 bool IsValidEntRef(int entity)

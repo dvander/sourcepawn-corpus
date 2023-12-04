@@ -1,6 +1,6 @@
 /*
 *	Swimming
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.8 (30-Sep-2020)
 	- Fixed compile errors on SM 1.11.
@@ -184,12 +187,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -285,7 +288,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -344,33 +347,26 @@ void UnhookEvents()
 	}
 }
 
-public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public Action Event_BlockUserEnd(Event event, const char[] name, bool dontBroadcast)
-{
-	int client = GetClientOfUserId(event.GetInt("victim"));
-	if( client > 0 )
-		g_iPlayerEnum[client] &= ~BLOCKED;
-}
-
-public Action Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	if( client > 0 )
 		g_iPlayerEnum[client] |= BLOCKED;
 }
 
-public Action Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	if( client > 0 )
 		g_iPlayerEnum[client] &= ~BLOCKED;
 }
 
-public Action Event_BlockHunter(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockHunter(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	if( client > 0 )
@@ -381,7 +377,7 @@ public Action Event_BlockHunter(Event event, const char[] name, bool dontBroadca
 		SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
-public Action Event_BlockEndHunt(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockEndHunt(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	if( client > 0 )
@@ -392,7 +388,7 @@ public Action Event_BlockEndHunt(Event event, const char[] name, bool dontBroadc
 		SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
-public Action Event_HealSuccess(Event event, const char[] name, bool dontBroadcast)
+void Event_HealSuccess(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client > 0 && g_iSwimming[client] == 1 )
@@ -402,14 +398,14 @@ public Action Event_HealSuccess(Event event, const char[] name, bool dontBroadca
 	}
 }
 
-public Action Event_ReviveSuccess(Event event, const char[] name, bool dontBroadcast)
+void Event_ReviveSuccess(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
 	if( client > 0 )
 		g_iPlayerEnum[client] = 0;
 }
 
-public Action Event_Unblock(Event event, const char[] name, bool dontBroadcast)
+void Event_Unblock(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client > 0)
@@ -513,9 +509,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			}
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( damagetype == DMG_DROWN )
 	{

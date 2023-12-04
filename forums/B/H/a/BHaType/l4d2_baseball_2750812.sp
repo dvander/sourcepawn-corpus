@@ -4,27 +4,30 @@
 #include <sourcemod>
 #include <sdktools>
 
+#define MAX_PROJECTILES 3 /* we don't count rock */
+#define MAX_PROJECTILE_NAME 36
+
 #define HIT_1 "weapons/golf_club/wpn_golf_club_melee_01.wav"
 #define HIT_2 "weapons/golf_club/wpn_golf_club_melee_02.wav"
-
-ConVar sv_melee_force_projectile, sv_melee_radius_projectile, sv_melee_force_boost_projectile_up;
-int g_iLaser, g_iGlow;
 
 public Plugin myinfo =
 {
     name = "[L4D2] Baseball",
     author = "BHaType",
     description = "Melee weapons can now deflect projectile",
-    version = "0.0",
-    url = ""
+    version = "0.1"
 }
+
+ConVar sv_melee_force_projectile, sv_melee_radius_projectile, sv_melee_force_boost_projectile_up, sv_melee_deflect_filter;
+int g_iLaser, g_iGlow;
 
 public void OnPluginStart()
 {
 	sv_melee_force_projectile = CreateConVar("sv_melee_force_projectile", "0.6");
 	sv_melee_force_boost_projectile_up = CreateConVar("sv_melee_force_boost_projectile_up", "250.0");
 	sv_melee_radius_projectile = CreateConVar("sv_melee_radius_projectile", "75.0");
-	
+	sv_melee_deflect_filter = CreateConVar("sv_melee_deflect_filter", "");
+
 	AutoExecConfig(true, "l4d2_baseball");
 	
 	HookEvent("weapon_fire", weapon_fire);
@@ -109,7 +112,7 @@ public Action timer (Handle timer, int client)
 			char szName[36];
 			GetEntityClassname(entity, szName, sizeof szName);
 			
-			if ( StrContains(szName, "_projectile") != -1 )
+			if ( StrContains(szName, "_projectile") != -1 && IsDeflectable(szName) )
 			{
 				float vVelocity[3], vVec[3];
 	
@@ -147,7 +150,12 @@ public Action timer (Handle timer, int client)
 	return Plugin_Continue;
 }
 
-float[] CalculateBaseForce (int victim, int attacker = 0)
+public bool TraceFilter (int entity, int mask, int data)
+{
+	return entity != data;
+}
+
+float[] CalculateBaseForce( int victim, int attacker = 0 )
 {	
 	float m_vecBaseVelocity[3], m_vecVelocity[3], vAngles[3];
 	
@@ -165,7 +173,10 @@ float[] CalculateBaseForce (int victim, int attacker = 0)
 	return m_vecVelocity;
 }
 
-public bool TraceFilter (int entity, int mask, int data)
+bool IsDeflectable( const char[] name )
 {
-	return entity != data;
+	char filter[MAX_PROJECTILE_NAME * MAX_PROJECTILES];
+	sv_melee_deflect_filter.GetString(filter, sizeof filter);
+
+	return (StrContains(filter, name, false) == -1);
 }

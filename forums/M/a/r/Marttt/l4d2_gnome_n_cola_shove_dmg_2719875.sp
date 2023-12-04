@@ -2,11 +2,18 @@
 // ====================================================================================================
 Change Log:
 
+1.1.1 (15-January_2023)
+    - Changed SDKHooks_TakeDamage to not bypass other SDK hooks. (SM 1.11+)
+
+1.1.0 (27-May-2022)
+    - Fixed an error while loading the plugin before map load. (thanks "Haigen" for reporting)
+    - Removed check for shove penalty.
+
 1.0.9 (23-January-2021)
-    - Fixed a rare error right after using PostSpawnActivate (thanks "Froxcan" for reporting)
+    - Fixed a rare error right after using PostSpawnActivate. (thanks "Froxcan" for reporting)
 
 1.0.8 (22-January-2021)
-    - Fixed invalid weapon index on SDKHook_WeaponSwitchPost (thanks "jeremyvillanueva" for reporting)
+    - Fixed invalid weapon index on SDKHook_WeaponSwitchPost. (thanks "jeremyvillanueva" for reporting)
 
 1.0.7 (04-January-2021)
     - Added Simplified Chinese (chi) and Traditional Chinese (zho) translations. (thanks to "HarryPotter")
@@ -45,7 +52,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Gnome and Cola Shove Damage"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Allows both gnome and cola to do some damage when shoving"
-#define PLUGIN_VERSION                "1.0.9"
+#define PLUGIN_VERSION                "1.1.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=327647"
 
 // ====================================================================================================
@@ -104,7 +111,7 @@ public Plugin myinfo =
 
 #define ENTITY_WORLDSPAWN             0
 
-#define TYPE_NONE                     0
+#define TYPE_UNKNOWN                  0
 #define TYPE_GNOME                    1
 #define TYPE_COLA                     2
 
@@ -112,91 +119,73 @@ public Plugin myinfo =
 #define ALT_BUTTON_ZOOM               2
 
 // ====================================================================================================
-// Native Cvars
-// ====================================================================================================
-static ConVar g_hCvar_MPGameMode;
-static ConVar g_hCvar_ShoveMinPenaltyCoop;
-static ConVar g_hCvar_ShoveMinPenaltyNonCoop;
-
-// ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_SpamProtection;
-static ConVar g_hCvar_GnomeAllow;
-static ConVar g_hCvar_GnomeDamage;
-static ConVar g_hCvar_GnomeDamageType;
-static ConVar g_hCvar_GnomeShoveOnAttack;
-static ConVar g_hCvar_GnomeAltThrowButton;
-static ConVar g_hCvar_GnomeNoShovePenalty;
-static ConVar g_hCvar_GnomeFriendlyFireDamage;
-static ConVar g_hCvar_GnomeAnnounceTeam;
-static ConVar g_hCvar_GnomeAnnounceSelf;
-static ConVar g_hCvar_ColaAllow;
-static ConVar g_hCvar_ColaDamage;
-static ConVar g_hCvar_ColaDamageType;
-static ConVar g_hCvar_ColaShoveOnAttack;
-static ConVar g_hCvar_ColaAltThrowButton;
-static ConVar g_hCvar_ColaNoShovePenalty;
-static ConVar g_hCvar_ColaFriendlyFireDamage;
-static ConVar g_hCvar_ColaAnnounceTeam;
-static ConVar g_hCvar_ColaAnnounceSelf;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_SpamProtection;
+ConVar g_hCvar_GnomeAllow;
+ConVar g_hCvar_GnomeDamage;
+ConVar g_hCvar_GnomeDamageType;
+ConVar g_hCvar_GnomeShoveOnAttack;
+ConVar g_hCvar_GnomeAltThrowButton;
+ConVar g_hCvar_GnomeNoShovePenalty;
+ConVar g_hCvar_GnomeFriendlyFireDamage;
+ConVar g_hCvar_GnomeAnnounceTeam;
+ConVar g_hCvar_GnomeAnnounceSelf;
+ConVar g_hCvar_ColaAllow;
+ConVar g_hCvar_ColaDamage;
+ConVar g_hCvar_ColaDamageType;
+ConVar g_hCvar_ColaShoveOnAttack;
+ConVar g_hCvar_ColaAltThrowButton;
+ConVar g_hCvar_ColaNoShovePenalty;
+ConVar g_hCvar_ColaFriendlyFireDamage;
+ConVar g_hCvar_ColaAnnounceTeam;
+ConVar g_hCvar_ColaAnnounceSelf;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_SpamProtection;
-static bool   g_bCvar_GnomeAllow;
-static bool   g_bCvar_GnomeShoveOnAttack;
-static bool   g_bCvar_GnomeNoShovePenalty;
-static bool   g_bCvar_GnomeFriendlyFireDamage;
-static bool   g_bCvar_GnomeAnnounceTeam;
-static bool   g_bCvar_GnomeAnnounceSelf;
-static bool   g_bCvar_ColaAllow;
-static bool   g_bCvar_ColaShoveOnAttack;
-static bool   g_bCvar_ColaNoShovePenalty;
-static bool   g_bCvar_ColaFriendlyFireDamage;
-static bool   g_bCvar_ColaAnnounceTeam;
-static bool   g_bCvar_ColaAnnounceSelf;
-static bool   g_bShoveMinPenaltyCoop;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_SpamProtection;
+bool g_bCvar_GnomeAllow;
+bool g_bCvar_GnomeShoveOnAttack;
+bool g_bCvar_GnomeNoShovePenalty;
+bool g_bCvar_GnomeFriendlyFireDamage;
+bool g_bCvar_GnomeAnnounceTeam;
+bool g_bCvar_GnomeAnnounceSelf;
+bool g_bCvar_ColaAllow;
+bool g_bCvar_ColaShoveOnAttack;
+bool g_bCvar_ColaNoShovePenalty;
+bool g_bCvar_ColaFriendlyFireDamage;
+bool g_bCvar_ColaAnnounceTeam;
+bool g_bCvar_ColaAnnounceSelf;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_Gnome = -1;
-static int    g_iModel_Cola = -1;
-static int    g_iCvar_ShoveMinPenaltyCoop;
-static int    g_iCvar_ShoveMinPenaltyNonCoop;
-static int    g_iCvar_GnomeDamage;
-static int    g_iCvar_GnomeFriendlyFireDamage;
-static int    g_iCvar_GnomeDamageType;
-static int    g_iCvar_GnomeAltThrowButton;
-static int    g_iCvar_GnomeAnnounceTeam;
-static int    g_iCvar_ColaDamage;
-static int    g_iCvar_ColaFriendlyFireDamage;
-static int    g_iCvar_ColaDamageType;
-static int    g_iCvar_ColaAltThrowButton;
-static int    g_iCvar_ColaAnnounceTeam;
-static int    g_iShoveMinPenalty;
+int g_iCvar_GnomeDamage;
+int g_iCvar_GnomeFriendlyFireDamage;
+int g_iCvar_GnomeDamageType;
+int g_iCvar_GnomeAltThrowButton;
+int g_iCvar_GnomeAnnounceTeam;
+int g_iCvar_ColaDamage;
+int g_iCvar_ColaFriendlyFireDamage;
+int g_iCvar_ColaDamageType;
+int g_iCvar_ColaAltThrowButton;
+int g_iCvar_ColaAnnounceTeam;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_SpamProtection;
-
-// ====================================================================================================
-// string - Plugin Variables
-// ====================================================================================================
-static char   g_sCvar_MPGameMode[16];
+float g_fCvar_SpamProtection;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iWeaponType[MAXPLAYERS+1];
-static float  gc_fLastChatOccurrence[MAXPLAYERS+1];
+bool gc_bWeaponSwitchPostHooked[MAXPLAYERS+1];
+int gc_iWeaponType[MAXPLAYERS+1];
+float gc_fLastChatOccurrence[MAXPLAYERS+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -219,10 +208,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
     LoadPluginTranslations();
-
-    g_hCvar_MPGameMode = FindConVar("mp_gamemode");
-    g_hCvar_ShoveMinPenaltyCoop = FindConVar("z_gun_swing_coop_min_penalty");
-    g_hCvar_ShoveMinPenaltyNonCoop = FindConVar("z_gun_swing_vs_min_penalty");
 
     CreateConVar("l4d2_gnome_n_cola_shove_dmg_ver", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled                 = CreateConVar("l4d2_gnome_n_cola_shove_dmg_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -247,10 +232,6 @@ public void OnPluginStart()
     g_hCvar_ColaAnnounceSelf        = CreateConVar("l4d2_cola_shove_dmg_announce_self", "1", "Should the message be transmitted to those who picked up the cola.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
 
     // Hook plugin ConVars change
-    g_hCvar_MPGameMode.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_ShoveMinPenaltyCoop.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_ShoveMinPenaltyNonCoop.AddChangeHook(Event_ConVarChanged);
-
     g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
     g_hCvar_SpamProtection.AddChangeHook(Event_ConVarChanged);
     g_hCvar_GnomeAllow.AddChangeHook(Event_ConVarChanged);
@@ -281,7 +262,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -293,44 +274,29 @@ public void LoadPluginTranslations()
 
 /****************************************************************************************************/
 
-public void OnMapStart()
-{
-    g_iModel_Gnome = PrecacheModel(MODEL_GNOME, true);
-    g_iModel_Cola = PrecacheModel(MODEL_COLA, true);
-
-    GetShoveMinPenalty();
-}
-
-/****************************************************************************************************/
-
 public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
+    HookEvents();
 
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
-
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
-    g_hCvar_MPGameMode.GetString(g_sCvar_MPGameMode, sizeof(g_sCvar_MPGameMode));
-    g_iCvar_ShoveMinPenaltyCoop = g_hCvar_ShoveMinPenaltyCoop.IntValue;
-    g_iCvar_ShoveMinPenaltyNonCoop = g_hCvar_ShoveMinPenaltyNonCoop.IntValue;
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_fCvar_SpamProtection = g_hCvar_SpamProtection.FloatValue;
     g_bCvar_SpamProtection = (g_fCvar_SpamProtection > 0.0);
@@ -356,13 +322,11 @@ public void GetCvars()
     g_iCvar_ColaAnnounceTeam = g_hCvar_ColaAnnounceTeam.IntValue;
     g_bCvar_ColaAnnounceTeam = (g_iCvar_ColaAnnounceTeam > 0);
     g_bCvar_ColaAnnounceSelf = g_hCvar_ColaAnnounceSelf.BoolValue;
-
-    GetShoveMinPenalty();
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -370,9 +334,6 @@ public void LateLoad()
             continue;
 
         OnClientPutInServer(client);
-
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-        OnWeaponSwitchPost(client, weapon);
     }
 }
 
@@ -380,28 +341,33 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     if (IsFakeClient(client))
         return;
 
+    if (gc_bWeaponSwitchPostHooked[client])
+        return;
+
+    gc_bWeaponSwitchPostHooked[client] = true;
     SDKHook(client, SDKHook_WeaponSwitchPost, OnWeaponSwitchPost);
+
+    int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    OnWeaponSwitchPost(client, weapon);
 }
 
 /****************************************************************************************************/
 
 public void OnClientDisconnect(int client)
 {
-    gc_iWeaponType[client] = TYPE_NONE;
+    gc_bWeaponSwitchPostHooked[client] = false;
+    gc_iWeaponType[client] = TYPE_UNKNOWN;
     gc_fLastChatOccurrence[client] = 0.0;
 }
 
 /****************************************************************************************************/
 
-public void OnWeaponSwitchPost(int client, int weapon)
+void OnWeaponSwitchPost(int client, int weapon)
 {
-    gc_iWeaponType[client] = TYPE_NONE;
+    gc_iWeaponType[client] = TYPE_UNKNOWN;
 
     if (!g_bCvar_Enabled)
         return;
@@ -409,105 +375,96 @@ public void OnWeaponSwitchPost(int client, int weapon)
     if (!IsValidEntity(weapon))
         return;
 
-    int team = GetClientTeam(client);
-
-    if (team != TEAM_SURVIVOR && team != TEAM_HOLDOUT)
-        return;
-
-    int modelIndex = GetEntProp(weapon, Prop_Send, "m_nModelIndex");
-
-    if (modelIndex == g_iModel_Gnome)
+    switch (GetWeaponType(weapon))
     {
-        if (!g_bCvar_GnomeAllow)
-            return;
-
-        gc_iWeaponType[client] = TYPE_GNOME;
-
-        if (!g_bCvar_GnomeAnnounceTeam)
-            return;
-
-        if (g_bCvar_SpamProtection)
+        case TYPE_GNOME:
         {
-            if (GetGameTime() - gc_fLastChatOccurrence[client] < g_fCvar_SpamProtection)
+            if (!g_bCvar_GnomeAllow)
                 return;
 
-            gc_fLastChatOccurrence[client] = GetGameTime();
-        }
+            gc_iWeaponType[client] = TYPE_GNOME;
 
-        for (int i = 1; i <= MaxClients; i++)
-        {
-            if (!IsClientInGame(i))
-                continue;
-
-            if (IsFakeClient(i))
-                continue;
-
-            if (client == i)
-            {
-                if (!g_bCvar_GnomeAnnounceSelf)
-                    continue;
-            }
-            else
-            {
-                if (!(GetTeamFlag(GetClientTeam(i)) & g_iCvar_GnomeAnnounceTeam))
-                    continue;
-            }
-
-            CPrintToChat(i, "%t", "Equipped a gnome", client);
-        }
-
-        return;
-    }
-
-    if (modelIndex == g_iModel_Cola)
-    {
-        if (!g_bCvar_ColaAllow)
-            return;
-
-        gc_iWeaponType[client] = TYPE_COLA;
-
-        if (!g_bCvar_ColaAnnounceTeam)
-            return;
-
-        if (g_bCvar_SpamProtection)
-        {
-            if (GetGameTime() - gc_fLastChatOccurrence[client] < g_fCvar_SpamProtection)
+            if (!g_bCvar_GnomeAnnounceTeam)
                 return;
 
-            gc_fLastChatOccurrence[client] = GetGameTime();
-        }
+            if (g_bCvar_SpamProtection)
+            {
+                if (gc_fLastChatOccurrence[client] != 0.0 && GetGameTime() - gc_fLastChatOccurrence[client] < g_fCvar_SpamProtection)
+                    return;
 
-        for (int i = 1; i <= MaxClients; i++)
+                gc_fLastChatOccurrence[client] = GetGameTime();
+            }
+
+            for (int i = 1; i <= MaxClients; i++)
+            {
+                if (!IsClientInGame(i))
+                    continue;
+
+                if (IsFakeClient(i))
+                    continue;
+
+                if (client == i)
+                {
+                    if (!g_bCvar_GnomeAnnounceSelf)
+                        continue;
+                }
+                else
+                {
+                    if (!(GetTeamFlag(GetClientTeam(i)) & g_iCvar_GnomeAnnounceTeam))
+                        continue;
+                }
+
+                CPrintToChat(i, "%t", "Equipped a gnome", client);
+            }
+        }
+        case TYPE_COLA:
         {
-            if (!IsClientInGame(i))
-                continue;
+            if (!g_bCvar_ColaAllow)
+                return;
 
-            if (IsFakeClient(i))
-                continue;
+            gc_iWeaponType[client] = TYPE_COLA;
 
-            if (client == i)
+            if (!g_bCvar_ColaAnnounceTeam)
+                return;
+
+            if (g_bCvar_SpamProtection)
             {
-                if (!g_bCvar_ColaAnnounceSelf)
-                    continue;
-            }
-            else
-            {
-                if (!(GetTeamFlag(GetClientTeam(i)) & g_iCvar_ColaAnnounceTeam))
-                    continue;
+                if (gc_fLastChatOccurrence[client] != 0.0 && GetGameTime() - gc_fLastChatOccurrence[client] < g_fCvar_SpamProtection)
+                    return;
+
+                gc_fLastChatOccurrence[client] = GetGameTime();
             }
 
-            CPrintToChat(i, "%t", "Equipped a cola", client);
+            for (int i = 1; i <= MaxClients; i++)
+            {
+                if (!IsClientInGame(i))
+                    continue;
+
+                if (IsFakeClient(i))
+                    continue;
+
+                if (client == i)
+                {
+                    if (!g_bCvar_ColaAnnounceSelf)
+                        continue;
+                }
+                else
+                {
+                    if (!(GetTeamFlag(GetClientTeam(i)) & g_iCvar_ColaAnnounceTeam))
+                        continue;
+                }
+
+                CPrintToChat(i, "%t", "Equipped a cola", client);
+            }
         }
-
-        return;
     }
 }
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -519,7 +476,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -534,17 +491,16 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("attacker"));
-
-    if (!IsValidClient(client))
-        return;
-
-    if (gc_iWeaponType[client] == TYPE_NONE)
-        return;
-
     int target = event.GetInt("entityid");
+
+    if (client == 0)
+        return;
+
+    if (gc_iWeaponType[client] == TYPE_UNKNOWN)
+        return;
 
     if (target == ENTITY_WORLDSPAWN)
         return;
@@ -556,32 +512,22 @@ public void Event_EntityShoved(Event event, const char[] name, bool dontBroadcas
 
     switch (gc_iWeaponType[client])
     {
-        case TYPE_GNOME:
-        {
-            SDKHooks_TakeDamage(target, client, client, float(g_iCvar_GnomeDamage), g_iCvar_GnomeDamageType, activeWeapon);
-        }
-        case TYPE_COLA:
-        {
-            SDKHooks_TakeDamage(target, client, client, float(g_iCvar_ColaDamage), g_iCvar_ColaDamageType, activeWeapon);
-        }
+        case TYPE_GNOME: SDKHooks_TakeDamage(target, client, client, float(g_iCvar_GnomeDamage), g_iCvar_GnomeDamageType, activeWeapon, NULL_VECTOR, NULL_VECTOR, false);
+        case TYPE_COLA: SDKHooks_TakeDamage(target, client, client, float(g_iCvar_ColaDamage), g_iCvar_ColaDamageType, activeWeapon, NULL_VECTOR, NULL_VECTOR, false);
     }
 }
 
 /****************************************************************************************************/
 
-public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("attacker"));
-
-    if (!IsValidClient(client))
-        return;
-
-    if (gc_iWeaponType[client] == TYPE_NONE)
-        return;
-
     int target = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(target))
+    if (client == 0 || target == 0)
+        return;
+
+    if (gc_iWeaponType[client] == TYPE_UNKNOWN)
         return;
 
     int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
@@ -619,36 +565,36 @@ public void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcas
 
 /****************************************************************************************************/
 
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClientIndex(client))
+    if (client == 0)
         return;
 
-    gc_iWeaponType[client] = TYPE_NONE;
+    gc_iWeaponType[client] = TYPE_UNKNOWN;
 }
 
 /****************************************************************************************************/
 
-public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClientIndex(client))
+    if (client == 0)
         return;
 
-    gc_iWeaponType[client] = TYPE_NONE;
+    gc_iWeaponType[client] = TYPE_UNKNOWN;
 }
 
 /****************************************************************************************************/
 
-public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
+public Action OnPlayerRunCmd(int client, int &buttons)
 {
     if (!IsValidClientIndex(client))
         return Plugin_Continue;
 
-    if (gc_iWeaponType[client] == TYPE_NONE)
+    if (gc_iWeaponType[client] == TYPE_UNKNOWN)
         return Plugin_Continue;
 
     if (buttons & IN_RELOAD)
@@ -660,7 +606,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
                 if (g_iCvar_GnomeAltThrowButton & ALT_BUTTON_RELOAD)
                 {
                     buttons |= IN_ATTACK;
-
                     return Plugin_Changed;
                 }
             }
@@ -669,7 +614,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
                 if (g_iCvar_ColaAltThrowButton & ALT_BUTTON_RELOAD)
                 {
                     buttons |= IN_ATTACK;
-
                     return Plugin_Changed;
                 }
             }
@@ -685,7 +629,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
                 if (g_iCvar_GnomeAltThrowButton & ALT_BUTTON_ZOOM)
                 {
                     buttons |= IN_ATTACK;
-
                     return Plugin_Changed;
                 }
             }
@@ -694,60 +637,63 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
                 if (g_iCvar_ColaAltThrowButton & ALT_BUTTON_ZOOM)
                 {
                     buttons |= IN_ATTACK;
-
                     return Plugin_Changed;
                 }
             }
         }
     }
 
-    if (buttons & IN_ATTACK || buttons & IN_ATTACK2)
+    bool buttonsChanged = false;
+
+    if (buttons & IN_ATTACK)
     {
         switch (gc_iWeaponType[client])
         {
             case TYPE_GNOME:
             {
-                if (g_bCvar_GnomeNoShovePenalty)
-                {
-                    int shovePenalty = GetEntProp(client, Prop_Send, "m_iShovePenalty");
-
-                    if (shovePenalty > g_iShoveMinPenalty)
-                        SetEntProp(client, Prop_Send, "m_iShovePenalty", g_iShoveMinPenalty);
-                }
-
                 if (buttons & IN_ATTACK)
                 {
                     if (g_bCvar_GnomeShoveOnAttack)
                     {
                         buttons &= ~IN_ATTACK;
                         buttons |= IN_ATTACK2;
-
-                        return Plugin_Changed;
+                        buttonsChanged = true;
                     }
                 }
             }
             case TYPE_COLA:
             {
-                if (g_bCvar_ColaNoShovePenalty)
-                {
-                    int shovePenalty = GetEntProp(client, Prop_Send, "m_iShovePenalty");
-
-                    if (shovePenalty > g_iShoveMinPenalty)
-                        SetEntProp(client, Prop_Send, "m_iShovePenalty", g_iShoveMinPenalty);
-                }
-
                 if (buttons & IN_ATTACK)
                 {
                     if (g_bCvar_ColaShoveOnAttack)
                     {
                         buttons &= ~IN_ATTACK;
                         buttons |= IN_ATTACK2;
-
-                        return Plugin_Changed;
+                        buttonsChanged = true;
                     }
                 }
             }
         }
+    }
+
+    if (buttons & IN_ATTACK2)
+    {
+        switch (gc_iWeaponType[client])
+        {
+            case TYPE_GNOME:
+            {
+                if (g_bCvar_GnomeNoShovePenalty)
+                    SetEntProp(client, Prop_Send, "m_iShovePenalty", 0);
+            }
+            case TYPE_COLA:
+            {
+                if (g_bCvar_ColaNoShovePenalty)
+                    SetEntProp(client, Prop_Send, "m_iShovePenalty", 0);
+            }
+        }
+
+        if (buttonsChanged)
+            return Plugin_Changed;
     }
 
     return Plugin_Continue;
@@ -755,40 +701,24 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 /****************************************************************************************************/
 
-public void GetShoveMinPenalty()
+int GetWeaponType(int entity)
 {
-    g_bShoveMinPenaltyCoop = false;
-    g_iShoveMinPenalty = g_iCvar_ShoveMinPenaltyNonCoop - 1;
-    if (g_iShoveMinPenalty < 0)
-        g_iShoveMinPenalty = 0;
+    char classname[36];
+    GetEntityClassname(entity, classname, sizeof(classname));
 
-    int entity = CreateEntityByName("info_gamemode");
-    DispatchKeyValue(entity, "targetname", "l4d2_gnome_n_cola_shove_dmg");
+    if (StrEqual(classname, "weapon_gnome"))
+        return TYPE_GNOME;
 
-    DispatchSpawn(entity);
-    ActivateEntity(entity);
+    if (StrEqual(classname, "weapon_cola_bottles"))
+        return TYPE_COLA;
 
-    HookSingleEntityOutput(entity, "OnCoop", OnCoop, true);
-    ActivateEntity(entity);
-    AcceptEntityInput(entity, "PostSpawnActivate");
-    if (IsValidEntity(entity)) // Because sometimes "PostSpawnActivate" seems to kill the ent.
-        RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
-}
-
-/****************************************************************************************************/
-
-public void OnCoop(const char[] output, int caller, int activator, float delay)
-{
-    g_bShoveMinPenaltyCoop = true;
-    g_iShoveMinPenalty = (g_iCvar_ShoveMinPenaltyCoop - 1);
-    if (g_iShoveMinPenalty < 0)
-        g_iShoveMinPenalty = 0;
+    return TYPE_UNKNOWN;
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -797,31 +727,27 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_gnome_n_cola_shove_dmg_ver : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_gnome_n_cola_shove_dmg_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_gnome_n_cola_shove_dmg_spam_protection : %.2f (%s)", g_fCvar_SpamProtection, g_bCvar_SpamProtection ? "true" : "false");
+    PrintToConsole(client, "l4d2_gnome_n_cola_shove_dmg_spam_protection : %.1f", g_fCvar_SpamProtection);
     PrintToConsole(client, "l4d2_gnome_shove_dmg_allow : %b (%s)", g_bCvar_GnomeAllow, g_bCvar_GnomeAllow ? "true" : "false");
     PrintToConsole(client, "l4d2_gnome_shove_dmg_damage : %i", g_iCvar_GnomeDamage);
-    PrintToConsole(client, "l4d2_gnome_shove_dmg_ff_damage : %i (%s)", g_iCvar_GnomeFriendlyFireDamage, g_bCvar_GnomeFriendlyFireDamage ? "true" : "false");
+    PrintToConsole(client, "l4d2_gnome_shove_dmg_ff_damage : %i", g_iCvar_GnomeFriendlyFireDamage);
     PrintToConsole(client, "l4d2_gnome_shove_dmg_damage_type : %i", g_iCvar_GnomeDamageType);
     PrintToConsole(client, "l4d2_gnome_shove_dmg_shove_on_attack : %b (%s)", g_bCvar_GnomeShoveOnAttack, g_bCvar_GnomeShoveOnAttack ? "true" : "false");
-    PrintToConsole(client, "l4d2_gnome_shove_dmg_alt_throw_button : %i", g_iCvar_GnomeAltThrowButton);
+    PrintToConsole(client, "l4d2_gnome_shove_dmg_alt_throw_button : %i (RELOAD = %s | ZOOM = %s)", g_iCvar_GnomeAltThrowButton, g_iCvar_GnomeAltThrowButton & ALT_BUTTON_RELOAD ? "true" : "false", g_iCvar_GnomeAltThrowButton & ALT_BUTTON_ZOOM ? "true" : "false");
     PrintToConsole(client, "l4d2_gnome_shove_dmg_no_shove_penalty : %b (%s)", g_bCvar_GnomeNoShovePenalty, g_bCvar_GnomeNoShovePenalty ? "true" : "false");
-    PrintToConsole(client, "l4d2_gnome_shove_dmg_announce_team : %i (%s)", g_iCvar_GnomeAnnounceTeam, g_bCvar_GnomeAnnounceTeam ? "true" : "false");
-    PrintToConsole(client, "l4d2_gnome_shove_dmg_announce_self : %i (%s)", g_bCvar_GnomeAnnounceSelf, g_bCvar_GnomeAnnounceSelf ? "true" : "false");
+    PrintToConsole(client, "l4d2_gnome_shove_dmg_announce_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_GnomeAnnounceTeam,
+    g_iCvar_GnomeAnnounceTeam & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_GnomeAnnounceTeam & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_GnomeAnnounceTeam & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_GnomeAnnounceTeam & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d2_gnome_shove_dmg_announce_self : %b (%s)", g_bCvar_GnomeAnnounceSelf, g_bCvar_GnomeAnnounceSelf ? "true" : "false");
     PrintToConsole(client, "l4d2_cola_shove_dmg_allow : %b (%s)", g_bCvar_ColaAllow, g_bCvar_ColaAllow ? "true" : "false");
     PrintToConsole(client, "l4d2_cola_shove_dmg_damage : %i", g_iCvar_ColaDamage);
-    PrintToConsole(client, "l4d2_cola_shove_dmg_ff_damage : %i (%s)", g_iCvar_ColaFriendlyFireDamage, g_bCvar_ColaFriendlyFireDamage ? "true" : "false");
+    PrintToConsole(client, "l4d2_cola_shove_dmg_ff_damage : %i", g_iCvar_ColaFriendlyFireDamage);
     PrintToConsole(client, "l4d2_cola_shove_dmg_damage_type : %i", g_iCvar_ColaDamageType);
     PrintToConsole(client, "l4d2_cola_shove_dmg_shove_on_attack : %b (%s)", g_bCvar_ColaShoveOnAttack, g_bCvar_ColaShoveOnAttack ? "true" : "false");
-    PrintToConsole(client, "l4d2_cola_shove_dmg_alt_throw_button : %i", g_iCvar_ColaAltThrowButton);
+    PrintToConsole(client, "l4d2_cola_shove_dmg_alt_throw_button : %i (RELOAD = %s | ZOOM = %s)", g_iCvar_ColaAltThrowButton, g_iCvar_ColaAltThrowButton & ALT_BUTTON_RELOAD ? "true" : "false", g_iCvar_ColaAltThrowButton & ALT_BUTTON_ZOOM ? "true" : "false");
     PrintToConsole(client, "l4d2_cola_shove_dmg_no_shove_penalty : %b (%s)", g_bCvar_ColaNoShovePenalty, g_bCvar_ColaNoShovePenalty ? "true" : "false");
-    PrintToConsole(client, "l4d2_cola_shove_dmg_announce_team : %i (%s)", g_iCvar_ColaAnnounceTeam, g_bCvar_ColaAnnounceTeam ? "true" : "false");
-    PrintToConsole(client, "l4d2_cola_shove_dmg_announce_self : %i (%s)", g_bCvar_ColaAnnounceSelf, g_bCvar_ColaAnnounceSelf ? "true" : "false");
-    PrintToConsole(client, "");
-    PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
-    PrintToConsole(client, "");
-    PrintToConsole(client, "mp_gamemode : %s", g_sCvar_MPGameMode);
-    PrintToConsole(client, "z_gun_swing_coop_min_penalty : %i (%s)", g_iCvar_ShoveMinPenaltyCoop, g_bShoveMinPenaltyCoop ? "true" : "false");
-    PrintToConsole(client, "z_gun_swing_vs_min_penalty : %i (%s)", g_iCvar_ShoveMinPenaltyNonCoop, !g_bShoveMinPenaltyCoop ? "true" : "false");
+    PrintToConsole(client, "l4d2_cola_shove_dmg_announce_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_ColaAnnounceTeam,
+    g_iCvar_ColaAnnounceTeam & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_ColaAnnounceTeam & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_ColaAnnounceTeam & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_ColaAnnounceTeam & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d2_cola_shove_dmg_announce_self : %b (%s)", g_bCvar_ColaAnnounceSelf, g_bCvar_ColaAnnounceSelf ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -841,19 +767,6 @@ public Action CmdPrintCvars(int client, int args)
 bool IsValidClientIndex(int client)
 {
     return (1 <= client <= MaxClients);
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid client.
- *
- * @param client          Client index.
- * @return                True if client index is valid and client is in game, false otherwise.
- */
-bool IsValidClient(int client)
-{
-    return (IsValidClientIndex(client) && IsClientInGame(client));
 }
 
 /****************************************************************************************************/
@@ -893,7 +806,7 @@ int GetTeamFlag(int team)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

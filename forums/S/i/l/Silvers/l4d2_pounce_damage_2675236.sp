@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1b"
+#define PLUGIN_VERSION 		"1.1d"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.1d (14-Nov-2021)
+	- Updated GameData signatures to avoid breaking when detoured by the "Left4DHooks" plugin.
+
+1.1c (09-Jul-2021)
+	- L4D2: Fixed GameData file from the "2.2.2.0" game update.
 
 1.1b (16-Jun-2021)
 	- Compatibility update for L4D2's "2.2.1.3" update.

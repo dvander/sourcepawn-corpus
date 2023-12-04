@@ -1,19 +1,18 @@
-#pragma semicolon 1
-#pragma newdecls required
-
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
 #include <adminmenu>
 
+#pragma semicolon 1
+#pragma newdecls required
+
 #define PLUGIN_NAME "[L4D2] Defib Death Model"
 #define PLUGIN_AUTHOR "Shadowysn"
 #define PLUGIN_DESC "Defib death models like in Rayman's admin system."
-#define PLUGIN_VERSION "1.1.6"
+#define PLUGIN_VERSION "1.1.8b"
 #define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?p=2691204"
 #define PLUGIN_NAME_SHORT "Defib Death Model"
 #define PLUGIN_NAME_TECH "defib_death_model"
-// Fixed black and white cvar not applying to autodefibbing when there is no temporary godmode
 #define DEATH_MODEL_CLASS "survivor_death_model"
 
 #define GAMEDATA "l4d2_defibmodel"
@@ -22,29 +21,29 @@
 #define INCAP_CVAR "survivor_max_incapacitated_count"
 ConVar incap_cvar;
 
-static int g_iSelectedTarget[MAXPLAYERS+1] = -1;
+static int g_iSelectedTarget[MAXPLAYERS+1] = {INVALID_ENT_REFERENCE};
 // Credits to Silvers V
 //static Handle g_hTimerRespawn[MAXPLAYERS+1] = null;
 //static Handle g_hTempGod[MAXPLAYERS+1] = null;
 // end
-static float g_fTimerRespawn[MAXPLAYERS+1] = -1.0;
-static bool g_bTimerRespawn[MAXPLAYERS+1] = false;
-static int g_iChosenBody[MAXPLAYERS+1] = -1;
+static float g_fTimerRespawn[MAXPLAYERS+1] = {-1.0};
+static bool g_bTimerRespawn[MAXPLAYERS+1] = {false};
+static int g_iChosenBody[MAXPLAYERS+1] = {INVALID_ENT_REFERENCE};
 
-static bool g_bIsVScript[MAXPLAYERS+1] = false;
+static bool g_bIsVScript[MAXPLAYERS+1] = {false};
 
-static float g_fTempGod[MAXPLAYERS+1] = -1.0;
-static bool g_bTempGod[MAXPLAYERS+1] = false;
+static float g_fTempGod[MAXPLAYERS+1] = {-1.0};
+static bool g_bTempGod[MAXPLAYERS+1] = {false};
 
 // v To prevent survivors from getting defibbed over and over again if they fell into a death zone
-static float g_fTimeTilSafe[MAXPLAYERS+1] = -1.0;
-static int g_iNumOfDeathOnAD[MAXPLAYERS+1] = 0;
+static float g_fTimeTilSafe[MAXPLAYERS+1] = {-1.0};
+static int g_iNumOfDeathOnAD[MAXPLAYERS+1] = {0};
 
 static float g_vPeriodicLoc[MAXPLAYERS+1][3];
 
 #define POST_THINK_HOOK SDKHook_PostThink
 
-static float g_fClientWait[MAXPLAYERS+1] = 0.0;
+static float g_fClientWait[MAXPLAYERS+1] = {0.0};
 #define THINK_WAITTIME 0.5
 
 TopMenu hTopMenu;
@@ -58,18 +57,25 @@ TopMenu hTopMenu;
 //static const String:MODEL_LOUIS[] = "models/survivors/survivor_manager.mdl";
 //static const String:MODEL_FRANCIS[] = "models/survivors/survivor_biker.mdl";
 
-ConVar Defib_AutoTimer;
-ConVar Defib_AutoTimerMode;
-ConVar Defib_TempGodTimer;
-ConVar Defib_AutoTimerTeleport;
-ConVar Defib_AutoTimerBAW;
-ConVar Defib_AutoTimerSpawnKill;
-ConVar Defib_AutoTimerSafety;
+static ConVar Defib_AutoTimer;
+static ConVar Defib_AutoTimerMode;
+static ConVar Defib_TempGodTimer;
+static ConVar Defib_AutoTimerTeleport;
+static ConVar Defib_AutoTimerBAW;
+static ConVar Defib_AutoTimerSpawnKill;
+static ConVar Defib_AutoTimerSafety;
+float g_fAutoTimer;
+int g_iAutoTimerMode;
+float g_fTempGodTimer;
+int g_iAutoTimerTeleport;
+int g_iAutoTimerBAW;
+int g_iAutoTimerSpawnKill;
+float g_fAutoTimerSafety;
 
 #define BITFLAG_BAW_AUTO (1 << 0)
 #define BITFLAG_BAW_NONAUTO (1 << 1)
 
-Handle hConf = null;
+static Handle hConf = null;
 static Handle hOnRevivedByDefibrillator = null;
 #define NAME_OnRevivedByDefibrillator "CTerrorPlayer::OnRevivedByDefibrillator"
 
@@ -101,42 +107,49 @@ ConVar version_cvar;
 
 public void OnPluginStart()
 {
-	char temp_str[128];
-	char desc_str[1024];
-	Format(desc_str, sizeof(desc_str), "%s version.", PLUGIN_NAME_SHORT);
-	version_cvar = CreateConVar("sm_defib_death_model_new_version", PLUGIN_VERSION, desc_str, FCVAR_NONE|FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
-	if(version_cvar != null)
+	static char temp_str[64];
+	Format(temp_str, sizeof(temp_str), "%s version.", PLUGIN_NAME_SHORT);
+	static char desc_str[64];
+	Format(desc_str, sizeof(desc_str), "sm_%s_version", PLUGIN_NAME_TECH);
+	version_cvar = CreateConVar(desc_str, PLUGIN_VERSION, temp_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	if (version_cvar != null)
 		SetConVarString(version_cvar, PLUGIN_VERSION);
+	
+	GetGamedata();
 	
 	incap_cvar = FindConVar(INCAP_CVAR);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_autotimer", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "0.0 = Off. | Automatic timer for defibbing each player that died within the defined time limit.");
-	Defib_AutoTimer = CreateConVar(temp_str, "0.0", desc_str, FCVAR_NONE, true, 0.0);
+	Defib_AutoTimer = CreateConVar(temp_str, "0.0", "0.0 = Off. | Automatic timer for defibbing each player that died within the defined time limit.", FCVAR_NONE, true, 0.0);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_autotimer_mode", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "0 = VScript. 1 = Signature. | Choose an automatic timer mode.");
-	Defib_AutoTimerMode = CreateConVar(temp_str, "1", desc_str, FCVAR_NONE, true, 0.0, true, 1.0);
+	Defib_AutoTimerMode = CreateConVar(temp_str, "1", "0 = VScript. 1 = Signature. | Choose an automatic timer mode.", FCVAR_NONE, true, 0.0, true, 1.0);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_autodefib_god", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "0.0 = Off. | How long the temporary godmode lasts from autodefib, in seconds.");
-	Defib_TempGodTimer = CreateConVar(temp_str, "5.0", desc_str, FCVAR_NONE, true, 0.0);
+	Defib_TempGodTimer = CreateConVar(temp_str, "5.0", "0.0 = Off. | How long the temporary godmode lasts from autodefib, in seconds.", FCVAR_NONE, true, 0.0);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_autodefib_teleport", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "0 = Off. 1 = Teleport autodefibbed survivors to closest survivor on ground. 2 = Periodically save location on ground.");
-	Defib_AutoTimerTeleport = CreateConVar(temp_str, "0", desc_str, FCVAR_NONE, true, 0.0, true, 2.0);
+	Defib_AutoTimerTeleport = CreateConVar(temp_str, "0", "0 = Off. 1 = Teleport autodefibbed survivors to closest survivor on ground. 2 = Periodically save location on ground.", FCVAR_NONE, true, 0.0, true, 2.0);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_blackandwhite", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "Whether to make players defibbed by this plugin black-and-white. 0 = Disable. 1 | BaW on AutoDefib + 2 | BaW on Manual Defib");
-	Defib_AutoTimerBAW = CreateConVar(temp_str, "0", desc_str, FCVAR_NONE, true, 0.0, true, 3.0);
+	Defib_AutoTimerBAW = CreateConVar(temp_str, "0", "Whether to make players defibbed by this plugin black-and-white. 0 = Disable. 1 | BaW on AutoDefib + 2 | BaW on Manual Defib", FCVAR_NONE, true, 0.0, true, 3.0);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_autodefib_spawnkill", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "0 = Off. | How much spawnkill deaths are allowed until auto-defib stops defibbing a victim dying after defib/godmode ends?");
-	Defib_AutoTimerSpawnKill = CreateConVar(temp_str, "2", desc_str, FCVAR_NONE, true, 0.0);
+	Defib_AutoTimerSpawnKill = CreateConVar(temp_str, "2", "0 = Off. | How much spawnkill deaths are allowed until auto-defib stops defibbing a victim dying after defib/godmode ends?", FCVAR_NONE, true, 0.0);
 	
 	Format(temp_str, sizeof(temp_str), "sm_%s_autodefib_safetytimer", PLUGIN_NAME_TECH);
-	strcopy(desc_str, sizeof(desc_str), "How long the 'check for safety' timer lasts.");
-	Defib_AutoTimerSafety = CreateConVar(temp_str, "1.5", desc_str, FCVAR_NONE, true, 0.5);
+	Defib_AutoTimerSafety = CreateConVar(temp_str, "1.5", "How long the 'check for safety' timer lasts.", FCVAR_NONE, true, 0.5);
+	
+	Defib_AutoTimer.AddChangeHook(ConVarChanged_Cvars);
+	Defib_AutoTimerMode.AddChangeHook(ConVarChanged_Cvars);
+	Defib_TempGodTimer.AddChangeHook(ConVarChanged_Cvars);
+	Defib_AutoTimerTeleport.AddChangeHook(ConVarChanged_Cvars);
+	Defib_AutoTimerBAW.AddChangeHook(ConVarChanged_Cvars);
+	Defib_AutoTimerSpawnKill.AddChangeHook(ConVarChanged_Cvars);
+	Defib_AutoTimerSafety.AddChangeHook(ConVarChanged_Cvars);
+	
+	AutoExecConfig(true, AUTOEXEC_CFG);
+	SetCvars();
 	
 	// Credits to Silvers V
 	HookEvent("round_end", round_end);
@@ -149,9 +162,6 @@ public void OnPluginStart()
 	RegAdminCmd("sm_vdefib", InitiateMenuAdminDefib_VScript, ADMFLAG_SLAY, "Open a menu with a list of dead bodies to defibrillate. Defibs via VScript.");
 	RegAdminCmd("sm_autodefib", InitiateAdminDefib_Auto, ADMFLAG_SLAY, "sm_autodefib <mode> - 0 | nearest index. 1 <default> | check for same character. 2 | check for same model. - Choose a dead person and body to defib. Defibs via Signature.");
 	RegAdminCmd("sm_telebody", TeleBody, ADMFLAG_SLAY, "Teleport all dead bodies to your position.");
-	GetGamedata();
-	
-	AutoExecConfig(true, AUTOEXEC_CFG);
 	
 	CreateTimer(1.0, PeriodicVecCheck, _, TIMER_REPEAT);
 }
@@ -188,23 +198,47 @@ public void OnMapEnd()
 		}
 	}
 }
+
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+{ SetCvars(); }
+void SetCvars()
+{
+	g_fAutoTimer = Defib_AutoTimer.FloatValue;
+	g_iAutoTimerMode = Defib_AutoTimerMode.IntValue;
+	g_fTempGodTimer = Defib_TempGodTimer.FloatValue;
+	g_iAutoTimerTeleport = Defib_AutoTimerTeleport.IntValue;
+	g_iAutoTimerBAW = Defib_AutoTimerBAW.IntValue;
+	g_iAutoTimerSpawnKill = Defib_AutoTimerSpawnKill.IntValue;
+	g_fAutoTimerSafety = Defib_AutoTimerSafety.FloatValue;
+}
 // end
 
 // PUBLIC End // -------------------------------------------------------- //
 
 #define PLUGIN_SCRIPTLOGIC "plugin_scripting_logic_entity"
 
+static int g_iScriptLogic = 0;
+
 void Logic_RunScript(const char[] sCode, any ...) 
 {
-	int iScriptLogic = FindEntityByTargetname(-1, PLUGIN_SCRIPTLOGIC);
-	if (!iScriptLogic || !IsValidEntity(iScriptLogic))
+	int iScriptLogic = 0;
+	if (!RealValidEntity(g_iScriptLogic))
 	{
-		iScriptLogic = CreateEntityByName("logic_script");
-		DispatchKeyValue(iScriptLogic, "targetname", PLUGIN_SCRIPTLOGIC);
-		DispatchSpawn(iScriptLogic);
+		iScriptLogic = FindEntityByTargetname(-1, PLUGIN_SCRIPTLOGIC);
+		if (!RealValidEntity(iScriptLogic))
+		{
+			iScriptLogic = CreateEntityByName("logic_script");
+			DispatchKeyValue(iScriptLogic, "targetname", PLUGIN_SCRIPTLOGIC);
+			DispatchSpawn(iScriptLogic);
+			g_iScriptLogic = iScriptLogic;
+		}
+	}
+	else
+	{
+		iScriptLogic = g_iScriptLogic;
 	}
 	
-	char sBuffer[512]; 
+	static char sBuffer[512]; 
 	VFormat(sBuffer, sizeof(sBuffer), sCode, 2); 
 	
 	SetVariantString(sBuffer); 
@@ -214,10 +248,10 @@ void Logic_RunScript(const char[] sCode, any ...)
 int FindEntityByTargetname(int index, const char[] findname, bool onlyNetworked = false)
 {
 	for (int i = index; i < (onlyNetworked ? GetMaxEntities() : (GetMaxEntities()*2)); i++) {
-		if (!IsValidEntity(i)) continue;
-		char name[128];
+		if (!RealValidEntity(i)) continue;
+		static char name[64];
 		GetEntPropString(i, Prop_Data, "m_iName", name, sizeof(name));
-		if (!StrEqual(name, findname, false)) continue;
+		if (strcmp(name, findname, false) != 0) continue;
 		return i;
 	}
 	return -1;
@@ -227,15 +261,15 @@ int FindEntityByTargetname(int index, const char[] findname, bool onlyNetworked 
 
 void DefibSurvivorAndModel(int client, int reviver, int model)
 {
-	if (!IsValidClient(client) || !IsValidClient(reviver) || !IsValidEntity(model)) return;
+	if (!IsValidClient(client) || !IsValidClient(reviver) || !RealValidEntity(model)) return;
 	
-	char class[64];
+	static char class[64];
 	GetEntityClassname(model, class, sizeof(class));
-	if (!StrEqual(class, DEATH_MODEL_CLASS, false)) return;
+	if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) return;
 	
 	SDKCall(hOnRevivedByDefibrillator, client, reviver, model);
 	
-	if (IsPlayerAlive(client) && (GetConVarInt(Defib_AutoTimerBAW) & BITFLAG_BAW_NONAUTO))
+	if (IsPlayerAlive(client) && (g_iAutoTimerBAW & BITFLAG_BAW_NONAUTO))
 	{
 		int incap_cv_int = GetConVarInt(incap_cvar);
 		
@@ -253,23 +287,30 @@ Action InitiateMenuAdminDefib_ChooseModel(int client, int args)
 		return Plugin_Handled; 
 	} 
 	
-	char name[32]; char number[10];
+	static char name[32]; static char number[12];
 	
 	Handle menu = CreateMenu(ShowMenu_ChooseModel);
 	//SetMenuTitle(menu, "Defib survivor:"); 
 	SetMenuTitle(menu, "Choose dead body:"); 
 	
 	bool hasEnt = false;
+	//int i = MaxClients;
 	for (int i = 1; i <= GetMaxEntities()*2; i++) // Get Survivor Models
 	{
-		if (!IsValidEntity(i)) continue;
-		char class[64];
+		if (!RealValidEntity(i)) continue;
+		static char class[64];
 		GetEntityClassname(i, class, sizeof(class));
-		if (!StrEqual(class, DEATH_MODEL_CLASS, false)) continue;
+		if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) continue;
 		
-		int character = GetEntProp(i, Prop_Send, "m_nCharacterType");
-		
-		GetCharacterName(character, name, sizeof(name));
+		if (HasEntProp(i, Prop_Send, "m_nCharacterType"))
+		{
+			int character = GetEntProp(i, Prop_Send, "m_nCharacterType");
+			GetCharacterName(character, name, sizeof(name));
+		}
+		else
+		{
+			strcopy(name, sizeof(name), "INVALID?");
+		}
 		
 		Format(number, sizeof(number), "%i", EntRefToEntIndex(i));
 		AddMenuItem(menu, number, name);
@@ -291,19 +332,19 @@ int ShowMenu_ChooseModel(Handle menu, MenuAction action, int client, int param2)
 	{ 
 		case MenuAction_Select:
 		{
-			if (!IsValidClient(client)) return;
+			if (!IsValidClient(client)) return 0;
 			
-			char param2_str[12];
+			static char param2_str[12];
 			GetMenuItem(menu, param2, param2_str, sizeof(param2_str));
 			
 			int chosen_mdl = StringToInt(param2_str);
 			
-			if (!IsValidEntity(chosen_mdl))
-			{ CreateTimer(0.15, TimerOpenMenu_Sig, client); ShowWarning(client, 1); return; }
+			if (!RealValidEntity(chosen_mdl))
+			{ CreateTimer(0.15, TimerOpenMenu_Sig, client); ShowWarning(client, 1); return 0; }
 			
-			char class[128];
+			static char class[64];
 			GetEntityClassname(chosen_mdl, class, sizeof(class));
-			if (!StrEqual(class, DEATH_MODEL_CLASS, false)) { ShowWarning(client, 1); return; }
+			if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) { ShowWarning(client, 1); return 0; }
 			
 			g_iSelectedTarget[client] = EntIndexToEntRef(chosen_mdl);
 			
@@ -323,6 +364,7 @@ int ShowMenu_ChooseModel(Handle menu, MenuAction action, int client, int param2)
 			CloseHandle(menu); 
 		}
 	}
+	return 0;
 }
 
 void InitiateMenuAdminDefib_ChooseClient(int client)
@@ -333,7 +375,7 @@ void InitiateMenuAdminDefib_ChooseClient(int client)
 		return;
 	}
 	
-	char name[MAX_NAME_LENGTH]; char number[10];
+	static char name[MAX_NAME_LENGTH]; static char number[12];
 	
 	Handle menu = CreateMenu(ShowMenu_ChooseClient);
 	SetMenuTitle(menu, "Defib survivor:"); 
@@ -345,7 +387,8 @@ void InitiateMenuAdminDefib_ChooseClient(int client)
 		
 		GetClientName(i, name, sizeof(name));
 		
-		char temphp[32];
+		static char temphp[32];
+		temphp[0] = '\0'; // Clear the string because it's static, meaning it persists
 		if (IsPlayerAlive(i) && HasEntProp(i, Prop_Send, "m_healthBuffer"))
 		{
 			float temphp_fl = GetEntPropFloat(i, Prop_Send, "m_healthBuffer");
@@ -355,7 +398,7 @@ void InitiateMenuAdminDefib_ChooseClient(int client)
 		
 		int hp = GetClientHealth(i);
 		
-		char status[128]; strcopy(status, sizeof(status), "");
+		static char status[32];
 		if (IsPlayerAlive(i) && IsIncapacitated(i))
 		{ Format(status, sizeof(status), "[DOWN] %i", hp); }
 		else if (IsPlayerAlive(i))
@@ -363,17 +406,18 @@ void InitiateMenuAdminDefib_ChooseClient(int client)
 		else
 		{ strcopy(status, sizeof(status), "DEAD"); }
 		
-		char team_str[16]; strcopy(team_str, sizeof(team_str), "");
+		static char team_str[16];
+		team_str[0] = '\0';
 		if (IsPassingSurvivor(i))
 		{ strcopy(team_str, sizeof(team_str), "T4 "); }
 		
 		int character = GetEntProp(i, Prop_Send, "m_survivorCharacter");
 		
-		char charletter[6];
+		static char charletter[6];
 		GetCharacterLetter(character, charletter, sizeof(charletter));
 		Format(charletter, sizeof(charletter), " %s", charletter); 
 		
-		char name_and_hp[MAX_NAME_LENGTH+64];
+		static char name_and_hp[MAX_NAME_LENGTH+64];
 		Format(name_and_hp, sizeof(name_and_hp), "%s (%s%s%s%s)", name, team_str, status, temphp, charletter);
 		
 		Format(number, sizeof(number), "%i", GetClientUserId(i)); 
@@ -395,18 +439,18 @@ int ShowMenu_ChooseClient(Handle menu, MenuAction action, int client, int param2
 	{
 		case MenuAction_Select:
 		{
-			if (!IsValidClient(client)) return;
+			if (!IsValidClient(client)) return 0;
 			
-			char number[4]; 
+			static char number[4]; 
 			GetMenuItem(menu, param2, number, sizeof(number)); 
 			
 			int body = EntRefToEntIndex(g_iSelectedTarget[client]);
-			if (!IsValidEntity(body))
-			{ ShowWarning(client, 2); return; }
+			if (!RealValidEntity(body))
+			{ ShowWarning(client, 2); return 0; }
 			
 			int target = GetClientOfUserId(StringToInt(number));
 			if (!IsValidClient(target))
-			{ ShowWarning(client, 0); return; }
+			{ ShowWarning(client, 0); return 0; }
 			
 			PrintToChat(client, "[SM] Revived %N using a dead body with index: %i", target, EntRefToEntIndex(body));
 			
@@ -425,12 +469,14 @@ int ShowMenu_ChooseClient(Handle menu, MenuAction action, int client, int param2
 			CloseHandle(menu); 
 		}
 	}
+	return 0;
 }
 
 Action TimerOpenMenu_Sig(Handle timer, int client)
 {
-	if (!DoesEntityWithClassExist(DEATH_MODEL_CLASS)) return;
+	if (!DoesEntityWithClassExist(DEATH_MODEL_CLASS)) return Plugin_Handled;
 	InitiateMenuAdminDefib_ChooseModel(client, 0);
+	return Plugin_Handled;
 }
 
 // SIGNATURE End // -------------------------------------------------------- //
@@ -444,7 +490,7 @@ Action InitiateMenuAdminDefib_VScript(int client, int args)
 		return Plugin_Handled; 
 	} 
 	
-	char name[32]; char number[10]; 
+	static char name[32]; static char number[10]; 
 	
 	Handle menu = CreateMenu(ShowMenu);
 	//SetMenuTitle(menu, "Defib survivor:"); 
@@ -453,14 +499,20 @@ Action InitiateMenuAdminDefib_VScript(int client, int args)
 	bool hasEnt = false;
 	for (int i = 1; i <= GetMaxEntities()*2; i++) // Get Survivor Models
 	{
-		if (!IsValidEntity(i)) continue;
-		char class[64];
+		if (!RealValidEntity(i)) continue;
+		static char class[64];
 		GetEntityClassname(i, class, sizeof(class));
-		if (StrEqual(class, DEATH_MODEL_CLASS, false))
+		if (strcmp(class, DEATH_MODEL_CLASS, false) == 0)
 		{
-			int character = GetEntProp(i, Prop_Send, "m_nCharacterType");
-			
-			GetCharacterName(character, name, sizeof(name));
+			if (HasEntProp(i, Prop_Send, "m_nCharacterType"))
+			{
+				int character = GetEntProp(i, Prop_Send, "m_nCharacterType");
+				GetCharacterName(character, name, sizeof(name));
+			}
+			else
+			{
+				strcopy(name, sizeof(name), "INVALID?");
+			}
 			
 			Format(number, sizeof(number), "%i", EntRefToEntIndex(i));
 			AddMenuItem(menu, number, name);
@@ -482,12 +534,12 @@ int ShowMenu(Handle menu, MenuAction action, int client, int param2)
 	{ 
 		case MenuAction_Select:  
 		{ 
-			char number[4]; 
+			static char number[4]; 
 			GetMenuItem(menu, param2, number, sizeof(number)); 
 			
 			int ref = EntIndexToEntRef(StringToInt(number));
-			if (!IsValidEntity(ref))
-			{ CreateTimer(0.15, TimerOpenMenu_VScript, client); return; }
+			if (!RealValidEntity(ref))
+			{ CreateTimer(0.15, TimerOpenMenu_VScript, client); return 0; }
 					
 			int character = GetEntProp(ref, Prop_Send, "m_nCharacterType");
 			for (int i = 1; i <= MaxClients; i++) // Survivor Model
@@ -500,12 +552,12 @@ int ShowMenu(Handle menu, MenuAction action, int client, int param2)
 				
 				Logic_RunScript("GetPlayerFromUserID(%d).ReviveByDefib()", GetClientUserId(i));
 				CreateTimer(0.15, TimerOpenMenu_VScript, client);
-				return;
+				return 0;
 			}
 			/*int target = GetClientOfUserId(StringToInt(number));
 			
 			if (!IsClientInGame(target) || IsPlayerAlive(target) || (GetClientTeam(target) != 2 && GetClientTeam(target) != 4))
-			return;
+			return 0;
 			
 			Logic_RunScript("GetPlayerFromUserID(%d).ReviveByDefib()", GetClientUserId(target));*/
 		} 
@@ -520,13 +572,15 @@ int ShowMenu(Handle menu, MenuAction action, int client, int param2)
 		{ 
 			CloseHandle(menu); 
 		} 
-	} 
+	}
+	return 0;
 }
 
 Action TimerOpenMenu_VScript(Handle timer, int client)
 {
-	if (!DoesEntityWithClassExist(DEATH_MODEL_CLASS)) return;
+	if (!DoesEntityWithClassExist(DEATH_MODEL_CLASS)) return Plugin_Handled;
 	InitiateMenuAdminDefib_VScript(client, 0);
+	return Plugin_Handled;
 }
 
 // VSCRIPT End // -------------------------------------------------------- //
@@ -534,7 +588,7 @@ Action TimerOpenMenu_VScript(Handle timer, int client)
 
 Action InitiateAdminDefib_Auto(int client, int args)  
 {
-	char arg[2];
+	static char arg[2];
 	GetCmdArg(1, arg, sizeof(arg));
 	int arg_int = -1;
 	if (!arg[0])
@@ -554,13 +608,13 @@ Action InitiateAdminDefib_Auto(int client, int args)
 	}
 	
 	//int temp = FindEntityByClassname(-1, DEATH_MODEL_CLASS);
-	//if (temp && IsValidEntity(temp)) bodyEnt = temp;
+	//if (temp && RealValidEntity(temp)) bodyEnt = temp;
 	for (int i = 1; i <= GetMaxEntities()*2; i++) // Get Survivor Models
 	{
-		if (!IsValidEntity(i)) continue;
-		char class[64];
+		if (!RealValidEntity(i)) continue;
+		static char class[64];
 		GetEntityClassname(i, class, sizeof(class));
-		if (!StrEqual(class, DEATH_MODEL_CLASS, false)) continue;
+		if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) continue;
 		
 		if ((arg_int & 1) && !ClientAndBodySameChar(clientEnt, i)) continue;
 		if ((arg_int & 2) && !ClientAndBodySameModel(clientEnt, i)) continue;
@@ -570,11 +624,11 @@ Action InitiateAdminDefib_Auto(int client, int args)
 	}
 	
 	bool hasFailed = false;
-	if (!IsValidEntity(bodyEnt) && !IsValidClient(clientEnt))
+	if (!RealValidEntity(bodyEnt) && !IsValidClient(clientEnt))
 	{ ShowWarning(client, 6); hasFailed = true; }
 	else if (!IsValidClient(clientEnt))
 	{ ShowWarning(client, 5); hasFailed = true; }
-	else if (!IsValidEntity(bodyEnt))
+	else if (!RealValidEntity(bodyEnt))
 	{ ShowWarning(client, 4); hasFailed = true; }
 	
 	if (hasFailed) return Plugin_Handled;
@@ -597,10 +651,10 @@ Action TeleBody(int client, int args)
 	
 	for (int i = 1; i <= GetMaxEntities()*2; i++) // Get Survivor Models
 	{
-		if (!IsValidEntity(i)) continue;
-		char class[64];
+		if (!RealValidEntity(i)) continue;
+		static char class[64];
 		GetEntityClassname(i, class, sizeof(class));
-		if (!StrEqual(class, DEATH_MODEL_CLASS, false)) continue;
+		if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) continue;
 		
 		float origin[3];
 		GetClientAbsOrigin(client, origin);
@@ -683,6 +737,8 @@ void SwapTimers(int client, int other)
 	bool g_bTempGod_backup = g_bTempGod[other];
 	float g_fTimeTilSafe_backup = g_fTimeTilSafe[other];
 	int g_iNumOfDeathOnAD_backup = g_iNumOfDeathOnAD[other];
+	
+	float g_vPeriodicLoc_backup[3]; g_vPeriodicLoc_backup = g_vPeriodicLoc[other];
 	// Backup the timers for other
 	
 	// Set the timers of 'other' to 'client'
@@ -696,6 +752,8 @@ void SwapTimers(int client, int other)
 	g_bTempGod[other] = g_bTempGod[client];
 	g_fTimeTilSafe[other] = g_fTimeTilSafe[client];
 	g_iNumOfDeathOnAD[other] = g_iNumOfDeathOnAD[client];
+	
+	g_vPeriodicLoc[other] = g_vPeriodicLoc[client];
 
 	
 	// Then use the backed-up 'other' variables for 'client'
@@ -709,6 +767,8 @@ void SwapTimers(int client, int other)
 	g_bTempGod[client] = g_bTempGod_backup;
 	g_fTimeTilSafe[client] = g_fTimeTilSafe_backup;
 	g_iNumOfDeathOnAD[client] = g_iNumOfDeathOnAD_backup;
+	
+	g_vPeriodicLoc[client] = g_vPeriodicLoc_backup;
 }
 
 /*void ClearTimers(int client)
@@ -727,7 +787,7 @@ void SwapTimers(int client, int other)
 
 void player_death(Event event, const char[] name, bool dontBroadcast)
 {
-	float cvar_time = GetConVarFloat(Defib_AutoTimer);
+	float cvar_time = g_fAutoTimer;
 	if (cvar_time <= 0.0) return;
 	
 	int client = GetClientOfUserId(event.GetInt("userid"));
@@ -742,7 +802,7 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 	
 	float game_time = GetGameTime();
 	
-	int max_deaths = GetConVarInt(Defib_AutoTimerSpawnKill);
+	int max_deaths = g_iAutoTimerSpawnKill;
 	if (max_deaths > 0)
 	{
 		// Check if the 'time til safe' timer is still active when the player died...
@@ -760,7 +820,7 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 			{
 				int deaths_remaining = max_deaths-g_iNumOfDeathOnAD[client];
 				
-				char temp_str[2];
+				static char temp_str[2]; temp_str[0] = '\0';
 				if (deaths_remaining != 1)
 				{ strcopy(temp_str, sizeof(temp_str), "s"); }
 				
@@ -774,7 +834,7 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 		}
 	}
 	
-	if (GetConVarBool(Defib_AutoTimerMode))
+	if (g_iAutoTimerMode == 1)
 	{
 		g_bIsVScript[client] = false;
 		g_iChosenBody[client] = GetSpawnedBodyForSurvivor(client);
@@ -789,7 +849,7 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 	
 	HookThink(client);
 	
-	/*if (GetConVarBool(Defib_AutoTimerMode))
+	/*if (g_iAutoTimerMode == 1)
 	{
 		// If true, use Signature.
 		int body = GetSpawnedBodyForSurvivor(client);
@@ -825,7 +885,7 @@ Action AutoTimer_Defib(Handle timer, DataPack data)
 	if (data != null)
 	{ CloseHandle(data); }
 	//PrintToChatAll("%i", body);
-	if (!IsValidClient(client) || !IsValidEntity(body)) return;
+	if (!IsValidClient(client) || !RealValidEntity(body)) return;
 	g_hTimerRespawn[client] = null;
 	
 	DefibSurvivorAndModel(client, client, body);
@@ -884,7 +944,7 @@ void Timer_TimerRespawn(int client)
 {
 	// We update the 'time til safe' timer when either this timer or the godmode timer ends
 	float game_time = GetGameTime();
-	g_fTimeTilSafe[client] = game_time+GetConVarFloat(Defib_AutoTimerSafety);
+	g_fTimeTilSafe[client] = game_time+g_fAutoTimerSafety;
 	
 	if (g_bIsVScript[client])
 	{ Timer_TimerRespawn_VScript(client); }
@@ -896,8 +956,8 @@ void Timer_TimerRespawn_Sig(int client)
 {
 	int body = g_iChosenBody[client];
 	
-	if (!IsSurvivor(client) || (body <= 0 || !IsValidEntity(body))) return;
-	g_iChosenBody[client] = -1;
+	if (!IsSurvivor(client) || !RealValidEntity(body)) return;
+	g_iChosenBody[client] = INVALID_ENT_REFERENCE;
 	
 	DefibSurvivorAndModel(client, client, body);
 	GiveTempGod(client);
@@ -921,7 +981,7 @@ void Timer_TimerRespawn_VScript(int client)
 
 void TimerRespawn_TeleClientToOther(int client)
 {
-	int cvar_int = GetConVarInt(Defib_AutoTimerTeleport);
+	int cvar_int = g_iAutoTimerTeleport;
 	if (cvar_int <= 0) return;
 	
 	switch (cvar_int)
@@ -954,17 +1014,17 @@ void Timer_TempGod(int client)
 {
 	if (!IsSurvivor(client)) return;
 	float game_time = GetGameTime();
-	g_fTimeTilSafe[client] = game_time+GetConVarFloat(Defib_AutoTimerSafety);
+	g_fTimeTilSafe[client] = game_time+g_fAutoTimerSafety;
 	
 	g_bTempGod[client] = false;
 	
 	SetEntProp(client, Prop_Data, "m_takedamage", 2);
 	PrintToChat(client, "Your temporary godmode has ran out.");
-	if (GetConVarInt(incap_cvar) > 0 && !(GetConVarInt(Defib_AutoTimerBAW) & BITFLAG_BAW_AUTO))
+	if (GetConVarInt(incap_cvar) > 0 && !(g_iAutoTimerBAW & BITFLAG_BAW_AUTO))
 	{
 		Logic_RunScript("GetPlayerFromUserID(%d).SetReviveCount(0)", GetClientUserId(client));
 	}
-	else if (GetConVarInt(Defib_AutoTimerBAW) & BITFLAG_BAW_AUTO)
+	else if (g_iAutoTimerBAW & BITFLAG_BAW_AUTO)
 	{
 		ConvertHPToTemp(client);
 	}
@@ -976,11 +1036,12 @@ void Timer_TempGod(int client)
 Action PeriodicVecCheck(Handle timer)
 {
 	if (!IsServerProcessing())
-	{ return; }
+	{ return Plugin_Handled; }
 	
-	if (GetConVarInt(Defib_AutoTimerTeleport) < 2) return;
+	if (g_iAutoTimerTeleport < 2) return Plugin_Handled;
 	
 	Timer_PeriodicLoc();
+	return Plugin_Handled;
 }
 
 void Timer_PeriodicLoc()
@@ -1054,17 +1115,17 @@ int GetNearestGroundSurvivor(const float posToCheck[3])
 bool DoesEntityWithClassExist(const char[] class)
 {
 	int entity = FindEntityByClassname(-1, class);
-	if (!entity || !IsValidEntity(entity)) return false;
+	if (!RealValidEntity(entity)) return false;
 	return true;
 }
 
 void GiveTempGod(int client)
 {
 	int incap_cv_int = GetConVarInt(incap_cvar);
-	float cvar_time = GetConVarFloat(Defib_TempGodTimer);
+	float cvar_time = g_fTempGodTimer;
 	if (cvar_time <= 0.0)
 	{
-		if (GetConVarBool(Defib_AutoTimerBAW))
+		if (g_iAutoTimerBAW)
 		{
 			if (incap_cv_int > 0)
 			{ Logic_RunScript("GetPlayerFromUserID(%d).SetReviveCount(%i)", GetClientUserId(client), incap_cv_int); }
@@ -1099,31 +1160,18 @@ void GiveTempGod(int client)
 
 void GetCharacterName(int character, char[] str, int maxlen)
 {
-	if (character == 0)
-	{ strcopy(str, maxlen, "Nick"); }
-	else
-	if (character == 1)
-	{ strcopy(str, maxlen, "Rochelle"); }
-	else
-	if (character == 2)
-	{ strcopy(str, maxlen, "Coach"); }
-	else
-	if (character == 3)
-	{ strcopy(str, maxlen, "Ellis"); }
-	else
-	if (character == 4)
-	{ strcopy(str, maxlen, "Bill"); }
-	else
-	if (character == 5)
-	{ strcopy(str, maxlen, "Zoey"); }
-	else
-	if (character == 6)
-	{ strcopy(str, maxlen, "Francis"); }
-	else
-	if (character == 7)
-	{ strcopy(str, maxlen, "Louis"); }
-	else
-	{ strcopy(str, maxlen, "Unknown"); }
+	switch (character)
+	{
+		case 0: { strcopy(str, maxlen, "Nick");		return; }
+		case 1: { strcopy(str, maxlen, "Rochelle");	return; }
+		case 2: { strcopy(str, maxlen, "Coach");	return; }
+		case 3: { strcopy(str, maxlen, "Ellis");	return; }
+		case 4: { strcopy(str, maxlen, "Bill");		return; }
+		case 5: { strcopy(str, maxlen, "Zoey");		return; }
+		case 6: { strcopy(str, maxlen, "Francis");	return; }
+		case 7: { strcopy(str, maxlen, "Louis");	return; }
+		default: { strcopy(str, maxlen, "Unknown");	return; }
+	}
 }
 
 void GetCharacterLetter(int character, char[] str, int maxlen)
@@ -1182,7 +1230,7 @@ void ShowWarning(int client, int mode = 0)
 
 void PrintToChatOrServer(int client, const char[] str, any ...)
 {
-	char sBuffer[512]; 
+	static char sBuffer[512]; 
 	VFormat(sBuffer, sizeof(sBuffer), str, 3); 
 	if (IsValidClient(client))
 	{
@@ -1202,10 +1250,10 @@ int GetSpawnedBodyForSurvivor(int client)
 	
 	for (int i = 1; i <= GetMaxEntities()*2; i++) // Get Survivor Models
 	{
-		if (!IsValidEntity(i)) continue;
-		char class[64];
+		if (!RealValidEntity(i)) continue;
+		static char class[64];
 		GetEntityClassname(i, class, sizeof(class));
-		if (!StrEqual(class, DEATH_MODEL_CLASS, false)) continue;
+		if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) continue;
 		
 		/*float createTime = GetEntPropFloat(i, Prop_Send, "m_flCreateTime");
 		PrintToChatAll("cT: %f, dT: %f", createTime, deathTime);
@@ -1222,7 +1270,7 @@ int GetSpawnedBodyForSurvivor(int client)
 
 bool ClientAndBodySamePlace(int client, int body)
 {
-	if (!IsValidClient(client) || !IsValidEntity(body)) return false;
+	if (!IsValidClient(client) || !RealValidEntity(body)) return false;
 	
 	float cl_origin[3], body_origin[3];
 	GetClientAbsOrigin(client, cl_origin);
@@ -1236,7 +1284,7 @@ bool ClientAndBodySamePlace(int client, int body)
 
 bool ClientAndBodySameChar(int client, int body)
 {
-	if (!IsValidClient(client) || !IsValidEntity(body)) return false;
+	if (!IsValidClient(client) || !RealValidEntity(body)) return false;
 	int clientChar = GetEntProp(client, Prop_Send, "m_survivorCharacter");
 	int bodyChar = -1;
 	if (HasEntProp(body, Prop_Send, "m_nCharacterType"))
@@ -1248,7 +1296,7 @@ bool ClientAndBodySameChar(int client, int body)
 
 bool ClientAndBodySameModel(int client, int body)
 {
-	if (!IsValidClient(client) || !IsValidEntity(body)) return false;
+	if (!IsValidClient(client) || !RealValidEntity(body)) return false;
 	
 	/*char clientMDL[PLATFORM_MAX_PATH];
 	GetClientModel(client, clientMDL, sizeof(clientMDL));
@@ -1282,6 +1330,11 @@ bool IsPassingSurvivor(int client)
 	if (!IsValidClient(client)) return false;
 	if (GetClientTeam(client) != 4) return false;
 	return true;
+}
+
+bool RealValidEntity(int entity)
+{
+	return (entity > 0 && IsValidEntity(entity));
 }
 
 bool IsIncapacitated(int client, int hanging = 2)
@@ -1326,7 +1379,7 @@ bool IsValidClient(int client, bool replaycheck = true)
 
 void GetGamedata()
 {
-	char filePath[PLATFORM_MAX_PATH];
+	static char filePath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, filePath, sizeof(filePath), "gamedata/%s.txt", GAMEDATA);
 	if( FileExists(filePath) )
 	{

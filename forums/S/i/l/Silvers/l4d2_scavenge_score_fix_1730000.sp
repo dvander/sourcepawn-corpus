@@ -1,6 +1,6 @@
 /*
 *	Scavenge Score Fix - Gascan Pouring
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,19 +18,37 @@
 
 
 
-#define PLUGIN_VERSION 		"2.1"
+#define PLUGIN_VERSION 		"2.5"
 
 /*=======================================================================================
 	Plugin Info:
 
 *	Name	:	[L4D2] Scavenge Score Fix - Gascan Pouring
 *	Author	:	SilverShot
-*	Descrp	:	Fixes the score / gascan pour count from increasing when plugins use the 'point_prop_use_target' entity.
+*	Descrp	:	Fixes the score and gascan pour count from increasing when plugins use the 'point_prop_use_target' entity. Also respawns gascans when used for something other than a Scavenge event.
 *	Link	:	https://forums.alliedmods.net/showthread.php?t=187686
 *	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
 
 ========================================================================================
 	Change Log:
+
+1.5 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+
+2.4a (19-Oct-2021)
+	- Wildcarded the .txt GameData signature for compatibility with "Left4DHooks" plugin version 1.64+.
+
+2.4 (07-Oct-2021)
+	- Fixed not detecting Scavenge gascans the game respawns. Thanks to "a2121858" for reporting.
+
+2.3 (06-Oct-2021)
+	- Added cvar "l4d2_scavenge_score_respawn" to set the timer until a Scavenge gascan is respawned.
+	- Now creates a cvar config saved as "l4d2_scavenge_score".
+	- Now respawns Scavenge event gascans when poured for something other than the Scavenge event.
+	- GameData file updated.
+
+2.2 (03-Oct-2021)
+	- Added a delay to detect "point_prop_use_target" entities. Thanks to "a2121858" for reporting.
 
 2.1 (25-Feb-2021)
 	- Fixed a mistake that would have broken the plugin if multiple 'point_prop_use_target' entities existed on the map.
@@ -60,10 +78,18 @@
 #include <sdktools>
 #include <dhooks>
 
-#define MAX_NOZZLES				16
+#define RANGE_MAX				30.0	// Maximum range for Scavenge gascans to match with their spawner
+#define MAX_NOZZLES				16		// Maximum nozzles on the map
+#define DEBUGGING				0
+
+#define CVAR_FLAGS				FCVAR_NOTIFY
 #define GAMEDATA				"l4d2_scavenge_score_fix"
 
 int g_iCountNozzles, g_iLateLoad, g_iPlayerSpawn, g_iRoundStart, g_iNozzles[MAX_NOZZLES];
+int g_iScavenge[2048];
+// bool g_bWatchSpawn;
+float g_fCvarRespawn;
+ConVar g_hCvarRespawn;
 
 
 
@@ -74,7 +100,7 @@ public Plugin myinfo =
 {
 	name = "[L4D2] Scavenge Score Fix - Gascan Pouring",
 	author = "SilverShot",
-	description = "Fixes the score / gascan generator pour count from increasing when plugins use the 'point_prop_use_target' entity.",
+	description = "Fixes the score and gascan pour count from increasing when plugins use the 'point_prop_use_target' entity. Also respawns gascans when used for something other than a Scavenge event.",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=187686"
 }
@@ -115,17 +141,41 @@ public void OnPluginStart()
 	delete hDetour;
 	delete hGameData;
 
+
+
 	// ====================
 	// CVAR / EVENTS
 	// ====================
-	CreateConVar("l4d2_scavenge_score_fix",		PLUGIN_VERSION,		"Gascan Pour Fix plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	g_hCvarRespawn = CreateConVar(	"l4d2_scavenge_score_respawn",		"20.0",				"0.0=Off. Any other value is number of seconds until respawning a gascan when used for something other than a Scavenge pour event.", CVAR_FLAGS);
+	CreateConVar(					"l4d2_scavenge_score_fix",			PLUGIN_VERSION,		"Gascan Pour Fix plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	AutoExecConfig(true, "l4d2_scavenge_score");
 
-	HookEvent("round_end",						Event_RoundEnd,		EventHookMode_PostNoCopy);
-	HookEvent("round_start",					Event_RoundStart,	EventHookMode_PostNoCopy);
-	HookEvent("player_spawn",					Event_PlayerSpawn,	EventHookMode_PostNoCopy);
+	g_hCvarRespawn.AddChangeHook(ConVarChanged_Cvars);
+
+	HookEvent("round_end",			Event_RoundEnd,		EventHookMode_PostNoCopy);
+	HookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
+	HookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
+
+	g_fCvarRespawn = g_hCvarRespawn.FloatValue;
 
 	if( g_iLateLoad )
+	{
 		FindPropUseTarget();
+
+		if( g_fCvarRespawn )
+		{
+			FindScavengeGas();
+		}
+	}
+}
+
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+{
+	g_fCvarRespawn = g_hCvarRespawn.FloatValue;
+	if( g_fCvarRespawn )
+	{
+		FindScavengeGas();
+	}
 }
 
 
@@ -133,7 +183,7 @@ public void OnPluginStart()
 // ====================================================================================================
 // DETOUR
 // ====================================================================================================
-public MRESReturn OnActionComplete(int pThis, Handle hReturn, Handle hParams)
+MRESReturn OnActionComplete(int pThis, Handle hReturn, Handle hParams)
 {
 	int entity = DHookGetParam(hParams, 2);
 	entity = EntIndexToEntRef(entity);
@@ -141,14 +191,17 @@ public MRESReturn OnActionComplete(int pThis, Handle hReturn, Handle hParams)
 	// Do we have to block?
 	for( int i = 0; i < MAX_NOZZLES; i++ )
 	{
-		if( IsValidEntRef(g_iNozzles[i]) )
+		if( g_iNozzles[i] && EntRefToEntIndex(g_iNozzles[i]) != INVALID_ENT_REFERENCE )
 		{
 			// Pouring into scavenge target? Allow
 			for( int x = 0; x < MAX_NOZZLES; x++ )
 			{
 				if( g_iNozzles[x] == entity )
 				{
-					// PrintToChatAll("GCasCan Scavenge: Allowed");
+					#if DEBUGGING
+					PrintToChatAll("SSF: GCasCan Scavenge: Allowed");
+					#endif
+
 					return MRES_Ignored;
 				}
 			}
@@ -159,7 +212,27 @@ public MRESReturn OnActionComplete(int pThis, Handle hReturn, Handle hParams)
 	// BLOCK
 	// ====================
 	int client = DHookGetParam(hParams, 1);
-	// PrintToChatAll("GCasCan Scavenge: Blocked");
+
+	#if DEBUGGING
+	PrintToChatAll("SSF: GCasCan Scavenge: Blocked");
+	#endif
+
+	// Respawn gascan
+	if( g_fCvarRespawn )
+	{
+		#if DEBUGGING
+		PrintToChatAll("SSF: Check TimerRespawn %d", pThis);
+		#endif
+
+		if( g_iScavenge[pThis] && EntRefToEntIndex(g_iScavenge[pThis]) != INVALID_ENT_REFERENCE )
+		{
+			#if DEBUGGING
+			PrintToChatAll("SSF: Start TimerRespawn %d", pThis);
+			#endif
+
+			CreateTimer(g_fCvarRespawn, TimerRespawn, g_iScavenge[pThis]);
+		}
+	}
 
 	// Fire event
 	Event hEvent = CreateEvent("gascan_pour_completed", true);
@@ -188,24 +261,36 @@ public void OnMapEnd()
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	g_iRoundStart = 0;
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
-		FindPropUseTarget();
+		CreateTimer(5.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
-		FindPropUseTarget();
+		CreateTimer(5.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
+}
+
+Action TimerStart(Handle timer)
+{
+	FindPropUseTarget();
+
+	if( g_fCvarRespawn )
+	{
+		FindScavengeGas();
+	}
+
+	return Plugin_Continue;
 }
 
 void FindPropUseTarget()
@@ -219,14 +304,150 @@ void FindPropUseTarget()
 	while( g_iCountNozzles < MAX_NOZZLES && (entity = FindEntityByClassname(entity, "point_prop_use_target")) != INVALID_ENT_REFERENCE )
 	{
 		g_iNozzles[g_iCountNozzles++] = EntIndexToEntRef(entity);
+
+		#if DEBUGGING
+		PrintToChatAll("SSF: Found %d == %d", g_iCountNozzles, entity);
+		#endif
 	}
 }
 
-bool IsValidEntRef(int entity)
+
+
+// ====================================================================================================
+// Match Scavenge spawners with Gascans
+// ====================================================================================================
+public void OnEntityCreated(int entity, const char[] classname)
 {
-	if( entity && EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
-		return true;
-	return false;
+	// if( g_bWatchSpawn && strcmp(classname, "weapon_gascan") == 0 )
+	if( strcmp(classname, "weapon_gascan") == 0 )
+	{
+		CreateTimer(0.1, DelayedSpawn, EntIndexToEntRef(entity));
+		// g_bWatchSpawn = false;
+	}
+}
+
+// Delay before finding matching spawner. Next frame required for getting vPos, but too early because the gascan takes time to fall into position so it would be near enough to spawner
+Action DelayedSpawn(Handle timer, int entity)
+{
+	entity = EntRefToEntIndex(entity);
+
+	if( entity != INVALID_ENT_REFERENCE )
+	{
+		FindScavengeGas(entity);
+	}
+
+	return Plugin_Continue;
+}
+
+Action TimerRespawn(Handle timer, any entity)
+{
+	entity = EntRefToEntIndex(entity);
+
+	#if DEBUGGING
+	PrintToChatAll("SSF: TimerRespawn %d", entity);
+	#endif
+
+	if( entity != INVALID_ENT_REFERENCE )
+	{
+		#if DEBUGGING
+		PrintToChatAll("SSF: Do TimerRespawn %d", entity);
+		#endif
+
+		// g_bWatchSpawn = true;
+		AcceptEntityInput(entity, "SpawnItem");
+		// g_bWatchSpawn = false;
+	}
+
+	return Plugin_Continue;
+}
+
+void FindScavengeGas(int target = 0)
+{
+	#if DEBUGGING
+	int counter;
+	PrintToChatAll("SSF: FindScavengeGas %d", target);
+	#endif
+
+	float vPos[3], vVec[3];
+
+	int entity = -1;
+	int gascan = -1;
+	float dist = 99999.9;
+	float range;
+	int matched;
+
+	// Find matching spawner for given entity
+	if( target && EntRefToEntIndex(target) == INVALID_ENT_REFERENCE ) return;
+
+	if( target )
+	{
+		GetEntPropVector(target, Prop_Send, "m_vecOrigin", vVec);
+	}
+
+	while( (entity = FindEntityByClassname(entity, "weapon_scavenge_item_spawn")) != INVALID_ENT_REFERENCE )
+	{
+		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
+
+		// Find spawner for specific gascan
+		if( target )
+		{
+			range = GetVectorDistance(vPos, vVec);
+
+			if( range < dist )
+			{
+				dist = range;
+				matched = entity;
+			}
+		}
+		// Search through all and match
+		else
+		{
+			gascan = -1;
+			dist = 99999.9;
+
+			while( (gascan = FindEntityByClassname(gascan, "weapon_gascan")) != INVALID_ENT_REFERENCE )
+			{
+				int skin = GetEntProp(gascan, Prop_Send, "m_nSkin");
+				if( skin )
+				{
+					GetEntPropVector(gascan, Prop_Send, "m_vecOrigin", vVec);
+					range = GetVectorDistance(vPos, vVec);
+
+					if( range < dist )
+					{
+						dist = range;
+						matched = gascan;
+					}
+				}
+			}
+
+			// All
+			if( matched && dist <= RANGE_MAX )
+			{
+				#if DEBUGGING
+				counter++;
+				PrintToChatAll("SSF: MATCHED %d == %d", matched, entity);
+				#endif
+
+				g_iScavenge[matched] = EntIndexToEntRef(entity);
+				matched = 0;
+			}
+		}
+	}
+
+	#if DEBUGGING
+	PrintToChatAll("SSF: MATCHED %d", counter);
+	#endif
+
+	// Specific
+	if( target && matched && dist <= RANGE_MAX )
+	{
+		#if DEBUGGING
+		PrintToChatAll("SSF: MATCHED TARGET %d == %d", target, matched);
+		#endif
+
+		g_iScavenge[target] = EntIndexToEntRef(matched);
+	}
 }
 
 
@@ -293,7 +514,7 @@ public void OnMapEnd()
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	for( int i = 1; i <= MaxClients; i++ )
 		g_iPouring[i] = 0;
@@ -301,14 +522,14 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	g_iPlayerSpawn = 0;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		FindPropUseTarget();
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		FindPropUseTarget();
@@ -335,7 +556,7 @@ void FindPropUseTarget()
 	}
 }
 
-public void OnUseStarted(const char[] output, int caller, int activator, float delay)
+void OnUseStarted(const char[] output, int caller, int activator, float delay)
 {
 	int weapon = GetEntPropEnt(caller, Prop_Send, "m_useActionOwner");
 	if( weapon > 0 && IsValidEntity(weapon) )
@@ -346,7 +567,7 @@ public void OnUseStarted(const char[] output, int caller, int activator, float d
 	}
 }
 
-public void OnUseCancelled(const char[] output, int caller, int activator, float delay)
+void OnUseCancelled(const char[] output, int caller, int activator, float delay)
 {
 	caller = EntIndexToEntRef(caller);
 
@@ -360,7 +581,7 @@ public void OnUseCancelled(const char[] output, int caller, int activator, float
 	}
 }
 
-public Action Event_PourGasDone(Event event, const char[] name, bool dontBroadcast)
+Action Event_PourGasDone(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iCountNozzles == 0 )
 	{

@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.6"
+/*
+*	Block Stumble From Tanks
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"2.0"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+2.0 (30-Sep-2022)
+	- Plugin now requires "Left 4 DHooks" plugin to function.
+	- Rewritten to prevent round ending bug. Thanks to "ZBzibing" for reporting.
 
 1.6 (10-May-2020)
 	- Extra checks to prevent "IsAllowedGameMode" throwing errors.
@@ -47,9 +71,8 @@
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarDeathCheck, g_hCvarDecayRate, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
-bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2, g_bDeathCheck;
-bool g_bIncapped[MAXPLAYERS+1];
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
+bool g_bCvarAllow, g_bMapStarted;
 
 
 
@@ -68,9 +91,7 @@ public Plugin myinfo =
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	EngineVersion test = GetEngineVersion();
-	if( test == Engine_Left4Dead ) g_bLeft4Dead2 = false;
-	else if( test == Engine_Left4Dead2 ) g_bLeft4Dead2 = true;
-	else
+	if( test != Engine_Left4Dead && test != Engine_Left4Dead2 )
 	{
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
@@ -89,8 +110,6 @@ public void OnPluginStart()
 	CreateConVar(					"l4d_block_stumble_version",		PLUGIN_VERSION,			"Block Stumble From Tanks plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,			"l4d_block_stumble");
 
-	g_hCvarDecayRate = FindConVar("pain_pills_decay_rate");
-	g_hCvarDeathCheck = FindConVar("director_no_death_check");
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
 	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
@@ -119,7 +138,7 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
@@ -131,13 +150,11 @@ void IsAllowed()
 
 	if( g_bCvarAllow == false && bCvarAllow == true && bAllowMode == true )
 	{
-		HookClients();
 		g_bCvarAllow = true;
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
 	{
-		UnhookClients();
 		g_bCvarAllow = false;
 	}
 }
@@ -200,7 +217,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -217,91 +234,22 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void OnClientPutInServer(int client)
+public Action L4D_OnKnockedDown(int client, int reason)
 {
-	if( g_bCvarAllow )
+	if( g_hCvarAllow && reason == 2 )
 	{
-		SDKHook(client, SDKHook_OnTakeDamageAlive, OnTakeDamage);
+		return Plugin_Handled;
 	}
-}
 
-void HookClients()
-{
-	HookEvent("player_incapacitated", EventIncap);
-
-	for( int i = 1; i <= MaxClients; i++ )
-	{
-		if( IsClientInGame(i) )
-		{
-			SDKHook(i, SDKHook_OnTakeDamageAlive, OnTakeDamage);
-		}
-	}
-}
-
-void UnhookClients()
-{
-	UnhookEvent("player_incapacitated", EventIncap);
-
-	for( int i = 1; i <= MaxClients; i++ )
-	{
-		SDKUnhook(i, SDKHook_OnTakeDamageAlive, OnTakeDamage);
-	}
-}
-
-public Action EventIncap(Event event, const char[] name, bool dontBroadcast)
-{
-	int client = GetClientOfUserId(event.GetInt("userid"));
-	g_bIncapped[client] = true;
-}
-
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
-{
-	if( damagetype == DMG_CLUB && victim > 0 && victim <= MaxClients && attacker > 0 && attacker <= MaxClients && GetClientTeam(victim) == 2 && GetClientTeam(attacker) == 3 )
-	{
-		int class = GetEntProp(attacker, Prop_Send, "m_zombieClass");
-		if( class == (g_bLeft4Dead2 ? 8 : 5) && GetEntProp(victim, Prop_Send, "m_isIncapacitated") == 0 )
-		{
-			g_bIncapped[victim] = false;
-
-			// Temp Health
-			float fHealth = GetEntPropFloat(victim, Prop_Send, "m_healthBuffer");
-			fHealth -= (GetGameTime() - GetEntPropFloat(victim, Prop_Send, "m_healthBufferTime")) * g_hCvarDecayRate.FloatValue;
-			if( fHealth < 0.0 )
-				fHealth = 0.0;
-
-			// Main Health
-			int health = GetClientHealth(victim);
-			if( health + fHealth - damage > 0.0 )
-			{
-				if( g_bDeathCheck == false )
-				{
-					g_bDeathCheck = true;
-					RequestFrame(OnDeathCheck, g_hCvarDeathCheck.IntValue);
-					g_hCvarDeathCheck.IntValue = 1;
-				}
-
-				SetEntProp(victim, Prop_Send, "m_isIncapacitated", 1);
-				ChangeEdictState(victim,  FindSendPropInfo("player", "m_isIncapacitated"));
-				SDKHook(victim, SDKHook_PostThink, OnThink);
-			}
-		}
-	}
 	return Plugin_Continue;
 }
 
-public void OnDeathCheck(int value)
+public Action L4D_TankClaw_OnPlayerHit_Pre(int tank, int claw, int player)
 {
-	g_bDeathCheck = false;
-	g_hCvarDeathCheck.IntValue = value;
-}
-
-public void OnThink(int victim)
-{
-	SDKUnhook(victim, SDKHook_PostThink, OnThink);
-
-	if( g_bIncapped[victim] == false )
+	if( g_hCvarAllow )
 	{
-		SetEntProp(victim, Prop_Send, "m_isIncapacitated", 0);
-		ChangeEdictState(victim, FindSendPropInfo("player", "m_isIncapacitated"));
+		return Plugin_Handled;
 	}
+
+	return Plugin_Continue;
 }

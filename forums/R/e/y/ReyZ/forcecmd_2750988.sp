@@ -3,11 +3,11 @@
 
 public Plugin myinfo = 
 {
-	name = "Forces Player to Use Command",
-	author = "ReyZ",
-	description = "Forces player to use a command",
-	version = "1",
-	url = "https://www.sourcemod.net",
+	name = "Forces Player to Use Command", 
+	author = "ReyZ", 
+	description = "Forces player to use a command", 
+	version = "1.1", 
+	url = "https://github.com/ReyZ19", 
 };
 
 public void OnPluginStart()
@@ -23,20 +23,28 @@ public Action forcecmd(int client, int args)
 		ReplyToCommand(client, "\x04[Sourcemod] \x01Usage: \x05sm_forcecmd <name> <command>");
 		return Plugin_Handled;
 	}
+	char arg1[32]; GetCmdArg(1, arg1, sizeof(arg1));
+	char arg2[2048]; GetCmdArgString(arg2, sizeof(arg2));
 	
-	char arg1[32];GetCmdArg(1, arg1, sizeof(arg1));
-	char arg2[MAX_NAME_LENGTH];GetCmdArgString(arg2, sizeof(arg2));
-	
-	ReplaceStringEx(arg2, sizeof(arg2), arg1, "");ReplaceStringEx(arg2, sizeof(arg2), " ", "");
-	
-	int target = FindTarget(client, arg1);
-	
-	if (target == -1)
-	{
-		PrintToChat(client, "\x04[Sourcemod] \x01Player not found.");
+	char target_name[MAX_TARGET_LENGTH];
+	int target_list[MAXPLAYERS], target_count;
+	bool tn_is_ml;
+	if ((target_count = ProcessTargetString(
+				arg1, 
+				client, 
+				target_list, 
+				MAXPLAYERS, 
+				COMMAND_FILTER_CONNECTED | COMMAND_FILTER_NO_IMMUNITY, 
+				target_name, 
+				sizeof(target_name), 
+				tn_is_ml)) <= 0) {
+		ReplyToTargetError(client, target_count);
 		return Plugin_Handled;
 	}
 	
-	FakeClientCommand(target, "%s", arg2);
+	ReplaceStringEx(arg2, sizeof(arg2), arg1, ""); ReplaceStringEx(arg2, sizeof(arg2), " ", "");
+	for (int i = 0; i < target_count; i++) {
+		FakeClientCommand(target_list[i], "%s", arg2);
+	}
 	return Plugin_Handled;
-}
+} 

@@ -1,4 +1,24 @@
-#define PLUGIN_VERSION 		"1.5"
+/*
+*	Witch Damage - Block Insta-Kill
+*	Copyright (C) 2022 Silvers
+*
+*	This program is free software: you can redistribute it and/or modify
+*	it under the terms of the GNU General Public License as published by
+*	the Free Software Foundation, either version 3 of the License, or
+*	(at your option) any later version.
+*
+*	This program is distributed in the hope that it will be useful,
+*	but WITHOUT ANY WARRANTY; without even the implied warranty of
+*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*	GNU General Public License for more details.
+*
+*	You should have received a copy of the GNU General Public License
+*	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+
+#define PLUGIN_VERSION 		"1.6"
 
 /*======================================================================================
 	Plugin Info:
@@ -11,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.6 (29-Aug-2022)
+	- Fixed damage not setting correctly when the victim has temporary health. Thanks to "a2121858" for reporting.
 
 1.5 (15-May-2020)
 	- Replaced "point_hurt" entity with "SDKHooks_TakeDamage" function.
@@ -25,7 +48,7 @@
 	- Fixed not doing damage due to wrong string size mistake.
 
 1.1 (17-Sep-2019)
-	- Fixed not working in all cases. - Thanks to "cacaopea" for reporting.
+	- Fixed not working in all cases. Thanks to "cacaopea" for reporting.
 
 1.0 (16-Sep-2019)
 	- Initial release.
@@ -42,9 +65,9 @@
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarZDiff, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamage, g_hCvarIncap, g_hCvarScale;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarPillsDecay, g_hCvarZDiff, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamage, g_hCvarIncap, g_hCvarScale;
 bool g_bCvarAllow, g_bMapStarted;
-float g_fCvarDamage, g_fCvarIncapped;
+float g_fCvarDamage, g_fCvarIncapped, g_fCvarPillsDecay;
 
 
 
@@ -92,6 +115,9 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 
+	g_hCvarPillsDecay = FindConVar("pain_pills_decay_rate");
+	g_hCvarPillsDecay.AddChangeHook(ConVarChanged_Cvars);
+
 	g_hCvarZDiff = FindConVar("z_difficulty");
 	g_hCvarZDiff.AddChangeHook(ConVarChanged_Cvars);
 	// g_hCvarDamage = FindConVar("z_witch_damage"); // Use witches Cvar instead?
@@ -121,12 +147,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -136,6 +162,7 @@ void GetCvars()
 	// Read damage values
 	g_fCvarDamage = g_hCvarDamage.FloatValue;
 	g_fCvarIncapped = g_hCvarIncap.FloatValue;
+	g_fCvarPillsDecay = g_hCvarPillsDecay.FloatValue;
 
 	// Read scale cvar array
 	char buff[16], buffers[4][4];
@@ -238,7 +265,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -282,7 +309,7 @@ void UnhookClients()
 	}
 }
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	if( attacker > MaxClients && (damagetype == DMG_SLASH || damagetype == DMG_SLASH + DMG_PARALYZE) && GetClientTeam(victim) == 2 )
 	{
@@ -301,10 +328,15 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				int health = GetClientHealth(victim);
 				if( health - damage < 1.0 )
 				{
-					// Incap them instead.
-					SetEntityHealth(victim, 1);
-					HurtEntity(victim);
-					damage = 0.0;
+					float fHealth = GetTempHealth(victim);
+					if( fHealth - (damage - health) < 1.0 )
+					{
+						// Incap them instead.
+						SetTempHealth(victim, 0.0);
+						SetEntityHealth(victim, 1);
+						HurtEntity(victim);
+						damage = 0.0;
+					}
 				}
 			}
 
@@ -318,4 +350,19 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 void HurtEntity(int target)
 {
 	SDKHooks_TakeDamage(target, 0, 0, 100.0, DMG_GENERIC);
+}
+
+float GetTempHealth(int client)
+{
+	float fGameTime = GetGameTime();
+	float fHealthTime = GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
+	float fHealth = GetEntPropFloat(client, Prop_Send, "m_healthBuffer");
+	fHealth -= (fGameTime - fHealthTime) * g_fCvarPillsDecay;
+	return fHealth < 0.0 ? 0.0 : fHealth;
+}
+
+void SetTempHealth(int client, float fHealth)
+{
+	SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth < 0.0 ? 0.0 : fHealth);
+	SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", GetGameTime());
 }

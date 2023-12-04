@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.2"
 #define CVAR_FLAGS FCVAR_NOTIFY
 
 #pragma semicolon 1
@@ -17,6 +17,7 @@ int IDX_GASCAN = -1;
 int IDX_OXYGEN = -1;
 int IDX_PROPANE = -1;
 int IDX_FIREWORKS = -1;
+int g_iIgniter;
 
 ConVar hPluginEnable;
 ConVar hIgniteGascan;
@@ -48,7 +49,10 @@ bool g_bDoIgnite;
 	 - Added ConVar "l4d_ignitecan_propane" - Enable propane to ignite (1 - Yes, 0 - No)
 	 - Added ConVar "l4d_ignitecan_fireworkscrate" - Enable fireworks to ignite (1 - Yes, 0 - No)
 	 - Added other safe checks.
-
+	
+	1.2 (04-Nov-2021)
+	 - Added igniter index to AcceptEntityInput to be able to track who ignited the canister.
+	
 */
 
 public Plugin myinfo =
@@ -184,23 +188,31 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
             {
                 if ( strcmp(classname, "weapon_gascan") == 0 )
                 {
-                    if ( g_bIgniteGascan )
+                    if ( g_bIgniteGascan ) {
                         g_bDoIgnite = true;
+						g_iIgniter = client;
+					}
                 }
                 else if ( strcmp(classname, "weapon_oxygentank") == 0 )
                 {
-                    if ( g_bIgniteOxygen )
+                    if ( g_bIgniteOxygen ) {
                         g_bDoIgnite = true;
+						g_iIgniter = client;
+					}
                 }
                 else if ( strcmp(classname, "weapon_propanetank") == 0 )
                 {
-                    if ( g_bIgnitePropane )
+                    if ( g_bIgnitePropane ) {
                         g_bDoIgnite = true;
+						g_iIgniter = client;
+					}
                 }
                 else if ( g_bLeft4Dead2 && strcmp(classname, "weapon_fireworkcrate") == 0 )
                 {
-                    if ( g_bIgniteFireworks )
+                    if ( g_bIgniteFireworks ) {
                         g_bDoIgnite = true;
+						g_iIgniter = client;
+					}
                 }
             }
         }
@@ -221,7 +233,7 @@ public void Event_OnWeaponDrop(Event event, const char[] name, bool dontBroadcas
     if( strcmp(classname, "weapon_gascan") == 0 )
     {
         g_bDoIgnite = false;
-        AcceptEntityInput(entity, "Ignite");
+        AcceptEntityInput(entity, "Ignite", g_iIgniter, g_iIgniter);
     }
 }
 
@@ -245,7 +257,7 @@ public Action Hook_EntitySpawnPost(int iEntRef)
         if( iModel == IDX_GASCAN || iModel == IDX_OXYGEN || iModel == IDX_PROPANE || iModel == IDX_FIREWORKS )
         {
             g_bDoIgnite = false;
-            AcceptEntityInput(iEntRef, "Ignite");
+            AcceptEntityInput(iEntRef, "Ignite", g_iIgniter, g_iIgniter);
         }
     }
 }

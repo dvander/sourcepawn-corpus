@@ -18,7 +18,7 @@
 #define PLUGIN_NAME "[L4D2] Dynamic Soundtrack Sets"
 #define PLUGIN_AUTHOR "DeathChaos25, Shadowysn"
 #define PLUGIN_DESC "Adjusts soundtrack for both survivor sets"
-#define PLUGIN_VERSION "1.5.4"
+#define PLUGIN_VERSION "1.5.4 - Legacy"
 #define PLUGIN_URL ""
 #define PLUGIN_NAME_SHORT "Dynamic Soundtrack Sets"
 #define PLUGIN_NAME_TECH "dynamic_soundtrack"
@@ -30,12 +30,12 @@ Handle hConf = null;
 static Handle hMusicPlay = null;
 #define NAME_MusicPlay "Music::Play"
 #define SIG_MusicPlay_LINUX "@_ZN5Music4PlayEPKcifbb"
-#define SIG_MusicPlay_WINDOWS "\\x55\\x8B\\x2A\\x81\\xEC\\xDC\\x2A\\x2A\\x2A\\xA1\\x2A\\x2A\\x2A\\x2A\\x33\\x2A\\x89\\x2A\\x2A\\xA1"
+#define SIG_MusicPlay_WINDOWS "\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\xA1\\x2A\\x2A\\x2A\\x2A\\x33\\xC5\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x10\\x2A\\x2A\\x2A\\x00\\x53\\x2A\\x2A\\x2A\\x56\\x57"
 
 static Handle hMusicStopPlaying = null;
 #define NAME_MusicStopPlaying "Music::StopPlaying"
 #define SIG_MusicStopPlaying_LINUX "@_ZN5Music11StopPlayingEPKcfb"
-#define SIG_MusicStopPlaying_WINDOWS "\\x55\\x8B\\x2A\\x83\\x2A\\x2A\\xA1\\x2A\\x2A\\x2A\\x2A\\x83\\x2A\\x2A\\x2A\\x56\\x8B\\x2A\\x89\\x2A\\x2A\\x0F\\x84\\x25"
+#define SIG_MusicStopPlaying_WINDOWS "\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\xA1\\x2A\\x2A\\x2A\\x2A\\x83\\x2A\\x2A\\x00\\x56\\x8B\\x2A\\x89\\x2A\\x2A\\x0F\\x84\\x2A\\x01\\x2A\\x2A\\x8B"
 
 /* Plugin Information */
 public Plugin myinfo =  {
@@ -435,14 +435,14 @@ void MAPTRANSITIONMUSIC_FrameCallback()
 		{
 			case true:
 			{
-				SDK_StopMusic(client, "Event.SafeRoom");
-				SDK_PlayMusic(client, "Event.SafeRoom_L4D1", client);
+				SDK_StopMusic(client, "Event.SafeRoom", 0.5, true);
+				SDK_PlayMusic(client, "Event.SafeRoom_L4D1", client, 0.5, true, true);
 				return;
 			}
 			default:
 			{
-				SDK_StopMusic(client, "Event.SafeRoom_L4D1");
-				SDK_PlayMusic(client, "Event.SafeRoom", client);
+				SDK_StopMusic(client, "Event.SafeRoom_L4D1", 0.5, true);
+				SDK_PlayMusic(client, "Event.SafeRoom", client, 0.5, true, true);
 				return;
 			}
 		}
@@ -491,14 +491,14 @@ void FINALEWINMUSIC_FrameCallback()
 		{
 			case true:
 			{
-				SDK_StopMusic(client, "Event.ScenarioWin");
-				SDK_PlayMusic(client, "Event.ScenarioWin_L4D1", client);
+				SDK_StopMusic(client, "Event.ScenarioWin", 0.0, true);
+				SDK_PlayMusic(client, "Event.ScenarioWin_L4D1", client, 0.0, false, true);
 				return;
 			}
 			default:
 			{
-				SDK_StopMusic(client, "Event.ScenarioWin_L4D1");
-				SDK_PlayMusic(client, "Event.ScenarioWin", client);
+				SDK_StopMusic(client, "Event.ScenarioWin_L4D1", 0.0, true);
+				SDK_PlayMusic(client, "Event.ScenarioWin", client, 0.0, false, true);
 				return;
 			}
 		}

@@ -1,6 +1,6 @@
 /*
 *	Gun Cabinet
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.7"
+#define PLUGIN_VERSION 		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
+	- Now the solid sections are attached to the Gun Cabinet.
 
 1.7 (10-Apr-2021)
 	- Fixed conflict with "ConVars Anomaly Fixer" plugin causing errors. Thanks to "Dragokas" for reporting.
@@ -222,7 +226,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
 	g_hCvarAllow =		CreateConVar(	"l4d_gun_cabinet_allow",			"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
-	g_hCvarCSS =		CreateConVar(	"l4d_gun_cabinet_css",				"0",			"0=Off, 1=Allow spawning CSS weapons when using the 'random' value in the preset config.", CVAR_FLAGS );
+	g_hCvarCSS =		CreateConVar(	"l4d_gun_cabinet_css",				"1",			"0=Off, 1=Allow spawning CSS weapons when using the 'random' value in the preset config.", CVAR_FLAGS );
 	if( g_bLeft4Dead2 )
 	{
 		g_hCvarGlow =		CreateConVar(	"l4d_gun_cabinet_glow",				"0",			"0=Off, Sets the max range at which the cabinet glows.", CVAR_FLAGS );
@@ -444,12 +448,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -566,7 +570,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -583,29 +587,30 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(false);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadSpawns();
+	return Plugin_Continue;
 }
 
 
@@ -742,7 +747,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 		AcceptEntityInput(entity, "StartGlowing");
 	}
 
-
+	int cabinet = entity;
 	float vPos[3], vAng[3];
 
 	// ROOF
@@ -757,6 +762,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 	SetEntityRenderColor(entity, 0, 0, 0, 0);
 	DispatchSpawn(entity);
 	g_iDoors[iSpawnIndex][0] = EntIndexToEntRef(entity);
+	SetVariantString("!activator");
+	AcceptEntityInput(entity, "SetParent", cabinet);
 
 	// BACK
 	vPos = vOrigin;
@@ -772,6 +779,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 	SetEntityRenderColor(entity, 0, 0, 0, 0);
 	DispatchSpawn(entity);
 	g_iDoors[iSpawnIndex][1] = EntIndexToEntRef(entity);
+	SetVariantString("!activator");
+	AcceptEntityInput(entity, "SetParent", cabinet);
 
 	// RIGHT
 	vPos = vOrigin;
@@ -787,6 +796,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 	SetEntityRenderColor(entity, 0, 0, 0, 0);
 	DispatchSpawn(entity);
 	g_iDoors[iSpawnIndex][2] = EntIndexToEntRef(entity);
+	SetVariantString("!activator");
+	AcceptEntityInput(entity, "SetParent", cabinet);
 
 	// LEFT
 	vPos = vOrigin;
@@ -802,6 +813,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 	TeleportEntity(entity, vPos, vAng, NULL_VECTOR);
 	DispatchSpawn(entity);
 	g_iDoors[iSpawnIndex][3] = EntIndexToEntRef(entity);
+	SetVariantString("!activator");
+	AcceptEntityInput(entity, "SetParent", cabinet);
 
 
 	// ARRAYS
@@ -880,8 +893,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 
 
 	// SPAWN ALL
-	// new model;
-	// for( new slot = 0; slot < MAX_SLOTS; slot++ )
+	// int model;
+	// for( int slot = 0; slot < MAX_SLOTS; slot++ )
 	// {
 		// model = g_iPresets[preset][slot];
 		// if( model != 0 )
@@ -891,15 +904,6 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 	// }
 
 	g_iSpawnCount++;
-}
-
-public int SortFunc(int[] x, int[] y, int[][] array, Handle data)
-{
-	if( x[1] > y[1])
-		return -1;
-	else if( x[1] < y[1] )
-		return 1;
-	return 0;
 }
 
 int CreateWeapon(int index, int slot, int model, const float vOrigin[3], const float vAngles[3])
@@ -1344,7 +1348,7 @@ void MoveSideway(const float vPos[3], const float vAng[3], float vReturn[3], flo
 // ====================================================================================================
 //					sm_gun_cabinet
 // ====================================================================================================
-public Action CmdCabinetMenu(int client, int args)
+Action CmdCabinetMenu(int client, int args)
 {
 	if( !client )
 	{
@@ -1362,7 +1366,7 @@ public Action CmdCabinetMenu(int client, int args)
 	return Plugin_Handled;
 }
 
-public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
+int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1373,6 +1377,8 @@ public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 
 		g_hMenuList.Display(client, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
 // ====================================================================================================
@@ -1455,7 +1461,7 @@ void CmdCabinetSaveMenu(int client, int preset)
 // ====================================================================================================
 //					sm_gun_cabinet_del
 // ====================================================================================================
-public Action CmdCabinetDel(int client, int args)
+Action CmdCabinetDel(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1590,7 +1596,7 @@ public Action CmdCabinetDel(int client, int args)
 // ====================================================================================================
 //					sm_gun_cabinet_clear
 // ====================================================================================================
-public Action CmdCabinetClear(int client, int args)
+Action CmdCabinetClear(int client, int args)
 {
 	if( !client )
 	{
@@ -1607,7 +1613,7 @@ public Action CmdCabinetClear(int client, int args)
 // ====================================================================================================
 //					sm_gun_cabinet_wipe
 // ====================================================================================================
-public Action CmdCabinetWipe(int client, int args)
+Action CmdCabinetWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -1658,7 +1664,7 @@ public Action CmdCabinetWipe(int client, int args)
 // ====================================================================================================
 //					sm_gun_cabinet_glow
 // ====================================================================================================
-public Action CmdCabinetGlow(int client, int args)
+Action CmdCabinetGlow(int client, int args)
 {
 	static bool glow;
 	glow = !glow;
@@ -1690,7 +1696,7 @@ void VendorGlow(int glow)
 // ====================================================================================================
 //					sm_gun_cabinet_list
 // ====================================================================================================
-public Action CmdCabinetList(int client, int args)
+Action CmdCabinetList(int client, int args)
 {
 	float vPos[3];
 	int count;
@@ -1710,7 +1716,7 @@ public Action CmdCabinetList(int client, int args)
 // ====================================================================================================
 //					sm_gun_cabinet_reload
 // ====================================================================================================
-public Action CmdCabinetReload(int client, int args)
+Action CmdCabinetReload(int client, int args)
 {
 	delete g_hMenuList;
 
@@ -1732,7 +1738,7 @@ public Action CmdCabinetReload(int client, int args)
 // ====================================================================================================
 //					sm_gun_cabinet_tele
 // ====================================================================================================
-public Action CmdCabinetTele(int client, int args)
+Action CmdCabinetTele(int client, int args)
 {
 	if( args == 1 )
 	{
@@ -1761,7 +1767,7 @@ public Action CmdCabinetTele(int client, int args)
 // ====================================================================================================
 //					MENU ANGLE
 // ====================================================================================================
-public Action CmdCabinetAng(int client, int args)
+Action CmdCabinetAng(int client, int args)
 {
 	ShowMenuAng(client);
 	return Plugin_Handled;
@@ -1773,7 +1779,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1783,6 +1789,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1829,7 +1837,7 @@ void SetAngle(int client, int index)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdCabinetPos(int client, int args)
+Action CmdCabinetPos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -1841,7 +1849,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1851,6 +1859,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -2041,10 +2051,10 @@ void RemoveSpawn(int index)
 				client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 				if( client < 0 || client > MaxClients || !IsClientInGame(client) )
 				{
-					AcceptEntityInput(entity, "kill");
+					RemoveEntity(entity);
 				}
 			} else {
-				AcceptEntityInput(entity, "kill");
+				RemoveEntity(entity);
 			}
 		}
 	}
@@ -2053,7 +2063,7 @@ void RemoveSpawn(int index)
 	{
 		entity = g_iDoors[index][i];
 		g_iDoors[index][i] = 0;
-		if( IsValidEntRef(entity) )	AcceptEntityInput(entity, "kill");
+		if( IsValidEntRef(entity) )	RemoveEntity(entity);
 	}
 }
 
@@ -2065,6 +2075,7 @@ void RemoveSpawn(int index)
 float GetGroundHeight(float vPos[3])
 {
 	float vAng[3];
+
 	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, _TraceFilter);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
@@ -2115,7 +2126,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }

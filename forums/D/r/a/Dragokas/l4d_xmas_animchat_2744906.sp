@@ -5,7 +5,7 @@
 #include <sdktools>
 //#include <colors> // v2
 
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.1"
 
 public Plugin myinfo =
 {
@@ -177,9 +177,9 @@ Action Timer_XMAS_2(Handle timer)
 	static char head[3][MAX_LEN] =
 	{
 		"\n\n\n"...
-		"\x01__________ \x05╔╗ ╔╗ ╔╗ ╔╗\x01_________",
-		"\x01__________ \x05╔╝ ║║ ╔╝ ╔╝\x01_________",
-		"\x01__________ \x05╚═ ╚╝ ╚═ ╚═\x01_________"
+		"\x01__________ \x05╔╗ ╔╗ ╔╗ ╖╓\x01_________",
+		"\x01__________ \x05╔╝ ║║ ╔╝ ╚╣\x01_________",
+		"\x01__________ \x05╚═ ╚╝ ╚═  ╙\x01_________"
 	};
 	
 	static char body[4][MAX_LEN] =

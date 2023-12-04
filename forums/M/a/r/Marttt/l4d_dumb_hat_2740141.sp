@@ -6,7 +6,7 @@ Change Log:
     - Added glow team cvar. (L4D1 only)
 
 1.0.1 (11-March-2021)
-    - Public release.
+    - release.
 
 1.0.0 (22-April-2019)
     - Private release.
@@ -62,7 +62,7 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_PROP_DYNAMIC_OVERRIDE        "prop_dynamic_override"
+#define MODEL_PAINPILLS               "models/w_models/weapons/w_eq_painpills.mdl"
 
 #define TEAM_SURVIVOR                 2
 #define TEAM_HOLDOUT                  4
@@ -75,74 +75,74 @@ public Plugin myinfo =
 // ====================================================================================================
 // Native Cvars
 // ====================================================================================================
-static ConVar g_hCvar_survivor_it_duration;
+ConVar g_hCvar_survivor_it_duration;
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Model;
-static ConVar g_hCvar_Pos;
-static ConVar g_hCvar_Angles;
-static ConVar g_hCvar_Color;
-static ConVar g_hCvar_Alpha;
-static ConVar g_hCvar_GlowColor;
-static ConVar g_hCvar_GlowType;
-static ConVar g_hCvar_GlowFlashing;
-static ConVar g_hCvar_GlowMinDistance;
-static ConVar g_hCvar_GlowMaxDistance;
-static ConVar g_hCvar_GlowMinBrightness;
-static ConVar g_hCvar_GlowL4D1;
-static ConVar g_hCvar_GlowTeamL4D1;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Model;
+ConVar g_hCvar_Pos;
+ConVar g_hCvar_Angles;
+ConVar g_hCvar_Color;
+ConVar g_hCvar_Alpha;
+ConVar g_hCvar_GlowColor;
+ConVar g_hCvar_GlowType;
+ConVar g_hCvar_GlowFlashing;
+ConVar g_hCvar_GlowMinDistance;
+ConVar g_hCvar_GlowMaxDistance;
+ConVar g_hCvar_GlowMinBrightness;
+ConVar g_hCvar_GlowL4D1;
+ConVar g_hCvar_GlowTeamL4D1;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_RandomColor;
-static bool   g_bCvar_Alpha;
-static bool   g_bCvar_RandomGlowColor;
-static bool   g_bCvar_GlowType;
-static bool   g_bCvar_GlowFlashing;
-static bool   g_bCvar_GlowL4D1;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_RandomColor;
+bool g_bCvar_Alpha;
+bool g_bCvar_RandomGlowColor;
+bool g_bCvar_GlowType;
+bool g_bCvar_GlowFlashing;
+bool g_bCvar_GlowL4D1;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Color[3];
-static int    g_iCvar_Alpha;
-static int    g_iCvar_GlowColor[3];
-static int    g_iCvar_GlowType;
-static int    g_iCvar_GlowMinDistance;
-static int    g_iCvar_GlowMaxDistance;
-static int    g_iCvar_GlowTeamL4D1;
+int g_iCvar_Color[3];
+int g_iCvar_Alpha;
+int g_iCvar_GlowColor[3];
+int g_iCvar_GlowType;
+int g_iCvar_GlowMinDistance;
+int g_iCvar_GlowMaxDistance;
+int g_iCvar_GlowTeamL4D1;
 
 // ====================================================================================================
 // float - Plugin Variables
 // ====================================================================================================
-static float  g_fCvar_survivor_it_duration;
-static float  g_fCvar_Pos[3];
-static float  g_fCvar_Angles[3];
-static float  g_fCvar_MinBrightness;
+float g_fCvar_survivor_it_duration;
+float g_fCvar_Pos[3];
+float g_fCvar_Angles[3];
+float g_fCvar_MinBrightness;
 
 // ====================================================================================================
 // string - Plugin Variables
 // ====================================================================================================
-static char   g_sCvar_Model[100];
-static char   g_sCvar_Pos[24];
-static char   g_sCvar_Angles[24];
-static char   g_sCvar_Color[12];
-static char   g_sCvar_GlowColor[12];
-static char   g_sCvar_GlowTeamL4D1[3];
-static char   g_sKillInput[100];
+char g_sCvar_Model[PLATFORM_MAX_PATH];
+char g_sCvar_Pos[24];
+char g_sCvar_Angles[24];
+char g_sCvar_Color[12];
+char g_sCvar_GlowColor[12];
+char g_sCvar_GlowTeamL4D1[3];
+char g_sKillInput[50];
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    g_iHatEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE , ... };
-static int    g_iHatGlowEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE , ... };
+int g_iHatEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
+int g_iHatGlowEntRef[MAXPLAYERS+1] = { INVALID_ENT_REFERENCE, ... };
 
 // ====================================================================================================
 // Plugin Start
@@ -166,6 +166,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    LoadTranslations("common.phrases");
+
     g_hCvar_survivor_it_duration = FindConVar("survivor_it_duration");
 
     CreateConVar("l4d_dumb_hat_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
@@ -184,7 +186,7 @@ public void OnPluginStart()
         g_hCvar_GlowMaxDistance   = CreateConVar("l4d_dumb_hat_glow_max_distance", "0", "Maximum distance that the client can be away from the hat to start glowing.\nL4D2 only.\n0 = No maximum distance.", CVAR_FLAGS, true, 0.0);
         g_hCvar_GlowMinBrightness = CreateConVar("l4d_dumb_hat_glow_min_brightness", "0.5", "Algorithm value to detect the glow minimum brightness for a random glow (not accurate).\nL4D2 only.", CVAR_FLAGS, true, 0.0, true, 1.0);
     }
-    g_hCvar_GlowL4D1              = CreateConVar("l4d_dumb_hat_glow_l4d1", "1", "Enable hat glow (in white).\nL4D1 only.\nNote: Some models aren't able to apply glow.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_GlowL4D1              = CreateConVar("l4d_dumb_hat_glow_l4d1", "1", "Enable hat glow (white).\nL4D1 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_GlowTeamL4D1          = CreateConVar("l4d_dumb_hat_glow_team_l4d1", "3", "Which teams should see the hat glowing.\nL4D1 only.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 3 = BOTH.", CVAR_FLAGS, true, 0.0, true, 3.0);
 
     // Hook plugin ConVars change
@@ -234,21 +236,21 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_fCvar_survivor_it_duration = g_hCvar_survivor_it_duration.FloatValue;
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
@@ -263,8 +265,7 @@ public void GetCvars()
     g_fCvar_Angles = ConvertVectorStringToFloatArray(g_sCvar_Angles);
     g_hCvar_Color.GetString(g_sCvar_Color, sizeof(g_sCvar_Color));
     TrimString(g_sCvar_Color);
-    StringToLowerCase(g_sCvar_Color);
-    g_bCvar_RandomColor = StrEqual(g_sCvar_Color, "random");
+    g_bCvar_RandomColor = StrEqual(g_sCvar_Color, "random", false);
     g_iCvar_Color = ConvertRGBToIntArray(g_sCvar_Color);
     g_iCvar_Alpha = g_hCvar_Alpha.IntValue;
     g_bCvar_Alpha = (g_iCvar_Alpha != 255);
@@ -272,8 +273,7 @@ public void GetCvars()
     {
         g_hCvar_GlowColor.GetString(g_sCvar_GlowColor, sizeof(g_sCvar_GlowColor));
         TrimString(g_sCvar_GlowColor);
-        StringToLowerCase(g_sCvar_GlowColor);
-        g_bCvar_RandomGlowColor = StrEqual(g_sCvar_GlowColor, "random");
+        g_bCvar_RandomGlowColor = StrEqual(g_sCvar_GlowColor, "random", false);
         g_iCvar_GlowColor = ConvertRGBToIntArray(g_sCvar_GlowColor);
         g_iCvar_GlowType = g_hCvar_GlowType.IntValue;
         g_bCvar_GlowType = (g_iCvar_GlowType > 0);
@@ -288,14 +288,14 @@ public void GetCvars()
         g_iCvar_GlowTeamL4D1 = g_hCvar_GlowTeamL4D1.IntValue;
         switch (g_iCvar_GlowTeamL4D1)
         {
-            case 0: FormatEx(g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1), "%i", L4D1_GLOW_TEAM_NONE);
-            case 1: FormatEx(g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1), "%i", L4D1_GLOW_TEAM_SURVIVOR);
-            case 2: FormatEx(g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1), "%i", L4D1_GLOW_TEAM_INFECTED);
-            case 3: FormatEx(g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1), "%i", L4D1_GLOW_TEAM_EVERYONE);
+            case 0: IntToString(L4D1_GLOW_TEAM_NONE, g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1));
+            case 1: IntToString(L4D1_GLOW_TEAM_SURVIVOR, g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1));
+            case 2: IntToString(L4D1_GLOW_TEAM_INFECTED, g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1));
+            case 3: IntToString(L4D1_GLOW_TEAM_EVERYONE, g_sCvar_GlowTeamL4D1, sizeof(g_sCvar_GlowTeamL4D1));
         }
     }
 
-    FormatEx(g_sKillInput, sizeof(g_sKillInput), "OnUser1 !self:Kill::%.2f:-1", g_fCvar_survivor_it_duration);
+    FormatEx(g_sKillInput, sizeof(g_sKillInput), "OnUser1 !self:Kill::%.1f:-1", g_fCvar_survivor_it_duration);
 }
 
 /****************************************************************************************************/
@@ -307,9 +307,9 @@ public void OnClientDisconnect(int client)
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -321,7 +321,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -336,11 +336,11 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_PlayerNowIt(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerNowIt(Event event, const char[] name, bool dontBroadcast)
 {
-    int client = GetClientOfUserId(GetEventInt(event, "userid"));
+    int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     CreateHat(client);
@@ -348,11 +348,11 @@ public void Event_PlayerNowIt(Event event, const char[] name, bool dontBroadcast
 
 /****************************************************************************************************/
 
-public void Event_PlayerNoLongerIt(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerNoLongerIt(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     RemoveHat(client);
@@ -360,11 +360,11 @@ public void Event_PlayerNoLongerIt(Event event, const char[] name, bool dontBroa
 
 /****************************************************************************************************/
 
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     RemoveHat(client);
@@ -372,11 +372,11 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 
 /****************************************************************************************************/
 
-public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     RemoveHat(client);
@@ -425,7 +425,7 @@ void CreateHat(int client)
             RemoveHat(client);
     }
 
-    int entity = CreateEntityByName(CLASSNAME_PROP_DYNAMIC_OVERRIDE);
+    int entity = CreateEntityByName("prop_dynamic_override");
     g_iHatEntRef[client] = EntIndexToEntRef(entity);
     DispatchKeyValue(entity, "targetname", "l4d_dumb_hat");
     SetEntityModel(entity, g_sCvar_Model);
@@ -456,7 +456,9 @@ void CreateHat(int client)
     else
         SetEntityRenderColor(entity, g_iCvar_Color[0], g_iCvar_Color[1], g_iCvar_Color[2], g_iCvar_Alpha);
 
-    if (g_bCvar_GlowType)
+    SDKHook(entity, SDKHook_SetTransmit, OnSetTransmitHat);
+
+    if (g_bL4D2 && g_bCvar_GlowType)
     {
         int glowColor[3];
 
@@ -464,9 +466,9 @@ void CreateHat(int client)
         {
             do
             {
-                glowColor[0] = GetRandomInt(0,255);
-                glowColor[1] = GetRandomInt(0,255);
-                glowColor[2] = GetRandomInt(0,255);
+                glowColor[0] = GetRandomInt(0, 255);
+                glowColor[1] = GetRandomInt(0, 255);
+                glowColor[2] = GetRandomInt(0, 255);
             }
             while (GetRGB_Brightness(glowColor) < g_fCvar_MinBrightness);
         }
@@ -484,9 +486,7 @@ void CreateHat(int client)
         SetEntProp(entity, Prop_Send, "m_glowColorOverride", glowColor[0] + (glowColor[1] * 256) + (glowColor[2] * 65536));
     }
 
-    SDKHook(entity, SDKHook_SetTransmit, Hook_SetTransmitHat);
-
-    if (g_bCvar_GlowL4D1)
+    if (!g_bL4D2 && g_bCvar_GlowL4D1)
         CreatePropGlow(client);
 }
 
@@ -496,12 +496,13 @@ void CreatePropGlow(int client)
 {
     int entity = CreateEntityByName("prop_glowing_object");
     g_iHatGlowEntRef[client] = EntIndexToEntRef(entity);
-    DispatchKeyValue(entity, "model", g_sCvar_Model);
     DispatchKeyValue(entity, "targetname", "l4d_dumb_hat");
+    DispatchKeyValue(entity, "model", MODEL_PAINPILLS); // Hack to make glow work with any model
     DispatchKeyValue(entity, "GlowForTeam", g_sCvar_GlowTeamL4D1);
 
     DispatchSpawn(entity);
 
+    SetEntityModel(entity, g_sCvar_Model);
     SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
     SetEntityRenderColor(entity, 0, 0, 0, 0);
 
@@ -514,25 +515,13 @@ void CreatePropGlow(int client)
     SetVariantString(g_sKillInput);
     AcceptEntityInput(entity, "AddOutput");
     AcceptEntityInput(entity, "FireUser1");
-
-    SDKHook(entity, SDKHook_SetTransmit, Hook_SetTransmitHatGlow);
 }
 
 /****************************************************************************************************/
 
-public Action Hook_SetTransmitHat(int entity, int client)
+Action OnSetTransmitHat(int entity, int client)
 {
     if (EntIndexToEntRef(entity) == g_iHatEntRef[client])
-        return Plugin_Handled;
-
-    return Plugin_Continue;
-}
-
-/****************************************************************************************************/
-
-public Action Hook_SetTransmitHatGlow(int entity, int client)
-{
-    if (EntIndexToEntRef(entity) == g_iHatGlowEntRef[client])
         return Plugin_Handled;
 
     return Plugin_Continue;
@@ -541,28 +530,29 @@ public Action Hook_SetTransmitHatGlow(int entity, int client)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdDumbHat(int client, int args)
+Action CmdDumbHat(int client, int args)
 {
-    if (!IsValidClient(client))
-        return Plugin_Handled;
+    int target_count;
+    int target_list[MAXPLAYERS];
 
     if (args == 0) // self
     {
-        CreateHat(client);
-        return Plugin_Handled;
+        if (IsValidClient(client))
+        {
+            target_count = 1;
+            target_list[0] = client;
+        }
     }
     else // specified target
     {
-        char sArg[64];
-        GetCmdArg(1, sArg, sizeof(sArg));
+        char arg1[MAX_TARGET_LENGTH];
+        GetCmdArg(1, arg1, sizeof(arg1));
 
         char target_name[MAX_TARGET_LENGTH];
-        int target_list[MAXPLAYERS];
-        int target_count;
         bool tn_is_ml;
 
         if ((target_count = ProcessTargetString(
-            sArg,
+            arg1,
             client,
             target_list,
             sizeof(target_list),
@@ -571,13 +561,13 @@ public Action CmdDumbHat(int client, int args)
             sizeof(target_name),
             tn_is_ml)) <= 0)
         {
-            return Plugin_Handled;
+            ReplyToTargetError(client, target_count);
         }
+    }
 
-        for (int i = 0; i < target_count; i++)
-        {
-            CreateHat(target_list[i]);
-        }
+    for (int i = 0; i < target_count; i++)
+    {
+        CreateHat(target_list[i]);
     }
 
     return Plugin_Handled;
@@ -585,7 +575,7 @@ public Action CmdDumbHat(int client, int args)
 
 /****************************************************************************************************/
 
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -595,8 +585,8 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d_dumb_hat_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_dumb_hat_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d_dumb_hat_model : \"%s\"", g_sCvar_Model);
-    PrintToConsole(client, "l4d_dumb_hat_pos : %.2f %.2f %.2f", g_fCvar_Pos[0], g_fCvar_Pos[1], g_fCvar_Pos[2]);
-    PrintToConsole(client, "l4d_dumb_hat_angles : %.2f %.2f %.2f", g_fCvar_Angles[0], g_fCvar_Angles[1], g_fCvar_Angles[2]);
+    PrintToConsole(client, "l4d_dumb_hat_pos : %.1f %.1f %.1f", g_fCvar_Pos[0], g_fCvar_Pos[1], g_fCvar_Pos[2]);
+    PrintToConsole(client, "l4d_dumb_hat_angles : %.1f %.1f %.1f", g_fCvar_Angles[0], g_fCvar_Angles[1], g_fCvar_Angles[2]);
     PrintToConsole(client, "l4d_dumb_hat_color : \"%s\"", g_sCvar_Color);
     PrintToConsole(client, "l4d_dumb_hat_alpha : %i (%s)", g_iCvar_Alpha, g_bCvar_Alpha ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_color : \"%s\"", g_sCvar_GlowColor);
@@ -604,13 +594,13 @@ public Action CmdPrintCvars(int client, int args)
     if (g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_flashing : %b (%s)", g_bCvar_GlowFlashing, g_bCvar_GlowFlashing ? "true" : "false");
     if (g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_min_distance : %i", g_iCvar_GlowMinDistance);
     if (g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_max_distance : %i", g_iCvar_GlowMaxDistance);
-    if (g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_min_brightness : %.2f", g_fCvar_MinBrightness);
+    if (g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_min_brightness : %.1f", g_fCvar_MinBrightness);
     if (!g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_l4d1 : %b (%s)", g_bCvar_GlowL4D1, g_bCvar_GlowL4D1 ? "true" : "false");
     if (!g_bL4D2) PrintToConsole(client, "l4d_dumb_hat_glow_team_l4d1 : %i (%s)", g_iCvar_GlowTeamL4D1, g_iCvar_GlowTeamL4D1 == 0 ? "NONE" : g_iCvar_GlowTeamL4D1 == 1 ? "SURVIVOR" : g_iCvar_GlowTeamL4D1 == 2 ? "INFECTED" : "EVERYONE");
     PrintToConsole(client, "");
     PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
     PrintToConsole(client, "");
-    PrintToConsole(client, "survivor_it_duration : %.2f", g_fCvar_survivor_it_duration);
+    PrintToConsole(client, "survivor_it_duration : %.1f", g_fCvar_survivor_it_duration);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -643,21 +633,6 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Converts the string to lower case.
- *
- * @param input         Input string.
- */
-void StringToLowerCase(char[] input)
-{
-    for (int i = 0; i < strlen(input); i++)
-    {
-        input[i] = CharToLower(input[i]);
-    }
 }
 
 /****************************************************************************************************/
@@ -753,7 +728,7 @@ int[] ConvertRGBToIntArray(char[] sColor)
  * @param rgb           RGB integer array (int[3]).
  * @return              Brightness float value between 0.0 and 1.0.
  */
-public float GetRGB_Brightness(int[] rgb)
+float GetRGB_Brightness(int[] rgb)
 {
     int r = rgb[0];
     int g = rgb[1];

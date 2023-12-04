@@ -2,9 +2,10 @@
 // ====================================================================================================
 Change Log:
 
-1.2.0 (24-April-2021)
+1.2.1 (29-April-2021)
     - New version released.
     - Added Hungarian (hu) translation. (thanks to "KasperH")
+    - Added Romanian (ro) translation. (thanks to "CryWolf")
 
 1.0.0 (03-March-2019)
     - Initial release.
@@ -18,7 +19,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Spitter Dies After Spit (SDAS)"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Kills the Spitter some seconds later after spitting"
-#define PLUGIN_VERSION                "1.2.0"
+#define PLUGIN_VERSION                "1.2.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=314715"
 
 // ====================================================================================================
@@ -61,13 +62,9 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_ENV_INSTRUCTOR_HINT "env_instructor_hint"
-
 #define TEAM_INFECTED                 3
 
 #define L4D2_ZOMBIECLASS_SPITTER      4
-
-#define L4D2_ZOMBIEABILITY_SPITTER    "ability_spit"
 
 #define FLAG_MSG_DISPLAY_CHAT         (1 << 0) // 1 | 001
 #define FLAG_MSG_DISPLAY_HINT         (1 << 1) // 2 | 010
@@ -76,43 +73,43 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Bots;
-static ConVar g_hCvar_Flags;
-static ConVar g_hCvar_AliveTime;
-static ConVar g_hCvar_CountdownSound;
-static ConVar g_hCvar_SpitMsg;
-static ConVar g_hCvar_SpitCountdownMsg;
-static ConVar g_hCvar_DeadBySpitMsg;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Bots;
+ConVar g_hCvar_Flags;
+ConVar g_hCvar_AliveTime;
+ConVar g_hCvar_CountdownSound;
+ConVar g_hCvar_SpitMsg;
+ConVar g_hCvar_SpitCountdownMsg;
+ConVar g_hCvar_DeadBySpitMsg;
 
 // ====================================================================================================
 // bool - Plugin Cvar Variables
 // ====================================================================================================
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Bots;
-static bool   g_bCvar_Flags;
-static bool   g_bCvar_CountdownSound;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_Bots;
+bool g_bCvar_Flags;
+bool g_bCvar_CountdownSound;
 
 // ====================================================================================================
 // int - Plugin Cvar Variables
 // ====================================================================================================
-static int    g_iCvar_Flags;
-static int    g_iCvar_AliveTime;
-static int    g_iCvar_SpitMsg;
-static int    g_iCvar_SpitCountdownMsg;
-static int    g_iCvar_DeadBySpitMsg;
+int g_iCvar_Flags;
+int g_iCvar_AliveTime;
+int g_iCvar_SpitMsg;
+int g_iCvar_SpitCountdownMsg;
+int g_iCvar_DeadBySpitMsg;
 
 // ====================================================================================================
 // string - Plugin Cvar Variables
 // ====================================================================================================
-static char   g_sCvar_Flags[27];
-static char   g_sCvar_CountdownSound[100];
+char g_sCvar_Flags[27];
+char g_sCvar_CountdownSound[PLATFORM_MAX_PATH];
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iClient_SpitCountdown[MAXPLAYERS+1];
+int gc_iClient_SpitCountdown[MAXPLAYERS+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -136,7 +133,6 @@ public void OnPluginStart()
 {
     LoadPluginTranslations();
 
-    // Register Plugin ConVars
     CreateConVar("l4d2_sdas_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled          = CreateConVar("l4d2_sdas_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Bots             = CreateConVar("l4d2_sdas_bots", "1", "Enables/Disables the plugin behaviour on Spitter bots.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -157,6 +153,7 @@ public void OnPluginStart()
     g_hCvar_SpitCountdownMsg.AddChangeHook(Event_ConVarChanged);
     g_hCvar_DeadBySpitMsg.AddChangeHook(Event_ConVarChanged);
 
+    // Load plugin configs from .cfg
     AutoExecConfig(true, CONFIG_FILENAME);
 
     // Admin Commands
@@ -165,7 +162,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void LoadPluginTranslations()
+void LoadPluginTranslations()
 {
     char path[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
@@ -181,16 +178,16 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
@@ -223,9 +220,9 @@ public void OnClientDisconnect(int client)
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -234,7 +231,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -246,15 +243,17 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public Action Event_AbilityUse(Event event, const char[] name, bool dontBroadcast)
+void Event_AbilityUse(Event event, const char[] name, bool dontBroadcast)
 {
+    int client = GetClientOfUserId(event.GetInt("userid"));
     char ability[16];
-    GetEventString(event, "ability", ability, sizeof(ability));
+    event.GetString("ability", ability, sizeof(ability));
 
-    if (!StrEqual(ability, L4D2_ZOMBIEABILITY_SPITTER))
+    if (!StrEqual(ability, "ability_spit"))
         return;
 
-    int client = GetClientOfUserId(GetEventInt(event, "userid"));
+    if (client == 0)
+        return;
 
     if (!IsValidSpitter(client))
         return;
@@ -281,12 +280,15 @@ public Action Event_AbilityUse(Event event, const char[] name, bool dontBroadcas
 
 /****************************************************************************************************/
 
-public Action TimerKillSpitter(Handle timer, any userid)
+Action TimerKillSpitter(Handle timer, int userid)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Stop;
 
     int client = GetClientOfUserId(userid);
+
+    if (client == 0)
+        return Plugin_Stop;
 
     if (!IsValidSpitter(client))
         return Plugin_Stop;
@@ -356,7 +358,7 @@ void PrintInstructorHintText(int client, char[] message, any ...)
     GetEntPropString(client, Prop_Data, "m_iName", clienttargetname, sizeof(clienttargetname));
 
     char hintTarget[18];
-    Format(hintTarget, sizeof(hintTarget), "l4d2_sdas_hint_%d", client);
+    Format(hintTarget, sizeof(hintTarget), "l4d2_sdas_hint_%i", client);
 
     float fCountdownHeat = float(gc_iClient_SpitCountdown[client]) / g_iCvar_AliveTime;
     int iCountdownStage;
@@ -374,7 +376,7 @@ void PrintInstructorHintText(int client, char[] message, any ...)
 
     // Creates a new entity every call because when we use the same entity
     // if another instructor hint appears, the entity stops to display.
-    int entity = CreateEntityByName(CLASSNAME_ENV_INSTRUCTOR_HINT);
+    int entity = CreateEntityByName("env_instructor_hint");
     DispatchKeyValue(client, "targetname", hintTarget);
     DispatchKeyValue(entity, "hint_target", hintTarget);
     DispatchKeyValue(entity, "targetname", "l4d2_sdas");
@@ -426,7 +428,7 @@ void PrintInstructorHintText(int client, char[] message, any ...)
     AcceptEntityInput(entity, "AddOutput");
     AcceptEntityInput(entity, "FireUser1");
 
-    DispatchKeyValue(client, "targetname", clienttargetname); // rollback the client targetname
+    DispatchKeyValue(client, "targetname", clienttargetname); // Rollback the client targetname
 }
 
 /****************************************************************************************************/
@@ -460,7 +462,7 @@ bool IsValidSpitter(int client)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -470,9 +472,9 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "l4d2_sdas_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_sdas_enabled : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d2_sdas_bots : %b (%s)", g_bCvar_Bots, g_bCvar_Bots ? "true" : "false");
-    PrintToConsole(client, "l4d2_sdas_flags : %s (%d)", g_sCvar_Flags, g_iCvar_Flags);
+    PrintToConsole(client, "l4d2_sdas_flags : %s (%i)", g_sCvar_Flags, g_iCvar_Flags);
     PrintToConsole(client, "l4d2_sdas_alive_time : %i (seconds)", g_iCvar_AliveTime);
-    PrintToConsole(client, "l4d2_sdas_countdown_sound : \"%s\" (%s)", g_sCvar_CountdownSound, g_bCvar_CountdownSound ? "true" : "false");
+    PrintToConsole(client, "l4d2_sdas_countdown_sound : \"%s\"", g_sCvar_CountdownSound);
     PrintToConsole(client, "l4d2_sdas_spit_msg : %i (CHAT: %s | HINT: %s | INSTRUCTOR: %s)", g_iCvar_SpitMsg, g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF", g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_INSTRUCTOR ? "ON" : "OFF");
     PrintToConsole(client, "l4d2_sdas_spit_countdown_msg : %i (CHAT: %s | HINT: %s | INSTRUCTOR: %s)", g_iCvar_SpitCountdownMsg, g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF", g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_INSTRUCTOR ? "ON" : "OFF");
     PrintToConsole(client, "l4d2_sdas_dead_by_spit_msg : %i (CHAT: %s | HINT: %s)", g_iCvar_DeadBySpitMsg, g_iCvar_DeadBySpitMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_DeadBySpitMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF");
@@ -549,7 +551,7 @@ bool IsPlayerGhost(int client)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintToChat(int client, char[] message, any ...)
+void CPrintToChat(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);
@@ -577,7 +579,7 @@ public void CPrintToChat(int client, char[] message, any ...)
  *
  * On error/Errors:     If the client is not connected an error will be thrown.
  */
-public void CPrintHintText(int client, char[] message, any ...)
+void CPrintHintText(int client, char[] message, any ...)
 {
     char buffer[512];
     SetGlobalTransTarget(client);

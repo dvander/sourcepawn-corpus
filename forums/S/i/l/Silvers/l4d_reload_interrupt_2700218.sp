@@ -1,6 +1,6 @@
 /*
 *	Reload Interrupt
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.7"
+#define PLUGIN_VERSION 		"1.12"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,21 @@
 
 ========================================================================================
 	Change Log:
+
+1.12 (03-Dec-2022)
+	- Fixed unknown sound errors in console. Thanks to "TBK Duy" for reporting.
+
+1.11 (26-Nov-2022)
+	- Fixed breaking under certain conditions until swapping weapon. Thanks to "TBK Duy" for reporting.
+
+1.10 (15-Jan-2022)
+	- Fixed L4D1 not reading reserve ammo correctly. Thanks to "ZBzibing" for reporting.
+
+1.9 (27-Oct-2021)
+	- Fixed the plugin wiping reserve ammo if it was turned off during gameplay.
+
+1.8 (06-Oct-2021)
+	- Fixed going AFK and bots reloading emptying the reserve clip. Thanks to "TQH" for reporting.
 
 1.7 (13-Apr-2021)
 	- Another precache sound fix attempt. Should be right now.
@@ -72,7 +87,7 @@
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRestart, g_hCvarWeapons;
 bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2;
-int g_iCvarRestart, g_iOffsetAmmo, g_iCvarWeapons;
+int g_iCvarRestart, g_iOffsetAmmo, g_iPrimaryAmmoType, g_iCvarWeapons;
 int g_iForceTicks;		// How many times to force the IN_RELOAD buttons (otherwise some weapons e.g. shotguns will not auto reload after multiple shots).
 
 int g_iLastAmmo[MAXPLAYERS+1];
@@ -81,7 +96,6 @@ int g_iLastHook[MAXPLAYERS+1];
 int g_iWasShoot[MAXPLAYERS+1];
 int g_iAutoReload[MAXPLAYERS+1];
 
-StringMap g_hWeaponOffsets;
 StringMap g_hWeaponClasses;
 StringMap g_hWeaponAllowed;
 
@@ -205,28 +219,7 @@ public void OnPluginStart()
 
 	// Offsets to setting reserve ammo
 	g_iOffsetAmmo = FindSendPropInfo("CTerrorPlayer", "m_iAmmo");
-
-	g_hWeaponOffsets = new StringMap();
-	g_hWeaponOffsets.SetValue("weapon_rifle", 12);
-	g_hWeaponOffsets.SetValue("weapon_smg", 20);
-	g_hWeaponOffsets.SetValue("weapon_pumpshotgun", 28);
-	g_hWeaponOffsets.SetValue("weapon_shotgun_chrome", 28);
-	g_hWeaponOffsets.SetValue("weapon_autoshotgun", 32);
-	g_hWeaponOffsets.SetValue("weapon_hunting_rifle", 36);
-
-	if( g_bLeft4Dead2 )
-	{
-		g_hWeaponOffsets.SetValue("weapon_rifle_sg552", 12);
-		g_hWeaponOffsets.SetValue("weapon_rifle_desert", 12);
-		g_hWeaponOffsets.SetValue("weapon_rifle_ak47", 12);
-		g_hWeaponOffsets.SetValue("weapon_smg_silenced", 20);
-		g_hWeaponOffsets.SetValue("weapon_smg_mp5", 20);
-		g_hWeaponOffsets.SetValue("weapon_shotgun_spas", 32);
-		g_hWeaponOffsets.SetValue("weapon_sniper_scout", 40);
-		g_hWeaponOffsets.SetValue("weapon_sniper_military", 40);
-		g_hWeaponOffsets.SetValue("weapon_sniper_awp", 40);
-		// g_hWeaponOffsets.SetValue("weapon_grenade_launcher", 68);
-	}
+	g_iPrimaryAmmoType = FindSendPropInfo("CBaseCombatWeapon", "m_iPrimaryAmmoType");
 
 	// Indexes for sounds
 	g_hWeaponClasses = new StringMap();
@@ -289,12 +282,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -341,6 +334,18 @@ void IsAllowed()
 		g_bCvarAllow = false;
 		HookFireEvent(false);
 		UnhookEvents();
+
+		// Unhook active clients
+		int last;
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			last = g_iLastHook[i];
+			if( last && EntRefToEntIndex(last) != INVALID_ENT_REFERENCE )
+			{
+				SDKUnhook(last, SDKHook_Reload, OnReload);
+			}
+		}
+
 		ResetPlugin();
 	}
 }
@@ -403,7 +408,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -459,7 +464,7 @@ void UnhookEvents()
 }
 
 // Auto reload after shooting
-public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( (g_iAutoReload[client] || !g_bLeft4Dead2) && !IsFakeClient(client) )
@@ -476,7 +481,7 @@ public void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_WeaponReload(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponReload(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client && !IsFakeClient(client) )
@@ -491,7 +496,7 @@ public void Event_WeaponReload(Event event, const char[] name, bool dontBroadcas
 }
 
 // Correct stored ammo values when picking up ammo during reload
-public void Event_AmmoPickup(Event event, const char[] name, bool dontBroadcast)
+void Event_AmmoPickup(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client && !IsFakeClient(client) )
@@ -504,7 +509,7 @@ public void Event_AmmoPickup(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client && GetClientTeam(client) == 2 && !IsFakeClient(client) )
@@ -515,7 +520,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -526,7 +531,7 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -537,7 +542,7 @@ public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
@@ -618,6 +623,8 @@ void OnSwitchWeapon(int client, int weapon)
 	g_iWasShoot[client] = 0;
 	g_iAutoReload[client] = 0;
 
+	weapon = GetEntPropEnt(client, Prop_Data, "m_hActiveWeapon");
+
 	if( !IsValidEntity(weapon) || IsFakeClient(client) )
 		return;
 
@@ -650,10 +657,8 @@ void OnSwitchWeapon(int client, int weapon)
 	}
 	else
 	{
-		offset = 0;
-		g_hWeaponOffsets.GetValue(sWeapon, offset);
-
-		if( offset )
+		offset = GetEntData(weapon, g_iPrimaryAmmoType) * 4; // Thanks to "Root" or whoever for this method of not hard-coding offsets: https://github.com/zadroot/AmmoManager/blob/master/scripting/ammo_manager.sp
+		if( offset && (!g_bLeft4Dead2 || offset != 68) )
 		{
 			g_iAutoReload[client] = (offset == 28 || offset == 32) ? 3 : 1;
 			g_iLastHook[client] = EntIndexToEntRef(weapon);
@@ -690,13 +695,13 @@ void OnReload(int weapon)
 	}
 }
 
-public void OnFrame(int weapon)
+void OnFrame(int weapon)
 {
 	weapon = EntRefToEntIndex(weapon);
 	if( IsValidEntity(weapon) && GetEntProp(weapon, Prop_Send, "m_bInReload") )
 	{
 		int client = GetEntPropEnt(weapon, Prop_Send, "m_hOwner");
-		if( client > 0 )
+		if( client > 0 && !IsFakeClient(client) )
 		{
 			SetEntProp(weapon, Prop_Send, "m_iClip1", g_iLastClip[client]);
 
@@ -728,7 +733,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				if( index != -1 )
 				{
 					// Play incendiary ammo sound if required
-					int type = g_bLeft4Dead2 && GetEntProp(weapon, Prop_Send, "m_upgradeBitVec") & 1;
+					int type = (g_bLeft4Dead2 && GetEntProp(weapon, Prop_Send, "m_upgradeBitVec") & 1);
 					EmitSoundToClient(client, g_sWeaponSounds[index][type], client, SNDCHAN_WEAPON, SNDLEVEL_MINIBIKE, SND_NOFLAGS, index ? 1.0 : 0.649902); // Pistol has reduced volume
 				}
 
@@ -764,17 +769,14 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		g_iWasShoot[client]--;
 		buttons |= IN_RELOAD;
 	}
+
+	return Plugin_Continue;
 }
 
 // Reserve ammo
 int GetOrSetPlayerAmmo(int client, int iWeapon, int iAmmo = -1)
 {
-	char sWeapon[32];
-	GetEdictClassname(iWeapon, sWeapon, sizeof(sWeapon));
-
-	int offset;
-	g_hWeaponOffsets.GetValue(sWeapon, offset);
-
+	int offset = GetEntData(iWeapon, g_iPrimaryAmmoType) * 4; // Thanks to "Root" or whoever for this method of not hard-coding offsets: https://github.com/zadroot/AmmoManager/blob/master/scripting/ammo_manager.sp
 	if( offset )
 	{
 		if( iAmmo != -1 ) SetEntData(client, g_iOffsetAmmo + offset, iAmmo);

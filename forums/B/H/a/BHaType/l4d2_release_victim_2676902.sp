@@ -9,27 +9,29 @@ public Plugin myinfo =
 	name = "[L4D2] Release Victim Extended version",
 	author = "BHaType",
 	description = "Allow to release victim",
-	version = "0.2",
-	url = "SDKCall"
+	version = "0.4"
 };
 
-int g_iCharger, g_iHunter, g_iJockey, g_iSmoker, g_iZombieClass, g_iVelocity, g_bReset;
+bool g_bReset, g_bEffect;
+int g_iCharger, g_iHunter, g_iJockey, g_iSmoker, g_iZombieClass, g_iVelocity;
 Handle g_hCharger, g_hJockey, g_hSmoker, g_hHunter, g_hReset;
-ConVar cDistance, cHeight, cReset;
+ConVar sm_release_distance, sm_release_height, sm_release_ability_reset, sm_release_effect;
 float g_flDistance, g_flHeight, g_flCharger, g_flSmoker, g_flJockey;
+
 
 public void OnPluginStart()
 {
-	cDistance = CreateConVar("sm_release_distance", "900.0", "Release distance", FCVAR_NONE);
-	cHeight = CreateConVar("sm_release_height", "600.0", "Release height", FCVAR_NONE);
-	cReset = CreateConVar("sm_release_ability_reset", "0", "Reset ability", FCVAR_NONE);
+	sm_release_distance = CreateConVar("sm_release_distance", "900.0", "Release distance", FCVAR_NONE);
+	sm_release_height = CreateConVar("sm_release_height", "600.0", "Release height", FCVAR_NONE);
+	sm_release_ability_reset = CreateConVar("sm_release_ability_reset", "0", "Reset ability", FCVAR_NONE);
+	sm_release_effect = CreateConVar("sm_release_effect", "0", "Show effect after release", FCVAR_NONE);
 	
-	g_flDistance = cDistance.FloatValue;
-	g_flHeight = cHeight.FloatValue;
-	g_bReset = cReset.IntValue;
+	OnConVarChanged(GetMyHandle(), NULL_STRING, NULL_STRING);
 	
-	cReset.AddChangeHook(ConVarChanged);
-	cDistance.AddChangeHook(ConVarChanged);
+	sm_release_ability_reset.AddChangeHook(OnConVarChanged);
+	sm_release_distance.AddChangeHook(OnConVarChanged);
+	sm_release_height.AddChangeHook(OnConVarChanged);
+	sm_release_effect.AddChangeHook(OnConVarChanged);
 	
 	SetupSDK();
 	
@@ -53,7 +55,7 @@ public void OnMapStart()
 {
 	int pTable = FindStringTable("ParticleEffectNames");
 
-	if (FindStringIndex(pTable, "gen_hit1_c") == INVALID_STRING_INDEX)
+	if ( FindStringIndex(pTable, "gen_hit1_c") == INVALID_STRING_INDEX )
 	{
 		bool save = LockStringTables(false);
 		AddToStringTable(pTable, "gen_hit1_c");
@@ -61,11 +63,12 @@ public void OnMapStart()
 	}
 }
 
-public void ConVarChanged(Handle convar, const char[] oldValue, const char[] newValue)
+public void OnConVarChanged(Handle convar, const char[] oldValue, const char[] newValue)
 {
-	g_flDistance = cDistance.FloatValue;
-	g_flHeight = cHeight.FloatValue;
-	g_bReset = cReset.IntValue;
+	g_flDistance = sm_release_distance.FloatValue;
+	g_flHeight = sm_release_height.FloatValue;
+	g_bReset = sm_release_ability_reset.BoolValue;
+	g_bEffect = sm_release_effect.BoolValue;
 }
 
 public Action OnPlayerRunCmd (int client, int &buttons)
@@ -112,9 +115,13 @@ void Release (int client, int iClass)
 	GetClientAbsOrigin(client, vOrigin);
 	vOrigin[2] += 5.0;
 	
-	SpoofEffect(vOrigin);
+	if ( g_bEffect )
+		SpoofEffect(vOrigin);
 	
-	CreateTimer(0.05, tFly, GetClientUserId(client));
+	if ( g_flDistance > 0 || g_flHeight > 0 )
+		CreateTimer(0.05, tFly, GetClientUserId(client));
+		
+	CreateTimer(0.2, tReset, GetClientUserId(client)); 
 }
 
 public Action tFly (Handle timer, int client)

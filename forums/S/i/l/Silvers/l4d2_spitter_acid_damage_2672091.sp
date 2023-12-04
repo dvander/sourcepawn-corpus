@@ -1,6 +1,6 @@
 /*
 *	Spitter Acid Damage
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.13"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,25 @@
 
 ========================================================================================
 	Change Log:
+
+1.13 (20-Sep-2022)
+	- Changed the way "l4d2_spitter_acid_grace" prevents damage, to also prevent the sound and movement slowdown.
+
+1.12 (25-May-2022)
+	- Changed the description of "l4d2_spitter_acid_damage" cvar and some default values due to the logic being inverted from the previous description. Thanks to "VYRNACH_GAMING" for reporting.
+
+1.11 (14-Dec-2021)
+	- Fixed infected hurt sounds when "l4d2_spitter_acid_dmg_special" or "l4d2_spitter_acid_dmg_self" was set to "0.0". Thanks to "KoMiKoZa" for reporting.
+
+1.10a (19-Oct-2021)
+	- Wildcarded the .txt GameData signature for compatibility with "Left4DHooks" plugin version 1.64+.
+
+1.10 (26-Aug-2021)
+	- Added cvar "l4d2_spitter_acid_grace" to prevent damaging enemies when spit acid detonates until after the grace period. Requested by "Lukey1028".
+	- Potentially fixed hearing pain vocalizations when damage should be blocked. Thanks to "KoMiKoZa" for reporting.
+
+1.9 (25-Jul-2021)
+	- Fixed affecting Special Infected ghosts. Thanks to "ddd123" for reporting.
 
 1.8 (24-Apr-2021)
 	- Fixed invalid edict error. Thanks to "Krufftys Killers" for reporting.
@@ -108,8 +127,8 @@ float g_fLastHurt[2048];
 #define PARTICLE_SPIT		"spitter_projectile_explode"
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarEffects, g_hCvarExplode, g_hCvarExplodes, g_hCvarDmgCommon, g_hCvarDmgSelf, g_hCvarDmgSpecial, g_hCvarDmgSurvivor, g_hCvarDmgSurvBots, g_hCvarDamage;
-float g_fCvarCommon, g_fCvarSelf, g_fCvarSpecial, g_fCvarSurvivor, g_fCvarSurvBots;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarEffects, g_hCvarExplode, g_hCvarExplodes, g_hCvarGrace, g_hCvarDmgCommon, g_hCvarDmgSelf, g_hCvarDmgSpecial, g_hCvarDmgSurvivor, g_hCvarDmgSurvBots, g_hCvarDamage;
+float g_fCvarCommon, g_fCvarGrace, g_fCvarSelf, g_fCvarSpecial, g_fCvarSurvivor, g_fCvarSurvBots;
 int g_iCvarEffects, g_iCvarExplode, g_iCvarExplodes, g_iCvarDamage;
 bool g_bCvarAllow, g_bMapStarted;
 Handle g_hDetourHarm;
@@ -166,12 +185,13 @@ public void OnPluginStart()
 	g_hCvarDmgCommon = CreateConVar(	"l4d2_spitter_acid_dmg_common",		"5.0",			"Damage dealt to common infected. Can use a ratio instead by changing l4d2_spitter_acid_damage.", CVAR_FLAGS);
 	g_hCvarDmgSelf = CreateConVar(		"l4d2_spitter_acid_dmg_self",		"0.0",			"Damage dealt to self owner of acid. Can use a ratio instead by changing l4d2_spitter_acid_damage.", CVAR_FLAGS);
 	g_hCvarDmgSpecial = CreateConVar(	"l4d2_spitter_acid_dmg_special",	"8.0",			"Damage dealt to special infected. Can use a ratio instead by changing l4d2_spitter_acid_damage.", CVAR_FLAGS);
-	g_hCvarDmgSurvivor = CreateConVar(	"l4d2_spitter_acid_dmg_survivor",	"1.0",			"Damage dealt to survivors (games default is 1.0 with l4d2_spitter_acid_damage 2).", CVAR_FLAGS);
-	g_hCvarDmgSurvBots = CreateConVar(	"l4d2_spitter_acid_dmg_bots",		"1.0",			"Damage dealt to survivor bots (games default is 1.0 with l4d2_spitter_acid_damage 2).", CVAR_FLAGS);
-	g_hCvarDamage = CreateConVar(		"l4d2_spitter_acid_damage",			"2",			"Apply full damage value from dmg_* cvars. Or: use a ratio of the games scaled damage on: 1=Common. 2=Survivors (default). 4=Special. 8=Self. 15=All. Add numbers together.", CVAR_FLAGS);
+	g_hCvarDmgSurvivor = CreateConVar(	"l4d2_spitter_acid_dmg_survivor",	"1.0",			"Damage dealt to survivors (games default is 1.0 with l4d2_spitter_acid_damage omitting a value of 2).", CVAR_FLAGS);
+	g_hCvarDmgSurvBots = CreateConVar(	"l4d2_spitter_acid_dmg_bots",		"1.0",			"Damage dealt to survivor bots (games default is 1.0 with l4d2_spitter_acid_damage omitting a value of 2).", CVAR_FLAGS);
+	g_hCvarDamage = CreateConVar(		"l4d2_spitter_acid_damage",			"13",			"Omitted values scale the damage the game inflicts. Or: Apply full damage value from dmg_* cvars. on: 1=Common. 2=Survivors (default). 4=Special. 8=Self. 15=All. Add numbers together.", CVAR_FLAGS);
 	g_hCvarEffects = CreateConVar(		"l4d2_spitter_acid_effects",		"5",			"Displays a particle when hurting. 0=Off, 1=Common Infected, 2=Survivors, 4=Special Infected, 8=Self. 15=All. Add numbers together.", CVAR_FLAGS);
 	g_hCvarExplode = CreateConVar(		"l4d2_spitter_acid_explosives",		"3",			"Allow acid to ignite explosives: 0=Off, 1=GasCans, 2=Firework Crates, 4=Oxygen Tank, 8=Propane Tank, 15=All. Add numbers together.", CVAR_FLAGS);
 	g_hCvarExplodes = CreateConVar(		"l4d2_spitter_acid_explode",		"0",			"Which explosives should explode, otherwise they will ignite first: 0=All ignite, 1=Firework Crates, 2=Oxygen Tank, 4=Propane Tank, 7=All explode. Add numbers together.", CVAR_FLAGS);
+	g_hCvarGrace = CreateConVar(		"l4d2_spitter_acid_grace",			"1.0",			"How long after Spitter acid detonates until it can cause damage.", CVAR_FLAGS);
 	// ALTERNATIVE METHOD
 	// g_hCvarTimescan = CreateConVar(		"l4d2_spitter_acid_time",			"0.2",			"How often to check for enemies near or in Spitter acid.", CVAR_FLAGS);
 	// g_hCvarTimeout = CreateConVar(		"l4d2_spitter_acid_timeout",		"0.5",			"How often to deal damage to the same common or special infected.", CVAR_FLAGS);
@@ -193,6 +213,7 @@ public void OnPluginStart()
 	g_hCvarEffects.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarExplode.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarExplodes.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarGrace.AddChangeHook(ConVarChanged_Cvars);
 	// ALTERNATIVE METHOD
 	// g_hCvarTimescan.AddChangeHook(ConVarChanged_Cvars);
 	// g_hCvarTimeout.AddChangeHook(ConVarChanged_Cvars);
@@ -225,12 +246,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -240,6 +261,7 @@ void GetCvars()
 	g_iCvarEffects = g_hCvarEffects.IntValue;
 	g_iCvarExplode = g_hCvarExplode.IntValue;
 	g_iCvarExplodes = g_hCvarExplodes.IntValue;
+	g_fCvarGrace = g_hCvarGrace.FloatValue;
 	g_fCvarCommon = g_hCvarDmgCommon.FloatValue;
 	g_fCvarSelf = g_hCvarDmgSelf.FloatValue;
 	g_fCvarSpecial = g_hCvarDmgSpecial.FloatValue;
@@ -335,7 +357,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -352,7 +374,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					DETOUR
 // ====================================================================================================
-public MRESReturn CanHarm(Handle hReturn, Handle hParams)
+MRESReturn CanHarm(Handle hReturn, Handle hParams)
 {
 	int entity = DHookGetParam(hParams, 1);
 
@@ -367,10 +389,13 @@ public MRESReturn CanHarm(Handle hReturn, Handle hParams)
 				g_fLastHit[entity] = GetGameTime();
 				SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
 			}
-		}
 
-		DHookSetReturn(hReturn, 1);
-		return MRES_Override;
+			DHookSetReturn(hReturn, 1);
+			return MRES_Override;
+		} else {
+			DHookSetReturn(hReturn, 0);
+			return MRES_Override;
+		}
 	}
 	else if( (g_fCvarCommon || g_iCvarExplode) && entity > MaxClients && GetGameTime() - g_fLastHit[entity] > 5.0 && IsValidEdict(entity) && IsValidEntity(entity) )
 	{
@@ -439,7 +464,7 @@ public MRESReturn CanHarm(Handle hReturn, Handle hParams)
 	return MRES_Ignored;
 }
 
-public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	// if( damagetype == (DMG_ENERGYBEAM | DMG_RADIATION) || damagetype == (DMG_ENERGYBEAM | DMG_RADIATION | DMG_PREVENT_PHYSICS_FORCE) )
 	// 1024 (1<<10) DMG_ENERGYBEAM
@@ -448,6 +473,15 @@ public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &dam
 
 	if( damagetype == 263168 || damagetype == 265216 ) // 265216 at end of entity life when fading out
 	{
+		// Grace period
+		if( inflictor >= 0 && inflictor < 2048 && GetGameTime() < g_fLastHit[inflictor] )
+		{
+			damagetype = 0;
+			damage = 0.0;
+			return Plugin_Changed;
+		}
+
+		// Damage logic
 		g_fLastHit[entity] = GetGameTime();
 
 		if( entity > MaxClients )
@@ -460,10 +494,14 @@ public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &dam
 				damage *= g_fCvarCommon;
 
 			if( g_iCvarEffects & (1<<0) )		DisplayParticle(entity, PARTICLE_SPIT);
+
+			if( damage <= 0.0 )
+				return Plugin_Handled;
+
 			return Plugin_Changed;
 		} else {
 			int team = GetClientTeam(entity);
-			if( team == 2 )
+			if( team == 2 || team == 4 )
 			{
 				// Survivors
 				if( IsFakeClient(entity) )
@@ -480,8 +518,17 @@ public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &dam
 				}
 
 				if( g_iCvarEffects & (1<<1) )	DisplayParticle(entity, PARTICLE_SPIT);
+
+				if( damage <= 0.0 )
+					return Plugin_Handled;
+
 				return Plugin_Changed;
 			} else {
+				// Prevent affecting ghosts
+				if( GetEntProp(entity, Prop_Send, "m_isGhost") == 1 )
+					return Plugin_Continue;
+	
+				// Special Infected
 				if( entity != attacker )
 				{
 					// Special
@@ -502,6 +549,12 @@ public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &dam
 
 					if( g_iCvarEffects & (1<<3) )	DisplayParticle(entity, PARTICLE_SPIT);
 				}
+
+				if( damage <= 0.0 )
+				{
+					return Plugin_Handled;
+				}
+
 				return Plugin_Changed;
 			}
 		}
@@ -514,6 +567,14 @@ public Action OnTakeDamage(int entity, int &attacker, int &inflictor, float &dam
 	}
 
 	return Plugin_Continue;
+}
+
+public void OnEntityCreated(int entity, const char[] classname)
+{
+	if( strcmp(classname, "insect_swarm") == 0 )
+	{
+		g_fLastHit[entity] = GetGameTime() + g_fCvarGrace;
+	}
 }
 
 
@@ -564,11 +625,12 @@ void PrecacheParticle(const char[] sEffectName)
 }
 
 
+
 // ====================================================================================================
 //					ALTERNATIVE METHOD
 // ====================================================================================================
 /*
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	for( int i = 0; i < 2048; i++ )
 		g_fLastHurt[i] = 0.0;
@@ -582,7 +644,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-public Action TimerThink(Handle timer, any entity)
+Action TimerThink(Handle timer, any entity)
 {
 	#if BENCHMARK
 	StartProfiling(g_Profiler);

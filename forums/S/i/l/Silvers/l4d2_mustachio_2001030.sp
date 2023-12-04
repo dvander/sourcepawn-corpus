@@ -1,6 +1,6 @@
 /*
 *	Mustachio Stache Whacker
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.5"
+#define PLUGIN_VERSION		"1.6"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.6 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.5 (30-Sep-2020)
 	- Fixed compile errors on SM 1.11.
@@ -257,12 +260,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -358,7 +361,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -375,7 +378,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					COMMANDS - MUSTACHIO
 // ====================================================================================================
-public Action CmdMust(int client, int args)
+Action CmdMust(int client, int args)
 {
 	if( !client )
 	{
@@ -405,7 +408,7 @@ public Action CmdMust(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMustachio(int client, int args)
+Action CmdMustachio(int client, int args)
 {
 	if( !client )
 	{
@@ -483,7 +486,7 @@ public Action CmdMustachio(int client, int args)
 // By "Zuko & McFlurry"
 bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 {
-	float vAngles[3], vOrigin[3], vBuffer[3], vStart[3], Distance;
+	float vAngles[3], vOrigin[3];
 
 	GetClientEyePosition(client, vOrigin);
 	GetClientEyeAngles(client, vAngles);
@@ -492,12 +495,14 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 
 	if( TR_DidHit(trace) )
 	{
+		float vBuffer[3], vStart[3], distance;
+
 		TR_GetEndPosition(vStart, trace);
-		Distance = -15.0;
+		distance = -15.0;
 		GetAngleVectors(vAngles, vBuffer, NULL_VECTOR, NULL_VECTOR);
-		vPos[0] = vStart[0] + (vBuffer[0]*Distance);
-		vPos[1] = vStart[1] + (vBuffer[1]*Distance);
-		vPos[2] = vStart[2] + (vBuffer[2]*Distance);
+		vPos[0] = vStart[0] + (vBuffer[0] * distance);
+		vPos[1] = vStart[1] + (vBuffer[1] * distance);
+		vPos[2] = vStart[2] + (vBuffer[2] * distance);
 		vPos[2] = GetGroundHeight(vPos);
 		if( vPos[2] == 0.0 )
 		{
@@ -523,6 +528,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 float GetGroundHeight(float vPos[3])
 {
 	float vAng[3];
+
 	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, TraceEntityFilterPlayer);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
@@ -531,7 +537,7 @@ float GetGroundHeight(float vPos[3])
 	return vAng[2];
 }
 
-public bool TraceEntityFilterPlayer(int entity, int contentsMask)
+bool TraceEntityFilterPlayer(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }
@@ -553,7 +559,7 @@ int IsEntStored(int entity)
 	return -1;
 }
 
-public Action CmdMustClear(int client, int args)
+Action CmdMustClear(int client, int args)
 {
 	if( !client )
 	{
@@ -567,7 +573,7 @@ public Action CmdMustClear(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMustDelete(int client, int args)
+Action CmdMustDelete(int client, int args)
 {
 	if( !client )
 	{
@@ -669,7 +675,7 @@ public Action CmdMustDelete(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMustList(int client, int args)
+Action CmdMustList(int client, int args)
 {
 	float vPos[3];
 	int i, ent;
@@ -696,7 +702,7 @@ public Action CmdMustList(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdMustWipe(int client, int args)
+Action CmdMustWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -742,7 +748,7 @@ public Action CmdMustWipe(int client, int args)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdMustPos(int client, int args)
+Action CmdMustPos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -754,7 +760,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -764,6 +770,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -938,7 +946,7 @@ void RemoveGame(int index)
 			{
 				AcceptEntityInput(entity, "StopSound");
 			}
-			AcceptEntityInput(entity, "kill");
+			RemoveEntity(entity);
 		}
 	}
 }
@@ -947,29 +955,30 @@ void RemoveGame(int index)
 // ====================================================================================================
 //					LOAD MUSTACHIOS
 // ====================================================================================================
-public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerMake, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerMake, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerMake(Handle timer)
+Action TimerMake(Handle timer)
 {
 	ResetPlugin();
 	LoadMustachios();
+	return Plugin_Continue;
 }
 
 void LoadMustachios()
@@ -2104,7 +2113,7 @@ void MakeMustachio(const float vOrigin[3], const float vAngles[3], int index = 0
 
 
 
-public void OnTriggerWin(const char[] output, int caller, int activator, float delay)
+void OnTriggerWin(const char[] output, int caller, int activator, float delay)
 {
 	int index = GetIndex(caller, INDEX_LOGIC_BREAK);
 	int entity = g_iMustachios[index][INDEX_BUTTON];
@@ -2154,7 +2163,7 @@ public void OnTriggerWin(const char[] output, int caller, int activator, float d
 }
 
 // fx_boom2
-public Action TimerMetal(Handle timer, any index)
+Action TimerMetal(Handle timer, any index)
 {
 	int entity =  g_iMustachios[index][INDEX_GLASS];
 	float vPos[3], vAng[3];
@@ -2165,10 +2174,12 @@ public Action TimerMetal(Handle timer, any index)
 	vPos[2] += 5.0;
 
 	DisplayParticle("impact_metal", vPos, vAng);
+
+	return Plugin_Continue;
 }
 
 // fx_sparks
-public Action TimerSparks(Handle timer, any index)
+Action TimerSparks(Handle timer, any index)
 {
 	int entity =  g_iMustachios[index][INDEX_GLASS];
 	float vPos[3], vAng[3];
@@ -2185,10 +2196,12 @@ public Action TimerSparks(Handle timer, any index)
 	DisplayParticle(PARTICLE_BREAK_M, vPos, vAng);
 	MoveSideway(vPos, vAng, vPos, 1.0);
 	DisplayParticle(PARTICLE_IMPACT_G, vPos, vAng);
+
+	return Plugin_Continue;
 }
 
 // fx_smoke
-public Action TimerSmoke(Handle timer, any index)
+Action TimerSmoke(Handle timer, any index)
 {
 	char sTemp[64];
 	int entity, target;
@@ -2258,9 +2271,11 @@ public Action TimerSmoke(Handle timer, any index)
 	AcceptEntityInput(entity, "start");
 	TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
 	g_iMustachios[index][INDEX_SMOKE_5] = EntIndexToEntRef(entity);
+
+	return Plugin_Continue;
 }
 
-public Action TimerEvent(Handle timer, any bits)
+Action TimerEvent(Handle timer, any bits)
 {
 	int client = bits & 0x7F;
 	int index = bits >> 7;
@@ -2292,14 +2307,16 @@ public Action TimerEvent(Handle timer, any bits)
 			AcceptEntityInput(event, "FireUser1");
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public void OnButtonIn(const char[] output, int caller, int activator, float delay)
+void OnButtonIn(const char[] output, int caller, int activator, float delay)
 {
 	PlaySound(caller, SOUND_START);
 }
 
-public void OnFullyClosed(const char[] output, int caller, int activator, float delay)
+void OnFullyClosed(const char[] output, int caller, int activator, float delay)
 {
 	int bits = GetDoorIndex(caller);
 	int index = bits & 0x7F;
@@ -2333,7 +2350,7 @@ public void OnFullyClosed(const char[] output, int caller, int activator, float 
 	}
 }
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	// Block multiple hits?
 	// static Float:lastHit;

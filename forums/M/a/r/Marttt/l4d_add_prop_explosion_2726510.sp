@@ -2,8 +2,11 @@
 // ====================================================================================================
 Change Log:
 
+1.0.8 (04-March-2022)
+    - Fixed compability with other plugins. (thanks "ddd123" for reporting)
+
 1.0.7 (26-February-2021)
-    - Added support for explosive oil drum (custom model - can found on GoldenEye 4 Dead custom map)
+    - Added support for explosive oil drum (custom model - can be found on GoldenEye 4 Dead custom map)
 
 1.0.6 (04-January-2021)
     - Added support for gas pump. (found on No Mercy, 3rd map)
@@ -36,7 +39,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Add Prop Explosion"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Creates additional explosions on destroyed props"
-#define PLUGIN_VERSION                "1.0.7"
+#define PLUGIN_VERSION                "1.0.8"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328846"
 
 // ====================================================================================================
@@ -78,10 +81,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_WEAPON_GASCAN       "weapon_gascan"
-#define CLASSNAME_PROP_FUEL_BARREL    "prop_fuel_barrel"
-#define CLASSNAME_PROP_PHYSICS        "prop_physics"
-
 #define MODEL_GASCAN                  "models/props_junk/gascan001a.mdl"
 #define MODEL_FUEL_BARREL             "models/props_industrial/barrel_fuel.mdl"
 #define MODEL_PROPANECANISTER         "models/props_junk/propanecanister001a.mdl"
@@ -101,95 +100,77 @@ public Plugin myinfo =
 #define TYPE_FIREWORKS_CRATE          7
 #define TYPE_OIL_DRUM_EXPLOSIVE       8
 
+#define FLAG_NONE                     (0 << 0) // 0 | 0000
 #define FLAG_GASCAN                   (1 << 0) // 1 | 0001
 #define FLAG_FUEL_BARREL              (1 << 1) // 2 | 0010
 #define FLAG_PROPANECANISTER          (1 << 2) // 4 | 0100
 #define FLAG_FIREWORKS_CRATE          (1 << 3) // 8 | 1000
+
+#define OFFSET_Z                      15.0
 
 #define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Gascan;
-static ConVar g_hCvar_GascanChance;
-static ConVar g_hCvar_FuelBarrel;
-static ConVar g_hCvar_FuelBarrelChance;
-static ConVar g_hCvar_PropaneCanister;
-static ConVar g_hCvar_PropaneCanisterChance;
-static ConVar g_hCvar_OxygenTank;
-static ConVar g_hCvar_OxygenTankChance;
-static ConVar g_hCvar_BarricadeGascan;
-static ConVar g_hCvar_BarricadeGascanChance;
-static ConVar g_hCvar_GasPump;
-static ConVar g_hCvar_GasPumpChance;
-static ConVar g_hCvar_FireworksCrate;
-static ConVar g_hCvar_FireworksCrateChance;
-static ConVar g_hCvar_OilDrumExplosive;
-static ConVar g_hCvar_OilDrumExplosiveChance;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Gascan;
+ConVar g_hCvar_GascanChance;
+ConVar g_hCvar_FuelBarrel;
+ConVar g_hCvar_FuelBarrelChance;
+ConVar g_hCvar_PropaneCanister;
+ConVar g_hCvar_PropaneCanisterChance;
+ConVar g_hCvar_OxygenTank;
+ConVar g_hCvar_OxygenTankChance;
+ConVar g_hCvar_BarricadeGascan;
+ConVar g_hCvar_BarricadeGascanChance;
+ConVar g_hCvar_GasPump;
+ConVar g_hCvar_GasPumpChance;
+ConVar g_hCvar_FireworksCrate;
+ConVar g_hCvar_FireworksCrateChance;
+ConVar g_hCvar_OilDrumExplosive;
+ConVar g_hCvar_OilDrumExplosiveChance;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Gascan;
-static bool   g_bCvar_GascanChance;
-static bool   g_bCvar_FuelBarrel;
-static bool   g_bCvar_FuelBarrelChance;
-static bool   g_bCvar_PropaneCanister;
-static bool   g_bCvar_PropaneCanisterChance;
-static bool   g_bCvar_OxygenTank;
-static bool   g_bCvar_OxygenTankChance;
-static bool   g_bCvar_BarricadeGascan;
-static bool   g_bCvar_BarricadeGascanChance;
-static bool   g_bCvar_GasPump;
-static bool   g_bCvar_GasPumpChance;
-static bool   g_bCvar_FireworksCrate;
-static bool   g_bCvar_FireworksCrateChance;
-static bool   g_bCvar_OilDrumExplosive;
-static bool   g_bCvar_OilDrumExplosiveChance;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iModel_Gascan = -1;
-static int    g_iModel_FuelBarrel = -1;
-static int    g_iModel_PropaneCanister = -1;
-static int    g_iModel_OxygenTank = -1;
-static int    g_iModel_BarricadeGascan = -1;
-static int    g_iModel_GasPump = -1;
-static int    g_iModel_FireworksCrate = -1;
-static int    g_iModel_OilDrumExplosive = -1;
-static int    g_iCvar_Gascan;
-static int    g_iCvar_FuelBarrel;
-static int    g_iCvar_PropaneCanister;
-static int    g_iCvar_OxygenTank;
-static int    g_iCvar_BarricadeGascan;
-static int    g_iCvar_GasPump;
-static int    g_iCvar_FireworksCrate;
-static int    g_iCvar_OilDrumExplosive;
-
-// ====================================================================================================
-// float - Plugin Variables
-// ====================================================================================================
-static float  g_fCvar_GascanChance;
-static float  g_fCvar_FuelBarrelChance;
-static float  g_fCvar_PropaneCanisterChance;
-static float  g_fCvar_OxygenTankChance;
-static float  g_fCvar_BarricadeGascanChance;
-static float  g_fCvar_GasPumpChance;
-static float  g_fCvar_FireworksCrateChance;
-static float  g_fCvar_OilDrumExplosiveChance;
+int g_iModel_Gascan = -1;
+int g_iModel_FuelBarrel = -1;
+int g_iModel_PropaneCanister = -1;
+int g_iModel_OxygenTank = -1;
+int g_iModel_BarricadeGascan = -1;
+int g_iModel_GasPump = -1;
+int g_iModel_FireworksCrate = -1;
+int g_iModel_OilDrumExplosive = -1;
+int g_iCvar_Gascan;
+int g_iCvar_GascanChance;
+int g_iCvar_FuelBarrel;
+int g_iCvar_FuelBarrelChance;
+int g_iCvar_PropaneCanister;
+int g_iCvar_PropaneCanisterChance;
+int g_iCvar_OxygenTank;
+int g_iCvar_OxygenTankChance;
+int g_iCvar_BarricadeGascan;
+int g_iCvar_BarricadeGascanChance;
+int g_iCvar_GasPump;
+int g_iCvar_GasPumpChance;
+int g_iCvar_FireworksCrate;
+int g_iCvar_FireworksCrateChance;
+int g_iCvar_OilDrumExplosive;
+int g_iCvar_OilDrumExplosiveChance;
 
 // ====================================================================================================
 // entity - Plugin Variables
 // ====================================================================================================
-static int    ge_iType[MAXENTITIES+1];
-static int    ge_iLastAttacker[MAXENTITIES+1];
+int ge_iType[MAXENTITIES+1];
+int ge_iLastAttacker[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -215,23 +196,23 @@ public void OnPluginStart()
     CreateConVar("l4d_add_prop_explosion_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
     g_hCvar_Enabled                  = CreateConVar("l4d_add_prop_explosion_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_Gascan                   = CreateConVar("l4d_add_prop_explosion_gascan", "4", "Additional prop explosion every time a gascan explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_GascanChance             = CreateConVar("l4d_add_prop_explosion_gascan_chance", "100.0", "Chance to add a prop explosion when a gascan explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_GascanChance             = CreateConVar("l4d_add_prop_explosion_gascan_chance", "100", "Chance to add a prop explosion when a gascan explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_FuelBarrel               = CreateConVar("l4d_add_prop_explosion_fuelbarrel", "1", "Additional prop explosion every time a fuel barrel explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_FuelBarrelChance         = CreateConVar("l4d_add_prop_explosion_fuelbarrel_chance", "100.0", "Chance to add a prop explosion when a fuel barrel explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_FuelBarrelChance         = CreateConVar("l4d_add_prop_explosion_fuelbarrel_chance", "100", "Chance to add a prop explosion when a fuel barrel explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_PropaneCanister          = CreateConVar("l4d_add_prop_explosion_propanecanister", "2", "Additional prop explosion every time a propane canister explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_PropaneCanisterChance    = CreateConVar("l4d_add_prop_explosion_propanecanister_chance", "100.0", "Chance to add a prop explosion when a propane canister.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_PropaneCanisterChance    = CreateConVar("l4d_add_prop_explosion_propanecanister_chance", "100", "Chance to add a prop explosion when a propane canister.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_OxygenTank               = CreateConVar("l4d_add_prop_explosion_oxygentank", "2", "Additional prop explosion every time a oxygen tank explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_OxygenTankChance         = CreateConVar("l4d_add_prop_explosion_oxygentank_chance", "100.0", "Chance to add a prop explosion when an oxygen tank explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_OxygenTankChance         = CreateConVar("l4d_add_prop_explosion_oxygentank_chance", "100", "Chance to add a prop explosion when an oxygen tank explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_BarricadeGascan          = CreateConVar("l4d_add_prop_explosion_barricadegascan", "4", "Additional prop explosion every time a barricade with gascans explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_BarricadeGascanChance    = CreateConVar("l4d_add_prop_explosion_barricadegascan_chance", "100.0", "Chance to add a prop explosion when a barricade with gascans explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_BarricadeGascanChance    = CreateConVar("l4d_add_prop_explosion_barricadegascan_chance", "100", "Chance to add a prop explosion when a barricade with gascans explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_GasPump                  = CreateConVar("l4d_add_prop_explosion_gaspump", "1", "Additional prop explosion every time a gas pump explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_GasPumpChance            = CreateConVar("l4d_add_prop_explosion_gaspump_chance", "100.0", "Chance to add a prop explosion when a gas pump explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_GasPumpChance            = CreateConVar("l4d_add_prop_explosion_gaspump_chance", "100", "Chance to add a prop explosion when a gas pump explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_OilDrumExplosive         = CreateConVar("l4d_add_prop_explosion_oildrumexplosive", "1", "Additional prop explosion every time an oil drum explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-    g_hCvar_OilDrumExplosiveChance   = CreateConVar("l4d_add_prop_explosion_oildrumexplosive_chance", "100.0", "Chance to add a prop explosion when an oil drum explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+    g_hCvar_OilDrumExplosiveChance   = CreateConVar("l4d_add_prop_explosion_oildrumexplosive_chance", "100", "Chance to add a prop explosion when an oil drum explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     if (g_bL4D2)
     {
         g_hCvar_FireworksCrate       = CreateConVar("l4d_add_prop_explosion_fireworkscrate", "5", "Additional prop explosion every time a fireworks crate explodes.\n0 = OFF, 1 = GASCAN, 2 = FUEL BARREL, 4 = PROPANE CANISTER, 8 = FIREWORKS (L4D2 only).\nAdd numbers greater than 0 for multiple options.", CVAR_FLAGS, true, 0.0, true, g_bL4D2 ? 15.0 : 7.0);
-        g_hCvar_FireworksCrateChance = CreateConVar("l4d_add_prop_explosion_fireworkscrate_chance", "100.0", "Chance to add a prop explosion when a fireworks crate explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
+        g_hCvar_FireworksCrateChance = CreateConVar("l4d_add_prop_explosion_fireworkscrate_chance", "100", "Chance to add a prop explosion when a fireworks crate explodes.\n0 = OFF.", CVAR_FLAGS, true, 0.0, true, 100.0);
     }
 
     // Hook plugin ConVars change
@@ -275,9 +256,11 @@ public void OnMapStart()
     g_iModel_GasPump = PrecacheModel(MODEL_GAS_PUMP, true);
     if (g_bL4D2)
         g_iModel_FireworksCrate = PrecacheModel(MODEL_FIREWORKS_CRATE, true);
+
     if (IsModelPrecached(MODEL_OILDRUM_EXPLOSIVE))
         g_iModel_OilDrumExplosive = PrecacheModel(MODEL_OILDRUM_EXPLOSIVE, true);
-
+    else
+        g_iModel_OilDrumExplosive = -1;
 }
 
 /****************************************************************************************************/
@@ -286,69 +269,51 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_iCvar_Gascan = g_hCvar_Gascan.IntValue;
-    g_bCvar_Gascan = (g_iCvar_Gascan > 0);
-    g_fCvar_GascanChance = g_hCvar_GascanChance.FloatValue;
-    g_bCvar_GascanChance = (g_fCvar_GascanChance > 0.0);
+    g_iCvar_GascanChance = g_hCvar_GascanChance.IntValue;
     g_iCvar_FuelBarrel = g_hCvar_FuelBarrel.IntValue;
-    g_bCvar_FuelBarrel = (g_iCvar_FuelBarrel > 0);
-    g_fCvar_FuelBarrelChance = g_hCvar_FuelBarrelChance.FloatValue;
-    g_bCvar_FuelBarrelChance = (g_fCvar_FuelBarrelChance > 0.0);
+    g_iCvar_FuelBarrelChance = g_hCvar_FuelBarrelChance.IntValue;
     g_iCvar_PropaneCanister = g_hCvar_PropaneCanister.IntValue;
-    g_bCvar_PropaneCanister = (g_iCvar_PropaneCanister > 0);
-    g_fCvar_PropaneCanisterChance = g_hCvar_PropaneCanisterChance.FloatValue;
-    g_bCvar_PropaneCanisterChance = (g_fCvar_PropaneCanisterChance > 0.0);
+    g_iCvar_PropaneCanisterChance = g_hCvar_PropaneCanisterChance.IntValue;
     g_iCvar_OxygenTank = g_hCvar_OxygenTank.IntValue;
-    g_bCvar_OxygenTank = (g_iCvar_OxygenTank > 0);
-    g_fCvar_OxygenTankChance = g_hCvar_OxygenTankChance.FloatValue;
-    g_bCvar_OxygenTankChance = (g_fCvar_OxygenTankChance > 0.0);
+    g_iCvar_OxygenTankChance = g_hCvar_OxygenTankChance.IntValue;
     g_iCvar_BarricadeGascan = g_hCvar_BarricadeGascan.IntValue;
-    g_bCvar_BarricadeGascan = (g_iCvar_BarricadeGascan > 0);
-    g_fCvar_BarricadeGascanChance = g_hCvar_BarricadeGascanChance.FloatValue;
-    g_bCvar_BarricadeGascanChance = (g_fCvar_BarricadeGascanChance > 0.0);
+    g_iCvar_BarricadeGascanChance = g_hCvar_BarricadeGascanChance.IntValue;
     g_iCvar_GasPump = g_hCvar_GasPump.IntValue;
-    g_bCvar_GasPump = (g_iCvar_GasPump > 0);
-    g_fCvar_GasPumpChance = g_hCvar_GasPumpChance.FloatValue;
-    g_bCvar_GasPumpChance = (g_fCvar_GasPumpChance > 0.0);
+    g_iCvar_GasPumpChance = g_hCvar_GasPumpChance.IntValue;
     g_iCvar_OilDrumExplosive = g_hCvar_OilDrumExplosive.IntValue;
-    g_bCvar_OilDrumExplosive = (g_iCvar_OilDrumExplosive > 0);
-    g_fCvar_OilDrumExplosiveChance = g_hCvar_OilDrumExplosiveChance.FloatValue;
-    g_bCvar_OilDrumExplosiveChance = (g_fCvar_OilDrumExplosiveChance > 0.0);
+    g_iCvar_OilDrumExplosiveChance = g_hCvar_OilDrumExplosiveChance.IntValue;
     if (g_bL4D2)
     {
         g_iCvar_FireworksCrate = g_hCvar_FireworksCrate.IntValue;
-        g_bCvar_FireworksCrate = (g_iCvar_FireworksCrate > 0);
-        g_fCvar_FireworksCrateChance = g_hCvar_FireworksCrateChance.FloatValue;
-        g_bCvar_FireworksCrateChance = (g_fCvar_FireworksCrateChance > 0.0);
+        g_iCvar_FireworksCrateChance = g_hCvar_FireworksCrateChance.IntValue;
     }
 }
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -357,7 +322,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -369,48 +334,21 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
-{
-    if (!g_bCvar_Enabled)
-        return;
-
-    int entity = event.GetInt("entindex");
-
-    int type = ge_iType[entity];
-
-    if (type == TYPE_NONE)
-        return;
-
-    int client = GetClientOfUserId(event.GetInt("userid"));
-
-    if (client == 0)
-        client = GetClientOfUserId(ge_iLastAttacker[entity]);
-
-    float vPos[3];
-    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vPos);
-
-    CheckPropCreation(vPos, client, type);
-}
-
-/****************************************************************************************************/
-
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     if (g_bL4D2)
     {
         entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, CLASSNAME_WEAPON_GASCAN)) != INVALID_ENT_REFERENCE)
+        while ((entity = FindEntityByClassname(entity, "weapon_gascan")) != INVALID_ENT_REFERENCE)
         {
-            ge_iType[entity] = TYPE_GASCAN;
-            SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
-            HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
+            RequestFrame(OnNextFrameWeaponGascan, EntIndexToEntRef(entity));
         }
     }
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, CLASSNAME_PROP_FUEL_BARREL)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "prop_fuel_barrel")) != INVALID_ENT_REFERENCE)
     {
         RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
     }
@@ -431,40 +369,8 @@ public void LateLoad()
 
 /****************************************************************************************************/
 
-public void OnNextFrame(int entityRef)
-{
-    int entity = EntRefToEntIndex(entityRef);
-
-    if (entity == INVALID_ENT_REFERENCE)
-        return;
-
-    OnSpawnPost(entity);
-}
-
-/****************************************************************************************************/
-
-public void OnEntityDestroyed(int entity)
-{
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    ge_iType[entity] = TYPE_NONE;
-    ge_iLastAttacker[entity] = 0;
-}
-
-/****************************************************************************************************/
-
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
-        return;
-
-    if (!IsValidEntityIndex(entity))
-        return;
-
     switch (classname[0])
     {
         case 'w':
@@ -475,26 +381,76 @@ public void OnEntityCreated(int entity, const char[] classname)
             if (classname[1] != 'e') // weapon_*
                 return;
 
-            if (StrEqual(classname, CLASSNAME_WEAPON_GASCAN))
+            if (StrEqual(classname, "weapon_gascan"))
             {
-                ge_iType[entity] = TYPE_GASCAN;
-                SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
-                HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
+                RequestFrame(OnNextFrameWeaponGascan, EntIndexToEntRef(entity));
             }
         }
         case 'p':
         {
             if (HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
-                SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
+                RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
         }
     }
 }
 
 /****************************************************************************************************/
 
-public void OnSpawnPost(int entity)
+public void OnEntityDestroyed(int entity)
 {
+    if (entity < 0)
+        return;
+
+    ge_iType[entity] = TYPE_NONE;
+    ge_iLastAttacker[entity] = 0;
+}
+
+/****************************************************************************************************/
+
+// Extra frame to get netprops updated
+void OnNextFrameWeaponGascan(int entityRef)
+{
+    int entity = EntRefToEntIndex(entityRef);
+
+    if (entity == INVALID_ENT_REFERENCE)
+        return;
+
+    if (ge_iType[entity] != TYPE_NONE)
+        return;
+
     if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
+        return;
+
+    RenderMode rendermode = GetEntityRenderMode(entity);
+    int rgba[4];
+    GetEntityRenderColor(entity, rgba[0], rgba[1], rgba[2], rgba[3]);
+
+    if (rendermode == RENDER_NONE || (rendermode == RENDER_TRANSCOLOR && rgba[3] == 0)) // Other plugins support, ignore invisible entities
+        return;
+
+    ge_iType[entity] = TYPE_GASCAN;
+    SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+    HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
+}
+
+/****************************************************************************************************/
+
+// Extra frame to get netprops updated
+void OnNextFrame(int entityRef)
+{
+    int entity = EntRefToEntIndex(entityRef);
+
+    if (entity == INVALID_ENT_REFERENCE)
+        return;
+
+    if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
+        return;
+
+    RenderMode rendermode = GetEntityRenderMode(entity);
+    int rgba[4];
+    GetEntityRenderColor(entity, rgba[0], rgba[1], rgba[2], rgba[3]);
+
+    if (rendermode == RENDER_NONE || (rendermode == RENDER_TRANSCOLOR && rgba[3] == 0)) // Other plugins support, ignore invisible entities
         return;
 
     int modelIndex = GetEntProp(entity, Prop_Send, "m_nModelIndex");
@@ -561,7 +517,7 @@ public void OnSpawnPost(int entity)
 
 /****************************************************************************************************/
 
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
@@ -574,42 +530,64 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 
 /****************************************************************************************************/
 
-public void OnKilled(const char[] output, int caller, int activator, float delay)
+void OnKilled(const char[] output, int caller, int activator, float delay)
 {
     if (!g_bCvar_Enabled)
         return;
 
-    if (IsValidClient(activator))
-        ge_iLastAttacker[caller] = GetClientUserId(activator);
+    int entity = caller;
 
-    int type = ge_iType[caller];
+    int type = ge_iType[entity];
 
     if (type == TYPE_NONE)
         return;
 
     float vPos[3];
-    GetEntPropVector(caller, Prop_Send, "m_vecOrigin", vPos);
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPos);
+    vPos[2] += OFFSET_Z;
 
-    int client = GetClientOfUserId(ge_iLastAttacker[caller]);
+    if (IsValidClient(activator))
+        ge_iLastAttacker[entity] = GetClientUserId(activator);
 
-    CheckPropCreation(vPos, client, type);
+    int client = GetClientOfUserId(ge_iLastAttacker[entity]);
+
+    CheckPropCreation(type, vPos, client);
 }
 
 /****************************************************************************************************/
 
-public void CheckPropCreation(float vPos[3], int client, int type)
+void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
+{
+    int entity = event.GetInt("entindex");
+    int client = GetClientOfUserId(event.GetInt("userid"));
+
+    int type = ge_iType[entity];
+
+    if (type == TYPE_NONE)
+        return;
+
+    float vPos[3];
+    GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vPos);
+    vPos[2] += OFFSET_Z;
+
+    if (client == 0)
+        client = GetClientOfUserId(ge_iLastAttacker[entity]);
+
+    CheckPropCreation(type, vPos, client);
+}
+
+/****************************************************************************************************/
+
+void CheckPropCreation(int type, float vPos[3], int client)
 {
     switch (type)
     {
         case TYPE_GASCAN:
         {
-            if (!g_bCvar_Gascan)
+            if (g_iCvar_Gascan == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_GascanChance)
-                return;
-
-            if (g_fCvar_GascanChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_GascanChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_Gascan & FLAG_GASCAN)
@@ -627,13 +605,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_FUEL_BARREL:
         {
-            if (!g_bCvar_FuelBarrel)
+            if (g_iCvar_FuelBarrel == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_FuelBarrelChance)
-                return;
-
-            if (g_fCvar_FuelBarrelChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_FuelBarrelChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_FuelBarrel & FLAG_GASCAN)
@@ -651,13 +626,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_PROPANECANISTER:
         {
-            if (!g_bCvar_PropaneCanister)
+            if (g_iCvar_PropaneCanister == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_PropaneCanisterChance)
-                return;
-
-            if (g_fCvar_PropaneCanisterChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_PropaneCanisterChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_PropaneCanister & FLAG_GASCAN)
@@ -675,13 +647,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_OXYGENTANK:
         {
-            if (!g_bCvar_OxygenTank)
+            if (g_iCvar_OxygenTank == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_OxygenTankChance)
-                return;
-
-            if (g_fCvar_OxygenTankChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_OxygenTankChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_OxygenTank & FLAG_GASCAN)
@@ -699,13 +668,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_BARRICADE_GASCAN:
         {
-            if (!g_bCvar_BarricadeGascan)
+            if (g_iCvar_BarricadeGascan == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_BarricadeGascanChance)
-                return;
-
-            if (g_fCvar_BarricadeGascanChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_BarricadeGascanChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_BarricadeGascan & FLAG_GASCAN)
@@ -723,13 +689,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_GAS_PUMP:
         {
-            if (!g_bCvar_GasPump)
+            if (g_iCvar_GasPump == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_GasPumpChance)
-                return;
-
-            if (g_fCvar_GasPumpChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_GasPumpChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_GasPump & FLAG_GASCAN)
@@ -747,13 +710,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_FIREWORKS_CRATE:
         {
-            if (!g_bCvar_FireworksCrate)
+            if (g_iCvar_FireworksCrate == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_FireworksCrateChance)
-                return;
-
-            if (g_fCvar_FireworksCrateChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_FireworksCrateChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_FireworksCrate & FLAG_GASCAN)
@@ -771,13 +731,10 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
         case TYPE_OIL_DRUM_EXPLOSIVE:
         {
-            if (!g_bCvar_OilDrumExplosive)
+            if (g_iCvar_OilDrumExplosive == FLAG_NONE)
                 return;
 
-            if (!g_bCvar_OilDrumExplosiveChance)
-                return;
-
-            if (g_fCvar_OilDrumExplosiveChance < GetRandomFloat(0.0, 100.0))
+            if (g_iCvar_OilDrumExplosiveChance < GetRandomInt(1, 100))
                 return;
 
             if (g_iCvar_OilDrumExplosive & FLAG_GASCAN)
@@ -797,82 +754,81 @@ public void CheckPropCreation(float vPos[3], int client, int type)
 
 /****************************************************************************************************/
 
-public void CreateProp(int client, int type, float vPos[3])
+void CreateProp(int client, int type, float vPos[3])
 {
-    int entity;
+    char modelname[PLATFORM_MAX_PATH];
+    char classname[36];
 
     switch (type)
     {
         case TYPE_GASCAN:
         {
-            entity = CreateEntityByName(CLASSNAME_PROP_PHYSICS);
-            SetEntityModel(entity, MODEL_GASCAN);
+            classname = "prop_physics";
+            modelname = MODEL_GASCAN;
         }
 
         case TYPE_FUEL_BARREL:
         {
-            entity = CreateEntityByName(CLASSNAME_PROP_FUEL_BARREL);
-            SetEntityModel(entity, MODEL_FUEL_BARREL);
+            classname = "prop_fuel_barrel";
+            modelname = MODEL_FUEL_BARREL;
         }
 
         case TYPE_PROPANECANISTER:
         {
-            entity = CreateEntityByName(CLASSNAME_PROP_PHYSICS);
-            SetEntityModel(entity, MODEL_PROPANECANISTER);
+            classname = "prop_physics";
+            modelname = MODEL_PROPANECANISTER;
         }
 
         case TYPE_FIREWORKS_CRATE:
         {
-            entity = CreateEntityByName(CLASSNAME_PROP_PHYSICS);
-            SetEntityModel(entity, MODEL_FIREWORKS_CRATE);
+            classname = "prop_physics";
+            modelname = MODEL_FIREWORKS_CRATE;
         }
 
-        default:
-        {
-            return;
-        }
+        default: return;
     }
 
+    int entity = CreateEntityByName(classname);
     DispatchKeyValue(entity, "targetname", "l4d_add_prop_explosion");
-    SetEntityRenderMode(entity, RENDER_NONE);
-    SDKHook(entity, SDKHook_SetTransmit, OnSetTransmit); // Fix to hide the outline glow
-    SetEntProp(entity, Prop_Data, "m_iHammerID", -1); // Set value to check it on SpawnPost/EntitySpawned/NextFrame
-
-    TeleportEntity(entity, vPos, NULL_VECTOR, NULL_VECTOR);
+    DispatchKeyValue(entity, "hammerid", "-1"); // Set hammerid to prevent logic loop
+    DispatchKeyValue(entity, "disableshadows", "1");
+    DispatchKeyValue(entity, "spawnflags", "12"); // 4: Debris - Don't collide with the player or other debris. | 8: Motion Disabled.
+    if (type != TYPE_FUEL_BARREL) // prop_fuel_barrel doesn't have rendermode
+        DispatchKeyValue(entity, "rendermode", "10"); // 10: Don't Render
+    DispatchKeyValue(entity, "model", modelname);
+    DispatchKeyValueVector(entity, "origin", vPos);
     DispatchSpawn(entity);
-    ActivateEntity(entity);
 
-    SetEntityMoveType(entity, MOVETYPE_NONE);
+    if (type == TYPE_FUEL_BARREL) //prop_fuel_barrel rendermode workaround
+    {
+        SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
+        SetEntityRenderColor(entity, 0, 0, 0, 0);
+    }
+
     if (IsValidClient(client))
-        SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", client);
-    RequestFrame(OnNextFrameBreak, EntIndexToEntRef(entity)); // Next frame to prevent crashes
+        ge_iLastAttacker[entity] = GetClientUserId(client);
+
+    RequestFrame(OnNextFrameBreak, EntIndexToEntRef(entity)); // Next frame to prevent a weird damage behaviour
 }
 
 /****************************************************************************************************/
 
-public void OnNextFrameBreak(int entityRef)
+void OnNextFrameBreak(int entityRef)
 {
     int entity = EntRefToEntIndex(entityRef);
 
     if (entity == INVALID_ENT_REFERENCE)
         return;
 
-    AcceptEntityInput(entity, "Break");
-    AcceptEntityInput(entity, "Kill");
-}
+    int client = GetClientOfUserId(ge_iLastAttacker[entity]);
 
-/****************************************************************************************************/
-
-public Action OnSetTransmit(int entity, int client)
-{
-    // Never transmits
-    return Plugin_Handled;
+    AcceptEntityInput(entity, "Break", client == 0 ? -1 : client);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -881,22 +837,22 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_add_prop_explosion_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d_add_prop_explosion_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_gascan : %i (%s)", g_iCvar_Gascan, g_bCvar_Gascan ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_gascan_chance : %.2f%% (%s)", g_fCvar_GascanChance, g_bCvar_GascanChance ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_fuelbarrel : %i (%s)", g_iCvar_FuelBarrel, g_bCvar_FuelBarrel ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_fuelbarrel_chance : %.2f%% (%s)", g_fCvar_FuelBarrelChance, g_bCvar_FuelBarrelChance ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_propanecanister : %i (%s)", g_iCvar_PropaneCanister, g_bCvar_PropaneCanister ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_propanecanister_chance : %.2f%% (%s)", g_fCvar_PropaneCanisterChance, g_bCvar_PropaneCanisterChance ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_oxygentank : %i (%s)", g_iCvar_OxygenTank, g_bCvar_OxygenTank ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_oxygentank_chance : %.2f%% (%s)", g_fCvar_OxygenTankChance, g_bCvar_OxygenTankChance ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_barricadegascan : %i (%s)", g_iCvar_BarricadeGascan, g_bCvar_BarricadeGascan ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_barricadegascan_chance : %.2f%% (%s)", g_fCvar_BarricadeGascanChance, g_bCvar_BarricadeGascanChance ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_gaspump : %i (%s)", g_iCvar_GasPump, g_bCvar_GasPump ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_gaspump_chance : %.2f%% (%s)", g_fCvar_GasPumpChance, g_bCvar_GasPumpChance ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_oildrumexplosive : %i (%s)", g_iCvar_OilDrumExplosive, g_bCvar_OilDrumExplosive ? "true" : "false");
-    PrintToConsole(client, "l4d_add_prop_explosion_oildrumexplosive_chance : %.2f%% (%s)", g_fCvar_OilDrumExplosiveChance, g_bCvar_OilDrumExplosiveChance ? "true" : "false");
-    if (g_bL4D2) PrintToConsole(client, "l4d_add_prop_explosion_fireworkscrate : %i (%s)", g_iCvar_FireworksCrate, g_bCvar_FireworksCrate ? "true" : "false");
-    if (g_bL4D2) PrintToConsole(client, "l4d_add_prop_explosion_fireworkscrate_chance : %.2f%% (%s)", g_fCvar_FireworksCrateChance, g_bCvar_FireworksCrateChance ? "true" : "false");
+    PrintToConsole(client, "l4d_add_prop_explosion_gascan : %i", g_iCvar_Gascan);
+    PrintToConsole(client, "l4d_add_prop_explosion_gascan_chance : %i%%", g_iCvar_GascanChance);
+    PrintToConsole(client, "l4d_add_prop_explosion_fuelbarrel : %i", g_iCvar_FuelBarrel);
+    PrintToConsole(client, "l4d_add_prop_explosion_fuelbarrel_chance : %i%%", g_iCvar_FuelBarrelChance);
+    PrintToConsole(client, "l4d_add_prop_explosion_propanecanister : %i", g_iCvar_PropaneCanister);
+    PrintToConsole(client, "l4d_add_prop_explosion_propanecanister_chance : %i%%", g_iCvar_PropaneCanisterChance);
+    PrintToConsole(client, "l4d_add_prop_explosion_oxygentank : %i", g_iCvar_OxygenTank);
+    PrintToConsole(client, "l4d_add_prop_explosion_oxygentank_chance : %i%%", g_iCvar_OxygenTankChance);
+    PrintToConsole(client, "l4d_add_prop_explosion_barricadegascan : %i", g_iCvar_BarricadeGascan);
+    PrintToConsole(client, "l4d_add_prop_explosion_barricadegascan_chance : %i%%", g_iCvar_BarricadeGascanChance);
+    PrintToConsole(client, "l4d_add_prop_explosion_gaspump : %i", g_iCvar_GasPump);
+    PrintToConsole(client, "l4d_add_prop_explosion_gaspump_chance : %i%%", g_iCvar_GasPumpChance);
+    PrintToConsole(client, "l4d_add_prop_explosion_oildrumexplosive : %i", g_iCvar_OilDrumExplosive);
+    PrintToConsole(client, "l4d_add_prop_explosion_oildrumexplosive_chance : %i%%", g_iCvar_OilDrumExplosiveChance);
+    if (g_bL4D2) PrintToConsole(client, "l4d_add_prop_explosion_fireworkscrate : %i", g_iCvar_FireworksCrate);
+    if (g_bL4D2) PrintToConsole(client, "l4d_add_prop_explosion_fireworkscrate_chance : %i%%", g_iCvar_FireworksCrateChance);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -929,17 +885,4 @@ bool IsValidClientIndex(int client)
 bool IsValidClient(int client)
 {
     return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

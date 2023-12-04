@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.3"
+#define PLUGIN_VERSION 		"1.3b"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.3b (20-Jul-2021)
+	- Fixed a few messages not being patched. GameData file updated.
+
+1.3a (10-Jul-2021)
+	- Added some more lines to block to the gamedata file.
 
 1.3 (06-Jul-2021)
 	- Added a "MAX_PATCHES" define to the source to fix L4D1 not reading all entries on failure to find one.
@@ -104,6 +110,7 @@ public void OnPluginStart()
 
 			if( patchAddr )
 			{
+				// PrintToServer("Patching console message: %d", loop);
 				StoreToAddress(patchAddr, 0x00, NumberType_Int8);
 				done++;
 			}

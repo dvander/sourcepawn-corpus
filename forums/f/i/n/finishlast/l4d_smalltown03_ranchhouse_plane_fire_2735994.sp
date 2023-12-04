@@ -18,25 +18,33 @@ int ent_licht1;
 
 public void OnPluginStart()
 {
+
+
+	PrecacheSound("ambient/overhead/plane2.wav");
+	PrecacheSound("ambient/machines/floodgate_stop1.wav");
+	PrecacheSound("ambient/explosions/explode_1.wav");
+
+	PrecacheModel("models/props_street/traffic_plate_01.mdl",true);
+	PrecacheModel("models/props_vehicles/airplane_piperwreck.mdl",true);
+	PrecacheModel("models/props_vehicles/airplane_piperwing.mdl",true);
+	PrecacheModel("models/props_street/traffic_plate_01.mdl",true);
+
+
 	//RegConsoleCmd("sm_test1", Command_Test);
-		/* Clean up timers */
-	if (g_timer != INVALID_HANDLE) {
-		delete(g_timer);
-		g_timer = INVALID_HANDLE;
-	} 
 	//HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
 	//HookEvent("round_start", event_round_start, EventHookMode_PostNoCopy);
 	HookEvent("player_left_start_area", 			player_left_start_area,	EventHookMode_PostNoCopy);
-
+	HookEvent("round_end", event_round_end, EventHookMode_PostNoCopy);
 }
 
 public void OnMapEnd()
 {
-	/* Clean up timers */
-	if (g_timer != INVALID_HANDLE) {
-		delete(g_timer);
-		g_timer = INVALID_HANDLE;
-	}  
+delete g_timer;
+}
+
+public void event_round_end(Event event, const char[] name, bool dontBroadcast)
+{
+delete g_timer;
 }
 
 
@@ -61,9 +69,6 @@ public void player_left_start_area(Event event, const char[] name, bool dontBroa
 public Action planecrash(Handle timer)
 {
 
-	PrecacheModel("models/props_vehicles/airplane_piperwreck.mdl",true);
-	PrecacheModel("models/props_vehicles/airplane_piperwing.mdl",true);
-	PrecacheModel("models/props_street/traffic_plate_01.mdl",true);
 
 
 	float pos[3], ang[3], dir[3];
@@ -194,7 +199,7 @@ public Action planecrash(Handle timer)
 	//Command_Play("ambient\\generator\\generator_stop.wav");
 	//Command_Play("ambient\\generator\\generator_stop.wav");
 
-	g_timer = CreateTimer(0.01, planemove, _, TIMER_REPEAT);
+	g_timer = CreateTimer(0.1, planemove, _, TIMER_REPEAT);
 	
 }
 
@@ -423,7 +428,7 @@ public Action planemove(Handle timer)
 
 
 		
-
+		g_timer = null;
 		return Plugin_Stop;
 	}
  
@@ -436,7 +441,6 @@ public Action planemove(Handle timer)
 	soundloop++;
 	//numsound++;
 	return Plugin_Continue;
-
 }
 
 
@@ -491,18 +495,14 @@ public Action boom(Handle timer)
 
 
 
-
-
-
-
 //******
 
 
 public void OnTouch(int client, int other)
 {
-if(other>=0){
+if(other>=0 && other <= MaxClients){
 
-if(GetClientTeam(other) == 2)
+if(IsClientInGame(other) && GetClientTeam(other) == 2)
 {
 CreateTimer(2.0, boom);
 //PrintToChatAll ("touched");

@@ -1,6 +1,6 @@
 /*
 *	Reload Fix - Max Clip Size
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.3"
+#define PLUGIN_VERSION		"1.4"
 
 /*======================================================================================
 	Plugin Info:
@@ -26,11 +26,18 @@
 *	Name	:	[L4D & L4D2] Reload Fix - Max Clip Size
 *	Author	:	SilverShot
 *	Descrp	:	Fixes glitchy animation when the max clip sized was changed.
-*	Link	:	https://forums.alliedmods.net/showthread.php?t=321696
+*	Link	:	https://forums.alliedmods.net/showthread.php?t=327105
 *	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
 
 ========================================================================================
 	Change Log:
+
+1.4 (07-Nov-2023)
+	- Fixed not deleting 2 handles. Thanks to "HarryPotter" for reporting.
+
+1.3a (08-Sep-2021)
+	- GameData file updated. Wildcarded "CTerrorGun::Reload" to support other plugins detouring this function.
+	- Thanks to "vikingo12" for reporting.
 
 1.3 (05-Jul-2021)
 	- L4D2: Added support for the "weapon_smg_mp5" weapon. Thanks to "Alexmy" for reporting.
@@ -104,7 +111,7 @@ public Plugin myinfo =
 	author = "SilverShot",
 	description = "Fixes glitchy animation when the max clip sized was changed.",
 	version = PLUGIN_VERSION,
-	url = "https://forums.alliedmods.net/showthread.php?t=321696"
+	url = "https://forums.alliedmods.net/showthread.php?t=327105"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -186,6 +193,9 @@ public void OnPluginStart()
 
 	if( !DHookEnableDetour(hDetour, false, OnGunReload) )
 		SetFailState("Failed to detour: CTerrorGun::Reload");
+
+	delete hDetour;
+	delete hGameData;
 
 	// =========================
 	// CLIP SIZE

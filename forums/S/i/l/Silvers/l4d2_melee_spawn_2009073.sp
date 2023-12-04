@@ -1,6 +1,6 @@
 /*
 *	Melee Weapon Spawner
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.5"
+#define PLUGIN_VERSION 		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,9 +32,18 @@
 ========================================================================================
 	Change Log:
 
+1.8 (19-Sep-2023)
+	- Fixed not precaching the Knife model.
+
+1.7 (11-Dec-2022)
+	- Various changes to tidy up code.
+
+1.6 (26-May-2022)
+	- Menu now displays the last page that was selected instead of returning to the first page.
+
 1.5 (24-Sep-2020)
 	- Compatibility update for L4D2's "The Last Stand" update.
-	- Added support for the 2 new Melee weapons.
+	- Added support for the 2 new melee weapons.
 
 1.4 (10-May-2020)
 	- Extra checks to prevent "IsAllowedGameMode" throwing errors.
@@ -207,6 +216,7 @@ public void OnMapStart()
 	PrecacheModel("models/weapons/melee/v_frying_pan.mdl", true);
 	PrecacheModel("models/weapons/melee/v_golfclub.mdl", true);
 	PrecacheModel("models/weapons/melee/v_katana.mdl", true);
+	PrecacheModel("models/weapons/melee/v_knife_t.mdl", true);
 	PrecacheModel("models/weapons/melee/v_machete.mdl", true);
 	PrecacheModel("models/weapons/melee/v_tonfa.mdl", true);
 	PrecacheModel("models/weapons/melee/v_pitchfork.mdl", true);
@@ -220,6 +230,7 @@ public void OnMapStart()
 	PrecacheModel("models/weapons/melee/w_frying_pan.mdl", true);
 	PrecacheModel("models/weapons/melee/w_golfclub.mdl", true);
 	PrecacheModel("models/weapons/melee/w_katana.mdl", true);
+	PrecacheModel("models/weapons/melee/w_knife_t.mdl", true);
 	PrecacheModel("models/weapons/melee/w_machete.mdl", true);
 	PrecacheModel("models/weapons/melee/w_tonfa.mdl", true);
 	PrecacheModel("models/weapons/melee/w_pitchfork.mdl", true);
@@ -233,6 +244,7 @@ public void OnMapStart()
 	PrecacheGeneric("scripts/melee/frying_pan.txt", true);
 	PrecacheGeneric("scripts/melee/golfclub.txt", true);
 	PrecacheGeneric("scripts/melee/katana.txt", true);
+	PrecacheGeneric("scripts/melee/knife.txt", true);
 	PrecacheGeneric("scripts/melee/machete.txt", true);
 	PrecacheGeneric("scripts/melee/tonfa.txt", true);
 	PrecacheGeneric("scripts/melee/pitchfork.txt", true);
@@ -255,12 +267,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -354,7 +366,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -371,29 +383,30 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(false);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	ResetPlugin();
 	LoadSpawns();
+	return Plugin_Continue;
 }
 
 
@@ -518,8 +531,8 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 
 	DispatchKeyValue(entity_weapon, "solid", "6");
 	DispatchKeyValue(entity_weapon, "melee_script_name", g_sScripts[model]);
-
 	DispatchSpawn(entity_weapon);
+
 	if( model == 4 || model == 6 )
 	{
 		if( model == 4 )
@@ -554,7 +567,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 // ====================================================================================================
 //					sm_melee_spawn
 // ====================================================================================================
-public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
+int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -565,11 +578,13 @@ public int ListMenuHandler(Menu menu, MenuAction action, int client, int index)
 			CmdSpawnerSaveMenu(client, index);
 		}
 
-		g_hMenuList.Display(client, MENU_TIME_FOREVER);
+		g_hMenuList.DisplayAt(client, g_hMenuList.Selection, MENU_TIME_FOREVER);
 	}
+
+	return 0;
 }
 
-public Action CmdSpawnerTemp(int client, int args)
+Action CmdSpawnerTemp(int client, int args)
 {
 	if( !client )
 	{
@@ -615,7 +630,7 @@ void CmdSpawnerTempMenu(int client, int weapon)
 // ====================================================================================================
 //					sm_melee_spawn_save
 // ====================================================================================================
-public Action CmdSpawnerSave(int client, int args)
+Action CmdSpawnerSave(int client, int args)
 {
 	if( !client )
 	{
@@ -711,7 +726,7 @@ void CmdSpawnerSaveMenu(int client, int weapon)
 // ====================================================================================================
 //					sm_melee_spawn_del
 // ====================================================================================================
-public Action CmdSpawnerDel(int client, int args)
+Action CmdSpawnerDel(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -841,7 +856,7 @@ public Action CmdSpawnerDel(int client, int args)
 // ====================================================================================================
 //					sm_melee_spawn_clear
 // ====================================================================================================
-public Action CmdSpawnerClear(int client, int args)
+Action CmdSpawnerClear(int client, int args)
 {
 	if( !client )
 	{
@@ -858,7 +873,7 @@ public Action CmdSpawnerClear(int client, int args)
 // ====================================================================================================
 //					sm_melee_spawn_wipe
 // ====================================================================================================
-public Action CmdSpawnerWipe(int client, int args)
+Action CmdSpawnerWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -909,7 +924,7 @@ public Action CmdSpawnerWipe(int client, int args)
 // ====================================================================================================
 //					sm_melee_spawn_glow
 // ====================================================================================================
-public Action CmdSpawnerGlow(int client, int args)
+Action CmdSpawnerGlow(int client, int args)
 {
 	static bool glow;
 	glow = !glow;
@@ -941,7 +956,7 @@ void VendorGlow(int glow)
 // ====================================================================================================
 //					sm_melee_spawn_list
 // ====================================================================================================
-public Action CmdSpawnerList(int client, int args)
+Action CmdSpawnerList(int client, int args)
 {
 	float vPos[3];
 	int count;
@@ -961,7 +976,7 @@ public Action CmdSpawnerList(int client, int args)
 // ====================================================================================================
 //					sm_melee_spawn_tele
 // ====================================================================================================
-public Action CmdSpawnerTele(int client, int args)
+Action CmdSpawnerTele(int client, int args)
 {
 	if( args == 1 )
 	{
@@ -988,7 +1003,7 @@ public Action CmdSpawnerTele(int client, int args)
 // ====================================================================================================
 //					MENU ANGLE
 // ====================================================================================================
-public Action CmdSpawnerAng(int client, int args)
+Action CmdSpawnerAng(int client, int args)
 {
 	ShowMenuAng(client);
 	return Plugin_Handled;
@@ -1000,7 +1015,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1010,6 +1025,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1051,7 +1068,7 @@ void SetAngle(int client, int index)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdSpawnerPos(int client, int args)
+Action CmdSpawnerPos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -1063,7 +1080,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1073,6 +1090,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -1249,7 +1268,7 @@ void RemoveSpawn(int index)
 		client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 		if( client < 0 || client > MaxClients || !IsClientInGame(client) )
 		{
-			AcceptEntityInput(entity, "kill");
+			RemoveEntity(entity);
 		}
 	}
 }
@@ -1261,7 +1280,9 @@ void RemoveSpawn(int index)
 // ====================================================================================================
 float GetGroundHeight(float vPos[3])
 {
-	float vAng[3]; Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, _TraceFilter);
+	float vAng[3];
+
+	Handle trace = TR_TraceRayFilterEx(vPos, view_as<float>({ 90.0, 0.0, 0.0 }), MASK_ALL, RayType_Infinite, _TraceFilter);
 	if( TR_DidHit(trace) )
 		TR_GetEndPosition(vAng, trace);
 
@@ -1317,7 +1338,7 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
 }

@@ -1,6 +1,6 @@
 /*
 *	Healing Gnome
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.12"
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,29 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (03-Oct-2022)
+	- Added cvar "l4d2_gnome_time" to control how often to heal someone holding a gnome.
+	- Now uses the "m_iMaxHealth" value instead of the "MAX_MAIN_HEALTH" define. Thanks to "Haigen" for changing.
+	- Now checks if a Survivor is pinned to allow or disallow healing. Thanks to "Haigen" for fixing.
+	- Removed unused define "MAX_INCAP_HEALTH" - uses the games "survivor_incap_health" cvar value.
+
+1.16 (15-Sep-2021)
+	- Added cvar "l4d2_gnome_healing_field_self" to determine if the Healing Field can heal yourself or not.
+	- Changed cvar "l4d2_gnome_temp" to be a chance of giving temporary health.
+	- Fixed Healing Field not healing players with the cvar specified amount. Thanks to "Maur0" for the reporting.
+
+1.15 (12-Sep-2021)
+	- Re-wrote the heal client logic. Fixing various issues when reaching limits.
+	- Now has two defines in the source code to set maximum health. MAX_INCAP_HEALTH for incap temp health. MAX_MAIN_HEALTH includes main and temp health.
+
+1.14 (30-Aug-2021)
+	- Fixed losing temporary health when the limit was reached. Thanks to "Shao" for reporting.
+
+1.13 (31-Jul-2021)
+	- Added cvars "l4d2_gnome_max_main" and "l4d2_gnome_max_temp" to control the maximum main and temporary health allowed to heal to.
+	- Fixed cvar "l4d2_gnome_heal" when set to "0" not allowing the healing field feature to work. Again.
+	- Now ignores healing the holder with the standard healing when healing field is enabled.
 
 1.12 (01-Jun-2021)
 	- Fixed cvar "l4d2_gnome_heal" when set to "0" not allowing the Healing Field feature to work. Thanks to "ddd123" for reporting.
@@ -106,19 +129,19 @@
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define CHAT_TAG			"\x04[\x05Gnome\x04] \x01"
 #define CONFIG_SPAWNS		"data/l4d2_gnome.cfg"
+
 #define MAX_GNOMES			32
-#define MAX_HEALTH			100
-#define MAX_TEMPS			100.1
 
 #define MODEL_GNOME			"models/props_junk/gnome.mdl"
 
 
 Handle g_hTimerHeal;
 Menu g_hMenuAng, g_hMenuPos;
-ConVar g_hCvarAllow, g_hCvarDecayRate, g_hCvarGlow, g_hCvarGlowCol, g_hCvarGnomeRate, g_hCvarFull, g_hCvarHeal, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRandom, g_hCvarSafe, g_hCvarTemp;
-int g_iCvarGlow, g_iCvarGlowCol, g_iCvarFull, g_iCvarHeal, g_iCvarRandom, g_iCvarSafe, g_iCvarTemp, g_iGnomeCount, g_iGnome[MAXPLAYERS+1], g_iGnomes[MAX_GNOMES][2], g_iMap, g_iPlayerSpawn, g_iRoundStart;
+ConVar g_hCvarAllow, g_hCvarDecayRate, g_hCvarGlow, g_hCvarGlowCol, g_hCvarFull, g_hCvarHeal, g_hCvarMaxM, g_hCvarMaxT, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRandom, g_hCvarRate, g_hCvarSafe, g_hCvarTemp, g_hCvarTime;
+int g_iGnomeCount, g_iGnome[MAXPLAYERS+1], g_iGnomes[MAX_GNOMES][2], g_iCvarGlow, g_iCvarGlowCol, g_iCvarFull, g_iCvarHeal, g_iCvarMaxM, g_iCvarRandom, g_iCvarSafe, g_iCvarTemp, g_iMap, g_iPlayerSpawn, g_iRoundStart;
 bool g_bCvarAllow, g_bMapStarted, g_bLoaded;
-float g_fCvarDecayRate, g_fCvarGnomeRate, g_fHealTime[MAXPLAYERS+1];
+float g_fCvarMaxT, g_fCvarDecayRate, g_fCvarRate, g_fCvarTime, g_fHealTime[MAXPLAYERS+1];
+
 
 // Healing Field stuff:
 #define SPRITE_BEAM			"materials/sprites/laserbeam.vmt"
@@ -126,11 +149,11 @@ float g_fCvarDecayRate, g_fCvarGnomeRate, g_fHealTime[MAXPLAYERS+1];
 #define DIST_TOLERANCE		25.0
 
 Handle g_hTimerHealingField;
-ConVar g_hCvarIncapHealth, g_hCvarHealingField, g_hCvarHealingFieldRefreshTime, g_hCvarHealingFieldHealAmount, g_hCvarHealingFieldHealAmountIncap, g_hCvarHealingFieldBeacon, g_hCvarHealingFieldColor, g_hCvarHealingFieldStartRadius, g_hCvarHealingFieldEndRadius, g_hCvarHealingFieldDuration, g_hCvarHealingFieldWidth, g_hCvarHealingFieldAmplitude;
-int g_iBeamSprite, g_iHaloSprite, g_iCvarIncapHealth, g_iCvarHealingFieldColor[4];
-bool g_bCvarHealingField, g_bCvarHealingFieldBeacon, g_bCvarHealingFieldColorRandom;
-float g_fCvarHealingFieldRefreshTime, g_fCvarHealingFieldHealAmount, g_fCvarHealingFieldHealAmountIncap, g_fCvarHealingFieldStartRadius, g_fCvarHealingFieldEndRadius, g_fCvarHealingFieldDuration, g_fCvarHealingFieldWidth, g_fCvarHealingFieldAmplitude;
-char g_sCvarHealingFieldColor[12];
+ConVar g_hCvarIncapHealth, g_hCvarField, g_hCvarFieldRefreshTime, g_hCvarFieldHealAmount, g_hCvarFieldHealAmountIncap, g_hCvarFieldHealSelf, g_hCvarFieldBeacon, g_hCvarFieldColor, g_hCvarFieldStartRadius, g_hCvarFieldEndRadius, g_hCvarFieldDuration, g_hCvarFieldWidth, g_hCvarFieldAmplitude;
+int g_iBeamSprite, g_iHaloSprite, g_iCvarIncapHealth, g_iCvarFieldColor[4];
+bool g_bCvarField, g_bCvarFieldHealSelf, g_bCvarFieldBeacon, g_bCvarFieldColorRandom;
+float g_fCvarFieldRefreshTime, g_fCvarFieldHealAmount, g_fCvarFieldHealAmountIncap, g_fCvarFieldStartRadius, g_fCvarFieldEndRadius, g_fCvarFieldDuration, g_fCvarFieldWidth, g_fCvarFieldAmplitude;
+char g_sCvarFieldColor[12];
 
 
 
@@ -162,30 +185,34 @@ public void OnPluginStart()
 	g_hCvarAllow =		CreateConVar(	"l4d2_gnome_allow",			"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
 	g_hCvarGlow =		CreateConVar(	"l4d2_gnome_glow",			"200",			"0=Off. Sets the max range at which the gnome glows.", CVAR_FLAGS );
 	g_hCvarGlowCol =	CreateConVar(	"l4d2_gnome_glow_color",	"255 0 0",		"0=Default glow color. Three values between 0-255 separated by spaces. RGB: Red Green Blue.", CVAR_FLAGS );
-	g_hCvarFull =		CreateConVar(	"l4d2_gnome_full",			"0",			"0=Off, Remove black and white effect and give full health when regenerated to 100 with: 1=Temporary health. 2=Main health.", CVAR_FLAGS );
-	g_hCvarHeal =		CreateConVar(	"l4d2_gnome_heal",			"1",			"0=Off, 1=Heal players holding the gnome.", CVAR_FLAGS );
+	g_hCvarFull =		CreateConVar(	"l4d2_gnome_full",			"0",			"0=Off, Remove black and white effect and give full health when regenerated to maximum health with: 1=Temporary health. 2=Main health.", CVAR_FLAGS );
+	g_hCvarHeal =		CreateConVar(	"l4d2_gnome_heal",			"1",			"0=Off, 1=Heal players holding the gnome using cvars not from the Healing Field. Does not affect Healing Field.", CVAR_FLAGS );
+	g_hCvarMaxM =		CreateConVar(	"l4d2_gnome_max_main",		"100",			"Maximum main health to heal clients to.", CVAR_FLAGS );
+	g_hCvarMaxT =		CreateConVar(	"l4d2_gnome_max_temp",		"100.0",		"Maximum temporary health to heal clients to.", CVAR_FLAGS );
 	g_hCvarModes =		CreateConVar(	"l4d2_gnome_modes",			"",				"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff =	CreateConVar(	"l4d2_gnome_modes_off",		"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =	CreateConVar(	"l4d2_gnome_modes_tog",		"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
-	g_hCvarRandom =		CreateConVar(	"l4d2_gnome_random",		"-1",			"-1=All, 0=None. Otherwise randomly select this many gnomes to spawn from the maps confg.", CVAR_FLAGS );
+	g_hCvarRandom =		CreateConVar(	"l4d2_gnome_random",		"-1",			"-1=All, 0=None. Otherwise randomly select this many gnomes to spawn from the maps config.", CVAR_FLAGS );
 	g_hCvarSafe =		CreateConVar(	"l4d2_gnome_safe",			"0",			"On round start spawn the gnome: 0=Off, 1=In the saferoom, 2=Equip to random player.", CVAR_FLAGS );
-	g_hCvarTemp =		CreateConVar(	"l4d2_gnome_temp",			"-1",			"-1=Add temporary health, 0=Add to main health. Values between 1 and 100 creates a chance to give main health, else temp health.", CVAR_FLAGS );
-	g_hCvarHealingField =					CreateConVar(	"l4d2_gnome_healing_field",						"1",			"0=Off. 1=Heal players around the player holding the gnome.", CVAR_FLAGS, true, 0.0, true, 1.0 );
-	g_hCvarHealingFieldRefreshTime =		CreateConVar(	"l4d2_gnome_healing_field_refresh_time",		"1.5",			"0=Off. Interval in seconds, for the healing field trigger the heal and beacon again.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldHealAmount =			CreateConVar(	"l4d2_gnome_healing_field_heal_amount",			"2.0",			"Heal amount from being inside the healing field.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldHealAmountIncap =	CreateConVar(	"l4d2_gnome_healing_field_heal_amount_incap",	"2.0",			"Heal amount for incapped players from being inside the healing field.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldBeacon =				CreateConVar(	"l4d2_gnome_healing_field_heal_beacon",			"1",			"0=Off. 1=Generates a beacon.", CVAR_FLAGS, true, 0.0, true, 1.0 );
-	g_hCvarHealingFieldColor =				CreateConVar(	"l4d2_gnome_healing_field_color",				"0 255 0",		"Healing field color. Three values between 0-255 separated by spaces. RGB: Red Green Blue.\nUse \"random\" to generate random colors.", CVAR_FLAGS );
-	g_hCvarHealingFieldStartRadius =		CreateConVar(	"l4d2_gnome_healing_field_start_radius",		"100.0",		"Healing field start radius.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldEndRadius =			CreateConVar(	"l4d2_gnome_healing_field_end_radius",			"350.0",		"Healing field end radius. Also determines the max distance to heal players around the player holding the gnome.\nMax distance = (l4d2_gnome_healing_field_end_radius / 2) because of the diameter.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldDuration =			CreateConVar(	"l4d2_gnome_healing_field_duration",			"1.0",			"How many seconds the healing field should last.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldWidth =				CreateConVar(	"l4d2_gnome_healing_field_width",				"3.0",			"Healing field width.", CVAR_FLAGS, true, 0.0 );
-	g_hCvarHealingFieldAmplitude =			CreateConVar(	"l4d2_gnome_healing_field_amplitude",			"0.0",			"Healing field amplitude.", CVAR_FLAGS, true, 0.0 );
-	CreateConVar(						"l4d2_gnome_version",		PLUGIN_VERSION, "Healing Gnome plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
-	AutoExecConfig(true,				"l4d2_gnome");
+	g_hCvarTemp =		CreateConVar(	"l4d2_gnome_temp",			"-1",			"-1=Add temporary health, 0=Add to main health. Values between 1 and 100 creates a chance to give temp health, else main health.", CVAR_FLAGS );
+	g_hCvarTime =		CreateConVar(	"l4d2_gnome_time",			"1.0",			"0=Off. Interval in seconds, for healing someone holding the gnome.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarField =					CreateConVar(	"l4d2_gnome_healing_field",						"1",			"0=Off. 1=Heal players around the player holding the gnome.", CVAR_FLAGS, true, 0.0, true, 1.0 );
+	g_hCvarFieldRefreshTime =		CreateConVar(	"l4d2_gnome_healing_field_refresh_time",		"1.5",			"0=Off. Interval in seconds, for the healing field trigger the heal and beacon again.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldHealAmount =		CreateConVar(	"l4d2_gnome_healing_field_heal_amount",			"2.0",			"Heal amount from being inside the healing field.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldHealAmountIncap =	CreateConVar(	"l4d2_gnome_healing_field_heal_amount_incap",	"2.0",			"Heal amount for incapped players from being inside the healing field.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldHealSelf =			CreateConVar(	"l4d2_gnome_healing_field_self",				"1",			"0=Only healing others. 1=Heal self and others.", CVAR_FLAGS );
+	g_hCvarFieldBeacon =			CreateConVar(	"l4d2_gnome_healing_field_heal_beacon",			"1",			"0=Off. 1=Generates a beacon.", CVAR_FLAGS, true, 0.0, true, 1.0 );
+	g_hCvarFieldColor =				CreateConVar(	"l4d2_gnome_healing_field_color",				"0 255 0",		"Healing field color. Three values between 0-255 separated by spaces. RGB: Red Green Blue.\nUse \"random\" to generate random colors.", CVAR_FLAGS );
+	g_hCvarFieldStartRadius =		CreateConVar(	"l4d2_gnome_healing_field_start_radius",		"100.0",		"Healing field start radius.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldEndRadius =			CreateConVar(	"l4d2_gnome_healing_field_end_radius",			"350.0",		"Healing field end radius. Also determines the max distance to heal players around the player holding the gnome.\nMax distance = (l4d2_gnome_healing_field_end_radius / 2) because of the diameter.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldDuration =			CreateConVar(	"l4d2_gnome_healing_field_duration",			"1.0",			"How many seconds the healing field should last.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldWidth =				CreateConVar(	"l4d2_gnome_healing_field_width",				"3.0",			"Healing field width.", CVAR_FLAGS, true, 0.0 );
+	g_hCvarFieldAmplitude =			CreateConVar(	"l4d2_gnome_healing_field_amplitude",			"0.0",			"Healing field amplitude.", CVAR_FLAGS, true, 0.0 );
+	CreateConVar(									"l4d2_gnome_version",							PLUGIN_VERSION,	"Healing Gnome plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	AutoExecConfig(true,							"l4d2_gnome");
 
 	g_hCvarDecayRate = FindConVar("pain_pills_decay_rate");
-	g_hCvarGnomeRate = FindConVar("sv_healing_gnome_replenish_rate");
+	g_hCvarRate = FindConVar("sv_healing_gnome_replenish_rate");
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
 	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
@@ -194,24 +221,28 @@ public void OnPluginStart()
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarFull.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarHeal.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarMaxM.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarMaxT.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRandom.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarRate.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSafe.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarTemp.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarTime.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDecayRate.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarGnomeRate.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarIncapHealth = FindConVar("survivor_incap_health");
 	g_hCvarIncapHealth.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingField.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldRefreshTime.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldHealAmount.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldHealAmountIncap.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldBeacon.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldColor.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldStartRadius.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldEndRadius.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldDuration.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldWidth.AddChangeHook(ConVarChanged_Cvars);
-	g_hCvarHealingFieldAmplitude.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarField.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldRefreshTime.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldHealAmount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldHealAmountIncap.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldHealSelf.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldBeacon.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldColor.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldStartRadius.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldEndRadius.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldDuration.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldWidth.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFieldAmplitude.AddChangeHook(ConVarChanged_Cvars);
 
 	RegAdminCmd("sm_gnome",			CmdGnomeTemp,		ADMFLAG_ROOT, 	"Spawns a temporary gnome at your crosshair.");
 	RegAdminCmd("sm_gnomesave",		CmdGnomeSave,		ADMFLAG_ROOT, 	"Spawns a gnome at your crosshair and saves to config.");
@@ -308,12 +339,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -324,25 +355,29 @@ void GetCvars()
 	g_iCvarGlowCol = GetColor(g_hCvarGlowCol);
 	g_iCvarFull = g_hCvarFull.IntValue;
 	g_iCvarHeal = g_hCvarHeal.IntValue;
+	g_iCvarMaxM = g_hCvarMaxM.IntValue;
+	g_fCvarMaxT = g_hCvarMaxT.FloatValue;
 	g_iCvarRandom = g_hCvarRandom.IntValue;
+	g_fCvarRate = g_hCvarRate.FloatValue;
 	g_iCvarSafe = g_hCvarSafe.IntValue;
 	g_iCvarTemp = g_hCvarTemp.IntValue;
+	g_fCvarTime = g_hCvarTime.FloatValue;
 	g_fCvarDecayRate = g_hCvarDecayRate.FloatValue;
-	g_fCvarGnomeRate = g_hCvarGnomeRate.FloatValue;
 	g_iCvarIncapHealth = g_hCvarIncapHealth.IntValue;
-	g_bCvarHealingField = g_hCvarHealingField.BoolValue;
-	g_fCvarHealingFieldRefreshTime = g_hCvarHealingFieldRefreshTime.FloatValue;
-	g_fCvarHealingFieldHealAmount = g_hCvarHealingFieldHealAmount.FloatValue;
-	g_fCvarHealingFieldHealAmountIncap = g_hCvarHealingFieldHealAmountIncap.FloatValue;
-	g_bCvarHealingFieldBeacon = g_hCvarHealingFieldBeacon.BoolValue;
-	g_hCvarHealingFieldColor.GetString(g_sCvarHealingFieldColor, sizeof(g_sCvarHealingFieldColor));
-	g_bCvarHealingFieldColorRandom = StrEqual(g_sCvarHealingFieldColor, "random");
-	g_iCvarHealingFieldColor = GetColors(g_sCvarHealingFieldColor);
-	g_fCvarHealingFieldStartRadius = g_hCvarHealingFieldStartRadius.FloatValue;
-	g_fCvarHealingFieldEndRadius = g_hCvarHealingFieldEndRadius.FloatValue;
-	g_fCvarHealingFieldDuration = g_hCvarHealingFieldDuration.FloatValue;
-	g_fCvarHealingFieldWidth = g_hCvarHealingFieldWidth.FloatValue;
-	g_fCvarHealingFieldAmplitude = g_hCvarHealingFieldAmplitude.FloatValue;
+	g_bCvarField = g_hCvarField.BoolValue;
+	g_fCvarFieldRefreshTime = g_hCvarFieldRefreshTime.FloatValue;
+	g_fCvarFieldHealAmount = g_hCvarFieldHealAmount.FloatValue;
+	g_fCvarFieldHealAmountIncap = g_hCvarFieldHealAmountIncap.FloatValue;
+	g_bCvarFieldHealSelf = g_hCvarFieldHealSelf.BoolValue;
+	g_bCvarFieldBeacon = g_hCvarFieldBeacon.BoolValue;
+	g_hCvarFieldColor.GetString(g_sCvarFieldColor, sizeof(g_sCvarFieldColor));
+	g_bCvarFieldColorRandom = StrEqual(g_sCvarFieldColor, "random");
+	g_iCvarFieldColor = GetColors(g_sCvarFieldColor);
+	g_fCvarFieldStartRadius = g_hCvarFieldStartRadius.FloatValue;
+	g_fCvarFieldEndRadius = g_hCvarFieldEndRadius.FloatValue;
+	g_fCvarFieldDuration = g_hCvarFieldDuration.FloatValue;
+	g_fCvarFieldWidth = g_hCvarFieldWidth.FloatValue;
+	g_fCvarFieldAmplitude = g_hCvarFieldAmplitude.FloatValue;
 }
 
 void IsAllowed()
@@ -430,7 +465,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -447,26 +482,26 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin(false);
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		CreateTimer(g_iMap == 1 ? 5.0 : 1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		CreateTimer(g_iMap == 1 ? 5.0 : 1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	g_iMap = 0;
 	ResetPlugin();
@@ -510,35 +545,35 @@ public Action TimerStart(Handle timer)
 				EquipPlayerWeapon(client, entity);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
-public void Event_ItemPickup(Event event, const char[] name, bool dontBroadcast)
+void Event_ItemPickup(Event event, const char[] name, bool dontBroadcast)
 {
-	if( g_iCvarHeal || g_bCvarHealingField )
+	if( g_iCvarHeal || g_bCvarField )
 	{
 		char sTemp[6];
 		event.GetString("item", sTemp, sizeof(sTemp));
 		if( strcmp(sTemp, "gnome") == 0 )
 		{
-			if( g_iCvarHeal )
-			{
-				int client = GetClientOfUserId(event.GetInt("userid"));
-				g_iGnome[client] = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+			int client = GetClientOfUserId(event.GetInt("userid"));
+			g_iGnome[client] = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-				if( g_hTimerHeal == null )
-					g_hTimerHeal = CreateTimer(0.1, TimerHeal, _, TIMER_REPEAT);
+			if( g_iCvarHeal && g_hTimerHeal == null )
+			{
+				g_hTimerHeal = CreateTimer(g_fCvarTime, TimerHeal, _, TIMER_REPEAT);
 			}
 
-			if( g_bCvarHealingField )
+			if( g_bCvarField && g_hTimerHealingField == null )
 			{
-				if( g_hTimerHealingField == null )
-					g_hTimerHealingField = CreateTimer(g_fCvarHealingFieldRefreshTime, TimerHealingField, _, TIMER_REPEAT);
+				g_hTimerHealingField = CreateTimer(g_fCvarFieldRefreshTime, TimerHealingField, _, TIMER_REPEAT);
 			}
 		}
 	}
 }
 
-public Action TimerHeal(Handle timer)
+Action TimerHeal(Handle timer)
 {
 	int entity;
 	bool healed;
@@ -550,7 +585,7 @@ public Action TimerHeal(Handle timer)
 			entity = g_iGnome[i];
 			if( entity )
 			{
-				if( IsClientInGame(i) && IsPlayerAlive(i) && entity == GetEntPropEnt(i, Prop_Send, "m_hActiveWeapon") )
+				if( IsClientInGame(i) && IsPlayerAlive(i) && entity == GetEntPropEnt(i, Prop_Send, "m_hActiveWeapon") && !IsPinned(i) )
 				{
 					HealClient(i);
 					healed = true;
@@ -573,63 +608,83 @@ public Action TimerHeal(Handle timer)
 void HealClient(int client)
 {
 	int iHealth = GetClientHealth(client);
-	if( iHealth >= MAX_HEALTH )
-		return;
+	int iMaxHealth = GetEntProp(client, Prop_Send, "m_iMaxHealth");
 
 	float fGameTime = GetGameTime();
 	float fHealthTime = GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
 	float fHealth = GetEntPropFloat(client, Prop_Send, "m_healthBuffer");
 	fHealth -= (fGameTime - fHealthTime) * g_fCvarDecayRate;
 
-	if( g_iCvarTemp == -1 || (g_iCvarTemp != 0 && GetRandomInt(1, 100) >= g_iCvarTemp) )
+	// Heal temp health
+	if( g_iCvarTemp == -1 || (g_iCvarTemp != 0 && GetRandomInt(1, 100) <= g_iCvarTemp) )
 	{
 		if( fHealth < 0.0 )
 			fHealth = 0.0;
 
-		float fBuff = (0.1 * g_fCvarGnomeRate);
+		// How much temp health to give
+		float fBuff = (0.1 * g_fCvarRate);
+		fHealth += fBuff;
 
-		if( fHealth + iHealth + fBuff > MAX_HEALTH )
+		// Maximum health reached, do we full heal?
+		if( g_iCvarFull == 1 && fHealth >= g_fCvarMaxT )
 		{
-			if( g_iCvarFull == 1 )
-			{
-				HealPlayer(client);
-				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
-			} else {
-				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", MAX_TEMPS - float(iHealth));
-			}
+			HealPlayer(client);
+			SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
+			SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
 		}
-		else
+		// Reached maximum health
+		else if( iHealth + fHealth >= iMaxHealth )
 		{
-			SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth + fBuff);
+			// Heal to max allowed temp, or to max main health
+			if( fHealth >= g_fCvarMaxT )
+				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", g_fCvarMaxT);
+			else
+				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", float(iMaxHealth - iHealth));
+			SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
 		}
-		SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+
+		// Temp buff is less than maximum allowed
+		else if( fHealth < g_fCvarMaxT )
+		{
+			SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth);
+			SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+		}
 	}
 	else
 	{
-		if( fGameTime - g_fHealTime[client] > 1.0 )
+		// Heal main health
+		if( fGameTime - g_fHealTime[client] >= g_fCvarTime )
 		{
 			g_fHealTime[client] = fGameTime;
 
-			int iBuff = RoundToFloor(g_fCvarGnomeRate);
+			int iBuff = RoundToFloor(g_fCvarRate);
 			iHealth += iBuff;
-			if( iHealth >= MAX_HEALTH )
-			{
-				if( g_iCvarFull == 2 )
-				{
-					HealPlayer(client);
-				}
 
-				iHealth = MAX_HEALTH;
+			if( g_iCvarFull == 2 && iHealth >= g_iCvarMaxM )
+			{
+				HealPlayer(client);
 				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
 				SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
 			}
-			else if( iHealth + fHealth >= MAX_HEALTH )
+
+			else if( iHealth >= iMaxHealth )
 			{
-				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", MAX_TEMPS - iHealth);
+				iHealth = iMaxHealth;
+
+				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
 				SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
 			}
 
-			SetEntityHealth(client, iHealth);
+			else if( iHealth + fHealth >= iMaxHealth )
+			{
+				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", float(iMaxHealth - iHealth));
+				SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+			}
+
+			if( iHealth <= g_iCvarMaxM && iHealth <= iMaxHealth )
+			{
+				SetEntityHealth(client, iHealth);
+			}
 		}
 	}
 }
@@ -639,9 +694,9 @@ void HealClient(int client)
 // ====================================================================================================
 //					HEALING FIELD
 // ====================================================================================================
-public Action TimerHealingField(Handle timer)
+Action TimerHealingField(Handle timer)
 {
-	if( !g_bCvarHealingField )
+	if( !g_bCvarField )
 	{
 		g_hTimerHealingField = null;
 		return Plugin_Stop;
@@ -660,7 +715,7 @@ public Action TimerHealingField(Handle timer)
 				float vPos[3];
 				GetEntPropVector(i, Prop_Data, "m_vecAbsOrigin", vPos);
 
-				if( g_bCvarHealingFieldBeacon )
+				if( g_bCvarFieldBeacon )
 					CreateBeamRing(vPos);
 
 				HealingField(i, vPos);
@@ -685,15 +740,15 @@ void HealingField(int healer, float vPos[3])
 {
 	for( int i = 1; i <= MaxClients; i++ )
 	{
-		if( i == healer )
+		if( !g_bCvarFieldHealSelf && i == healer )
 			continue;
 
-		if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
+		if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) && !IsPinned(i) )
 		{
 			float vEnd[3];
 			GetEntPropVector(i, Prop_Data, "m_vecAbsOrigin", vEnd);
 
-			if( (GetVectorDistance(vPos, vEnd) - DIST_TOLERANCE) <= (g_fCvarHealingFieldEndRadius / 2) )
+			if( (GetVectorDistance(vPos, vEnd) - DIST_TOLERANCE) <= (g_fCvarFieldEndRadius / 2) )
 				HealClientOnHealingField(i);
 		}
 	}
@@ -709,7 +764,7 @@ void HealClientOnHealingField(int client)
 		if( iHealth >= g_iCvarIncapHealth )
 			return;
 
-		int iBuff = RoundToFloor(g_fCvarHealingFieldHealAmountIncap);
+		int iBuff = RoundToFloor(g_fCvarFieldHealAmountIncap);
 		iHealth += iBuff;
 		if( iHealth > g_iCvarIncapHealth )
 			iHealth = g_iCvarIncapHealth;
@@ -719,44 +774,84 @@ void HealClientOnHealingField(int client)
 	else
 	{
 		int iHealth = GetClientHealth(client);
-		if( iHealth >= 100 )
-			return;
+		int iMaxHealth = GetEntProp(client, Prop_Send, "m_iMaxHealth");
 
 		float fGameTime = GetGameTime();
 		float fHealthTime = GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
 		float fHealth = GetEntPropFloat(client, Prop_Send, "m_healthBuffer");
 		fHealth -= (fGameTime - fHealthTime) * g_fCvarDecayRate;
 
-		if( g_iCvarTemp == -1 || (g_iCvarTemp != 0 && GetRandomInt(1, 100) >= g_iCvarTemp) )
+		// Heal temp health
+		if( g_iCvarTemp == -1 || (g_iCvarTemp != 0 && GetRandomInt(1, 100) <= g_iCvarTemp) )
 		{
 			if( fHealth < 0.0 )
 				fHealth = 0.0;
 
-			float fBuff = g_fCvarHealingFieldHealAmount;
+			// How much temp health to give
+			float fBuff = g_fCvarFieldHealAmount;
+			fHealth += fBuff;
 
-			if( fHealth + iHealth + fBuff > 100 )
-				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 100.1 - float(iHealth));
-			else
-				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth + fBuff);
-			SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
-		}
-		else
-		{
-			int iBuff = RoundToFloor(g_fCvarHealingFieldHealAmount);
-			iHealth += iBuff;
-			if( iHealth >= 100 )
+			// Maximum health reached, do we full heal?
+			if( g_iCvarFull == 1 && fHealth >= g_fCvarMaxT )
 			{
-				iHealth = 100;
+				HealPlayer(client);
 				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
 				SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
 			}
-			else if( iHealth + fHealth >= 100 )
+			// Reached maximum health
+			else if( iHealth + fHealth >= iMaxHealth )
 			{
-				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 100.1 - iHealth);
+				// Heal to max allowed temp, or to max main health
+				if( fHealth >= g_fCvarMaxT )
+					SetEntPropFloat(client, Prop_Send, "m_healthBuffer", g_fCvarMaxT);
+				else
+					SetEntPropFloat(client, Prop_Send, "m_healthBuffer", float(iMaxHealth - iHealth));
 				SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
 			}
 
-			SetEntityHealth(client, iHealth);
+			// Temp buff is less than maximum allowed
+			else if( fHealth < g_fCvarMaxT )
+			{
+				SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth);
+				SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+			}
+		}
+		else
+		{
+			// Heal main health
+			if( fGameTime - g_fHealTime[client] >= g_fCvarFieldRefreshTime )
+			{
+				g_fHealTime[client] = fGameTime;
+
+				int iBuff = RoundToFloor(g_fCvarFieldHealAmount);
+				iHealth += iBuff;
+
+				if( g_iCvarFull == 2 && iHealth >= g_iCvarMaxM )
+				{
+					HealPlayer(client);
+					SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
+					SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+				}
+
+				else if( iHealth >= iMaxHealth )
+				{
+					iHealth = iMaxHealth;
+
+					SetEntPropFloat(client, Prop_Send, "m_healthBuffer", 0.0);
+					SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+				}
+
+				else if( iHealth + fHealth >= iMaxHealth )
+				{
+					SetEntPropFloat(client, Prop_Send, "m_healthBuffer", float(iMaxHealth - iHealth));
+					SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", fGameTime);
+				}
+
+				if( iHealth <= g_iCvarMaxM && iHealth <= iMaxHealth )
+				{
+					SetEntityHealth(client, iHealth);
+				}
+			}
 		}
 	}
 }
@@ -765,13 +860,13 @@ void CreateBeamRing(float vPos[3])
 {
 	int colors[4];
 
-	if( g_bCvarHealingFieldColorRandom )
+	if( g_bCvarFieldColorRandom )
 		colors = GetRandomColors();
 	else
-		colors = g_iCvarHealingFieldColor;
+		colors = g_iCvarFieldColor;
 
 	vPos[2] += 10.0;
-	TE_SetupBeamRingPoint(vPos, g_fCvarHealingFieldStartRadius, g_fCvarHealingFieldEndRadius, g_iBeamSprite, g_iHaloSprite, 0, 0, g_fCvarHealingFieldDuration, g_fCvarHealingFieldWidth, g_fCvarHealingFieldAmplitude, colors, 0, 0 );
+	TE_SetupBeamRingPoint(vPos, g_fCvarFieldStartRadius, g_fCvarFieldEndRadius, g_iBeamSprite, g_iHaloSprite, 0, 0, g_fCvarFieldDuration, g_fCvarFieldWidth, g_fCvarFieldAmplitude, colors, 0, 0 );
 	TE_SendToAll();
 }
 
@@ -890,6 +985,7 @@ void CreateGnome(const float vOrigin[3], const float vAngles[3], int index = 0)
 
 	g_iGnomes[iGnomeIndex][0] = EntIndexToEntRef(entity);
 	g_iGnomes[iGnomeIndex][1] = index;
+
 	DispatchKeyValue(entity, "model", MODEL_GNOME);
 	DispatchSpawn(entity);
 	TeleportEntity(entity, vOrigin, vAngles, NULL_VECTOR);
@@ -912,7 +1008,7 @@ void CreateGnome(const float vOrigin[3], const float vAngles[3], int index = 0)
 // ====================================================================================================
 //					sm_gnome
 // ====================================================================================================
-public Action CmdGnomeTemp(int client, int args)
+Action CmdGnomeTemp(int client, int args)
 {
 	if( !client )
 	{
@@ -939,7 +1035,7 @@ public Action CmdGnomeTemp(int client, int args)
 // ====================================================================================================
 //					sm_gnomesave
 // ====================================================================================================
-public Action CmdGnomeSave(int client, int args)
+Action CmdGnomeSave(int client, int args)
 {
 	if( !client )
 	{
@@ -1027,7 +1123,7 @@ public Action CmdGnomeSave(int client, int args)
 // ====================================================================================================
 //					sm_gnomedel
 // ====================================================================================================
-public Action CmdGnomeDelete(int client, int args)
+Action CmdGnomeDelete(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1157,7 +1253,7 @@ public Action CmdGnomeDelete(int client, int args)
 // ====================================================================================================
 //					sm_gnomewipe
 // ====================================================================================================
-public Action CmdGnomeWipe(int client, int args)
+Action CmdGnomeWipe(int client, int args)
 {
 	if( !client )
 	{
@@ -1208,17 +1304,17 @@ public Action CmdGnomeWipe(int client, int args)
 // ====================================================================================================
 //					sm_gnomeglow
 // ====================================================================================================
-public Action CmdGnomeGlow(int client, int args)
+Action CmdGnomeGlow(int client, int args)
 {
 	static bool glow;
 	glow = !glow;
 	PrintToChat(client, "%sGlow has been turned %s", CHAT_TAG, glow ? "on" : "off");
 
-	VendorGlow(glow);
+	GnomeGlow(glow);
 	return Plugin_Handled;
 }
 
-void VendorGlow(int glow)
+void GnomeGlow(int glow)
 {
 	int ent;
 
@@ -1238,7 +1334,7 @@ void VendorGlow(int glow)
 // ====================================================================================================
 //					sm_gnomelist
 // ====================================================================================================
-public Action CmdGnomeList(int client, int args)
+Action CmdGnomeList(int client, int args)
 {
 	float vPos[3];
 	int count;
@@ -1248,17 +1344,20 @@ public Action CmdGnomeList(int client, int args)
 		{
 			count++;
 			GetEntPropVector(g_iGnomes[i][0], Prop_Data, "m_vecOrigin", vPos);
-			PrintToChat(client, "%s%d) %f %f %f", CHAT_TAG, i+1, vPos[0], vPos[1], vPos[2]);
+			if( client )	PrintToChat(client, "%s%d) %f %f %f", CHAT_TAG, i+1, vPos[0], vPos[1], vPos[2]);
+			else			PrintToConsole(client, "[Gnome] %d) %f %f %f", i+1, vPos[0], vPos[1], vPos[2]);
 		}
 	}
-	PrintToChat(client, "%sTotal: %d.", CHAT_TAG, count);
+
+	if( client )	PrintToChat(client, "%sTotal: %d.", CHAT_TAG, count);
+	else			PrintToConsole(client, "[Gnome] Total: %d.", count);
 	return Plugin_Handled;
 }
 
 // ====================================================================================================
 //					sm_gnometele
 // ====================================================================================================
-public Action CmdGnomeTele(int client, int args)
+Action CmdGnomeTele(int client, int args)
 {
 	if( args == 1 )
 	{
@@ -1285,7 +1384,7 @@ public Action CmdGnomeTele(int client, int args)
 // ====================================================================================================
 //					MENU ANGLE
 // ====================================================================================================
-public Action CmdGnomeAng(int client, int args)
+Action CmdGnomeAng(int client, int args)
 {
 	ShowMenuAng(client);
 	return Plugin_Handled;
@@ -1297,7 +1396,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1307,6 +1406,8 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetAngle(client, index);
 		ShowMenuAng(client);
 	}
+
+	return 0;
 }
 
 void SetAngle(int client, int index)
@@ -1348,7 +1449,7 @@ void SetAngle(int client, int index)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdGnomePos(int client, int args)
+Action CmdGnomePos(int client, int args)
 {
 	ShowMenuPos(client);
 	return Plugin_Handled;
@@ -1360,7 +1461,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1370,6 +1471,8 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 			SetOrigin(client, index);
 		ShowMenuPos(client);
 	}
+
+	return 0;
 }
 
 void SetOrigin(int client, int index)
@@ -1549,7 +1652,7 @@ void RemoveGnome(int index)
 	g_iGnomes[index][0] = 0;
 
 	if( IsValidEntRef(entity) )
-		AcceptEntityInput(entity, "kill");
+		RemoveEntity(entity);
 }
 
 void HealPlayer(int client)
@@ -1628,7 +1731,18 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 	return true;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
+}
+
+bool IsPinned(int client)
+{
+	if( GetEntPropEnt(client, Prop_Send, "m_pummelAttacker") > 0 ||
+		GetEntPropEnt(client, Prop_Send, "m_carryAttacker") > 0  ||
+		GetEntPropEnt(client, Prop_Send, "m_pounceAttacker") > 0 ||
+		GetEntPropEnt(client, Prop_Send, "m_jockeyAttacker") > 0 ||
+		GetEntPropEnt(client, Prop_Send, "m_tongueOwner") > 0 )
+		return true;
+	return false;
 }

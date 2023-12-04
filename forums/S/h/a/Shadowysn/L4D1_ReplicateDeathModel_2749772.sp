@@ -10,8 +10,8 @@
 #define PLUGIN_AUTHOR "Shadowysn"
 //#define PLUGIN_DESC "Replicates the death animation and defibrillator from L4D2."
 #define PLUGIN_DESC "Replicates the death animation from L4D2."
-#define PLUGIN_VERSION "1.0.1"
-#define PLUGIN_URL ""
+#define PLUGIN_VERSION "1.0.5"
+#define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?t=333027"
 #define PLUGIN_NAME_SHORT "Replicate L4D2 Death Animation"
 #define PLUGIN_NAME_TECH "sequel_death_anim"
 
@@ -21,6 +21,7 @@
 #define DEATH_MODEL_VIS "plugin_sdm_vismdl_%i"
 
 #define DEFIB_CLASS "weapon_defibrillator"
+#define KIT_CLASS "weapon_first_aid_kit"
 
 #define DEATH_MODEL_HP_PREVENTKILL 999999
 
@@ -33,31 +34,75 @@
 
 #define POST_THINK_HOOK SDKHook_PostThinkPost
 
-static float g_fClientWait[MAXPLAYERS+1] = 0.0;
+float g_fClientWait[MAXPLAYERS+1];
 #define THINK_WAITTIME 0.5
 
-#define BITFLAG_BEHAVIOR_HP		(1 << 0)
+#define BITFLAG_BEHAVIOR_HP	(1 << 0)
 #define BITFLAG_BEHAVIOR_VEL	(1 << 1)
 #define BITFLAG_BEHAVIOR_ZOMB	(1 << 2)
 
 TopMenu hTopMenu;
 
-ConVar RDeathModel_Enable;
-//ConVar RDeathModel_EnableDefib;
-ConVar RDeathModel_Behavior;
-ConVar RDeathModel_ZombieSurvHP;
-ConVar RDeathModel_GetUpTime;
+ConVar RDeathModel_Enable,
+//RDeathModel_EnableDefib,
+RDeathModel_DefibColor,
+RDeathModel_Behavior,
+RDeathModel_ZombieSurvHP,
+RDeathModel_GetUpTime,
+RDeathModel_DefibUseTime;
+bool g_bEnable;
+int g_iBehavior, g_iZSurvHP;
+float g_fGetUpTime, g_fDefibUseTime;
+static char g_strDefibColor[16];
 
-static int g_iDeathModel[MAXPLAYERS+1] = INVALID_ENT_REFERENCE;
+int g_iDeathModel[MAXPLAYERS+1];
+int g_iTargetBody[MAXPLAYERS+1] = {INVALID_ENT_REFERENCE};
+int g_iTargetClient[MAXPLAYERS+1] = {INVALID_ENT_REFERENCE};
+float g_fDefibUsedTimer[MAXPLAYERS+1];
 
-static float g_fAnimToDoTimer[MAXPLAYERS+1] = -1.0;
-static int g_iAnimToDo[MAXPLAYERS+1] = -1;
+float g_fAnimToDoTimer[MAXPLAYERS+1];
+int g_iAnimToDo[MAXPLAYERS+1];
 
-static bool g_bIsIncapped[MAXPLAYERS+1] = false;
+bool g_bIsIncapped[MAXPLAYERS+1];
+
+float g_fSecondaryDelay[MAXPLAYERS+1];
+float g_fCmdFindBody[MAXPLAYERS+1];
+
+// Vocalize for Left 4 Dead
+static const char g_GetUpBill[][] =
+{
+	"scenes/NamVet/AreaClear01.vcd",	//Clear
+	"scenes/NamVet/PlayerTransitionClose04.vcd",	//That was a little closer than I'da liked.
+	"scenes/NamVet/ReviveFriendA04.vcd",	//You gonna make it?
+	"scenes/NamVet/ReviveFriendB05.vcd",	//I got ya.
+	"scenes/NamVet/ReviveFriendLoud05.vcd",	//Hang on, I gotcha!
+	"scenes/NamVet/ReviveFriendLoud09.vcd",	//Come on! This fight ain't over!
+};
+static const char g_GetUpFrancis[][] =
+{
+	"scenes/Biker/AreaClear01.vcd",	//Clear.
+	"scenes/Biker/AreaClear05.vcd",	//Clear.
+	"scenes/Biker/HurryUp08.vcd",	//Let's go, let's go!
+	"scenes/Biker/HurryUp09.vcd",	//Come on, let's go!
+	"scenes/Biker/ReviveFriendA04.vcd",	//You gonna make it?
+	"scenes/Biker/ReviveFriendLoud12.vcd",	//Come on, come on! Get up!
+};
+static const char g_GetUpLouis[][] =
+{
+	"scenes/Manager/AreaClear01.vcd",	//Clear!
+	"scenes/Manager/HurryUp10.vcd",	//Let's go let's go let's go!
+	"scenes/Manager/ReviveFriendLoud10.vcd",	//We gotta get your ass up, man.
+	"scenes/Manager/ReviveFriendLoud11.vcd",	//Get up now, come on!
+};
+static const char g_GetUpZoey[][] =
+{
+	"scenes/TeenGirl/AreaClear01.vcd",	//Clear!
+	"scenes/TeenGirl/AreaClear04.vcd",	//Clear.
+	"scenes/TeenGirl/ReviveFriendB03.vcd",	//Come on get up.
+};
 
 // LMC
 native int LMC_GetClientOverlayModel(int client);// remove this and enable the include to compile with the include this is just here for AM compiler
-
 
 // PUBLIC Start // -------------------------------------------------------- //
 
@@ -86,28 +131,41 @@ ConVar version_cvar;
 
 public void OnPluginStart()
 {
-	char temp_str[128];
-	Format(temp_str, sizeof(temp_str), "%s version.", PLUGIN_NAME_SHORT);
-	char cmd_str[64];
+	static char desc_str[64];
+	Format(desc_str, sizeof(desc_str), "%s version.", PLUGIN_NAME_SHORT);
+	static char cmd_str[64];
 	Format(cmd_str, sizeof(cmd_str), "sm_%s_version", PLUGIN_NAME_TECH);
-	version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, temp_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
+	version_cvar = CreateConVar(cmd_str, PLUGIN_VERSION, desc_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
 	if (version_cvar != null)
 		SetConVarString(version_cvar, PLUGIN_VERSION);
 	
-	Format(temp_str, sizeof(temp_str), "sm_%s_enable", PLUGIN_NAME_TECH);
-	RDeathModel_Enable = CreateConVar(temp_str, "1.0", "Enable replacing survivor ragdolls with death models?", FCVAR_NONE, true, 0.0, true, 1.0);
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_enable", PLUGIN_NAME_TECH);
+	RDeathModel_Enable = CreateConVar(cmd_str, "1.0", "Enable replacing survivor ragdolls with death models?", FCVAR_NONE, true, 0.0, true, 1.0);
+	RDeathModel_Enable.AddChangeHook(CC_DM_Enable);
 	
-	//Format(temp_str, sizeof(temp_str), "sm_%s_enable_defib", PLUGIN_NAME_TECH);
-	//RDeathModel_EnableDefib = CreateConVar(temp_str, "1.0", "Enable first-aid-kit defibrillators colored yellow?", FCVAR_NONE, true, 0.0, true, 1.0);
+	//Format(cmd_str, sizeof(cmd_str), "sm_%s_defib_enable", PLUGIN_NAME_TECH);
+	//RDeathModel_EnableDefib = CreateConVar(cmd_str, "1.0", "Enable first-aid-kit defibrillators colored yellow?", FCVAR_NONE, true, 0.0, true, 1.0);
 	
-	Format(temp_str, sizeof(temp_str), "sm_%s_behavior", PLUGIN_NAME_TECH);
-	RDeathModel_Behavior = CreateConVar(temp_str, "0.0", "Behavior for death models. 0 = L4D2-Style. 1 | Vulnerable Bodies with Health + 2 | Keep Player Velocity + 4 | Zombification", FCVAR_NONE, true, 0.0, true, 
-	7);
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_defib_color", PLUGIN_NAME_TECH);
+	RDeathModel_DefibColor = CreateConVar(cmd_str, "0 255 0", "The color to give the Defibrillators.", FCVAR_NONE);
+	RDeathModel_DefibColor.AddChangeHook(CC_DM_DefibColor);
 	
-	Format(temp_str, sizeof(temp_str), "sm_%s_zombie_surv_hp", PLUGIN_NAME_TECH);
-	RDeathModel_ZombieSurvHP = CreateConVar(temp_str, "500.0", "How much HP will zombified survivors have?", FCVAR_NONE, true, 0.1);
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_behavior", PLUGIN_NAME_TECH);
+	RDeathModel_Behavior = CreateConVar(cmd_str, "0.0", "Behavior for death models. 0 = L4D2-Style. 1 | Vulnerable Bodies with Health + 2 | Keep Player Velocity + 4 | Zombification", FCVAR_NONE, true, 0.0, true, 
+	7.0);
+	RDeathModel_Behavior.AddChangeHook(CC_DM_Behavior);
+	
+	Format(cmd_str, sizeof(cmd_str), "sm_%s_zombie_surv_hp", PLUGIN_NAME_TECH);
+	RDeathModel_ZombieSurvHP = CreateConVar(cmd_str, "500.0", "How much HP will zombified survivors have?", FCVAR_NONE, true, 0.1);
+	RDeathModel_ZombieSurvHP.AddChangeHook(CC_DM_ZSurvHP);
 	
 	RDeathModel_GetUpTime = CreateConVar("defibrillator_return_to_life_time", "3.0", "How long the plugin holds newly-defibbed players in place?", FCVAR_NONE, true, 0.0);
+	RDeathModel_GetUpTime.AddChangeHook(CC_DM_GetUpTime);
+	RDeathModel_DefibUseTime = CreateConVar("defibrillator_use_duration", "3", "How long the plugin's defibrillator takes to revive someone back to life?", FCVAR_NONE, true, 0.0);
+	RDeathModel_DefibUseTime.AddChangeHook(CC_DM_DefibUseTime);
+	
+	AutoExecConfig(true, AUTOEXEC_CFG);
+	SetCvarValues();
 	
 	HookEvent("player_death", player_death, EventHookMode_Pre);
 	HookEvent("player_spawn", player_spawn, EventHookMode_Post);
@@ -116,6 +174,9 @@ public void OnPluginStart()
 	HookEvent("player_bot_replace", player_bot_replace);
 	HookEvent("bot_player_replace", bot_player_replace);
 	//HookEvent("player_now_it", player_now_it, EventHookMode_Post);
+	HookEvent("heal_begin", heal_begin);
+	HookEvent("item_pickup", item_pickup);
+	HookEvent("player_use", player_use);
 	
 	//HookEvent("infected_hurt", infected_hurt, EventHookMode_Post);
 	
@@ -128,7 +189,42 @@ public void OnPluginStart()
 	{
 		OnAdminMenuReady(topmenu);
 	}
-	AutoExecConfig(true, AUTOEXEC_CFG);
+}
+
+void CC_DM_Enable(ConVar convar, const char[] oldValue, const char[] newValue)			{ g_bEnable =	convar.BoolValue;	}
+void CC_DM_Behavior(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_iBehavior =	convar.IntValue;	}
+void CC_DM_ZSurvHP(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_iZSurvHP =	convar.IntValue;	}
+void CC_DM_GetUpTime(ConVar convar, const char[] oldValue, const char[] newValue)		{ g_fGetUpTime =	convar.FloatValue;	}
+void CC_DM_DefibUseTime(ConVar convar, const char[] oldValue, const char[] newValue)	{ g_fDefibUseTime =	convar.FloatValue;	}
+void CC_DM_DefibColor(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	convar.GetString(g_strDefibColor, sizeof(g_strDefibColor));
+	
+	if (IsValidEntity(0))
+	{
+		int foundEnt = FindEntityByClassname(MAXPLAYERS, DEFIB_CLASS);
+		if (foundEnt != -1)
+		{
+			for (foundEnt = MAXPLAYERS; foundEnt < GetMaxEntities(); foundEnt++)
+			{
+				if (!RealValidEntity(foundEnt)) continue;
+				static char classname[21];
+				GetEntityClassname(foundEnt, classname, sizeof(classname));
+				if (classname[0] != 'w' || strcmp(classname, DEFIB_CLASS, false) != 0) continue;
+				SetVariantString(g_strDefibColor);
+				AcceptEntityInput(foundEnt, "Color");
+			}
+		}
+	}
+}
+void SetCvarValues()
+{
+	CC_DM_Enable(RDeathModel_Enable, "", "");
+	CC_DM_Behavior(RDeathModel_Behavior, "", "");
+	CC_DM_ZSurvHP(RDeathModel_ZombieSurvHP, "", "");
+	CC_DM_GetUpTime(RDeathModel_GetUpTime, "", "");
+	CC_DM_DefibUseTime(RDeathModel_DefibUseTime, "", "");
+	CC_DM_DefibColor(RDeathModel_DefibColor, "", "");
 }
 
 /*void player_now_it(Event event, const char[] name, bool dontBroadcast)
@@ -150,10 +246,10 @@ public void OnPluginStart()
 	int health = GetEntProp(infected, Prop_Data, "m_iHealth"); //PrintToChatAll("%i", GetEntProp(infected, Prop_Data, "m_lifeState"));
 	if ((health - damage) > 0) return;
 	
-	char temp_str[128];
+	static char temp_str[128];
 	Format(temp_str, sizeof(temp_str), COMMON_VISMDL_TARGETNAME, infected);
 	
-	int vismdl = FindEntityByTargetname(0, temp_str);
+	int vismdl = FindEntityByTargetname(MAXPLAYERS, temp_str);
 	if (!RealValidEntity(vismdl)) return;
 	
 	AcceptEntityInput(vismdl, "BecomeRagdoll");
@@ -162,12 +258,12 @@ public void OnPluginStart()
 
 public void OnPluginEnd()
 {
-	int temp_ent = FindEntityByTargetname(0, TEMP_ENT);
-	if (RealValidEntity(temp_ent))
+	int tempEnt = FindEntityByTargetname(MAXPLAYERS, TEMP_ENT);
+	if (RealValidEntity(tempEnt))
 	{
-		//AcceptEntityInput(temp_ent, "Kill");
+		AcceptEntityInput(tempEnt, "Kill");
 	}
-	for (int i = 1; i <= MaxClients+1; i++ )
+	for (int i = 1; i <= MaxClients; i++ )
 	{
 		int body = EntRefToEntIndex(g_iDeathModel[i]);
 		
@@ -178,12 +274,43 @@ public void OnPluginEnd()
 
 public void OnMapStart()
 {
-	for (int client = 1; client <= MaxClients; client++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (g_fClientWait[client] >= THINK_WAITTIME)
+		if (g_fClientWait[i] >= THINK_WAITTIME)
 		{
-			g_fClientWait[client] = 0.0;
+			g_fClientWait[i] = 0.0;
 		}
+	}
+	
+	// Precache sounds
+	static char temp[PLATFORM_MAX_PATH];
+	for( int i = 0; i < sizeof(g_GetUpBill); i++ )
+	{
+		strcopy(temp, sizeof(temp), g_GetUpBill[i]);
+		ReplaceStringEx(temp, sizeof(temp), ".vcd", ".wav");
+		ReplaceStringEx(temp, sizeof(temp), "scenes/", "player/survivor/voice/");
+		PrecacheSound(temp);
+	}
+	for( int i = 0; i < sizeof(g_GetUpFrancis); i++ )
+	{
+		strcopy(temp, sizeof(temp), g_GetUpFrancis[i]);
+		ReplaceStringEx(temp, sizeof(temp), ".vcd", ".wav");
+		ReplaceStringEx(temp, sizeof(temp), "scenes/", "player/survivor/voice/");
+		PrecacheSound(temp);
+	}
+	for( int i = 0; i < sizeof(g_GetUpLouis); i++ )
+	{
+		strcopy(temp, sizeof(temp), g_GetUpLouis[i]);
+		ReplaceStringEx(temp, sizeof(temp), ".vcd", ".wav");
+		ReplaceStringEx(temp, sizeof(temp), "scenes/", "player/survivor/voice/");
+		PrecacheSound(temp);
+	}
+	for( int i = 0; i < sizeof(g_GetUpZoey); i++ )
+	{
+		strcopy(temp, sizeof(temp), g_GetUpZoey[i]);
+		ReplaceStringEx(temp, sizeof(temp), ".vcd", ".wav");
+		ReplaceStringEx(temp, sizeof(temp), "scenes/", "player/survivor/voice/");
+		PrecacheSound(temp);
 	}
 }
 
@@ -198,16 +325,48 @@ public void OnMapEnd()
 	}
 }
 
+// Fix defibrillator getting removed on death
+public void OnEntityDestroyed(int entity)
+{
+	static char classname[22];
+	GetEntityClassname(entity, classname, sizeof(classname));
+	if (classname[0] != 'w' || strcmp(classname, DEFIB_CLASS, false) != 0) return;
+	
+	int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+	//PrintToServer("owner: %i", owner);
+	if (owner == -1 || owner > MaxClients || IsPlayerAlive(owner)) return;
+	
+	float origin[3], angles[3];
+	GetClientEyePosition(owner, origin);
+	GetClientAbsAngles(owner, angles);
+	CreateDefib(origin, angles);
+	//RequestFrame(FrameChangeVelocity, EntIndexToEntRef(defib));
+}
+
+/*void FrameChangeVelocity(int defib)
+{
+	defib = EntRefToEntIndex(defib);
+	if (defib == -1) return;
+	
+	float randAngVel[3];
+	randAngVel[0] = (GetRandomInt(-900, 900) + 0.0);
+	randAngVel[1] = (GetRandomInt(-900, 900) + 0.0);
+	randAngVel[2] = (GetRandomInt(-900, 900) + 0.0);
+	SetEntPropVector(defib, Prop_Data, "m_vecAngVelocity", randAngVel);
+	
+	SetEntPropVector(defib, Prop_Data, "m_vecAbsVelocity", {0.0, 0.0, 45.0});
+}*/
+
 /*public void OnEntityCreated(int entity, const char[] classname)
 {
 	// No need for this.
-	if (!GetConVarBool(RDeathModel_Enable))
+	if (!g_bEnable)
 		return;
 	
 	if (classname[0] != 'c')
 		return;
 	
-	if (StrEqual(classname, "cs_ragdoll", false))
+	if (strcmp(classname, "cs_ragdoll", false) == 0)
 	{
 		//SDKHook(entity, SDKHook_Spawn, SpawnHook_Ragdoll);
 		//RequestFrame(SpawnHook_Ragdoll, entity);
@@ -220,7 +379,7 @@ public void OnMapEnd()
 	int result = -1;
 	for (int client = 1; client <= MaxClients; client++) // Get Clients
 	{
-		if (!IsSurvivor(client)) return;
+		if (!IsValidClient(client) || !IsSurvivor(client)) return;
 		
 		float origin[3];
 		GetClientAbsOrigin(client, origin);
@@ -241,10 +400,83 @@ public void OnMapEnd()
 	
 	int owner = GetEntPropEnt(entity, Prop_Send, "m_hPlayer");
 	//PrintToChatAll("m_hPlayer: %i", owner);
-	if (!IsSurvivor(owner)) return;
+	if (!IsValidClient(owner) || !IsSurvivor(owner)) return;
 	
 	AcceptEntityInput(entity, "Kill");
 }*/
+
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon/*, int subtype, int cmdnum*/)
+{
+	if (client == 0) return Plugin_Continue;
+	//if (weapon > 0) // If a weapon has been switched to
+	//{ PreventHeal(client, weapon, true); return Plugin_Continue; }
+	
+	//if (!IsFakeClient(client)) PrintToServer("buttons: %i", buttons);
+	
+	float game_time = GetGameTime();
+	bool buttsChanged = false;
+	
+	bool isAttack2 = view_as<bool>(buttons & IN_ATTACK2);
+	bool isAttack = view_as<bool>(buttons & IN_ATTACK);
+	
+	if (g_fCmdFindBody[client] <= game_time)
+	{
+		bool useDefaultTimer = true;
+		if (isAttack || isAttack2)
+		{
+			int activeWep = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+			bool isDefibActive = false;
+			if (activeWep != -1)
+			{
+				static char classname[22];
+				GetEntityClassname(activeWep, classname, sizeof(classname));
+				isDefibActive = (strcmp(classname, DEFIB_CLASS, false) == 0);
+			}
+			
+			bool onGround = view_as<bool>(GetEntityFlags(client) & FL_ONGROUND);
+			bool isOccup = IsOccupied(client);
+			int targetBody = EntRefToEntIndex(g_iTargetBody[client]);
+			int targetClient = GetClientOfUserId(g_iTargetClient[client]);
+			if ((targetBody == -1 || 
+					targetClient == 0) && 
+					isDefibActive && onGround && !isOccup)
+			{
+				FindBodyToDefib(client, activeWep);
+				//PrintToServer("Defib begin!");
+				g_fCmdFindBody[client] = game_time+0.1; useDefaultTimer = false;
+			}
+			else if (g_fDefibUsedTimer[client] != 0.0)
+			{
+				if (targetBody != -1 && 
+					targetClient != 0 && 
+					isDefibActive && onGround && !isOccup)
+				{
+					if (g_fDefibUsedTimer[client] + g_fDefibUseTime <= game_time)
+					{
+						DoDefibWithUser(client, targetBody, targetClient, activeWep);
+						//PrintToServer("Successful defib!");
+					}
+				}
+				else { ToggleDefibProgress(client, -1, -1, false); /*PrintToServer("Defib interrupted!");*/ }
+				g_fCmdFindBody[client] = game_time+0.1; useDefaultTimer = false;
+			}
+		}
+		else if (g_fDefibUsedTimer[client] != 0.0)
+		{
+			//int targetClient = GetClientOfUserId(g_iTargetClient[client]);
+			ToggleDefibProgress(client, -1, -1, false);
+			//PrintToServer("Defib button stopped!");
+		}
+		if (useDefaultTimer) g_fCmdFindBody[client] = game_time+0.5;
+	}
+	
+	if (isAttack2 && (g_fSecondaryDelay[client] > game_time || g_fDefibUsedTimer[client] != 0.0))
+	{ buttons &= ~IN_ATTACK2; buttsChanged = true; }
+	if (isAttack && g_fDefibUsedTimer[client] != 0.0) { buttons &= ~IN_ATTACK; buttsChanged = true; }
+	
+	if (buttsChanged) return Plugin_Changed;
+	return Plugin_Continue;
+}
 
 // PUBLIC End // -------------------------------------------------------- //
 // MENU Start // -------------------------------------------------------- //
@@ -293,10 +525,10 @@ Action InitiateMenuAdminDefib_GiveDefib(int client)
 	if (!IsValidClient(client))  
 	{
 		ShowWarning(client, -1);
-		return;
+		return Plugin_Continue;
 	}
 	
-	char name[MAX_NAME_LENGTH]; char number[10];
+	static char name[MAX_NAME_LENGTH], number[10];
 	
 	Handle menu = CreateMenu(ShowMenu_GiveDefib);
 	SetMenuTitle(menu, "Give Defibrillator to:"); 
@@ -304,11 +536,11 @@ Action InitiateMenuAdminDefib_GiveDefib(int client)
 	bool hasEnt = false;
 	for (int i = 1; i <= MaxClients; i++) // Get Clients
 	{
-		if (!IsSurvivor(i) || !IsPlayerAlive(i)) continue;
+		if (!IsValidClient(i) || !IsSurvivor(i) || !IsPlayerAlive(i)) continue;
 		
 		GetClientName(i, name, sizeof(name));
 		
-		char temphp[32];
+		static char temphp[32]; temphp[0] = '\0';
 		if (IsPlayerAlive(i) && HasEntProp(i, Prop_Send, "m_healthBuffer"))
 		{
 			float temphp_fl = GetEntPropFloat(i, Prop_Send, "m_healthBuffer");
@@ -318,7 +550,7 @@ Action InitiateMenuAdminDefib_GiveDefib(int client)
 		
 		int hp = GetClientHealth(i);
 		
-		char status[128]; strcopy(status, sizeof(status), "");
+		static char status[32]; status[0] = '\0';
 		if (IsPlayerAlive(i) && IsIncapacitated(i))
 		{ Format(status, sizeof(status), "[DOWN] %i", hp); }
 		else if (IsPlayerAlive(i))
@@ -328,11 +560,11 @@ Action InitiateMenuAdminDefib_GiveDefib(int client)
 		
 		int character = GetEntProp(i, Prop_Send, "m_survivorCharacter");
 		
-		char charletter[6];
+		static char charletter[6];
 		GetCharacterLetter(character, charletter, sizeof(charletter));
 		Format(charletter, sizeof(charletter), " %s", charletter); 
 		
-		char name_and_hp[MAX_NAME_LENGTH+64];
+		static char name_and_hp[MAX_NAME_LENGTH+64];
 		Format(name_and_hp, sizeof(name_and_hp), "%s (%s%s%s)", name, status, temphp, charletter);
 		
 		Format(number, sizeof(number), "%i", GetClientUserId(i)); 
@@ -345,7 +577,7 @@ Action InitiateMenuAdminDefib_GiveDefib(int client)
 	SetMenuExitButton(menu, true); 
 	DisplayMenu(menu, client, MENU_TIME_FOREVER);
 	
-	return;
+	return Plugin_Continue;
 }
 
 int ShowMenu_GiveDefib(Handle menu, MenuAction action, int client, int param2)  
@@ -354,14 +586,21 @@ int ShowMenu_GiveDefib(Handle menu, MenuAction action, int client, int param2)
 	{
 		case MenuAction_Select:
 		{
-			if (!IsValidClient(client)) return;
+			if (!IsValidClient(client)) return 0;
 			
-			char number[4]; 
+			static char number[4]; 
 			GetMenuItem(menu, param2, number, sizeof(number)); 
 			
 			int target = GetClientOfUserId(StringToInt(number));
 			if (!IsValidClient(target))
-			{ ShowWarning(client, 0); return; }
+			{ ShowWarning(client, 0); return 0; }
+			if (!IsPlayerAlive(target))
+			{ ShowWarning(client, 7); return 0; }
+			
+			float origin[3], angles[3];
+			GetClientAbsOrigin(target, origin);
+			GetClientAbsAngles(target, angles);
+			CreateDefib(origin, angles, target);
 			
 			PrintToChat(client, "[SM] Gave a defibrillator to %N", target);
 			
@@ -379,6 +618,7 @@ int ShowMenu_GiveDefib(Handle menu, MenuAction action, int client, int param2)
 			CloseHandle(menu); 
 		}
 	}
+	return 0;
 }
 
 // MENU End // -------------------------------------------------------- //
@@ -394,7 +634,7 @@ Action RDeathModelCmd_DefibAll(int client, int args)
 	
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsSurvivor(i) || IsPlayerAlive(i)) continue;
+		if (!IsValidClient(i) || !IsSurvivor(i) || IsPlayerAlive(i)) continue;
 		
 		DefibSurvivorOnDeathModel(i, EntRefToEntIndex(g_iDeathModel[i]), client);
 	}
@@ -412,15 +652,13 @@ Action RDeathModelCmd_ConvertAll(int client, int args)
 	
 	/*for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsSurvivor(i) || IsPlayerAlive(i)) continue;
+		if (!IsValidClient(i) || !IsSurvivor(i) || IsPlayerAlive(i)) continue;
 		
 		TurnDeathModelIntoZombie(i, EntRefToEntIndex(g_iDeathModel[i]));
 	}*/
 	for (int i = 1; i <= GetMaxEntities(); i++)
 	{
-		if (!RealValidEntity(i)) continue;
-		
-		if (!HasTargetname(i, DEATH_MODEL_CLASS)) continue;
+		if (!RealValidEntity(i) || !HasClassname(i, DEATH_MODEL_CLASS)) continue;
 		
 		TurnDeathModelIntoZombie(-1, i);
 	}
@@ -486,32 +724,42 @@ void bot_player_replace(Event event, const char[] name, bool dontBroadcast) // P
 
 void SwapTimers(int client, int other)
 {
-	// yes, this is messy, but idk what else to do :(
-	int g_iDeathModel_backup = EntRefToEntIndex(g_iDeathModel[other]);
+	int g_iDeathModel_backup = g_iDeathModel[other];
 	
 	float g_fAnimToDoTimer_backup = g_fAnimToDoTimer[other];
 	int g_iAnimToDo_backup = g_iAnimToDo[other];
 	
 	bool g_bIsIncapped_backup = g_bIsIncapped[other];
+	
+	float g_fSecondaryDelay_backup = g_fSecondaryDelay[other];
+	float g_fCmdFindBody_backup = g_fCmdFindBody[other];
 	// Backup the timers for other
 	
 	// Set the timers of 'other' to 'client'
 	g_iDeathModel[other] = g_iDeathModel[client];
+	g_iTargetBody[other] = INVALID_ENT_REFERENCE;
+	g_iTargetClient[other] = INVALID_ENT_REFERENCE;
 	
 	g_fAnimToDoTimer[other] = g_fAnimToDoTimer[client];
 	g_iAnimToDo[other] = g_iAnimToDo[client];
 	
 	g_bIsIncapped[other] = g_bIsIncapped[client];
-
+	
+	g_fSecondaryDelay[other] = g_fSecondaryDelay[client];
+	g_fCmdFindBody[other] = g_fCmdFindBody[client];
 	
 	// Then use the backed-up 'other' variables for 'client'
-	if (RealValidEntity(g_iDeathModel_backup))
-	{ g_iDeathModel[client] = EntIndexToEntRef(g_iDeathModel_backup); }
+	g_iDeathModel[client] = g_iDeathModel_backup;
+	g_iTargetBody[client] = INVALID_ENT_REFERENCE;
+	g_iTargetClient[client] = INVALID_ENT_REFERENCE;
 	
 	g_fAnimToDoTimer[client] = g_fAnimToDoTimer_backup;
 	g_iAnimToDo[client] = g_iAnimToDo_backup;
 
 	g_bIsIncapped[client] = g_bIsIncapped_backup;
+	
+	g_fSecondaryDelay[client] = g_fSecondaryDelay_backup;
+	g_fCmdFindBody[client] = g_fCmdFindBody_backup;
 }
 
 /*void ClearTimers(int client)
@@ -531,7 +779,7 @@ void SwapTimers(int client, int other)
 void player_incapacitated(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if (!IsValidClient(client) || !IsIncapacitated(client, false)) return;
+	if (client == 0 || !IsIncapacitated(client, false)) return;
 	
 	g_bIsIncapped[client] = true;
 }
@@ -539,7 +787,7 @@ void player_incapacitated(Event event, const char[] name, bool dontBroadcast)
 void revive_success(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
-	if (!IsValidClient(client) || IsIncapacitated(client, false)) return;
+	if (client == 0 || IsIncapacitated(client, false)) return;
 	
 	g_bIsIncapped[client] = false;
 }
@@ -547,7 +795,7 @@ void revive_success(Event event, const char[] name, bool dontBroadcast)
 void player_spawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if (!IsValidClient(client)) return;
+	if (client == 0) return;
 	
 	if (IsIncapacitated(client, false))
 	{ g_bIsIncapped[client] = true; }
@@ -560,7 +808,7 @@ void player_spawn(Event event, const char[] name, bool dontBroadcast)
 void player_death(Event event, const char[] name, bool dontBroadcast)
 {
 	int infected = event.GetInt("entityid");
-	if (RealValidEntity(infected) && !IsValidClient(infected))
+	if (RealValidEntity(infected) && infected > MAXPLAYERS)
 	{
 		int attacker = event.GetInt("attacker");
 		if (!IsValidClient(attacker))
@@ -568,10 +816,10 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 		//int health = GetEntProp(infected, Prop_Data, "m_iHealth"); PrintToChatAll("%i", GetEntProp(infected, Prop_Data, "m_lifeState"));
 		//if (health > 0) return;
 		
-		char temp_str[128];
+		static char temp_str[64];
 		Format(temp_str, sizeof(temp_str), COMMON_VISMDL_TARGETNAME, infected);
 		
-		int vismdl = FindEntityByTargetname(0, temp_str);
+		int vismdl = FindEntityByTargetname(MAXPLAYERS, temp_str);
 		if (!RealValidEntity(vismdl)) return;
 		//PrintToChatAll("%i", GetEntProp(vismdl, Prop_Data, "m_bForceServerRagdoll"));
 		//AcceptEntityInput(vismdl, "Kill");
@@ -586,16 +834,14 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 		return;
 	}
 	
-	bool cvar_enable = GetConVarBool(RDeathModel_Enable);
-	if (!cvar_enable) return;
 	//PrintToChatAll("%i", GetEntProp(client, Prop_Send, "m_isIncapacitated"));
 	//g_bTimerRespawn[client] = false;
 	//g_bTempGod[client] = false;
 	
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if (!IsValidClient(client)) return;
+	if (client == 0 || !IsSurvivor(client) || IsPlayerAlive(client)) return;
 	
-	if (!IsSurvivor(client) || IsPlayerAlive(client)) return;
+	if (!g_bEnable) return;
 	
 	//float game_time = GetGameTime();
 	
@@ -625,14 +871,12 @@ void player_death(Event event, const char[] name, bool dontBroadcast)
 
 void CreateDeathModel(int client)
 {
-	if (!IsValidClient(client)) return;
+	//if (!IsValidClient(client)) return;
 	
 	int corpse = CreateEntityByName("prop_dynamic_override");
 	if (!RealValidEntity(corpse))
 	{ return; }
 	g_iDeathModel[client] = EntIndexToEntRef(corpse);
-	
-	DispatchKeyValue(corpse, "targetname", DEATH_MODEL_CLASS);
 	
 	float origin[3];
 	float angles[3];
@@ -641,7 +885,7 @@ void CreateDeathModel(int client)
 	angles[0] = 0.0; angles[2] = 0.0;
 	
 	float velfloat[3];
-	if (GetConVarInt(RDeathModel_Behavior) & BITFLAG_BEHAVIOR_VEL)
+	if (g_iBehavior & BITFLAG_BEHAVIOR_VEL)
 	{
 		velfloat[0] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[0]");
 		velfloat[1] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[1]");
@@ -650,7 +894,7 @@ void CreateDeathModel(int client)
 	
 	TeleportEntity(corpse, origin, angles, velfloat);
 	
-	char cl_model[PLATFORM_MAX_PATH];
+	static char cl_model[PLATFORM_MAX_PATH];
 	GetClientModel(client, cl_model, sizeof(cl_model));
 	
 	SetEntityModel(corpse, cl_model);
@@ -664,10 +908,12 @@ void CreateDeathModel(int client)
 	DispatchSpawn(corpse);
 	ActivateEntity(corpse);
 	
+	DispatchKeyValue(corpse, "classname", DEATH_MODEL_CLASS);
+	
 	SetEntityMoveType(corpse, MOVETYPE_STEP);
 	
 	// movable
-	if (GetConVarInt(RDeathModel_Behavior) & BITFLAG_BEHAVIOR_HP)
+	if (g_iBehavior & BITFLAG_BEHAVIOR_HP)
 	{
 		SetEntProp(corpse, Prop_Send, "m_nSolidType", 1);
 		SetEntProp(corpse, Prop_Send, "m_CollisionGroup", 0);
@@ -690,7 +936,7 @@ void CreateDeathModel(int client)
 	DispatchKeyValue(corpse, "nextthink", "0.5");
 	SetEntityGravity(corpse, 1.0);
 	
-	//SetEntProp(corpse, Prop_Send, "m_bClientSideAnimation", 1);
+	SetEntProp(corpse, Prop_Send, "m_bClientSideAnimation", 1);
 	
 	if (g_bIsIncapped[client])
 	{
@@ -733,7 +979,7 @@ void CreateDeathModel(int client)
 	SetEntityModel(corpse_vis, cl_model);
 	TeleportEntity(corpse_vis, origin, angles, NULL_VECTOR);
 	
-	char temp_str[64];
+	static char temp_str[64];
 	Format(temp_str, sizeof(temp_str), DEATH_MODEL_VIS, corpse);
 	DispatchKeyValue(corpse_vis, "targetname", temp_str);
 	//PrintToChatAll(temp_str);
@@ -741,7 +987,7 @@ void CreateDeathModel(int client)
 	DispatchSpawn(corpse_vis);
 	ActivateEntity(corpse_vis);
 	
-	SetEntProp(corpse_vis, Prop_Data, "m_bForceServerRagdoll", 1);
+	//SetEntProp(corpse_vis, Prop_Data, "m_bForceServerRagdoll", 1);
 	
 	SetEntProp(corpse_vis, Prop_Send, "m_fEffects", 1|512); //EF_BONEMERGE|EF_PARENT_ANIMATES
 	SetVariantString("!activator");
@@ -774,7 +1020,7 @@ void CreateDeathModel(int client)
 	
 	TeleportEntity(blood_ef, origin, angles, NULL_VECTOR);
 	
-	char blood_ef_name[32];
+	static char blood_ef_name[32];
 	Format(blood_ef_name, sizeof(blood_ef_name), "plugin_sdm_blood_ef_%i", EntRefToEntIndex(corpse));
 	DispatchKeyValue(blood_ef, "targetname", blood_ef_name);
 	
@@ -784,7 +1030,7 @@ void CreateDeathModel(int client)
 	SetVariantString("!activator");
 	AcceptEntityInput(blood_ef, "SetParent", corpse);
 	
-	char temp_str[64];
+	static char temp_str[64];
 	Format(temp_str, sizeof(temp_str), "OnTakeDamage %s:Start:ACT_DIERAGDOLL:0.01:1", EntRefToEntIndex(corpse));
 	SetVariantString("OnTakeDamage !self:SetAnimation:ACT_DIERAGDOLL:0.01:1");
 	AcceptEntityInput(corpse, "AddOutput");*/
@@ -793,7 +1039,7 @@ void CreateDeathModel(int client)
 void RemoveDeathModel(int client)
 {
 	int body = EntRefToEntIndex(g_iDeathModel[client]);
-	if (!RealValidEntity(body) || !HasTargetname(body, DEATH_MODEL_CLASS)) return;
+	if (!RealValidEntity(body) || !HasClassname(body, DEATH_MODEL_CLASS)) return;
 	
 	AcceptEntityInput(body, "Kill");
 	g_iDeathModel[client] = INVALID_ENT_REFERENCE;
@@ -801,7 +1047,7 @@ void RemoveDeathModel(int client)
 
 void Output_OnHealthChanged(const char[] output, int caller, int activator, float delay)
 {
-	if (!RealValidEntity(caller) || !HasTargetname(caller, DEATH_MODEL_CLASS)) return;
+	if (!RealValidEntity(caller) || !HasClassname(caller, DEATH_MODEL_CLASS)) return;
 	
 	int health = GetEntProp(caller, Prop_Data, "m_iHealth");
 	
@@ -811,10 +1057,10 @@ void Output_OnHealthChanged(const char[] output, int caller, int activator, floa
 		//SetIHealth(caller, 1000000); // Set it to a high amount of health so it won't be removed
 		SetEntProp(caller, Prop_Data, "m_takedamage", 0); // Disable it from taking damage
 		
-		char temp_str[64];
+		static char temp_str[64];
 		Format(temp_str, sizeof(temp_str), DEATH_MODEL_VIS, caller);
-		int vismdl = FindEntityByTargetname(0, temp_str);
-		char vismdl_mdl[128];
+		int vismdl = FindEntityByTargetname(MAXPLAYERS, temp_str);
+		static char vismdl_mdl[128]; vismdl_mdl[0] = '\0';
 		if (RealValidEntity(vismdl))
 		{
 			GetEntPropString(vismdl, Prop_Data, "m_ModelName", vismdl_mdl, sizeof(vismdl_mdl));
@@ -822,10 +1068,10 @@ void Output_OnHealthChanged(const char[] output, int caller, int activator, floa
 		}
 		//PrintToChatAll(temp_str);
 		
-		char caller_mdl[128];
+		static char caller_mdl[128];
 		GetEntPropString(caller, Prop_Data, "m_ModelName", caller_mdl, sizeof(caller_mdl));
 		
-		if (!StrEqual(caller_mdl, vismdl_mdl, false)) SetEntityModel(caller, vismdl_mdl);
+		if (strcmp(caller_mdl, vismdl_mdl, false) != 0) SetEntityModel(caller, vismdl_mdl);
 		
 		AcceptEntityInput(caller, "BecomeRagdoll");
 		
@@ -842,9 +1088,40 @@ void Output_OnHealthChanged(const char[] output, int caller, int activator, floa
 	}
 }
 
+int FindBodyOwner(int body)
+{
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (g_iDeathModel[i] == INVALID_ENT_REFERENCE) continue;
+		int entity = EntRefToEntIndex(g_iDeathModel[i]);
+		if (!RealValidEntity(entity)) continue;
+		
+		if (entity == body) return i;
+	}
+	return -1;
+}
+
+void DoDefibWithUser(int client, int body, int bodyOwner = -1, int defib = -1)
+{
+	if (bodyOwner == -1)
+	{
+		bodyOwner = FindBodyOwner(body);
+		if (bodyOwner == -1) return;
+	}
+	
+	DefibSurvivorOnDeathModel(bodyOwner, body, client);
+	
+	if (defib == -1) return;
+	float game_time_Delay = GetGameTime()+32767.0;
+	SetEntPropFloat(defib, Prop_Send, "m_flNextPrimaryAttack", game_time_Delay);
+	SetEntPropFloat(defib, Prop_Send, "m_flNextSecondaryAttack", game_time_Delay);
+	AcceptEntityInput(defib, "Kill");
+}
+
 void DefibSurvivorOnDeathModel(int client, int body, int savior = -1)
 {
-	if (!IsSurvivor(client) || IsPlayerAlive(client) || !RealValidEntity(body) || !HasTargetname(body, DEATH_MODEL_CLASS)) return;
+	if (/*!IsValidClient(client) || */!IsSurvivor(client) || IsPlayerAlive(client) || 
+	!RealValidEntity(body) || !HasClassname(body, DEATH_MODEL_CLASS)) return;
 	
 	float origin[3];
 	float angles[3];
@@ -861,7 +1138,7 @@ void DefibSurvivorOnDeathModel(int client, int body, int savior = -1)
 	
 	TeleportEntity(rescue_ent, origin, angles, NULL_VECTOR);
 	
-	char cl_model[PLATFORM_MAX_PATH];
+	static char cl_model[PLATFORM_MAX_PATH];
 	GetClientModel(client, cl_model, sizeof(cl_model));
 	SetEntityModel(rescue_ent, cl_model);
 	
@@ -886,26 +1163,20 @@ void DefibSurvivorOnDeathModel(int client, int body, int savior = -1)
 	
 	if (!IsPlayerAlive(client)) return;
 	
-	float cvar_getup = GetConVarFloat(RDeathModel_GetUpTime);
-	if (cvar_getup > 0.0) HookThink(client);
+	if (g_fGetUpTime > 0.0) HookThink(client);
 	
 	for (int i = 0; i <= 4; i++)
 	{
 		int wep = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
-		if (RealValidEntity(wep))
-		{
-			/*char temp_str[128];
-			GetEntityClassname(wep, temp_str, sizeof(temp_str));
-			PrintToChatAll("slot %i, %s", i, temp_str);*/
-			SetEntProp(client, Prop_Send, "m_hMyWeapons", -1, i);
-			AcceptEntityInput(wep, "Kill");
-			
-			if (i == 0)
-			{
-				GiveWeapon(client, "weapon_pistol");
-			}
-		}
+		if (wep == -1) continue;
+		
+		/*static char temp_str[64];
+		GetEntityClassname(wep, temp_str, sizeof(temp_str));
+		PrintToChatAll("slot %i, %s", i, temp_str);*/
+		SetEntProp(client, Prop_Send, "m_hMyWeapons", -1, i);
+		AcceptEntityInput(wep, "Kill");
 	}
+	GiveWeapon(client, "weapon_pistol");
 	
 	AcceptEntityInput(client, "ClearContext");
 	
@@ -937,50 +1208,52 @@ void GiveWeapon(int client, const char[] wep_class)
 	//AcceptEntityInput(new_weapon, "Use", client, new_weapon);
 	
 	DataPack data = CreateDataPack();
-	data.WriteCell(client);
-	data.WriteCell(new_weapon);
+	data.WriteCell(GetClientUserId(client));
+	data.WriteCell(EntIndexToEntRef(new_weapon));
 	RequestFrame(NewWeapon_RequestFrame, data);
 }
 
 void NewWeapon_RequestFrame(DataPack data)
 {
 	data.Reset();
-	int client = data.ReadCell();
-	int new_weapon = data.ReadCell();
+	int userid = data.ReadCell();
+	int client = GetClientOfUserId(userid);
+	int new_weapon = EntRefToEntIndex(data.ReadCell());
 	if (data != null)
 	{ CloseHandle(data); }
 	
-	if (!IsValidClient(client) || !RealValidEntity(new_weapon)) return;
+	if (client == 0 || new_weapon == -1) return;
 	
 	AcceptEntityInput(new_weapon, "Use", client, new_weapon);
 	
-	char temp_str[24];
+	static char temp_str[24];
 	GetEntityClassname(new_weapon, temp_str, sizeof(temp_str));
-	if (StrEqual(temp_str, "weapon_pistol", false))
-	{ RequestFrame(PreventShooting_RequestFrame, client); }
+	if (strcmp(temp_str, "weapon_pistol") == 0)
+	{ RequestFrame(PreventShooting_RequestFrame, userid); }
 	
 	//float game_time = GetGameTime();
-	//float cvar_getup = GetConVarFloat(RDeathModel_GetUpTime);
+	//float cvar_getup = g_fGetUpTime;
 	//SetEntPropFloat(new_weapon, Prop_Send, "m_flNextPrimaryAttack", game_time+cvar_getup);
 	//SetEntPropFloat(new_weapon, Prop_Send, "m_flNextSecondaryAttack", game_time+cvar_getup);
 }
 void PreventShooting_RequestFrame(int client)
 {
-	if (!IsSurvivor(client) || !IsPlayerAlive(client)) return;
+	client = GetClientOfUserId(client);
+	if (client == 0 || !IsPlayerAlive(client)) return;
 	
-	float game_time = GetGameTime();
-	float cvar_getup = GetConVarFloat(RDeathModel_GetUpTime);
-	SetEntPropFloat(client, Prop_Send, "m_flNextAttack", game_time+cvar_getup);
+	float gt_plus_getup = GetGameTime()+g_fGetUpTime;
+	SetEntPropFloat(client, Prop_Send, "m_flNextAttack", gt_plus_getup);
+	SetEntPropFloat(client, Prop_Send, "m_flNextShoveTime", gt_plus_getup);
 }
 
 void TurnDeathModelIntoZombie(int client, int body)
 {
-	if (!RealValidEntity(body) || !HasTargetname(body, DEATH_MODEL_CLASS)) return;
+	if (!RealValidEntity(body) || !HasClassname(body, DEATH_MODEL_CLASS)) return;
 	
-	if (IsValidClient(client) && g_iDeathModel[client] > INVALID_ENT_REFERENCE)
+	if (IsValidClient(client) && g_iDeathModel[client] != INVALID_ENT_REFERENCE)
 		g_iDeathModel[client] = INVALID_ENT_REFERENCE;
 	
-	DispatchKeyValue(body, "targetname", DEATH_MODEL_EXTRA);
+	DispatchKeyValue(body, "classname", DEATH_MODEL_EXTRA);
 	
 	float origin[3];
 	GetEntPropVector(body, Prop_Data, "m_vecOrigin", origin);
@@ -996,7 +1269,7 @@ void TurnDeathModelIntoZombie(int client, int body)
 	
 	//AcceptEntityInput(body, "FireUser1");
 	
-	CreateTimer(1.5, Timer_TurnToZombie, body, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(1.5, Timer_TurnToZombie, EntIndexToEntRef(body), TIMER_FLAG_NO_MAPCHANGE);
 }
 
 // Death-Model Functions End // -------------------------------------------------------- //
@@ -1004,11 +1277,12 @@ void TurnDeathModelIntoZombie(int client, int body)
 
 Action Timer_TurnToZombie(Handle timer, int body)
 {
-	if (!RealValidEntity(body)) return;
+	body = EntRefToEntIndex(body);
+	if (body == -1) return Plugin_Continue;
 	
 	int infected = CreateEntityByName("infected");
 	if (!RealValidEntity(infected))
-	{ return; }
+	{ return Plugin_Continue; }
 	
 	float origin[3];
 	float angles[3];
@@ -1025,16 +1299,14 @@ Action Timer_TurnToZombie(Handle timer, int body)
 	DispatchKeyValue(infected, "fademindist", "1");
 	DispatchKeyValue(infected, "fademaxdist", "1");
 	
-	int health_to_set = GetConVarInt(RDeathModel_ZombieSurvHP);
+	SetEntProp(infected, Prop_Data, "m_iHealth", g_iZSurvHP);
+	SetEntProp(infected, Prop_Data, "m_iMaxHealth", g_iZSurvHP);
 	
-	SetEntProp(infected, Prop_Data, "m_iHealth", health_to_set);
-	SetEntProp(infected, Prop_Data, "m_iMaxHealth", health_to_set);
+	static char cl_model[PLATFORM_MAX_PATH];
 	
-	char cl_model[PLATFORM_MAX_PATH];
-	
-	char temp_str[64];
+	static char temp_str[64];
 	Format(temp_str, sizeof(temp_str), DEATH_MODEL_VIS, body);
-	int vismdl = FindEntityByTargetname(0, temp_str);
+	int vismdl = FindEntityByClassname(MAXPLAYERS, temp_str);
 	
 	if (RealValidEntity(vismdl))
 	{
@@ -1056,6 +1328,7 @@ Action Timer_TurnToZombie(Handle timer, int body)
 	AttachModelToInfected(infected, cl_model);
 	
 	//RequestFrame(Infected_RequestFrame, infected);
+	return Plugin_Continue;
 }
 
 /*void Infected_RequestFrame(int infected)
@@ -1086,9 +1359,9 @@ void CreateRagdollForInfected(int entity, int owner, int attacker)
 	int effect = GetEntPropEnt(owner, Prop_Send, "m_hEffectEntity");
 	if (IsValidEntity(effect))
 	{
-		char effectclass[64]; 
+		static char effectclass[64]; 
 		GetEntityClassname(effect, effectclass, sizeof(effectclass));
-		if (StrEqual(effectclass, "entityflame"))
+		if (strcmp(effectclass, "entityflame") == 0)
 		{ AcceptEntityInput(entity, "Ignite"); }
 	}
 	
@@ -1158,9 +1431,9 @@ void CreateRagdollForInfected(int entity, int owner, int attacker)
 	int effect = GetEntPropEnt(owner, Prop_Send, "m_hEffectEntity");
 	if (IsValidEntity(effect))
 	{
-		char effectclass[64]; 
+		static char effectclass[64]; 
 		GetEntityClassname(effect, effectclass, sizeof(effectclass));
-		if (StrEqual(effectclass, "entityflame"))
+		if (strcmp(effectclass, "entityflame") == 0)
 		{ SetEntProp(Ragdoll, Prop_Send, "m_bOnFire", 1, 1); }
 	}
 	
@@ -1196,9 +1469,9 @@ void AttachModelToInfected(int infected, const char[] mdl)
 	DispatchSpawn(vismdl);
 	ActivateEntity(vismdl);
 	
-	SetEntProp(vismdl, Prop_Data, "m_bForceServerRagdoll", 1);
+	//SetEntProp(vismdl, Prop_Data, "m_bForceServerRagdoll", 1);
 	
-	char temp_str[128];
+	static char temp_str[64];
 	Format(temp_str, sizeof(temp_str), COMMON_VISMDL_TARGETNAME, infected);
 	DispatchKeyValue(vismdl, "targetname", temp_str);
 	
@@ -1214,7 +1487,7 @@ void AttachModelToInfected(int infected, const char[] mdl)
 
 bool g_fAnimToDoTimer_Active(int client)
 {
-	if (GetConVarFloat(RDeathModel_GetUpTime) <= 0.0) return false;
+	if (g_fGetUpTime <= 0.0) return false;
 	if (g_fAnimToDoTimer[client] > GetGameTime() && g_iAnimToDo[client] > 0) return true;
 	return false;
 }
@@ -1228,11 +1501,10 @@ void HookThink(int client, bool boolean = true)
 			if (!IsValidClient(client)) return;
 			
 			float game_time = GetGameTime();
-			float cvar_getup = GetConVarFloat(RDeathModel_GetUpTime);
-			float gt_plus_getup = game_time+cvar_getup;
-			//SetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView", cvar_getup);
+			float gt_plus_getup = game_time+g_fGetUpTime;
+			//SetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView", g_fGetUpTime);
 			
-			SetDTCountdownTimer(client, "m_stunTimer", cvar_getup);
+			SetDTCountdownTimer(client, "CTerrorPlayer", "m_stunTimer", g_fGetUpTime);
 			SetEntPropFloat(client, Prop_Send, "m_jumpSupressedUntil", gt_plus_getup);
 			
 			g_fAnimToDoTimer[client] = gt_plus_getup;
@@ -1247,7 +1519,7 @@ void HookThink(int client, bool boolean = true)
 			g_iAnimToDo[client] = -1;
 			if (!IsValidClient(client)) return;
 			
-			SetDTCountdownTimer(client, "m_stunTimer", 0.0);
+			SetDTCountdownTimer(client, "CTerrorPlayer", "m_stunTimer", 0.0);
 			SetEntPropFloat(client, Prop_Send, "m_jumpSupressedUntil", 0.0);
 			
 			SDKUnhook(client, POST_THINK_HOOK, Hook_OnThinkPost);
@@ -1286,14 +1558,350 @@ void UpdateTimers(int client)
 }
 
 // Non-Handle Timers End // -------------------------------------------------------- //
-// Player Get-Up Effects Start // -------------------------------------------------------- //
-
-/*void BeginGetUpEffects(int client)
+// Defibrillator Start // -------------------------------------------------------- //
+// it seems that the defib gets removed on player death
+// OnEntityDestroyed remedies this by spawning a new defib
+int CreateDefib(const float origin[3], const float angles[3], int client = 0)
 {
+	int aid = CreateEntityByName(KIT_CLASS);
+	if (!RealValidEntity(aid)) return -1;
 	
+	DispatchKeyValueVector(aid, "origin", origin);
+	DispatchKeyValueVector(aid, "angles", angles);
+	DispatchKeyValue(aid, "rendermode", "1");
+	
+	DispatchSpawn(aid);
+	ActivateEntity(aid);
+	
+	DispatchKeyValue(aid, "classname", DEFIB_CLASS);
+	
+	SetVariantString(g_strDefibColor);
+	AcceptEntityInput(aid, "Color");
+	
+	if (client != 0)
+	{
+		int slotMED = GetPlayerWeaponSlot(client, 3);
+		if (slotMED == -1)
+		{ AcceptEntityInput(aid, "Use", client); }
+		else
+		{
+			Event player_use_ev = CreateEvent("player_use");
+			player_use_ev.SetInt("userid", GetClientUserId(client));
+			player_use_ev.SetInt("targetid", aid);
+			player_use_ev.Fire();
+		}
+	}
+	return aid;
+}
+
+void player_use(Event event, const char[] name, bool dontBroadcast) // Let defib and first aid be swappable
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (client == 0) return;
+	int target = event.GetInt("targetid");
+	if (!RealValidEntity(target)) return;
+	
+	int slotMED = GetPlayerWeaponSlot(client, 3);
+	if (slotMED == -1) return;
+	
+	static char classname[21]; GetEntityClassname(target, classname, sizeof(classname));
+	if (strcmp(classname, DEFIB_CLASS, false) != 0 && strcmp(classname, KIT_CLASS, false) != 0) return;
+	
+	static char slotClassname[21]; GetEntityClassname(slotMED, slotClassname, sizeof(slotClassname));
+	if (strcmp(slotClassname, DEFIB_CLASS, false) != 0 && strcmp(slotClassname, KIT_CLASS, false) != 0) return;
+	//PrintToServer("target: %s, slotMED: %s", classname, slotClassname);
+	
+	if (strcmp(classname, slotClassname, false) != 0)
+	{
+		float originTarget[3]; GetClientAbsOrigin(client, originTarget);
+		SDKHooks_DropWeapon(client, slotMED, originTarget, NULL_VECTOR);
+		AcceptEntityInput(target, "Use", client, target);
+	}
+}
+
+void item_pickup(Event event, const char[] name, bool dontBroadcast) // Item pickup for defib
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (client == 0) return;
+	static char item[32];
+	event.GetString("item", item, sizeof(item));
+	//PrintToServer("item: %s", item);
+	
+	if (strcmp(item, "defibrillator", false) == 0)
+	{
+		PrintHintText(client, "YOU PICKED UP A DEFIBRILLATOR");
+	}
+}
+
+void heal_begin(Event event, const char[] name, bool dontBroadcast) // Heal begin.
+{
+	//PrintToChatAll("bot_player_replace:");
+	int userid = event.GetInt("userid");
+	int client = GetClientOfUserId(userid);
+	if (client == 0) return;
+	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+	if (weapon == -1) return;
+	// Stop defib from being used as a first aid
+	PreventHeal(client, weapon, false, GetClientOfUserId(event.GetInt("subject")));
+}
+
+float g_fRefuseTime[MAXPLAYERS+1];
+
+void PreventHeal(int client, int weapon, bool noBump = false, int target = 0)
+{
+	static char classname[22];
+	GetEntityClassname(weapon, classname, sizeof(classname));
+	if (strcmp(classname, DEFIB_CLASS, false) != 0) return;
+	
+	float game_time = GetGameTime();
+	SetEntPropFloat(weapon, Prop_Send, "m_flNextPrimaryAttack", game_time+0.5);
+	if (target != 0 && target != client)
+	{
+		SetEntPropFloat(client, Prop_Send, "m_flNextShoveTime", game_time+0.5);
+		g_fSecondaryDelay[client] = game_time+0.5;
+		// ^ Prevent medkit from being used, it's not restricted to shoving
+	}
+	
+	if (!noBump && !IsFakeClient(client) && g_fDefibUsedTimer[client] == 0.0)
+	{
+		if (target != 0 && target != client)
+		{
+			SetVariantString("PlayerNo");
+			AcceptEntityInput(client, "DispatchResponse");
+		}
+		else if (g_fRefuseTime[client] <= game_time)
+		{
+			//AddOutputToTimerEnt(client, "OnUser1 !activator:DispatchResponse:PlayerNo:0.5:1", "FireUser1");
+			//g_fRefuseTime[client] = game_time+2.0;
+			AddOutputToTimerEnt(client, "OnUser1 !activator:DispatchResponse:PlayerNo:0.5:1", "FireUser1");
+			g_fRefuseTime[client] = GetGameTime()+2.0;
+			//AddOutputToTimerEnt(client, "OnUser1 !activator:DispatchResponse:PlayerNo:0.5:1", "FireUser1");
+			//g_fRefuseTime[client] = GetGameTime()+4.0;
+			
+			/*static char contextName[10];
+			GetCharContextName(client, contextName, sizeof(contextName));
+			static char contextStr[32];
+			Format(contextStr, sizeof(contextStr), "%sAskForCover:1:5", contextName);
+			SetVariantString(contextStr);
+			AcceptEntityInput(client, "AddContext");*/
+		}
+		SetVariantString("worldTalk:1:1.0");
+		AcceptEntityInput(client, "AddContext");
+	}
+	
+	int eFlags = GetEntityFlags(client);
+	if (!noBump && eFlags & FL_ONGROUND)
+	{
+		SetEntityFlags(client, eFlags &~ FL_ONGROUND);
+		SetEntProp(client, Prop_Send, "m_hGroundEntity", -1);
+		//TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, {0.0, 0.0, 100.0});
+		float velocityJump[3];
+		GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", velocityJump);
+		if (velocityJump[2] < 1.0)
+		{
+			velocityJump[2] = 1.0;
+			SetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", velocityJump);
+			//SetEntPropFloat(client, Prop_Send, "m_vecVelocity[2]", velocityJump[2]);
+		}
+		float origin[3];
+		GetClientAbsOrigin(client, origin);
+		origin[2] += 1.0;
+		SetEntPropVector(client, Prop_Send, "m_vecOrigin", origin);
+		//SetEntPropFloat(client, Prop_Send, "m_vecVelocity[2]", velocityJump[2]);
+		
+		//CreateTimer(0.5, TestTimer, client, TIMER_FLAG_NO_MAPCHANGE);
+		/*int buttons = GetEntProp(client, Prop_Data, "m_nButtons");
+		if (buttons & IN_ATTACK)
+		{
+			buttons &= ~IN_ATTACK;
+			SetEntProp(client, Prop_Data, "m_nButtons", buttons);
+		}*/
+	}
+	
+	if (!noBump && g_fDefibUsedTimer[client] == 0.0)
+		PrintHintText(client, "THIS IS A DEFIBRILLATOR, USE IT ON DEAD TEAMMATES");
+}
+
+/*void GetCharContextName(int client, char[] str, int charSize)
+{
+	int survChar = GetEntProp(client, Prop_Send, "m_survivorCharacter");
+	switch (survChar)
+	{
+		case 0: strcopy(str, charSize, "NamVet"); // bill
+		case 1: strcopy(str, charSize, "TeenGirl"); //zoey
+		case 2: strcopy(str, charSize, "Manager"); //louis
+		case 3: strcopy(str, charSize, "Biker");//francis
+	}
 }*/
 
-// Player Get-Up Effects End // -------------------------------------------------------- //
+void FindBodyToDefib(int client, int defib = -1)
+{
+	if (FindEntityByClassname(MAXPLAYERS, DEATH_MODEL_CLASS) == -1) return;
+	
+	float origin[3];
+	GetClientEyePosition(client, origin);
+	
+	int closestBody = -1;
+	float distance = -1.0;
+	for (int i = MAXPLAYERS; i < GetMaxEntities(); i++)
+	{
+		if (!RealValidEntity(i) || !HasClassname(i, DEATH_MODEL_CLASS)) continue;
+		
+		float bodyOrigin[3];
+		GetEntPropVector(i, Prop_Data, "m_vecOrigin", bodyOrigin);
+		float checkDist = GetVectorDistance(origin, bodyOrigin, true) / 2;
+		if (closestBody == -1 || checkDist < distance)
+		{
+			closestBody = i;
+			distance = checkDist;
+		}
+	}
+	//PrintToServer("closestBody: %i, distance: %f", closestBody, distance);
+	if (distance > 5000) return;
+	
+	static char model[31];
+	GetEntPropString(client, Prop_Data, "m_ModelName", model, sizeof(model));
+	switch( model[29] )
+	{
+		case 'v': VocalizeScene(client, g_GetUpBill[GetRandomInt(0, sizeof(g_GetUpBill) - 1)]);
+		case 'e': VocalizeScene(client, g_GetUpFrancis[GetRandomInt(0, sizeof(g_GetUpFrancis) - 1)]);
+		case 'a': VocalizeScene(client, g_GetUpLouis[GetRandomInt(0, sizeof(g_GetUpLouis) - 1)]);
+		case 'n': VocalizeScene(client, g_GetUpZoey[GetRandomInt(0, sizeof(g_GetUpZoey) - 1)]);
+	}
+	
+	if (g_fDefibUseTime <= 0.0)
+	{ DoDefibWithUser(client, closestBody, -1, defib); }
+	else
+	{
+		ToggleDefibProgress(client, closestBody);
+		float velocityAbs[3];
+		GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", velocityAbs);
+		velocityAbs[0] = 0.0; velocityAbs[1] = 0.0;
+		SetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", velocityAbs);
+	}
+	
+	//5000
+	/*float origin[3], angles[3];
+	GetClientEyePosition(client, origin);
+	GetClientEyeAngles(client, angles);
+	//angles[0] *= 400; angles[1] *= 400; angles[2] *= 400;
+	TR_TraceRayFilter(origin, angles, MASK_SHOT, RayType_Infinite, TraceRayDontHitSelf, client);
+	
+	PrintToServer("Trace result: %i", TR_GetEntityIndex());*/
+	
+	//return closestBody;
+}
+
+void ToggleDefibProgress(int client, int body = -1, int bodyOwner = -1, bool boolean = true)
+{
+	switch (boolean)
+	{
+		case true:
+		{
+			if (body == -1) return;
+			if (bodyOwner == -1)
+			{
+				bodyOwner = FindBodyOwner(body);
+				if (bodyOwner == -1) return;
+			}
+			float game_time = GetGameTime();
+			
+			g_iTargetBody[client] = EntIndexToEntRef(body);
+			g_iTargetClient[client] = GetClientUserId(bodyOwner);
+			
+			SetEntProp(client, Prop_Send, "m_iProgressBarDuration", RoundToNearest(g_fDefibUseTime));
+			SetEntPropFloat(client, Prop_Send, "m_flProgressBarStartTime", game_time);
+			static char defibStr[48];
+			Format(defibStr, sizeof(defibStr), "USING DEFIBRILLATOR on %N", bodyOwner);
+			SetEntPropString(client, Prop_Send, "m_progressBarText", defibStr);
+			
+			float gt_plus_usetime = game_time+g_fDefibUseTime;
+			SetDTCountdownTimer(client, "CTerrorPlayer", "m_stunTimer", g_fDefibUseTime);
+			SetEntPropFloat(client, Prop_Send, "m_jumpSupressedUntil", gt_plus_usetime);
+			
+			g_fAnimToDoTimer[client] = gt_plus_usetime;
+			g_iAnimToDo[client] = GetAnimation(client, "Heal_Incap_Standing");
+			SDKHook(client, POST_THINK_HOOK, Hook_OnThinkPost); g_fClientWait[client] = 0.0;
+			SetEntPropFloat(client, Prop_Send, "m_mainSequenceStartTime", game_time);
+			
+			GotoThirdPerson(client);
+			g_fDefibUsedTimer[client] = game_time;
+			
+			SetVariantString("worldTalk:1:1.0");
+			AcceptEntityInput(client, "AddContext");
+		}
+		case false:
+		{
+			g_fAnimToDoTimer[client] = -1.0;
+			g_iAnimToDo[client] = -1;
+			
+			g_iTargetBody[client] = INVALID_ENT_REFERENCE;
+			g_iTargetClient[client] = INVALID_ENT_REFERENCE;
+			
+			SetEntProp(client, Prop_Send, "m_iProgressBarDuration", 0);
+			SetEntPropFloat(client, Prop_Send, "m_flProgressBarStartTime", 0.0);
+			SetEntPropString(client, Prop_Send, "m_progressBarText", "");
+			
+			SetDTCountdownTimer(client, "CTerrorPlayer", "m_stunTimer", 0.0);
+			SetEntPropFloat(client, Prop_Send, "m_jumpSupressedUntil", 0.0);
+			
+			SDKUnhook(client, POST_THINK_HOOK, Hook_OnThinkPost);
+			
+			GotoFirstPerson(client);
+			g_fDefibUsedTimer[client] = 0.0;
+		}
+	}
+}
+
+/*bool TraceRayDontHitSelf(int entity, int mask, any data)
+{
+	if (entity == data) // Check if the TraceRay hit the itself.
+		{ return false; } // Don't let the entity be hit
+	return true; // It didn't hit itself
+}*/
+
+/*Action TestTimer(Handle timer, int client)
+{
+	PrintToServer("useEnt: %i", GetEntPropEnt(client, Prop_Data, "m_hUseEntity"));
+}*/
+
+/*void HudHint(int client, const char[] format, any ...)
+{
+	static char sBuffer[128]; 
+	VFormat(sBuffer, sizeof(sBuffer), format, 2); 
+	
+	int hudHintEnt = CreateEntityByName("env_hudhint");
+	DispatchKeyValue(hudHintEnt, "message", sBuffer);
+	
+	DispatchSpawn(hudHintEnt);
+	AcceptEntityInput(hudHintEnt, "ShowHudHint", client);
+	
+	DataPack dataP = CreateDataPack();
+	CreateDataTimer(5.0, DestroyHudHint, dataP, TIMER_FLAG_NO_MAPCHANGE);
+	dataP.WriteCell(GetClientUserId(client));
+	dataP.WriteCell(EntIndexToEntRef(hudHintEnt));
+	
+	//SetVariantString("OnUser1 !self:HideHudHint:!activator:8.0:1");
+	//AcceptEntityInput(hudHintEnt, "AddOutput");
+	//SetVariantString("OnUser1 !self:Kill::8.1:1");
+	//AcceptEntityInput(hudHintEnt, "AddOutput");
+	//AcceptEntityInput(hudHintEnt, "FireUser1", client);
+}*/
+
+/*Action DestroyHudHint(Handle timer, DataPack dataP)
+{
+	dataP.Reset();
+	int client = GetClientOfUserId(dataP.ReadCell());
+	int hudHintEnt = EntRefToEntIndex(dataP.ReadCell());
+	if (client == 0 || hudHintEnt == -1) return Plugin_Continue;
+	
+	AcceptEntityInput(hudHintEnt, "HideHudHint", client);
+	AcceptEntityInput(hudHintEnt, "Kill", client);
+	
+	return Plugin_Continue;
+}*/
+
+// Defibrillator End // -------------------------------------------------------- //
 // Others Start // -------------------------------------------------------- //
 
 // V Credits to Silvers, this was taken from his L4D2 incapped crawling plugin
@@ -1325,7 +1933,7 @@ void GotoFirstPerson(int client)
 	float distance = -1.0;
 	for (int client = 1; client <= MaxClients; client++)
 	{
-		if (!IsSurvivor(client) || !IsPlayerAlive(client) || IsIncapacitated(client, 1)) continue;
+		if (!IsValidClient(client) || !IsSurvivor(client) || !IsPlayerAlive(client) || IsIncapacitated(client, 1)) continue;
 		if (!HasEntProp(client, Prop_Send, "m_hGroundEntity") || GetEntProp(client, Prop_Send, "m_hGroundEntity") < 0) continue;
 		
 		float cl_origin[3];
@@ -1414,8 +2022,6 @@ void GetCharacterLetter(int character, char[] str, int maxlen)
 
 void ShowWarning(int client, int mode = 0)
 {
-	if (!IsValidClient(client)) return;
-	
 	switch (mode)
 	{
 		case -1:
@@ -1434,12 +2040,14 @@ void ShowWarning(int client, int mode = 0)
 		{ PrintToChatOrServer(client, "[SM] No client found!"); }
 		case 6:
 		{ PrintToChatOrServer(client, "[SM] No client and dead body found!"); }
+		case 7:
+		{ PrintToChatOrServer(client, "[SM] Client is dead!"); }
 	}
 }
 
 void PrintToChatOrServer(int client, const char[] str, any ...)
 {
-	char sBuffer[512]; 
+	static char sBuffer[512]; 
 	VFormat(sBuffer, sizeof(sBuffer), str, 3); 
 	if (IsValidClient(client))
 	{
@@ -1460,9 +2068,9 @@ void PrintToChatOrServer(int client, const char[] str, any ...)
 	for (int i = 1; i <= GetMaxEntities(); i++) // Get Survivor Models
 	{
 		if (!RealValidEntity(i)) continue;
-		char class[64];
+		static char class[64];
 		GetEntityClassname(i, class, sizeof(class));
-		if (!StrEqual(class, DEATH_MODEL_CLASS, false)) continue;
+		if (strcmp(class, DEATH_MODEL_CLASS, false) != 0) continue;
 		
 		//float createTime = GetEntPropFloat(i, Prop_Send, "m_flCreateTime");
 		//PrintToChatAll("cT: %f, dT: %f", createTime, deathTime);
@@ -1484,7 +2092,7 @@ int GetAnimation(int entity, const char[] sequence)
 	int temp = CreateEntityByName("prop_dynamic_override");
 	DispatchKeyValue(temp, "solid", "0");
 	
-	char cl_model[PLATFORM_MAX_PATH];
+	static char cl_model[PLATFORM_MAX_PATH];
 	GetEntPropString(entity, Prop_Data, "m_ModelName", cl_model, sizeof(cl_model));
 	SetEntityModel(temp, cl_model);
 	
@@ -1493,7 +2101,7 @@ int GetAnimation(int entity, const char[] sequence)
 	
 	int sequence_int = GetEntProp(temp, Prop_Send, "m_nSequence");
 	
-	AcceptEntityInput(temp, "Kill");
+	RemoveEdict(temp);
 	
 	return sequence_int;
 }
@@ -1502,24 +2110,44 @@ int FindEntityByTargetname(int index, const char[] findname)
 {
 	for (int i = index; i < GetMaxEntities(); i++) {
 		if (!RealValidEntity(i)) continue;
-		char name[128];
+		static char name[64];
 		GetEntPropString(i, Prop_Data, "m_iName", name, sizeof(name));
-		if (!StrEqual(name, findname, false)) continue;
+		if (strcmp(name, findname, false) != 0) continue;
 		return i;
 	}
 	return -1;
 }
 
-bool HasTargetname(int entity, const char[] targetname)
+/*bool HasTargetname(int entity, const char[] targetname)
 {
-	char name[128];
+	static char name[64];
 	GetEntPropString(entity, Prop_Data, "m_iName", name, sizeof(name));
-	if (StrEqual(name, targetname, false)) return true;
+	if (strcmp(name, targetname, false) == 0) return true;
+	
+	return false;
+}*/
+
+bool HasClassname(int entity, const char[] targetname)
+{
+	static char name[64];
+	//GetEntPropString(entity, Prop_Data, "m_iName", name, sizeof(name));
+	GetEntityClassname(entity, name, sizeof(name));
+	if (strcmp(name, targetname, false) == 0) return true;
 	
 	return false;
 }
 
-void EmitAmbientGenericSound(float[3] pos, const char[] snd_str)
+void VocalizeScene(int client, const char[] scenefile)
+{
+	int entity = CreateEntityByName("instanced_scripted_scene");
+	DispatchKeyValue(entity, "SceneFile", scenefile);
+	DispatchSpawn(entity);
+	SetEntPropEnt(entity, Prop_Data, "m_hOwner", client);
+	ActivateEntity(entity);
+	AcceptEntityInput(entity, "Start", client, client);
+}
+
+void EmitAmbientGenericSound(float pos[3], const char[] snd_str)
 {
 	int snd_ent = CreateEntityByName("ambient_generic");
 	
@@ -1537,7 +2165,7 @@ void EmitAmbientGenericSound(float[3] pos, const char[] snd_str)
 
 void AddOutputToTimerEnt(int caller, const char[] output, const char[] user_call)
 {
-	int temp_ent = FindEntityByTargetname(0, TEMP_ENT);
+	int temp_ent = FindEntityByTargetname(MAXPLAYERS, TEMP_ENT);
 	if (!RealValidEntity(temp_ent))
 	{
 		temp_ent = CreateEntityByName("info_teleport_destination");
@@ -1549,10 +2177,17 @@ void AddOutputToTimerEnt(int caller, const char[] output, const char[] user_call
 	AcceptEntityInput(temp_ent, user_call, caller);
 }
 
-void SetDTCountdownTimer(int client, const char[] timer_str, float duration)
+/*float GetDTCountdownTimer(int entity, const char[] classname, const char[] timer_str)
 {
-	SetEntDataFloat(client, (FindSendPropInfo("CTerrorPlayer", timer_str)+4), duration, true);
-	SetEntDataFloat(client, (FindSendPropInfo("CTerrorPlayer", timer_str)+8), GetGameTime()+duration, true);
+	int info = FindSendPropInfo(classname, timer_str);
+	return GetEntDataFloat(entity, (info+4));
+}*/
+
+void SetDTCountdownTimer(int entity, const char[] classname, const char[] timer_str, float duration)
+{
+	int info = FindSendPropInfo(classname, timer_str);
+	SetEntDataFloat(entity, (info+4), duration, true);
+	SetEntDataFloat(entity, (info+8), GetGameTime()+duration, true);
 }
 
 /*void SetIHealth(int entity, int health)
@@ -1568,15 +2203,11 @@ bool IsDTCountdownTimerActive(float timestamp)
 }
 
 bool IsSurvivor(int client)
-{
-	if (!IsValidClient(client)) return false;
-	if (GetClientTeam(client) != 2) return false;
-	return true;
-}
+{ return (GetClientTeam(client) == 2); }
 
 bool IsZoey(int client)
 {
-	char cl_model[PLATFORM_MAX_PATH];
+	static char cl_model[PLATFORM_MAX_PATH];
 	GetEntPropString(client, Prop_Data, "m_ModelName", cl_model, sizeof(cl_model));
 	
 	if (StrContains(cl_model, "teenangst", false) >= 0) return true;
@@ -1587,9 +2218,9 @@ bool IsOccupied(int client)
 {
 	int hunter = GetEntPropEnt(client, Prop_Send, "m_pounceAttacker");
 	int smoker = GetEntPropEnt(client, Prop_Send, "m_tongueOwner");
-	if ((RealValidEntity(hunter)) || (RealValidEntity(smoker))) return true;
+	if (hunter != -1 || smoker != -1) return true;
 	
-	char netprop_strs[2][24] = 
+	static char netprop_strs[2][24] = 
 	{
 		"m_knockdownTimer",
 		"m_staggerTimer"
@@ -1634,13 +2265,15 @@ bool IsIncapacitated(int client, int hanging = 2)
 
 bool IsValidClient(int client, bool replaycheck = true)
 {
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
-	if (replaycheck)
+	if (client > 0 && client <= MaxClients && IsClientInGame(client))
 	{
-		if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		if (replaycheck)
+		{
+			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
+		}
+		return true;
 	}
-	return true;
+	return false;
 }
 
 bool RealValidEntity(int entity)

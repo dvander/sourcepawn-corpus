@@ -1,6 +1,6 @@
 /*
 *	Heal Revive Exploit Bug Fix
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.4a"
+#define PLUGIN_VERSION		"1.5"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.4 (11-Dec-2022)
+	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.4a (09-Jul-2021)
 	- L4D2: GameData file updated. Thanks to "Crasher_3637" for updating.
@@ -111,7 +114,7 @@ public void OnPluginStart()
 	CreateConVar("l4d_heal_revive_fix", PLUGIN_VERSION, "Heal Revive Exploit Bug Fix version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 }
 
-public Action Event_Revive(Event event, const char[] name, bool dontBroadcast)
+public void Event_Revive(Event event, const char[] name, bool dontBroadcast)
 {
 	int userid = event.GetInt("userid");
 	CreateTimer(0.1, TimerBlock, userid);
@@ -125,4 +128,6 @@ public Action TimerBlock(Handle timer, any client)
 		int m_useActionTarget = GetEntPropEnt(client, Prop_Send, "m_useActionTarget");
 		if( m_useActionTarget == client ) SDKCall(g_hEndRev, client, true);
 	}
+
+	return Plugin_Continue;
 }

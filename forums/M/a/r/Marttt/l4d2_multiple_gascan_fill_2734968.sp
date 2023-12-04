@@ -59,29 +59,31 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define POINT_PROP_USE_TARGET         "point_prop_use_target"
+#define FLAG_USABLE_BY_GASCAN         (1 << 0) // 1 | 01
+#define FLAG_USABLE_BY_COLA           (1 << 1) // 2 | 10
 
-#define FLAG_USABLE_BY_NONE           (0 << 0) // 0 | 000
-#define FLAG_USABLE_BY_GASCAN         (1 << 0) // 1 | 001
-#define FLAG_USABLE_BY_COLA           (1 << 1) // 2 | 010
+#define MAXENTITIES                   2048
 
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Type;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Type;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Type;
+bool g_bCvar_Enabled;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_Type;
+int g_iCvar_Type;
+
+// ====================================================================================================
+// entity - Plugin Variables
+// ====================================================================================================
+bool ge_bOnUseStartedHooked[MAXENTITIES+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -124,39 +126,34 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
-
-    LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_iCvar_Type = g_hCvar_Type.IntValue;
-    g_bCvar_Type = (g_iCvar_Type > 0);
 }
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     int entity;
 
     entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, POINT_PROP_USE_TARGET)) != INVALID_ENT_REFERENCE)
+    while ((entity = FindEntityByClassname(entity, "point_prop_use_target")) != INVALID_ENT_REFERENCE)
     {
-        HookSingleEntityOutput(entity, "OnUseStarted", OnUseStarted);
+        HookEntity(entity);
     }
 }
 
@@ -164,36 +161,49 @@ public void LateLoad()
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bConfigLoaded)
+    if (entity < 0)
         return;
 
-    if (!IsValidEntityIndex(entity))
-        return;
-
-    if (classname[0] != 'p')
-       return;
-
-    if (StrEqual(classname, POINT_PROP_USE_TARGET))
-        HookSingleEntityOutput(entity, "OnUseStarted", OnUseStarted);
+    if (StrEqual(classname, "point_prop_use_target"))
+        HookEntity(entity);
 }
 
 /****************************************************************************************************/
 
-public void OnUseStarted(const char[] output, int caller, int activator, float delay)
+public void OnEntityDestroyed(int entity)
+{
+    if (entity < 0)
+        return;
+
+    ge_bOnUseStartedHooked[entity] = false;
+}
+
+/****************************************************************************************************/
+
+void HookEntity(int entity)
+{
+    if (ge_bOnUseStartedHooked[entity])
+        return;
+
+    ge_bOnUseStartedHooked[entity] = true;
+    HookSingleEntityOutput(entity, "OnUseStarted", OnUseStarted);
+}
+
+/****************************************************************************************************/
+
+void OnUseStarted(const char[] output, int caller, int activator, float delay)
 {
     if (!g_bCvar_Enabled)
         return;
 
-    if (!(GetEntProp(caller, Prop_Data, "m_spawnflags") & g_iCvar_Type))
-        return;
-
-    SetEntPropEnt(caller, Prop_Send, "m_useActionOwner", -1);
+    if (GetEntProp(caller, Prop_Data, "m_spawnflags") & g_iCvar_Type)
+        SetEntPropEnt(caller, Prop_Send, "m_useActionOwner", -1);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -202,24 +212,10 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_multiple_gascan_fill_version : %s", PLUGIN_VERSION);
     PrintToConsole(client, "l4d2_multiple_gascan_fill_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_multiple_gascan_fill_type: %i (%s)", g_iCvar_Type, g_bCvar_Type ? "true" : "false");
+    PrintToConsole(client, "l4d2_multiple_gascan_fill_type : %i (GASCAN = %s | COLA = %s)", g_iCvar_Type, g_iCvar_Type & FLAG_USABLE_BY_GASCAN ? "true" : "false", g_iCvar_Type & FLAG_USABLE_BY_COLA ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

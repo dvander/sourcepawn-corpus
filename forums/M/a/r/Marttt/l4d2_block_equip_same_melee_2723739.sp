@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.3 (08-July-2023)
+    - Refactored code.
+
 1.0.2 (11-November-2020)
     - Fixed block by checking Slot 2 instead of active weapon.
 
@@ -20,7 +23,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Block Equipping Same Melee"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Prevents picking up an already equipped melee weapon"
-#define PLUGIN_VERSION                "1.0.2"
+#define PLUGIN_VERSION                "1.0.3"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328326"
 
 // ====================================================================================================
@@ -60,17 +63,63 @@ public Plugin myinfo =
 #define CONFIG_FILENAME               "l4d2_block_equip_same_melee"
 
 // ====================================================================================================
-// Plugin Cvars
+// client - Plugin Variables
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_CheckSkin;
+bool gc_bOnWeaponCanUseHooked[MAXPLAYERS+1];
 
 // ====================================================================================================
-// bool - Plugin Variables
+// enum structs - Plugin Variables
 // ====================================================================================================
-static bool   g_bConfigLoaded;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_CheckSkin;
+PluginData plugin;
+
+// ====================================================================================================
+// enums / enum structs
+// ====================================================================================================
+enum struct PluginCvars
+{
+    ConVar l4d2_block_equip_same_melee_ver;
+    ConVar l4d2_block_equip_same_melee_enable;
+    ConVar l4d2_block_equip_same_melee_check_skin;
+
+    void Init()
+    {
+        this.l4d2_block_equip_same_melee_ver        = CreateConVar("l4d2_block_equip_same_melee_ver", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.l4d2_block_equip_same_melee_enable     = CreateConVar("l4d2_block_equip_same_melee_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d2_block_equip_same_melee_check_skin = CreateConVar("l4d2_block_equip_same_melee_check_skin", "1", "Check if both melees are the same but have different skins to allow being equipped. \n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+
+        this.l4d2_block_equip_same_melee_enable.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_block_equip_same_melee_check_skin.AddChangeHook(Event_ConVarChanged);
+
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
+
+/****************************************************************************************************/
+
+enum struct PluginData
+{
+    PluginCvars cvars;
+
+    bool enabled;
+    bool checkSkin;
+
+    void Init()
+    {
+        this.cvars.Init();
+        this.RegisterCmds();
+    }
+
+    void GetCvarValues()
+    {
+        this.enabled = this.cvars.l4d2_block_equip_same_melee_enable.BoolValue;
+        this.checkSkin = this.cvars.l4d2_block_equip_same_melee_check_skin.BoolValue;
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_print_cvars_l4d2_block_equip_same_melee", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
@@ -92,57 +141,35 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-    CreateConVar("l4d2_block_equip_same_melee_ver", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled   = CreateConVar("l4d2_block_equip_same_melee_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_CheckSkin = CreateConVar("l4d2_block_equip_same_melee_check_skin", "0", "Check if both melees are the same but have different skins to allow being equipped. \n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    plugin.Init();
+}
 
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_CheckSkin.AddChangeHook(Event_ConVarChanged);
+/****************************************************************************************************/
 
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_print_cvars_l4d2_block_equip_same_melee", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
 public void OnConfigsExecuted()
 {
-    GetCvars();
-
-    g_bConfigLoaded = true;
+    plugin.GetCvarValues();
 
     LateLoad();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
-{
-    GetCvars();
-}
-
-/****************************************************************************************************/
-
-public void GetCvars()
-{
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-    g_bCvar_CheckSkin = g_hCvar_CheckSkin.BoolValue;
-}
-
-/****************************************************************************************************/
-
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
         if (!IsClientInGame(client))
             continue;
 
-        OnClientPutInServer(client);
+        plugin.enabled ? HookClient(client) : UnhookClient(client);
     }
 }
 
@@ -150,23 +177,46 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
+    if (!plugin.enabled)
         return;
 
+    HookClient(client);
+}
+
+/****************************************************************************************************/
+
+public void OnClientDisconnect(int client)
+{
+    gc_bOnWeaponCanUseHooked[client] = false;
+}
+
+/****************************************************************************************************/
+
+void HookClient(int client)
+{
+    if (gc_bOnWeaponCanUseHooked[client])
+        return;
+
+    gc_bOnWeaponCanUseHooked[client] = true;
     SDKHook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
 }
 
 /****************************************************************************************************/
 
-public Action OnWeaponCanUse(int client, int weapon)
+void UnhookClient(int client)
 {
-    if (!g_bCvar_Enabled)
-        return Plugin_Continue;
+    if (!gc_bOnWeaponCanUseHooked[client])
+        return;
 
+    gc_bOnWeaponCanUseHooked[client] = false;
+    SDKUnhook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
+}
+
+/****************************************************************************************************/
+
+Action OnWeaponCanUse(int client, int weapon)
+{
     if (!IsValidEntity(weapon))
-        return Plugin_Continue;
-
-    if (!HasEntProp(weapon, Prop_Data, "m_strMapSetScriptName")) // CTerrorMeleeWeapon
         return Plugin_Continue;
 
     int entity = GetPlayerWeaponSlot(client, 1);
@@ -174,25 +224,16 @@ public Action OnWeaponCanUse(int client, int weapon)
     if (!IsValidEntity(entity))
         return Plugin_Continue;
 
-    if (!HasEntProp(entity, Prop_Data, "m_strMapSetScriptName")) // CTerrorMeleeWeapon
+    char classname[36];
+    GetEntityClassname(entity, classname, sizeof(classname));
+
+    if (!StrEqual(classname, "weapon_melee"))
         return Plugin_Continue;
 
-    char namePickupWeapon[16];
-    GetEntPropString(weapon, Prop_Data, "m_strMapSetScriptName", namePickupWeapon, sizeof(namePickupWeapon));
-
-    char nameEntityWeapon[16];
-    GetEntPropString(entity, Prop_Data, "m_strMapSetScriptName", nameEntityWeapon, sizeof(nameEntityWeapon));
-
-    if (!StrEqual(namePickupWeapon, nameEntityWeapon))
+    if (GetEntProp(weapon, Prop_Send, "m_iWorldModelIndex") != GetEntProp(entity, Prop_Send, "m_iWorldModelIndex"))
         return Plugin_Continue;
 
-    if (!g_bCvar_CheckSkin)
-        return Plugin_Handled;
-
-    int pickupWeaponSkin = GetEntProp(weapon, Prop_Send, "m_nSkin");
-    int entityWeaponSkin = GetEntProp(entity, Prop_Send, "m_nSkin");
-
-    if (pickupWeaponSkin != entityWeaponSkin)
+    if (plugin.checkSkin && GetEntProp(weapon, Prop_Send, "m_nSkin") != GetEntProp(entity, Prop_Send, "m_nSkin"))
         return Plugin_Continue;
 
     return Plugin_Handled;
@@ -201,7 +242,7 @@ public Action OnWeaponCanUse(int client, int weapon)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -209,38 +250,11 @@ public Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "------------- Plugin Cvars (l4d2_block_equip_same_melee) -------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_block_equip_same_melee_ver : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d2_block_equip_same_melee_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_block_equip_same_melee_check_skin : %b (%s)", g_bCvar_CheckSkin, g_bCvar_CheckSkin ? "true" : "false");
+    PrintToConsole(client, "l4d2_block_equip_same_melee_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
+    PrintToConsole(client, "l4d2_block_equip_same_melee_check_skin : %b (%s)", plugin.checkSkin, plugin.checkSkin ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
 
     return Plugin_Handled;
-}
-
-// ====================================================================================================
-// Helpers
-// ====================================================================================================
-/**
- * Validates if is a valid client index.
- *
- * @param client          Client index.
- * @return                True if client index is valid, false otherwise.
- */
-bool IsValidClientIndex(int client)
-{
-    return (1 <= client <= MaxClients);
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid client.
- *
- * @param client          Client index.
- * @return                True if client index is valid and client is in game, false otherwise.
- */
-bool IsValidClient(int client)
-{
-    return (IsValidClientIndex(client) && IsClientInGame(client));
 }

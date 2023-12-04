@@ -1,6 +1,6 @@
 /*
 *	First Map - Skip Intro Cutscenes
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.11"
+#define PLUGIN_VERSION		"1.13"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.13 (10-Apr-2022)
+	- Fixed the "l4d_skip_intro_modes_tog" cvar always turning off the plugin. Thanks to "Thefollors" for reporting.
+
+1.12 (01-Dec-2021)
+	- Changes to fix warnings when compiling on SourceMod 1.11.
+	- Minor change to fix bad coding practice.
 
 1.11 (11-Jul-2021)
 	- Slight optimization and change to fix the unhook event errors.
@@ -137,7 +144,7 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 
-	HookEvent("gameinstructor_nodraw", Event_NoDraw, EventHookMode_PostNoCopy); // Because round_start can be too early when clients are not in-game.
+	HookEvent("gameinstructor_nodraw", Event_NoDraw, EventHookMode_PostNoCopy); // Because round_start can be too early when clients are not in-game. This triggers when the cutscene starts.
 }
 
 
@@ -148,6 +155,16 @@ public void OnPluginStart()
 public void OnConfigsExecuted()
 {
 	IsAllowed();
+}
+
+public void OnMapStart()
+{
+	g_bMapStarted = true;
+}
+
+public void OnMapEnd()
+{
+	g_bMapStarted = false;
 }
 
 public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
@@ -241,17 +258,24 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 		g_iCurrentMode = 8;
 }
 
+
+
+// ====================================================================================================
+//					EVENTS
+// ====================================================================================================
 public void Event_NoDraw(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_bCvarAllow && (!g_bLeft4DHooks || L4D_IsFirstMapInScenario()) )
 	{
 		// Block finale
-		if( !g_bLeft4DHooks && FindEntityByClassname(MaxClients + 1, "trigger_finale") != INVALID_ENT_REFERENCE )
+		if( !g_bLeft4DHooks && FindEntityByClassname(-1, "trigger_finale") != INVALID_ENT_REFERENCE )
 			return;
 
 		g_bFaded = false;
 		g_bOutput1 = false;
 		g_bOutput2 = false;
+
+		// Multiple times to make sure it works
 		CreateTimer(1.0, TimerStart);
 		CreateTimer(5.0, TimerStart);
 		CreateTimer(6.0, TimerStart);
@@ -306,7 +330,7 @@ public Action TimerStart(Handle timer)
 				SetVariantString("!self");
 				AcceptEntityInput(entity, "StartMovement");
 
-				// AcceptEntityInput(entity, "Kill"); // Kill works good, but maybe some 3rd party maps use this for other scenes, so better to not kill.. especially if no left4dhooks and checking every map.
+				// RemoveEntity(entity); // Kill works good, but maybe some 3rd party maps use this for other scenes, so better to not kill.. especially if no left4dhooks and checking every map.
 			}
 		}
 
@@ -334,4 +358,6 @@ public Action TimerStart(Handle timer)
 			// DispatchSpawn(entity);
 		}
 	}
+
+	return Plugin_Continue;
 }

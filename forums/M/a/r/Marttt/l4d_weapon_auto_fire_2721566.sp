@@ -85,11 +85,6 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
-#define CLASSNAME_WEAPON_PUMPSHOTGUN        "weapon_pumpshotgun"
-#define CLASSNAME_WEAPON_SHOTGUN_CHROME     "weapon_shotgun_chrome"
-#define CLASSNAME_WEAPON_AUTOSHOTGUN        "weapon_autoshotgun"
-#define CLASSNAME_WEAPON_SHOTGUN_SPAS       "weapon_shotgun_spas"
-
 #define L4D2_SOUND_PISTOL_FIRE              ")weapons/pistol/gunfire/pistol_fire.wav"
 #define L4D2_SOUND_PISTOL_DUAL_FIRE         ")weapons/pistol/gunfire/pistol_dual_fire.wav"
 
@@ -122,102 +117,102 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_WeaponSwitch;
-static ConVar g_hCvar_ShotgunReloadEmpty;
-static ConVar g_hCvar_MachineGunRelease;
-static ConVar g_hCvar_Pistol;
-static ConVar g_hCvar_Pistol_Frame;
-static ConVar g_hCvar_Pistol_ForceSound;
-static ConVar g_hCvar_DualPistol;
-static ConVar g_hCvar_DualPistol_Frame;
-static ConVar g_hCvar_DualPistol_ForceSound;
-static ConVar g_hCvar_Pistol_Magnum;
-static ConVar g_hCvar_Pistol_Magnum_Frame;
-static ConVar g_hCvar_PumpShotgun;
-static ConVar g_hCvar_PumpShotgun_Frame;
-static ConVar g_hCvar_Shotgun_Chrome;
-static ConVar g_hCvar_Shotgun_Chrome_Frame;
-static ConVar g_hCvar_AutoShotgun;
-static ConVar g_hCvar_AutoShotgun_Frame;
-static ConVar g_hCvar_Shotgun_Spas;
-static ConVar g_hCvar_Shotgun_Spas_Frame;
-static ConVar g_hCvar_Hunting_Rifle;
-static ConVar g_hCvar_Hunting_Rifle_Frame;
-static ConVar g_hCvar_Sniper_Military;
-static ConVar g_hCvar_Sniper_Military_Frame;
-static ConVar g_hCvar_Sniper_Scout;
-static ConVar g_hCvar_Sniper_Scout_Frame;
-static ConVar g_hCvar_Sniper_AWP;
-static ConVar g_hCvar_Sniper_AWP_Frame;
-static ConVar g_hCvar_Grenade_Launcher;
-static ConVar g_hCvar_Grenade_Launcher_Frame;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_WeaponSwitch;
+ConVar g_hCvar_ShotgunReloadEmpty;
+ConVar g_hCvar_MachineGunRelease;
+ConVar g_hCvar_Pistol;
+ConVar g_hCvar_Pistol_Frame;
+ConVar g_hCvar_Pistol_ForceSound;
+ConVar g_hCvar_DualPistol;
+ConVar g_hCvar_DualPistol_Frame;
+ConVar g_hCvar_DualPistol_ForceSound;
+ConVar g_hCvar_Pistol_Magnum;
+ConVar g_hCvar_Pistol_Magnum_Frame;
+ConVar g_hCvar_PumpShotgun;
+ConVar g_hCvar_PumpShotgun_Frame;
+ConVar g_hCvar_Shotgun_Chrome;
+ConVar g_hCvar_Shotgun_Chrome_Frame;
+ConVar g_hCvar_AutoShotgun;
+ConVar g_hCvar_AutoShotgun_Frame;
+ConVar g_hCvar_Shotgun_Spas;
+ConVar g_hCvar_Shotgun_Spas_Frame;
+ConVar g_hCvar_Hunting_Rifle;
+ConVar g_hCvar_Hunting_Rifle_Frame;
+ConVar g_hCvar_Sniper_Military;
+ConVar g_hCvar_Sniper_Military_Frame;
+ConVar g_hCvar_Sniper_Scout;
+ConVar g_hCvar_Sniper_Scout_Frame;
+ConVar g_hCvar_Sniper_AWP;
+ConVar g_hCvar_Sniper_AWP_Frame;
+ConVar g_hCvar_Grenade_Launcher;
+ConVar g_hCvar_Grenade_Launcher_Frame;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bL4D2;
-static bool   g_bConfigLoaded;
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_WeaponSwitch;
-static bool   g_bCvar_MachineGunRelease;
-static bool   g_bCvar_Pistol;
-static bool   g_bCvar_Pistol_Frame;
-static bool   g_bCvar_Pistol_ForceSound;
-static bool   g_bCvar_DualPistol;
-static bool   g_bCvar_DualPistol_Frame;
-static bool   g_bCvar_DualPistol_ForceSound;
-static bool   g_bCvar_Pistol_Magnum;
-static bool   g_bCvar_Pistol_Magnum_Frame;
-static bool   g_bCvar_PumpShotgun;
-static bool   g_bCvar_PumpShotgun_Frame;
-static bool   g_bCvar_Shotgun_Chrome;
-static bool   g_bCvar_Shotgun_Chrome_Frame;
-static bool   g_bCvar_AutoShotgun;
-static bool   g_bCvar_AutoShotgun_Frame;
-static bool   g_bCvar_Shotgun_Spas;
-static bool   g_bCvar_Shotgun_Spas_Frame;
-static bool   g_bCvar_Hunting_Rifle;
-static bool   g_bCvar_Hunting_Rifle_Frame;
-static bool   g_bCvar_Sniper_Military;
-static bool   g_bCvar_Sniper_Military_Frame;
-static bool   g_bCvar_Sniper_Scout;
-static bool   g_bCvar_Sniper_Scout_Frame;
-static bool   g_bCvar_Sniper_AWP;
-static bool   g_bCvar_Sniper_AWP_Frame;
-static bool   g_bCvar_Grenade_Launcher;
-static bool   g_bCvar_Grenade_Launcher_Frame;
-static bool   g_bForceSound;
+bool g_bL4D2;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_WeaponSwitch;
+bool g_bCvar_MachineGunRelease;
+bool g_bCvar_Pistol;
+bool g_bCvar_Pistol_Frame;
+bool g_bCvar_Pistol_ForceSound;
+bool g_bCvar_DualPistol;
+bool g_bCvar_DualPistol_Frame;
+bool g_bCvar_DualPistol_ForceSound;
+bool g_bCvar_Pistol_Magnum;
+bool g_bCvar_Pistol_Magnum_Frame;
+bool g_bCvar_PumpShotgun;
+bool g_bCvar_PumpShotgun_Frame;
+bool g_bCvar_Shotgun_Chrome;
+bool g_bCvar_Shotgun_Chrome_Frame;
+bool g_bCvar_AutoShotgun;
+bool g_bCvar_AutoShotgun_Frame;
+bool g_bCvar_Shotgun_Spas;
+bool g_bCvar_Shotgun_Spas_Frame;
+bool g_bCvar_Hunting_Rifle;
+bool g_bCvar_Hunting_Rifle_Frame;
+bool g_bCvar_Sniper_Military;
+bool g_bCvar_Sniper_Military_Frame;
+bool g_bCvar_Sniper_Scout;
+bool g_bCvar_Sniper_Scout_Frame;
+bool g_bCvar_Sniper_AWP;
+bool g_bCvar_Sniper_AWP_Frame;
+bool g_bCvar_Grenade_Launcher;
+bool g_bCvar_Grenade_Launcher_Frame;
+bool g_bForceSound;
 
 // ====================================================================================================
 // int - Plugin Variables
 // ====================================================================================================
-static int    g_iCvar_ShotgunReloadEmpty;
-static int    g_iCvar_Pistol_Frame;
-static int    g_iCvar_DualPistol_Frame;
-static int    g_iCvar_Pistol_Magnum_Frame;
-static int    g_iCvar_PumpShotgun_Frame;
-static int    g_iCvar_Shotgun_Chrome_Frame;
-static int    g_iCvar_AutoShotgun_Frame;
-static int    g_iCvar_Shotgun_Spas_Frame;
-static int    g_iCvar_Hunting_Rifle_Frame;
-static int    g_iCvar_Sniper_Military_Frame;
-static int    g_iCvar_Sniper_Scout_Frame;
-static int    g_iCvar_Sniper_AWP_Frame;
-static int    g_iCvar_Grenade_Launcher_Frame;
+int g_iCvar_ShotgunReloadEmpty;
+int g_iCvar_Pistol_Frame;
+int g_iCvar_DualPistol_Frame;
+int g_iCvar_Pistol_Magnum_Frame;
+int g_iCvar_PumpShotgun_Frame;
+int g_iCvar_Shotgun_Chrome_Frame;
+int g_iCvar_AutoShotgun_Frame;
+int g_iCvar_Shotgun_Spas_Frame;
+int g_iCvar_Hunting_Rifle_Frame;
+int g_iCvar_Sniper_Military_Frame;
+int g_iCvar_Sniper_Scout_Frame;
+int g_iCvar_Sniper_AWP_Frame;
+int g_iCvar_Grenade_Launcher_Frame;
 
 // ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-static int    gc_iWeaponFrame[MAXPLAYERS+1];
-static int    gc_iWeaponFrameCount[MAXPLAYERS+1];
-static bool   gc_bWeaponSwitched[MAXPLAYERS+1];
-static bool   gc_bUsingMachineWeapon[MAXPLAYERS+1];
-static bool   gc_bWeaponReloadShotgun[MAXPLAYERS+1];
-static bool   gc_bWeaponPistolSound[MAXPLAYERS+1];
-static int    gc_iCurrentButton[MAXPLAYERS+1];
-static int    gc_iPreviousButton[MAXPLAYERS+1];
+bool gc_bWeaponSwitchPostHooked[MAXPLAYERS+1];
+int gc_iWeaponFrame[MAXPLAYERS+1];
+int gc_iWeaponFrameCount[MAXPLAYERS+1];
+bool gc_bWeaponSwitched[MAXPLAYERS+1];
+bool gc_bUsingMachineWeapon[MAXPLAYERS+1];
+bool gc_bWeaponReloadShotgun[MAXPLAYERS+1];
+bool gc_bWeaponPistolSound[MAXPLAYERS+1];
+int gc_iCurrentButton[MAXPLAYERS+1];
+int gc_iPreviousButton[MAXPLAYERS+1];
 
 // ====================================================================================================
 // Plugin Start
@@ -326,25 +321,23 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    g_bConfigLoaded = true;
-
     LateLoad();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_WeaponSwitch = g_hCvar_WeaponSwitch.BoolValue;
@@ -409,7 +402,7 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void LateLoad()
+void LateLoad()
 {
     for (int client = 1; client <= MaxClients; client++)
     {
@@ -417,9 +410,6 @@ public void LateLoad()
             continue;
 
         OnClientPutInServer(client);
-
-        int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-        OnWeaponSwitchPost(client, weapon);
     }
 
     int entity;
@@ -436,19 +426,24 @@ public void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!g_bConfigLoaded)
-        return;
-
     if (IsFakeClient(client))
         return;
 
+    if (gc_bWeaponSwitchPostHooked[client])
+        return;
+
+    gc_bWeaponSwitchPostHooked[client] = true;
     SDKHook(client, SDKHook_WeaponSwitchPost, OnWeaponSwitchPost);
+
+    int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    OnWeaponSwitchPost(client, weapon);
 }
 
 /****************************************************************************************************/
 
 public void OnClientDisconnect(int client)
 {
+    gc_bWeaponSwitchPostHooked[client] = false;
     gc_iWeaponFrame[client] = 0;
     gc_iWeaponFrameCount[client] = 0;
     gc_bWeaponSwitched[client] = false;
@@ -463,7 +458,7 @@ public void OnClientDisconnect(int client)
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!IsValidEntityIndex(entity))
+    if (entity < 0)
         return;
 
     if (classname[0] != 'p')
@@ -475,7 +470,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 /****************************************************************************************************/
 
-public void OnUsePost(int entity, int activator, int caller, UseType type, float value)
+void OnUsePost(int entity, int activator, int caller, UseType type, float value)
 {
     if (!g_bCvar_Enabled)
         return;
@@ -485,7 +480,7 @@ public void OnUsePost(int entity, int activator, int caller, UseType type, float
 
     int client = GetEntPropEnt(entity, Prop_Send, "m_owner");
 
-    if (!IsValidClient(client))
+    if (!IsValidClientIndex(client))
         return;
 
     gc_bUsingMachineWeapon[client] = true;
@@ -493,7 +488,7 @@ public void OnUsePost(int entity, int activator, int caller, UseType type, float
 
 /****************************************************************************************************/
 
-public void OnWeaponSwitchPost(int client, int weapon)
+void OnWeaponSwitchPost(int client, int weapon)
 {
     if (!gc_bUsingMachineWeapon[client])
     {
@@ -528,16 +523,16 @@ public void OnWeaponSwitchPost(int client, int weapon)
     if (ammo != 0)
         return;
 
-    char classnameWeapon[22];
-    GetEntityClassname(weapon, classnameWeapon, sizeof(classnameWeapon));
+    char weaponClassname[36];
+    GetEntityClassname(weapon, weaponClassname, sizeof(weaponClassname));
 
-    if (StrEqual(classnameWeapon, CLASSNAME_WEAPON_PUMPSHOTGUN))
+    if (StrEqual(weaponClassname, "weapon_pumpshotgun"))
     {
         gc_bWeaponReloadShotgun[client] = true;
         return;
     }
 
-    if (StrEqual(classnameWeapon, CLASSNAME_WEAPON_AUTOSHOTGUN))
+    if (StrEqual(weaponClassname, "weapon_autoshotgun"))
     {
         gc_bWeaponReloadShotgun[client] = true;
         return;
@@ -546,13 +541,13 @@ public void OnWeaponSwitchPost(int client, int weapon)
     if (!g_bL4D2)
         return;
 
-    if (StrEqual(classnameWeapon, CLASSNAME_WEAPON_SHOTGUN_CHROME))
+    if (StrEqual(weaponClassname, "weapon_shotgun_chrome"))
     {
         gc_bWeaponReloadShotgun[client] = true;
         return;
     }
 
-    if (StrEqual(classnameWeapon, CLASSNAME_WEAPON_SHOTGUN_SPAS))
+    if (StrEqual(weaponClassname, "weapon_shotgun_spas"))
     {
         gc_bWeaponReloadShotgun[client] = true;
         return;
@@ -561,9 +556,9 @@ public void OnWeaponSwitchPost(int client, int weapon)
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -573,7 +568,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -586,11 +581,12 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_WeaponFire_L4D2(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponFire_L4D2(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
+    int weaponid = event.GetInt("weaponid");
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (IsFakeClient(client))
@@ -602,10 +598,10 @@ public void Event_WeaponFire_L4D2(Event event, const char[] name, bool dontBroad
 
     int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-    if (!IsValidEntity(activeWeapon))
+    if (activeWeapon == -1)
         return;
 
-    switch (event.GetInt("weaponid"))
+    switch (weaponid)
     {
         case L4D2_WEPID_PISTOL:
         {
@@ -758,11 +754,12 @@ public void Event_WeaponFire_L4D2(Event event, const char[] name, bool dontBroad
 
 /****************************************************************************************************/
 
-public void Event_WeaponFire_L4D1(Event event, const char[] name, bool dontBroadcast)
+void Event_WeaponFire_L4D1(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
+    int weaponid = event.GetInt("weaponid");
 
-    if (!IsValidClient(client))
+    if (client == 0)
         return;
 
     if (IsFakeClient(client))
@@ -774,10 +771,10 @@ public void Event_WeaponFire_L4D1(Event event, const char[] name, bool dontBroad
 
     int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-    if (!IsValidEntity(activeWeapon))
+    if (activeWeapon == -1)
         return;
 
-    switch (event.GetInt("weaponid"))
+    switch (weaponid)
     {
         case L4D1_WEPID_PISTOL:
         {
@@ -858,7 +855,7 @@ public void Event_WeaponFire_L4D1(Event event, const char[] name, bool dontBroad
 
 /****************************************************************************************************/
 
-public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
+public Action OnPlayerRunCmd(int client, int &buttons)
 {
     if (!g_bCvar_Enabled)
         return Plugin_Continue;
@@ -911,7 +908,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     {
         int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-        if (IsValidEntity(activeWeapon))
+        if (activeWeapon != -1)
         {
             int ammo = GetEntProp(activeWeapon, Prop_Send, "m_iClip1", 1);
 
@@ -950,6 +947,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     if (gc_iWeaponFrame[client] != gc_iWeaponFrameCount[client])
     {
         gc_iWeaponFrameCount[client]++;
+        if (gc_iWeaponFrameCount[client] < 0) // int.MaxValue fix
+            gc_iWeaponFrameCount[client] = 0;
+
         return Plugin_Continue;
     }
 
@@ -963,9 +963,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 /****************************************************************************************************/
 
-public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
+Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
 {
     if (!g_bForceSound)
+        return Plugin_Continue;
+
+    if (channel != SNDCHAN_WEAPON)
         return Plugin_Continue;
 
     if (!IsValidClientIndex(entity))
@@ -1010,7 +1013,7 @@ public Action SoundHook(int clients[64], int &numClients, char sample[PLATFORM_M
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -1067,30 +1070,4 @@ public Action CmdPrintCvars(int client, int args)
 bool IsValidClientIndex(int client)
 {
     return (1 <= client <= MaxClients);
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid client.
- *
- * @param client        Client index.
- * @return              True if client index is valid and client is in game, false otherwise.
- */
-bool IsValidClient(int client)
-{
-    return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid entity index (between MaxClients+1 and 2048).
- *
- * @param entity        Entity index.
- * @return              True if entity index is valid, false otherwise.
- */
-bool IsValidEntityIndex(int entity)
-{
-    return (MaxClients+1 <= entity <= GetMaxEntities());
 }

@@ -75,23 +75,23 @@ public Plugin myinfo =
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
-static ConVar g_hCvar_Enabled;
-static ConVar g_hCvar_Swap;
+ConVar g_hCvar_Enabled;
+ConVar g_hCvar_Swap;
 
 // ====================================================================================================
 // bool - Plugin Variables
 // ====================================================================================================
-static bool   g_bEventsHooked;
-static bool   g_bCvar_Enabled;
-static bool   g_bCvar_Swap;
+bool g_bEventsHooked;
+bool g_bCvar_Enabled;
+bool g_bCvar_Swap;
 
 // ====================================================================================================
 // StringMap - Plugin Variables
 // ====================================================================================================
-static StringMap g_smWeaponName;
-static StringMap g_smWeaponMeleeName;
-static StringMap g_smWeaponIdToClassname;
-static StringMap g_smWeaponModelToClassname;
+StringMap g_smWeaponName;
+StringMap g_smWeaponMeleeName;
+StringMap g_smWeaponIdToClassname;
+StringMap g_smWeaponModelToClassname;
 
 // ====================================================================================================
 // Plugin Start
@@ -106,11 +106,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         return APLRes_SilentFailure;
     }
 
-    g_smWeaponName = new StringMap();
-    g_smWeaponMeleeName = new StringMap();
-    g_smWeaponIdToClassname = new StringMap();
-    g_smWeaponModelToClassname = new StringMap();
-
     return APLRes_Success;
 }
 
@@ -118,6 +113,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+    g_smWeaponName = new StringMap();
+    g_smWeaponMeleeName = new StringMap();
+    g_smWeaponIdToClassname = new StringMap();
+    g_smWeaponModelToClassname = new StringMap();
+
     BuildMaps();
 
     CreateConVar("l4d2_wskin_switch_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
@@ -137,7 +137,7 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void BuildMaps()
+void BuildMaps()
 {
     g_smWeaponName.Clear();
     g_smWeaponName.SetString("weapon_pistol_magnum", "weapon_pistol_magnum");
@@ -185,21 +185,21 @@ public void OnConfigsExecuted()
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
     GetCvars();
 
-    HookEvents(g_bCvar_Enabled);
+    HookEvents();
 }
 
 /****************************************************************************************************/
 
-public void GetCvars()
+void GetCvars()
 {
     g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
     g_bCvar_Swap = g_hCvar_Swap.BoolValue;
@@ -207,9 +207,9 @@ public void GetCvars()
 
 /****************************************************************************************************/
 
-public void HookEvents(bool hook)
+void HookEvents()
 {
-    if (hook && !g_bEventsHooked)
+    if (g_bCvar_Enabled && !g_bEventsHooked)
     {
         g_bEventsHooked = true;
 
@@ -218,7 +218,7 @@ public void HookEvents(bool hook)
         return;
     }
 
-    if (!hook && g_bEventsHooked)
+    if (!g_bCvar_Enabled && g_bEventsHooked)
     {
         g_bEventsHooked = false;
 
@@ -230,28 +230,24 @@ public void HookEvents(bool hook)
 
 /****************************************************************************************************/
 
-public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 {
-    if (!g_bCvar_Enabled)
-        return;
-
     int client = GetClientOfUserId(event.GetInt("userid"));
-
-    if (!IsValidClient(client))
-        return;
-
     int entity = event.GetInt("targetid");
+
+    if (client == 0)
+        return;
 
     if (!IsValidEntity(entity))
         return;
 
-    char pickupClassname[30];
+    char pickupClassname[36];
     GetEntityClassname(entity, pickupClassname, sizeof(pickupClassname));
 
-    if (pickupClassname[0] != 'w' && pickupClassname[1] != 'e') // weapon_*
+    if (pickupClassname[0] != 'w' || pickupClassname[1] != 'e') // weapon_*
         return;
 
-    char pickupName[22];
+    char pickupName[36];
     if (StrEqual(pickupClassname, "weapon_melee"))
     {
         char meleeName[16];
@@ -262,7 +258,7 @@ public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
     }
     else if (StrEqual(pickupClassname, "weapon_melee_spawn"))
     {
-        char modelname[39];
+        char modelname[PLATFORM_MAX_PATH];
         GetEntPropString(entity, Prop_Data, "m_ModelName", modelname, sizeof(modelname));
         StringToLowerCase(modelname);
 
@@ -294,10 +290,10 @@ public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 
         if (IsValidEntity(slot1))
         {
-            char slot1Classname[30];
+            char slot1Classname[36];
             GetEntityClassname(slot1, slot1Classname, sizeof(slot1Classname));
 
-            char slot1Name[30];
+            char slot1Name[36];
 
             if (StrEqual(slot1Classname, "weapon_melee"))
             {
@@ -325,10 +321,10 @@ public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 
         if (IsValidEntity(slot2))
         {
-            char slot2Classname[30];
+            char slot2Classname[36];
             GetEntityClassname(slot2, slot2Classname, sizeof(slot2Classname));
 
-            char slot2Name[30];
+            char slot2Name[36];
 
             if (StrEqual(slot2Classname, "weapon_melee"))
             {
@@ -369,24 +365,24 @@ public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 
     int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-    if (!IsValidEntity(activeWeapon))
+    if (activeWeapon == -1)
         return;
 
     if (activeWeapon != slot)
         return;
 
-    int viewWeapon = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
+    int viewModel = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
 
-    if (!IsValidEntity(viewWeapon))
+    if (viewModel == -1)
         return;
 
-    SetEntProp(viewWeapon, Prop_Send, "m_nSkin", pickupSkin);
+    SetEntProp(viewModel, Prop_Send, "m_nSkin", pickupSkin);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-public Action CmdPrintCvars(int client, int args)
+Action CmdPrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -406,32 +402,6 @@ public Action CmdPrintCvars(int client, int args)
 // ====================================================================================================
 // Helpers
 // ====================================================================================================
-/**
- * Validates if is a valid client index.
- *
- * @param client          Client index.
- * @return                True if client index is valid, false otherwise.
- */
-bool IsValidClientIndex(int client)
-{
-    return (1 <= client <= MaxClients);
-}
-
-/****************************************************************************************************/
-
-/**
- * Validates if is a valid client.
- *
- * @param client          Client index.
- * @return                True if client index is valid and client is in game, false otherwise.
- */
-bool IsValidClient(int client)
-{
-    return (IsValidClientIndex(client) && IsClientInGame(client));
-}
-
-/****************************************************************************************************/
-
 /**
  * Converts the string to lower case.
  *

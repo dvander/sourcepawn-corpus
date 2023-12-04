@@ -20,6 +20,9 @@
 *							added "Summary" paragraph, that includes map name, current difficulty and all Survivor team players.
 *							Fixed ST_Idle method: removed "incapacitated" condition (why it was there before for so long time??).
 *							Some changes in syntax.
+*	09/12/2022 Version 1.4.18 – Fast reload feature has been adapted under the new MR update (v1.4.14), due to incorrect IDLE record.
+*	17/01/2023 Version 1.4.19 – Added hook OnEntityCreated and OnEntityDestroyed for VScript.
+*	21/08/2023 Version 1.4.20 – Added in "debug_inventory" info about player's angles.
 */
 
 #pragma semicolon 1
@@ -28,7 +31,7 @@
 #include <sdktools>
 #include <sdkhooks>
 
-#define PLUGIN_VER "1.4.17"
+#define PLUGIN_VER "1.4.20"
 #define MAXCLIENTS 32
 #define OFFSET_RIFLE 12
 #define OFFSET_SMG 20
@@ -51,6 +54,7 @@ new Handle:g_ConVar_IdleAnytime;
 new Handle:g_ConVar_Idle;
 new Handle:g_ConVar_IdleTake;
 new Handle:g_ConVar_IdleReplace;
+new Handle:g_ConVar_AllowHooks;
 
 new bool:g_bIsRestarting;
 new g_iOwner[MAXCLIENTS + 1];
@@ -88,6 +92,7 @@ public OnPluginStart()
 	g_ConVar_Idle = CreateConVar("st_idle", "0", "The same like \"go_away_from_keyboard\", but without delay.");
 	g_ConVar_IdleTake = CreateConVar("st_idletake", "0", "The same like \"sb_takecontrol\".");
 	g_ConVar_IdleReplace = CreateConVar("st_idlereplace", "0 0", "Replace players by indexes.");
+	g_ConVar_AllowHooks = CreateConVar("st_allow_sdkhooks", "0", "Allow sending of SDKHooks data to the VScript.");
 	
 	RegConsoleCmd("sm_setammo", Cmd_SetAmmo);
 	RegConsoleCmd("sm_ccmd", Cmd_ClientCommand);
@@ -291,7 +296,9 @@ public OnGameEvent(Event event, const char[] name, bool dontBroadcast)
 			new entity = GetClientOfUserId(GetEventInt(event, "attacker"));
 			if (HasEntProp(entity, Prop_Send, "m_zombieClass") && GetEntProp(entity, Prop_Send, "m_zombieClass") == 8)
 			{
-				RequestFrame(RF_Idle, GetClientOfUserId(GetEventInt(event, "userid")));
+				DataPack data = CreateDataPack();
+				data.WriteCell(GetClientOfUserId(GetEventInt(event, "userid")));
+				RequestFrame(RF_Idle, data);
 			}
 		}
 	}
@@ -304,9 +311,10 @@ public OnGameEvent(Event event, const char[] name, bool dontBroadcast)
 			GetClientWeapon(client, sEntName, sizeof(sEntName));
 			if (!StrEqual(sEntName, "weapon_chainsaw") && StrContains(sEntName, "shotgun") == -1 && StrContains(sEntName, "pistol") == -1)
 			{
-				ST_Idle(client);
-				FakeClientCommandEx(client, "sm_take");
-				FakeClientCommandEx(client, "use %s", sEntName);
+				DataPack data = CreateDataPack();
+				data.WriteCell(client);
+				data.WriteString(sEntName);
+				RequestFrame(RF_Idle, data);
 			}
 		}
 	}
@@ -319,11 +327,48 @@ public OnGameEvent(Event event, const char[] name, bool dontBroadcast)
 				new client = GetClientOfUserId(GetEventInt(event, "subject"));
 				if (GetClientOfUserId(GetEventInt(event, "userid")) != client)
 				{
-					RequestFrame(RF_Idle, client);
+					DataPack data = CreateDataPack();
+					data.WriteCell(client);
+					RequestFrame(RF_Idle, data);
 				}
 			}
 		}
 	}
+}
+
+public RF_Idle(DataPack data)
+{
+	data.Reset();
+	new client = data.ReadCell();
+	decl Float:fOrigin[3]; GetClientAbsOrigin(client, fOrigin);
+	ST_Idle(client);
+	TeleportEntity(client, fOrigin, NULL_VECTOR, NULL_VECTOR);	//fix origin beforehand in case the auto-IDLEs will be disabled (for MR)
+	RequestFrame(RF_Take, data);
+}
+
+public RF_Take(DataPack data)
+{
+	data.Reset();
+	ST_Idle(data.ReadCell(), true);
+	if (data.IsReadable(9))
+	{
+		RequestFrame(RF_Switch, data);
+		return;
+	}
+	delete data;
+}
+
+public RF_Switch(DataPack data)
+{
+	data.Reset();
+	new client = data.ReadCell();
+	if (IsPlayer(client))
+	{
+		decl String:sEntName[64];
+		data.ReadString(sEntName, sizeof(sEntName));
+		FakeClientCommand(client, "use %s", sEntName);
+	}
+	delete data;
 }
 
 public Action:OnPlayerRunCmd(int client)
@@ -348,17 +393,6 @@ public Action:OnPlayerRunCmd(int client)
 	return Plugin_Continue;
 }
 
-public RF_Idle(any:client)
-{
-	ST_Idle(client);
-	RequestFrame(RF_Take, client);
-}
-
-public RF_Take(any:client)
-{
-	ST_Idle(client, true);
-}
-
 public Func_AnyTake()
 {
 	for (new i = 1; i <= MaxClients; i++)
@@ -367,6 +401,26 @@ public Func_AnyTake()
 		{
 			SDKCall(g_hTakeOverBot, i);
 		}
+	}
+}
+
+public OnEntityCreated(int entity, const char[] classname)
+{
+	if (GetConVarBool(g_ConVar_AllowHooks))
+	{
+		decl String:sCode[128];
+		Format(sCode, sizeof(sCode), "if (\"OnEntityCreated\" in getroottable()) OnEntityCreated(self, \"%s\")", classname);
+		SetVariantString(sCode);
+		AcceptEntityInput(entity, "RunScriptCode");
+	}
+}
+
+public OnEntityDestroyed(int entity)
+{
+	if (GetConVarBool(g_ConVar_AllowHooks))
+	{
+		SetVariantString("if (\"OnEntityDestroyed\" in getroottable()) OnEntityDestroyed(self)");
+		AcceptEntityInput(entity, "RunScriptCode");
 	}
 }
 
@@ -620,7 +674,7 @@ public Action:Cmd_NoclipCustom(client, args)
 
 public Action:Cmd_DebugInventory(client, args)
 {
-	decl String:sEntName[64], String:sPlayerInv[64], String:sKeyValue[64], String:sUpgrade[64], Float:fOrigin[6], String:sMapName[32];
+	decl String:sEntName[64], String:sPlayerInv[64], String:sKeyValue[64], String:sUpgrade[64], Float:fOrigin[6], String:sMapName[32], Float:vecAng[3];
 	new Float:fHealthTemp, entity, iUpgrade, iUpgradeFlag, bool:bAtLeastOne, iRevived;
 	new String:sWeaponList[][] =
 	{
@@ -754,6 +808,8 @@ public Action:Cmd_DebugInventory(client, args)
 				}
 				PrintToConsoleAll("Origin    : Vector(%.03f, %.03f, %.03f)", fPlayerPos[0], fPlayerPos[1], fPlayerPos[2]);
 			}
+			GetClientAbsAngles(i, vecAng);
+			PrintToConsoleAll("Angles    : Vector(0, %.03f, 0)", vecAng[1]);
 			PrintToConsoleAll("----------------------------------------------------");
 		}
 	}

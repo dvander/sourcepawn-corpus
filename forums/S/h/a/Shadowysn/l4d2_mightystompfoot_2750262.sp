@@ -1,7 +1,7 @@
 #define PLUGIN_NAME "[L4D2] Mighty Stomp Foot"
 #define PLUGIN_AUTHOR "AtomicStryker, Shadowysn (New syntax and common kill method)"
 #define PLUGIN_DESC "Crush downed Commons"
-#define PLUGIN_VERSION "1.0.5"
+#define PLUGIN_VERSION "1.0.5b"
 #define PLUGIN_URL "https://forums.alliedmods.net/showthread.php?p=1185478"
 #define PLUGIN_NAME_SHORT "Mighty Stomp Foot"
 #define PLUGIN_NAME_TECH "l4d2_mightystompfoot"
@@ -18,7 +18,6 @@
 #define TEST_DEBUG			0
 #define TEST_DEBUG_LOG		0
 
-#define CLASS_STRINGLENGTH	32
 #define L4D2_MAX_PLAYERS	32
 
 #define ANIM_SEQUENCES_DOWNED_BEGIN		128
@@ -30,11 +29,12 @@
 
 #define STOMP_SOUND_PATH		"player/survivor/hit/rifle_swing_hit_infected9.wav"
 #define CLASSNAME_INFECTED		"infected"
+#define CLASSNAME_INFECTED_STRINGLENGTH	12
 #define ENTPROP_ANIM_SEQUENCE	"m_nSequence"
 #define ENTPROP_ANIM_CYCLE		"m_flCycle"
 #define SPEED_MODIFY_ENTPROP	"m_flVelocityModifier"
 
-static Handle cvarSlowSurvivor = null;
+ConVar cvarSlowSurvivor;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -55,13 +55,13 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	char temp_str[128];
+	static char temp_str[64];
 	Format(temp_str, sizeof(temp_str), "%s version.", PLUGIN_NAME_SHORT);
-	char desc_str[1024];
+	static char desc_str[64];
 	Format(desc_str, sizeof(desc_str), "%s_version", PLUGIN_NAME_TECH);
 	ConVar version_cvar = CreateConVar(desc_str, PLUGIN_VERSION, temp_str, FCVAR_NOTIFY|FCVAR_REPLICATED|FCVAR_DONTRECORD);
 	if (version_cvar != null)
-		SetConVarString(version_cvar, PLUGIN_VERSION);
+		version_cvar.SetString(PLUGIN_VERSION);
 	
 	Format(temp_str, sizeof(temp_str), "%s_stompslow", PLUGIN_NAME_TECH);
 	cvarSlowSurvivor = CreateConVar(temp_str, "0.0", "Does Stomping slow down Survivors momentarily?", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -79,10 +79,10 @@ Action _MF_Touch(int entity, int other)
 {
 	if (other < L4D2_MAX_PLAYERS || !IsValidEntity(other)) return Plugin_Continue;
 	
-	char classname[CLASS_STRINGLENGTH];
-	GetEdictClassname(other, classname, sizeof(classname));
+	static char classname[CLASSNAME_INFECTED_STRINGLENGTH];
+	GetEntityClassname(other, classname, sizeof(classname));
 	
-	if (StrEqual(classname, CLASSNAME_INFECTED))
+	if (strcmp(classname, CLASSNAME_INFECTED) == 0)
 	{
 		int i = GetEntProp(other, Prop_Data, ENTPROP_ANIM_SEQUENCE);
 		float f = GetEntPropFloat(other, Prop_Data, ENTPROP_ANIM_CYCLE);
@@ -119,7 +119,7 @@ void SmashInfected(int zombie, int client)
 void DebugPrintToAll(const char[] format, any ...)
 {
 	#if TEST_DEBUG	|| TEST_DEBUG_LOG
-	char buffer[192];
+	static char buffer[192];
 	
 	VFormat(buffer, sizeof(buffer), format, 2);
 	
