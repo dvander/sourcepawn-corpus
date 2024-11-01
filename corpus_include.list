@@ -16,4 +16,10 @@ github.com/sbpp/sourcebans-pp/game/addons/sourcemod/scripting/include
 github.com/Deathknife/sourcemod-discord/include
 github.com/Bara/fuckZones/addons/sourcemod/scripting/include
 github.com/SilvDev/Left4DHooks/sourcemod/scripting/include
+github.com/GAMMACASE/MomSurfFix/addons/sourcemod/scripting/include
+github.com/GAMMACASE/ServerRedirect/addons/sourcemod/scripting/include
+github.com/GAMMACASE/ShowPlayerClips/addons/sourcemod/scripting/include
+github.com/shavitush/bhoptimer/addons/sourcemod/scripting/include
+github.com/surftimer/SurfTimer/addons/sourcemod/scripting/include
+github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/include
 other_includes

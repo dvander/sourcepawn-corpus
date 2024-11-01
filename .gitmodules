@@ -70,3 +70,21 @@
 [submodule "github.com/SilvDev/Left4DHooks"]
 	path = github.com/SilvDev/Left4DHooks
 	url = https://github.com/SilvDev/Left4DHooks
+[submodule "github.com/GAMMACASE/MomSurfFix"]
+	path = github.com/GAMMACASE/MomSurfFix
+	url = https://github.com/GAMMACASE/MomSurfFix
+[submodule "github.com/GAMMACASE/ShowPlayerClips"]
+	path = github.com/GAMMACASE/ShowPlayerClips
+	url = https://github.com/GAMMACASE/ShowPlayerClips
+[submodule "github.com/GAMMACASE/ServerRedirect"]
+	path = github.com/GAMMACASE/ServerRedirect
+	url = https://github.com/GAMMACASE/ServerRedirect
+[submodule "github.com/shavitush/bhoptimer"]
+	path = github.com/shavitush/bhoptimer
+	url = https://github.com/shavitush/bhoptimer
+[submodule "github.com/surftimer/SurfTimer"]
+	path = github.com/surftimer/SurfTimer
+	url = https://github.com/surftimer/SurfTimer
+[submodule "github.com/KZGlobalTeam/gokz"]
+	path = github.com/KZGlobalTeam/gokz
+	url = https://github.com/KZGlobalTeam/gokz
