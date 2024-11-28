@@ -5179,5 +5179,6 @@ github.com/dysphie/sm-map-translator/scripting/map-translator.sp
 github.com/dysphie/sourcemod-indev/incap-wip.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-core.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-misc.sp
+github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-replay-playback.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-stats.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-wr.sp
