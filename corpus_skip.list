@@ -653,6 +653,7 @@ forums/D/e/a/DeathChaos25/l4d2_si_warnings_vocalize_fix_2204811.sp
 forums/D/e/a/DeathChaos25/slay_2278458.sp
 forums/D/e/a/Death_Angel/aliensvspredators_2534196.sp
 forums/D/e/a/Deathknife/gotv-recorder_2394570.sp
+forums/D/e/a/Deathknife/poly-zones_2484706.sp
 forums/D/e/c/Deceiver/rallyrace_times_1353483.sp
 forums/D/e/c/Deceiver/rallyrace_times_1353488.sp
 forums/D/e/l/DeltaTimo/Healme_1464644.sp
@@ -1419,6 +1420,7 @@ forums/K/x/n/Kxnrl/_ze_terminator_2488894.sp
 forums/K/x/n/Kxnrl/simplerainbowchat_zephStore_2523804.sp
 forums/K/y/l/KyleS/CTXTools_1504965.sp
 forums/K/y/l/KyleS/HealthFix_1577955.sp
+forums/K/y/l/KyleS/NetworkTools_1427368.sp
 forums/K/y/l/KyleS/Rename2_1379769.sp
 forums/K/y/l/KyleS/UpdateCheck_2331846.sp
 forums/K/y/l/KyleS/WebShortcuts_1607261.sp
@@ -1587,6 +1589,7 @@ forums/M/a/s/Master53/LastDamage_1618657.sp
 forums/M/a/s/Master53/Prop_Damage_1618258.sp
 forums/M/a/s/Master53/Prop_Damage_2549511.sp
 forums/M/a/s/Master53/TeamFix_1803884.sp
+forums/M/a/s/Master53/ZPS_Medic_1207791.sp
 forums/M/a/s/Master53/l4d2_TankRage_1218287.sp
 forums/M/a/s/Master53/rp_spawn_1201344.sp
 forums/M/a/s/Master53/rp_spawn_1228976.sp
@@ -3800,6 +3803,7 @@ forums/e/r/r/erroler/store_notifications_2152105.sp
 forums/e/r/r/erroler/unusual_effects_2686967.sp
 forums/e/r/r/erroler/weaponmodels_2449364.sp
 forums/e/r/r/erroler/weaponmodels_2453756.sp
+forums/e/r/r/error_404/ping_1380088.sp
 forums/e/r/y/eryk172/PlayerSkin_2586292.sp
 forums/e/r/y/eryk172/PlayerSkin_2586403.sp
 forums/e/x/p/explosivetaco/cleanup_1827697.sp
@@ -4747,6 +4751,7 @@ forums/s/e/r/serpentine/donator_recognition_tf2_1664095.sp
 forums/s/e/r/serpentine/donator_recognition_tf2_1700499.sp
 forums/s/e/r/servers_csgo_cfg/misil_2554010.sp
 forums/s/f/P/sfPlayer/example2_604031.sp
+forums/s/f/P/sfPlayer/ping_1380253.sp
 forums/s/f/P/sfPlayer/sum_584221.sp
 forums/s/h/a/shadowdragon/AWM_2252626.sp
 forums/s/h/a/shadowdragon/test_awm_2252626.sp
@@ -5122,6 +5127,7 @@ forums/z/y/o/zyox123cc/pootis_2452476.sp
 forums/z/y/o/zyox123cc/scoutmod_2452706.sp
 forums/z/y/o/zyox123cc/spymod_2452476.sp
 forums/z/y/o/zyox123cc/stickbomb_mod_2453302.sp
+github.com/Bara/fuckZones/addons/sourcemod/scripting/fuckZones.sp
 github.com/GAMMACASE/MomSurfFix/addons/sourcemod/scripting/momsurffix2.sp
 github.com/GAMMACASE/ServerRedirect/addons/sourcemod/scripting/server_redirect.sp
 github.com/GAMMACASE/ShowPlayerClips/addons/sourcemod/scripting/showplayerclips.sp
