@@ -93,6 +93,7 @@ forums/A/I/_/AI_/syncr_2225871.sp
 forums/A/I/_/AI_/syncr_2353725.sp
 forums/A/I/_/AI_/telequeue_2499347.sp
 forums/A/K/9/AK978/WeaponLasers_2642179.sp
+forums/A/K/9/AK978/clear_weapon_drop_2639025.sp
 forums/A/K/9/AK978/ioncannon_l4d2_2642089.sp
 forums/A/K/9/AK978/l4d2_blackhole_2595672.sp
 forums/A/K/9/AK978/l4d2_multislots_2639484.sp
@@ -107,6 +108,7 @@ forums/A/S/A/ASAKI/L4DPointsandGift_en_1013529.sp
 forums/A/c/c/Accelerator/csgo_damagemod_2370722.sp
 forums/A/c/c/Accelerator/l4d2_charger_power_2475004.sp
 forums/A/c/c/Accelerator/l4d2_charger_power_glow_2475382.sp
+forums/A/c/c/Accelerator/l4dslots_2750363.sp
 forums/A/c/c/Accelerator/tz_api_2620743.sp
 forums/A/c/e/AcePL96/myjailshop_2707477.sp
 forums/A/c/e/Aceleracion/l4d2_gifts_2559339.sp
@@ -154,6 +156,7 @@ forums/A/l/e/Alexmy/l4d_unlock_shield_tank_2537146.sp
 forums/A/l/e/Alexmy/multislots_2529297.sp
 forums/A/l/i/Alien31ITA/tf2wearcosmetics_2731822.sp
 forums/A/l/i/Alienmario/DynamicNPC_2061768.sp
+forums/A/l/i/Alienmario/StrikerMod_AntiDeaf_2792514.sp
 forums/A/l/i/Alienmario/guardcontrol_2247426.sp
 forums/A/l/i/Alienmario/profile_2066834.sp
 forums/A/l/i/Alienmario/weapon_grabber_2386454.sp
@@ -172,6 +175,7 @@ forums/A/p/h/Aph3x/cd_messages_1926067.sp
 forums/A/p/i/Apina/plugin_2303371.sp
 forums/A/r/c/Arcaster/Death_Announce_2056276.sp
 forums/A/r/d/ArdaG/oyuncugizle_2797758.sp
+forums/A/r/g/Argus/namechecker_1566536.sp
 forums/A/r/i/Arithmetic/AdminTag_v2_English_2571327.sp
 forums/A/r/k/Arkarr/1v1duel_2332991.sp
 forums/A/r/k/Arkarr/Cleverbot_2500085.sp
@@ -242,6 +246,7 @@ forums/A/y/a/Aya_Supay/witchred_2661377.sp
 forums/A/y/a/Aya_Supay/witchred_2661561.sp
 forums/A/z/e/Azelphur/preconnect_reserves_1645184.sp
 forums/A/z/e/Azelphur/serverredirect_1317328.sp
+forums/B/A/I/BAILOPAN/cvarhider_507564.sp
 forums/B/A/I/BAILOPAN/pluginblocker_840901.sp
 forums/B/D/e/BDeep/autogungame_1025367.sp
 forums/B/D/e/BDeep/autogungame_876939.sp
@@ -256,11 +261,14 @@ forums/B/H/a/BHaType/l4d2_airdrop_2768960.sp
 forums/B/H/a/BHaType/l4d2_airdrop_2770702.sp
 forums/B/H/a/BHaType/l4d2_blackscreen_fix_2667371.sp
 forums/B/H/a/BHaType/l4d2_boomer_ladder_fix_2768534.sp
+forums/B/H/a/BHaType/l4d2_boss_flow_control_2674087.sp
+forums/B/H/a/BHaType/l4d2_boss_flow_control_2677747.sp
 forums/B/H/a/BHaType/l4d2_charger_incapitied_collision_fix_2790920.sp
 forums/B/H/a/BHaType/l4d2_collision_hook_2715560.sp
 forums/B/H/a/BHaType/l4d2_hunter_roll_override_2680156.sp
 forums/B/H/a/BHaType/l4d2_infected_attack_suppresion_patch_2774649.sp
 forums/B/H/a/BHaType/l4d2_infected_stumble_2804597.sp
+forums/B/H/a/BHaType/l4d2_navigation_fixes_2673222.sp
 forums/B/H/a/BHaType/l4d2_pass_filter_2715560.sp
 forums/B/H/a/BHaType/l4d2_pass_filter_2758713.sp
 forums/B/H/a/BHaType/l4d2_realistic_pipe_bomb_2655672.sp
@@ -268,6 +276,7 @@ forums/B/H/a/BHaType/l4d2_realistic_pipe_bomb_2769306.sp
 forums/B/H/a/BHaType/l4d2_server_ragdoll_2673813.sp
 forums/B/H/a/BHaType/l4d2_shove_fix_2675039.sp
 forums/B/H/a/BHaType/l4d2_survivor_bots_actions_test_2793496.sp
+forums/B/H/a/BHaType/l4d2_test_2761809.sp
 forums/B/H/a/BHaType/l4d2_tickrate_enabler_2752405.sp
 forums/B/H/a/BHaType/l4d2_user_commands_2757740.sp
 forums/B/H/a/BHaType/l4d2_weapon_destroy_2642825.sp
@@ -324,6 +333,7 @@ forums/B/a/t/Batfoxkid/ff2_doability_2659403.sp
 forums/B/a/t/Batfoxkid/ff2_kstreak_pref_2645910.sp
 forums/B/a/t/Batfoxkid/ff2_sarysapub3a_2624525.sp
 forums/B/a/t/Batfoxkid/ffbat_publicpack_2661085.sp
+forums/B/a/t/Batfoxkid/filenetwork_2800181.sp
 forums/B/a/t/Batfoxkid/kstreak_pref_2658505.sp
 forums/B/a/u/Bauxe/longjump_2006014.sp
 forums/B/c/h/Bchewy/zr_customarms_csgo_2520689.sp
@@ -333,6 +343,7 @@ forums/B/e/n/Benito/sm_zoning_-_en_2622743.sp
 forums/B/e/n/Benito/sm_zoning_-_fr_2622743.sp
 forums/B/e/n/Benjamin1995/gungame_874553.sp
 forums/B/e/n/Benoist3012/bethetank_2552161.sp
+forums/B/e/n/Benoist3012/bot_crash_fix_2585800.sp
 forums/B/e/n/Benoist3012/bumpercar_2381958.sp
 forums/B/e/n/Benoist3012/dodgeball_redux_2558114.sp
 forums/B/e/n/Benoist3012/tf2_respawn_system_core_2415508.sp
@@ -393,6 +404,7 @@ forums/B/l/o/BloodyBlade/l4d_supertanks_2667109.sp
 forums/B/l/o/BloodyBlade/l4dinfectedbots_2663190.sp
 forums/B/l/o/BloodyBlade/l4dinfectedbots_2686704.sp
 forums/B/l/o/BloodyBlade/ps_bess_2668080.sp
+forums/B/l/o/BloodyBlade/sm_ncr_2667422.sp
 forums/B/l/o/BloodyBlade/sm_super_cmds_2655201.sp
 forums/B/l/o/BloodyBlade/superlogs-l4d_2698273.sp
 forums/B/l/o/Blowst/Equipment_Drop_1877369.sp
@@ -427,6 +439,7 @@ forums/C/a/l/Calystos/store-core_2108936.sp
 forums/C/a/l/Calystos/store-distributor_2108936.sp
 forums/C/a/l/Calystos/store-killawards_2108936.sp
 forums/C/a/m/CamerDisco/HelpSound_2417519.sp
+forums/C/a/m/CamerDisco/headshot_event_2473310.sp
 forums/C/a/n/CanadaRox/si_skeet_blocker_1259361.sp
 forums/C/a/p/CaptainNervous/advcommands_2387467.sp
 forums/C/e/n/CenT/antirush-sm_2497295.sp
@@ -604,6 +617,7 @@ forums/D/L/R/DLR/DLRTalents_2353964.sp
 forums/D/R/_/DR_DVD/VoteRespawn_2431495.sp
 forums/D/_/o/D_o_o_m/SH_Gohan_570356.sp
 forums/D/_/o/D_o_o_m/SH_Morpheus_570356.sp
+forums/D/a/c/Dachtone/rps_2721367.sp
 forums/D/a/g/Dagothur/tf2idb_2392799.sp
 forums/D/a/m/Damizean/L4D_SuperVersus_854856.sp
 forums/D/a/n/Danielej1/CustomReservedslots_2792152.sp
@@ -620,6 +634,7 @@ forums/D/a/r/DarkSoroush/sample_2249912.sp
 forums/D/a/r/Darkimmortal/co-op_1159731.sp
 forums/D/a/r/Darkimmortal/tf2sk_780426.sp
 forums/D/a/r/Darkwob/Keyman_versus_2717371.sp
+forums/D/a/r/Darkwob/l4d2_dominatorscontrol_2751818.sp
 forums/D/a/r/Darkwob/l4d2_spawn_props_2743890.sp
 forums/D/a/r/Darkwob/l4d2lib_2752930.sp
 forums/D/a/r/Darkwob/l4d_stats_2719637.sp
@@ -687,6 +702,7 @@ forums/D/i/a/Diam0ndzx/OneInTheChamber_2625427.sp
 forums/D/i/e/DieTeetasse/l4d2_playwitch_1096891.sp
 forums/D/i/e/DieTeetasse/l4d2_survivorstatus_1105247.sp
 forums/D/i/e/DieTeetasse/l4d2_survivorstatus_1105988.sp
+forums/D/i/e/DieTeetasse/l4d2_versus_score_system_complete_1013899.sp
 forums/D/i/l/Dillxn/reversetag_726567.sp
 forums/D/i/o/Dionys/sm_versus_enforcer_728425.sp
 forums/D/i/v/Divin12/CTBomb_2469368.sp
@@ -751,6 +767,7 @@ forums/D/r/_/Dr_McKay/st_gamedesc_override_debug_1586712.sp
 forums/D/r/_/Dr_McKay/steamgroupadmins_1932249.sp
 forums/D/r/_/Dr_Newbie/flashbangboomer_2370822.sp
 forums/D/r/_/Dr_fter/admin-allspec_1684041.sp
+forums/D/r/_/Dr_fter/css-maxmoney_1630953.sp
 forums/D/r/_/Dr_fter/weapon-tracking_1638789.sp
 forums/D/r/a/Dragokas/l4d_DaysToNewYear_2675529.sp
 forums/D/r/a/Dragokas/l4d_cloud_damage_2762901.sp
@@ -783,6 +800,7 @@ forums/D/r/i/Drixevel/IPSpamBlocker_2355036.sp
 forums/D/r/i/Drixevel/Spycrab_1947221.sp
 forums/D/r/i/Drixevel/TF2Jail_2018556.sp
 forums/D/r/i/Drixevel/VIPPerks_2250628.sp
+forums/D/r/i/Drixevel/advancedc4timer_2799037.sp
 forums/D/r/i/Drixevel/blackscreenspecs_2522121.sp
 forums/D/r/i/Drixevel/country_filter_2nd_edition_mute_2041985.sp
 forums/D/r/i/Drixevel/customkeyvalues_2671117.sp
@@ -911,6 +929,7 @@ forums/F/a/r/Farhannz/shavit-credits_2464146.sp
 forums/F/a/r/Farhannz/shavit-credits_2464515.sp
 forums/F/a/s/Fastkill91/VIP_BHOP_1_0_2_2752560.sp
 forums/F/a/s/Fastkill91/deathmatch_2760575.sp
+forums/F/a/s/Fastmancz/sbpp_comms_2481652.sp
 forums/F/a/s/Fastmancz/sbpp_main_2481652.sp
 forums/F/a/t/Fate97/dynamic_motd_2800717.sp
 forums/F/a/t/Fate97/eventmanager_2802038.sp
@@ -1149,6 +1168,7 @@ forums/G/u/r/Guren/Rainbow_Dash_Likes_Girls_1884424.sp
 forums/G/w/e/Gweedo/ratechecker_631910.sp
 forums/H/L/-/HL-SDK/sentryspawner_1__critonly_749425.sp
 forums/H/L/-/HL-SDK/sentryspawner_749425.sp
+forums/H/S/F/HSFighter/namechecker_2184260.sp
 forums/H/a/c/Hackmastr/JailbreakTeamBalance_2241478.sp
 forums/H/a/d/Had3s99/Respawn_Ball_2655639.sp
 forums/H/a/d/Had3s99/shavit-creditsonfinish_2655062.sp
@@ -1180,6 +1200,7 @@ forums/H/e/x/Hex_/sm_setheath_780975.sp
 forums/H/e/x/Hextator/mvmstats_custom_1912421.sp
 forums/H/i/J/HiJacker/tripmines_697250.sp
 forums/H/i/d/HiddenConn1/welcomemsg_2805129.sp
+forums/H/o/n/Honey_Senpai/TF2_Dodgeball_4_FINAL_2_2542069.sp
 forums/H/o/n/Honey_Senpai/tf2_dodgeball_2542069.sp
 forums/H/o/n/Honis/admin_2363141.sp
 forums/H/o/n/Honis/buttonpress_2363141.sp
@@ -1194,6 +1215,7 @@ forums/H/o/n/Honis/sql_2363141.sp
 forums/H/o/n/Honis/surfzones_2363141.sp
 forums/H/o/n/Honis/timer_2363141.sp
 forums/H/o/p/Hop/SpeedRebel_2448008.sp
+forums/H/o/r/Horsedick/bub_redirect_1810751.sp
 forums/H/o/r/Horsedick/jetpack_1710171.sp
 forums/H/o/r/Horsedick/kartify_2287058.sp
 forums/H/o/r/Horsedick/superlogs-tf2_2311244.sp
@@ -1239,7 +1261,9 @@ forums/I/b/a/Ibanezez/helpmenu_2226152.sp
 forums/I/c/E/IcEWoLF/slap_809000.sp
 forums/I/c/i/Iciaria/l4d2_spawn_props_2792244.sp
 forums/I/c/i/Iciaria/l4d2_spawn_props_2792249.sp
+forums/I/c/i/Iciaria/l4d2_voiceviewer_2810611.sp
 forums/I/c/i/Iciaria/l4d_glare_2800365.sp
+forums/I/c/i/Iciaria/safedoor_scavenge_2811086.sp
 forums/I/c/o/Ico/Speclimit_2063280.sp
 forums/I/l/l/IllegalGuy/serverredirect_cmds_984986.sp
 forums/I/l/u/Ilusion9/dominations_revenges_2686287.sp
@@ -1355,6 +1379,7 @@ forums/K/a/m/Kamil445/lmaoban_2611078.sp
 forums/K/a/r/Karnatos/sm_hats_1649129.sp
 forums/K/a/s/Kashinoda/cmdWeapons_2702065.sp
 forums/K/a/s/KasperH/ambient_halloween_2564060.sp
+forums/K/a/s/KasperH/l4d2scores_2693566.sp
 forums/K/a/w/KawMAN/astools_1255318.sp
 forums/K/a/w/KawMAN/grenadeslot_781371.sp
 forums/K/a/w/KawMAN/hostagemgr_1232362.sp
@@ -1374,6 +1399,7 @@ forums/K/e/e/KeepCalm/BlockClanTag_1836615.sp
 forums/K/e/l/Kellan123/sw_gamedesc_override_fixer_2709469.sp
 forums/K/e/n/KennYSwe/Warden-coinflip_2479150.sp
 forums/K/e/r/Kerem_Er/sourcebans_2360246.sp
+forums/K/e/r/Kerem_Er/sourcecomms_2360254.sp
 forums/K/e/v/Kevin_b_er/anti_tele_nuke_1180513.sp
 forums/K/e/w/KewaiiGamer/kewaii_lib_2547542.sp
 forums/K/e/w/KewaiiGamer/kewaii_vipspawn_2547545.sp
@@ -1384,6 +1410,8 @@ forums/K/i/g/Kigen/restrict_635293.sp
 forums/K/i/g/Kigen/restrict_functions_635293.sp
 forums/K/i/g/Kigen/restrict_hacks_635293.sp
 forums/K/i/g/Kigen/restrict_utils_635293.sp
+forums/K/i/k/Kikoijo/TF2_Dodgeball_2243147.sp
+forums/K/i/k/Kikoijo/TF2_Dodgeball_2256875.sp
 forums/K/i/l/Kilandor/call_admin_xmpp_1076379.sp
 forums/K/i/n/King_Cnut/tf2-weapon-restrictions_2325041.sp
 forums/K/i/n/King_OXO/SuperTanks_2734711.sp
@@ -1501,6 +1529,7 @@ forums/L/o/r/LordHotPocketHomicide/ff2_cloakpack_2736339.sp
 forums/L/o/r/LordHotPocketHomicide/ff2_cloakpack_2736958.sp
 forums/L/o/r/LordMarqus/ggwarmupdm_1433796.sp
 forums/L/o/r/LordMarqus/randwarmupwpn_1051548.sp
+forums/L/o/r/LordVGames/l4d2scores_2770907.sp
 forums/L/u/i/Luigi_Thirty/offer_1356546.sp
 forums/L/u/i/Luigi_Thirty/wishlist_1356546.sp
 forums/L/u/k/Luke_Penny/VaryingZombiePopulationLowEnd_1065189.sp
@@ -1508,10 +1537,13 @@ forums/L/u/m/LumiStance/gungame_give_1368340.sp
 forums/L/u/q/LuqS/breathe_2687386.sp
 forums/L/u/q/LuqS/retakes_standardallocator_2685625.sp
 forums/L/u/x/Lux/Arcade_talker_2736084.sp
+forums/L/u/x/Lux/Charger_Collision_patch_2647017.sp
 forums/L/u/x/Lux/Dev__Enhanced_Throwables_2413610.sp
 forums/L/u/x/Lux/Enhancement_System_2430294.sp
+forums/L/u/x/Lux/GrenadeLauncher_AmmoPile_patch_2694504.sp
 forums/L/u/x/Lux/HellWitchCrysDevil_2559007.sp
 forums/L/u/x/Lux/LMC_incapped_crawling_2526581.sp
+forums/L/u/x/Lux/M60_NoDrop_AmmoPile_patch_2694504.sp
 forums/L/u/x/Lux/_L4D2_Melee_Weapon_Grunts_2429001.sp
 forums/L/u/x/Lux/sm_bunnyhop_smx_2449446.sp
 forums/L/y/n/Lynix/hgrmm_2758327.sp
@@ -1663,6 +1695,8 @@ forums/M/a/t/MatoBoost/colormenu_vip_2654170.sp
 forums/M/a/t/MatoBoost/colormenuv2_2654170.sp
 forums/M/a/t/Matt_/jinglebells_2030627.sp
 forums/M/a/t/Matthias_Vance/leetspeak_1018683.sp
+forums/M/a/x/MaxiMuM1441/advancedc4timer-my_edited_version_2280290.sp
+forums/M/a/x/MaxiMuM1441/advancedc4timer-original_version_2280290.sp
 forums/M/a/x/Maxis010/sm_commstools_1276060.sp
 forums/M/a/x/Maxis010/sm_commstools_1298941.sp
 forums/M/a/x/Maxis010/sm_commstools_1383682.sp
@@ -1727,6 +1761,7 @@ forums/M/i/_/Mi_Cura/jetpack_2620550.sp
 forums/M/i/_/Mi_Cura/l4d2_multislots_2639479.sp
 forums/M/i/_/Mi_Cura/l4d2_multislots_2662017.sp
 forums/M/i/_/Mi_Cura/l4dmultislots_2720583.sp
+forums/M/i/g/MightyMalcolm/mm_anti-exploit_1403479.sp
 forums/M/i/h/Miha_and_Tema/abner_res_2589067.sp
 forums/M/i/k/MikeJS/autoupdate_823636.sp
 forums/M/i/k/MikeJS/hitblip_827295.sp
@@ -1951,6 +1986,7 @@ forums/N/o/r/NoroHime/l4d2_limited_gun_2805170.sp
 forums/N/o/r/NoroHime/l4d_IgniteCan_2771205.sp
 forums/N/o/r/NoroHime/l4d_ammo_previous_2792690.sp
 forums/N/o/r/NoroHime/l4d_gametime_2798988.sp
+forums/N/o/r/NoroHime/l4d_swap_buff_2772318.sp
 forums/N/o/u/NouveauJoueur/VIP-Weapon_1469851.sp
 forums/N/u/c/NuclearWatermelon/simple-chatcolors_1432345.sp
 forums/O/X/Y/OXYD/HellTags_2695759.sp
@@ -2004,6 +2040,7 @@ forums/P/C/_/PC_Gamer/classy_2796462.sp
 forums/P/C/_/PC_Gamer/gimme_2766587.sp
 forums/P/C/_/PC_Gamer/sm_virusinfection_2687631.sp
 forums/P/C/_/PC_Gamer/swBlockCap_2765233.sp
+forums/P/C/_/PC_Gamer/tf2attributes_2736226.sp
 forums/P/C/_/PC_Gamer/tf2attributes_ubup_2566087.sp
 forums/P/C/_/PC_Gamer/tf2attributes_ubup_2627426.sp
 forums/P/C/_/PC_Gamer/tf2attributes_ubup_2710698.sp
@@ -2078,6 +2115,7 @@ forums/P/e/l/Pelipoika/removeslot_2024821.sp
 forums/P/e/l/Pelipoika/tf2attributes_example_2319254.sp
 forums/P/e/l/Pelipoika/tf2itemsinfo_2178381.sp
 forums/P/e/n/PenguinPrince/trophies_945523.sp
+forums/P/e/r/PerfectLaugh/default_glove_blocker_2673848.sp
 forums/P/f/s/Pfsm999/mechaware_achievements_1062748.sp
 forums/P/f/s/Pfsm999/sm_adsmysql_2222221.sp
 forums/P/h/0/Ph03n1X/gungame_buy_1257515.sp
@@ -2088,6 +2126,7 @@ forums/P/h/a/Phaiz/BeAllTheBots_2334265.sp
 forums/P/h/a/Phaiz/basecomm_2247402.sp
 forums/P/h/a/Phaiz/rconlog_2266654.sp
 forums/P/h/a/Phaiz/smac_eac_banlist_2265918.sp
+forums/P/h/a/PharaohsPaw/adsql_1420095.sp
 forums/P/h/a/PharaohsPaw/melee_suddendeath_1412635.sp
 forums/P/h/a/Phault/store-weaponcolors_1909342.sp
 forums/P/h/e/Pheubel/umc_downloader_2754144.sp
@@ -2347,6 +2386,8 @@ forums/R/a/v/RavensBro/portalmod_gun_2467860.sp
 forums/R/a/v/RavensBro/runescape_2066150.sp
 forums/R/a/v/RavensBro/superzombiefortress_1593981.sp
 forums/R/e/C/ReCreator/SaferoomHPRestore_2655739.sp
+forums/R/e/F/ReFlexPoison/TF2_Dodgeball_1883327.sp
+forums/R/e/F/ReFlexPoison/TF2_Dodgeball_1889730.sp
 forums/R/e/F/ReFlexPoison/advertisements_2193641.sp
 forums/R/e/F/ReFlexPoison/customvotes-nativevotes_2097623.sp
 forums/R/e/F/ReFlexPoison/customvotes_2097623.sp
@@ -2436,9 +2477,13 @@ forums/S/G/G/SGG/l4d2_versus_handicap_1671105.sp
 forums/S/G/G/SGG/l4d_pipebomb_shove_1944927.sp
 forums/S/H/O/SHOUBI/discord_2622354.sp
 forums/S/H/O/SHOUBI/discord_MapNotification_2672052.sp
+forums/S/H/U/SHUFEN/CSGO_ParticleSystemFix_2687161.sp
+forums/S/H/U/SHUFEN/ContextManager_2747744.sp
 forums/S/H/U/SHUFEN/ShowName_2507400.sp
 forums/S/H/U/SHUFEN/zr_customarms_csgo_2520931.sp
 forums/S/H/U/SHUFEN/zr_teleport_fix_2420337.sp
+forums/S/H/U/SHUFEN_jp/CSGO_ParticleSystemFix_2687161.sp
+forums/S/H/U/SHUFEN_jp/ContextManager_2747744.sp
 forums/S/H/U/SHUFEN_jp/ShowName_2507400.sp
 forums/S/H/U/SHUFEN_jp/zr_customarms_csgo_2520931.sp
 forums/S/H/U/SHUFEN_jp/zr_teleport_fix_2420337.sp
@@ -2507,6 +2552,7 @@ forums/S/h/a/Shadowysn/NoMercyElevatorFix_Coop_2692832.sp
 forums/S/h/a/Shadowysn/TF2_AC-DR_2683366.sp
 forums/S/h/a/Shadowysn/climb_everywhere_2681114.sp
 forums/S/h/a/Shadowysn/deathmatch_ragdolls_2719809.sp
+forums/S/h/a/Shadowysn/l4d2_The_Passing_character_fix_2805579.sp
 forums/S/h/a/Shadowysn/l4d2_gibs_1_10_2712304.sp
 forums/S/h/a/Shadowysn/spawn_infected_nolimit_2679912.sp
 forums/S/h/a/Shaman/buyitdammitsource_523211.sp
@@ -2536,6 +2582,7 @@ forums/S/h/i/Shigbeard/watchlist_2781038.sp
 forums/S/h/u/ShutUP99/shutap_scm_2743186.sp
 forums/S/i/g/SigScanner/gmod9test_2614774.sp
 forums/S/i/l/SilentMagic/TF2_EquipmentManager_1403094.sp
+forums/S/i/l/Silent_Water/namechecker_740282.sp
 forums/S/i/l/Sillium/F2PLimiter_1499396.sp
 forums/S/i/l/Sillium/NameCleanupAndTagger_1714786.sp
 forums/S/i/l/Sillium/basevotes_822752.sp
@@ -2657,10 +2704,13 @@ forums/S/r/e/Sreaper/mgemod_2173817.sp
 forums/S/r/e/Sreaper/monster_1964927.sp
 forums/S/r/e/Sreaper/navmesh_2701674.sp
 forums/S/r/e/Sreaper/sm_naminator_2240083.sp
+forums/S/r/e/Sreaper/sm_viprooms_2021590.sp
+forums/S/r/e/Sreaper/sm_viprooms_2312057.sp
 forums/S/r/e/Sreaper/trolecaps_cp_2768798.sp
 forums/S/t/0/St00ne/bebop_den3b_2213774.sp
 forums/S/t/0/St00ne/mapchooser_extended_194beta_2027927.sp
 forums/S/t/0/St00ne/sm_zones_cmds_1915461.sp
+forums/S/t/0/St00ne/zk_wlbsid_1624233.sp
 forums/S/t/a/StanVanDam/killer_info_display_2225463.sp
 forums/S/t/a/Starman2098/removeweapons_872582.sp
 forums/S/t/a/Starman2098/respawn_875782.sp
@@ -2761,6 +2811,7 @@ forums/S/t/o/StomperG/sFullAnnounce_2743919.sp
 forums/S/t/o/StormishJustice/bedeflector_2311517.sp
 forums/S/t/o/StormishJustice/bethegiantv2_2312708.sp
 forums/S/t/r/StrikeR14/jackpot_2717163.sp
+forums/S/t/r/StrikerMan780/StrikerMod_AntiDeaf_2409439.sp
 forums/S/t/r/StrikerMan780/sm_skinchooser_2511695.sp
 forums/S/t/r/StrikerMan780/sourceirc-relayall_color_1798034.sp
 forums/S/t/r/StrikerMan780/sourceirc-relayall_color_1807835.sp
@@ -2813,6 +2864,7 @@ forums/T/e/a/Teamkiller324/gimme_2771298.sp
 forums/T/e/a/Teamkiller324/radar_2718089.sp
 forums/T/e/a/Teamkiller324/serverhop_edit_2635477.sp
 forums/T/e/a/Teamkiller324/serverhop_edit_2635482.sp
+forums/T/e/a/Teamkiller324/sheens_2715603.sp
 forums/T/e/a/Teamkiller324/simple_mysql_whitelister_2756054.sp
 forums/T/e/a/Teamkiller324/steamgroupadmins-steamworks_2793239.sp
 forums/T/e/a/Teamkiller324/tf2stats_redux_2767838.sp
@@ -2821,12 +2873,14 @@ forums/T/e/c/TechKnow/buyitdammitsource_725815.sp
 forums/T/e/c/TechKnow/knifefight_2539017.sp
 forums/T/e/c/TechKnow/newdownloadsection_933038.sp
 forums/T/e/c/TechKnow/rollthedice_558208.sp
+forums/T/e/c/TechKnow/rollthedice_commands_558208.sp
 forums/T/e/c/Technoblazed/sm-roundendscore_2516312.sp
 forums/T/e/c/Technoblazed/sm-roundendscore_2516314.sp
 forums/T/e/c/Technoblazed/sm-roundendscore_2516353.sp
 forums/T/e/c/Technoblazed/workshopbrowserstrip_2567345.sp
 forums/T/e/k/Teki/damage_stats_1816276.sp
 forums/T/e/m/Temeez/tf2ruma_2329976.sp
+forums/T/h/E/ThE_kInG_oF_dOgS/TF2_Dodgeball_2072096.sp
 forums/T/h/a/ThatGuy/sdmr_672823.sp
 forums/T/h/a/ThatKidWhoGames/TF2Jail_FreedayGod_2585718.sp
 forums/T/h/a/ThatKidWhoGames/TF2Jail_Status_2540809.sp
@@ -2839,6 +2893,7 @@ forums/T/h/a/ThatKidWhoGames/vipmenu_2556247.sp
 forums/T/h/a/ThatKidWhoGames/vipprices_2556247.sp
 forums/T/h/a/ThatOneGuy/drkillcreds_2378886.sp
 forums/T/h/a/ThatOneGuy/playercommands_edit__2361112.sp
+forums/T/h/a/ThatOneGuy/populationtracker_v2_5_2101557.sp
 forums/T/h/a/ThatOneGuy/slay_edit__2361112.sp
 forums/T/h/a/ThatOneGuy/sourcebans_2139715.sp
 forums/T/h/a/ThatOneGuy/sourcebans_2395164.sp
@@ -3071,6 +3126,8 @@ forums/V/a/L/VaLaKi/menus_2796189.sp
 forums/V/a/g/Vaggelis/jailbreak_2565300.sp
 forums/V/a/g/Vaggelis/last_request_2565300.sp
 forums/V/a/g/Vaggelis/money_system_2521629.sp
+forums/V/a/s/Vasto_Lorde/knife_round_2613566.sp
+forums/V/a/u/Vauff/csgofixes_2800532.sp
 forums/V/e/l/Velak/L4DSwitchPlayers_749698.sp
 forums/V/e/l/Velsk/dynamic_motd_1612367.sp
 forums/V/i/d/Viderizer/hideplayers_2259882.sp
@@ -3080,6 +3137,7 @@ forums/V/i/s/Visual77/l4d2_VomitExtinguishing_1262183.sp
 forums/V/i/s/Visual77/l4d2_no_invisible_walls_2595011.sp
 forums/V/i/t/Vit_amin/l4d2_gascan_replace_2672494.sp
 forums/V/i/t/VitrescentTortoise/hlxce_2066956.sp
+forums/V/l/a/VladimirTk/l4d2_dominatorscontrol_2751783.sp
 forums/V/l/a/VladimirTk/l4d2lib_2746162.sp
 forums/V/l/a/VladimirTk/l4d_tank_control_eq_2745004.sp
 forums/V/l/a/VladimirTk/pause_2750942.sp
@@ -3213,6 +3271,7 @@ forums/W/o/l/Wolvan/ReviveMarkers_Forward_Sample_2167906.sp
 forums/W/o/o/Woonan/l4d_stats_1069197.sp
 forums/W/o/o/Woonan/l4d_stats_1074180.sp
 forums/W/o/o/Woonan/l4d_stats_1166641.sp
+forums/X/3/S/X3S2/sm_surfing_config_1505518.sp
 forums/X/D/g/XDglory/hurt_2679726.sp
 forums/X/D/g/XDglory/l4d_tankAttackOnSpawn_door_2679726.sp
 forums/X/a/x/XaxaXoxo/fwp_healthammo_2180815.sp
@@ -3308,6 +3367,7 @@ forums/a/l/a/alasfourom/l4d2_lock_2774252.sp
 forums/a/l/a/alasfourom/l4d2_lock_2779799.sp
 forums/a/l/c/alcybery/cannounce_2494206.sp
 forums/a/l/e/aleeexxx/l4d2_gifts_2560353.sp
+forums/a/l/e/alex0310/sm_viprooms_2584487.sp
 forums/a/l/e/alex123pavlov/12_2696781.sp
 forums/a/l/e/alexip121093/l4d2_chainsaw_refuelling_1125138.sp
 forums/a/l/e/alexip121093/l4d2_meleemod1_8_1179555.sp
@@ -3361,6 +3421,8 @@ forums/a/n/d/andi67/sm_snoweffects_2677338.sp
 forums/a/n/d/andi67/sm_snoweffects_2678865.sp
 forums/a/n/d/andrzejmleczko/Slots_772062.sp
 forums/a/n/i/animalnots/adsoverlays_1860739.sp
+forums/a/n/i/animalnots/adsql_1859644.sp
+forums/a/n/i/animalnots/adsql_1880202.sp
 forums/a/n/i/animalnots/rulesoverlays_1861130.sp
 forums/a/n/i/animalnots/sourcebans_1869651.sp
 forums/a/n/i/animalnots/sourcebans_1870685.sp
@@ -3412,6 +3474,8 @@ forums/a/x/e/axelnieves2012/sm_acvar_beta_2661102.sp
 forums/a/y/m/aymira/xpmod5_sxpm_menus_2642083.sp
 forums/a/z/a/azalty/gifts_2777945.sp
 forums/a/z/a/azalty/mostactive_2796444.sp
+forums/b/a/c/backwards/AntiServerLagger_2777196.sp
+forums/b/a/c/backwards/ExploitFix_3_20_2020_2687724.sp
 forums/b/a/l/bald14/l4d2_saferoom_item_remove_2759996.sp
 forums/b/a/n/bandit/weaponmod_1880445.sp
 forums/b/a/n/banz/L4DPointsandGift_1104737.sp
@@ -3424,6 +3488,7 @@ forums/b/a/z/bazrael/SuperTanks_1_3_4_NoHP_2369331.sp
 forums/b/a/z/bazrael/l4d2_si_warnings_vocalize_fix_1_5a_lite__2486385.sp
 forums/b/a/z/bazrael/l4d2_si_warnings_vocalize_fix_1_6_lite__2486385.sp
 forums/b/a/z/bazrael/l4d_pipebomb_shove_1_7_2441148.sp
+forums/b/e/b/bebe9b/advancedc4timer_1924847.sp
 forums/b/e/e/beetlejuice/dm_preset_spawns_2469510.sp
 forums/b/e/l/belgvr/sm_fovplus_2712772.sp
 forums/b/e/l/belouga/roleplaying_2307063.sp
@@ -3472,6 +3537,7 @@ forums/b/l/4/bl4nk/teammoney_601613.sp
 forums/b/l/4/bl4nk/tempban_635506.sp
 forums/b/l/4/bl4nk/tf_2004738.sp
 forums/b/l/4/bl4nk/tf_2005923.sp
+forums/b/l/4/bl4nk/uberslap_591343.sp
 forums/b/l/a/blaacky/specgotofix_2484221.sp
 forums/b/l/a/blaacky/unrealphys_2146420.sp
 forums/b/l/a/blackalegator/SMH_1546325.sp
@@ -3549,6 +3615,7 @@ forums/c/i/g/cigzag/AntiArrowHeal_2536737.sp
 forums/c/i/g/cigzag/JailLazer_2536897.sp
 forums/c/i/g/cigzag/tf2_zve_2539005.sp
 forums/c/i/g/cigzag/tf2hungergames_2519060.sp
+forums/c/j/i/cjieliang/TF2_Dodgeball_2274219.sp
 forums/c/j/s/cjsrk/New_Shield_2801263.sp
 forums/c/l/a/clavmbr/knifefight-csgo_2314014.sp
 forums/c/m/e/cmer/sourcebans_829434.sp
@@ -3558,6 +3625,7 @@ forums/c/o/d/codename-G-/FakeDeath_663334.sp
 forums/c/o/s/cosiepatrzysz/tETF2LDivisions_2703689.sp
 forums/c/p/_/cp_amir/VIP_2347426.sp
 forums/c/r/a/craigw1701/test2_522724.sp
+forums/c/r/a/crasx/l4d2scores_2395506.sp
 forums/c/r/a/cravenge/aimbot_2424376.sp
 forums/c/r/a/cravenge/ammo_pack_deployers-l4d2_2556315.sp
 forums/c/r/a/cravenge/ammo_pack_deployers-l4d2_2556683.sp
@@ -3571,6 +3639,7 @@ forums/c/r/a/cravenge/cpstats_2448388.sp
 forums/c/r/a/cravenge/death_animations_restore-l4d2_2418017.sp
 forums/c/r/a/cravenge/double_get-up_fix-l4d2_2451569.sp
 forums/c/r/a/cravenge/get-up_fix-l4d2_2451569.sp
+forums/c/r/a/cravenge/go_afk_unlock_2754708.sp
 forums/c/r/a/cravenge/grenade_throwing_bots-l4d2_2511824.sp
 forums/c/r/a/cravenge/l4d_nofriendlyfire_2562608.sp
 forums/c/r/a/cravenge/l4d_nofriendlyfire_2562688.sp
@@ -3594,7 +3663,9 @@ forums/c/r/a/cravenge/sceneprocessor_2601691.sp
 forums/c/r/a/cravenge/self_help_2411443.sp
 forums/c/r/a/cravenge/super_charge-l4d2_2475365.sp
 forums/c/r/a/cravenge/survivor_mourns_fix_2460493.sp
+forums/c/r/a/cravenge/tank-minigun_priority_patch_2755130.sp
 forums/c/r/a/cravenge/teamkill_reactions_fix_2460495.sp
+forums/c/r/a/cravenge/vigilant_tank_behavior_2760493.sp
 forums/c/r/a/cravenge/vs_scoring_fix_2425988.sp
 forums/c/r/a/crazydog/crashmap_6__1320507.sp
 forums/c/r/a/crazydog/gscramble_1471338.sp
@@ -3620,6 +3691,9 @@ forums/c/u/b/cubuspl42/trainyournade_1862772.sp
 forums/c/y/p/cypis/hlxce_1879034.sp
 forums/d/Y/Z/dYZER/as_horde_mode099_1255723.sp
 forums/d/a/l/dalto/1v1_525126.sp
+forums/d/a/l/dalto/advancedc4timer_511312.sp
+forums/d/a/l/dalto/anticamp_523641.sp
+forums/d/a/l/dalto/enforceteamplay_527051.sp
 forums/d/a/n/daneleo/premium_2076226.sp
 forums/d/a/n/daneleo/premium_2105247.sp
 forums/d/a/n/daneleo/premium_2172751.sp
@@ -3699,6 +3773,8 @@ forums/d/e/l/delachambre/rpfrez_1804534.sp
 forums/d/e/m/demariners/CvarSilence_774634.sp
 forums/d/e/v/devicenull/aimbot_stats_505430.sp
 forums/d/e/v/devicenull/zm_stuck_508657.sp
+forums/d/e/v/devil0704/adsql_1879960.sp
+forums/d/e/v/devil0704/adsql_1879962.sp
 forums/d/i/a/diablix/diablix_bb_preview_2263364.sp
 forums/d/i/a/diavolar/zbm3_extraitem_lasermines8_x_x_2606232.sp
 forums/d/i/e/diehard40000/lastct_1923430.sp
@@ -3829,6 +3905,7 @@ forums/e/y/a/eyal282/NeverStuckInsidePlayers_2709559.sp
 forums/e/y/a/eyal282/SQLiteBans_2649063.sp
 forums/e/y/a/eyal282/SQLiteBans_2649179.sp
 forums/e/y/a/eyal282/SQLiteVIPApi_2656504.sp
+forums/e/y/a/eyal282/ScavengeHardcore_2806291.sp
 forums/e/y/a/eyal282/UsefulCommands_2626293.sp
 forums/e/y/a/eyal282/UsefulCommands_2630001.sp
 forums/e/y/a/eyal282/UsefulCommands_2632621.sp
@@ -3850,10 +3927,12 @@ forums/f/a/f/fafa_junhe/advhelpmenu_2798458.sp
 forums/f/a/f/fafa_junhe/advhelpmenu_2798809.sp
 forums/f/a/n/fanggaming/SH_Wolverine_554584.sp
 forums/f/a/s/fastix/sentryspawner_1877019.sp
+forums/f/d/x/fdxx/update_check_2773473.sp
 forums/f/e/r/ferret/basefuncommands_562603.sp
 forums/f/e/r/ferret/basevotes_499145.sp
 forums/f/e/r/ferret/beacon_562585.sp
 forums/f/e/r/ferret/beacon_562603.sp
+forums/f/e/r/ferret/cheatcvars_508113.sp
 forums/f/e/r/ferret/nextmap_494983.sp
 forums/f/e/r/ferret/nextmap_495996.sp
 forums/f/e/r/ferret/nextmap_496171.sp
@@ -3879,6 +3958,7 @@ forums/f/o/x/foxhound27/SuperTanks_2685420.sp
 forums/f/o/x/foxhound27/TDR2_2673801.sp
 forums/f/o/x/foxhound27/abm_2720762.sp
 forums/f/o/x/foxhound27/black_and_white_notifier_2720796.sp
+forums/f/o/x/foxhound27/dhooksvoice_2719616.sp
 forums/f/o/x/foxhound27/l4d2_lock_2673308.sp
 forums/f/o/x/foxhound27/l4d_stats_2700101.sp
 forums/f/o/x/foxhound27/l4dmultislots_2673315.sp
@@ -4045,8 +4125,12 @@ forums/i/l/l/illbill_rotterdam/3lo_1947398.sp
 forums/i/m/d/imdawe/css_turret_1995988.sp
 forums/i/m/d/imdawe/helicopter_1882885.sp
 forums/i/m/d/imdawe/rhp_1935585.sp
+forums/i/m/p/imported_Anth0ny/advancedc4timer_525209.sp
+forums/i/m/p/imported_Anth0ny/advancedc4timer_527117.sp
 forums/i/m/y/imyz/l4d_gear_transfer_2753538.sp
+forums/i/n/2/in2002/MapChanger_2757514.sp
 forums/i/n/s/insobniut2004/l4d2_lock_2772575.sp
+forums/i/n/s/insobniut2004/lockdown_system-l4d2_b_2780215.sp
 forums/i/r/o/irogue/fortspawner_1781143.sp
 forums/j/0/a/j0aX/rankme_2413427.sp
 forums/j/1/g/j1gg/LevelsRanks_2367849.sp
@@ -4096,6 +4180,7 @@ forums/j/u/s/just75100/sm_deadalltalk_1418567.sp
 forums/k/a/d/kaden/ps_bess_2719385.sp
 forums/k/a/d/kadet_89/test_2746729.sp
 forums/k/a/f/kaffaljidhma/Chase_4_Dead_765821.sp
+forums/k/a/g/kage_69th_id_/forcebattlex_855813.sp
 forums/k/a/m/kamild1996/tVip_2509141.sp
 forums/k/a/r/karil/weapon_restrict_2346966.sp
 forums/k/a/s/kasper21/l4dscores_980227.sp
@@ -4145,6 +4230,8 @@ forums/k/r/o/krolus/kammomod_1148779.sp
 forums/k/r/o/krolus/kammomod_1194423.sp
 forums/k/r/o/krolus/kammomod_1198855.sp
 forums/k/r/o/krolus/kammomod_933540.sp
+forums/k/r/o/krolus/kammomod_942123.sp
+forums/k/r/o/krolus/kammomod_948966.sp
 forums/k/t/m/ktm/levelmod_hud_tf2_1922262.sp
 forums/k/t/m/ktm/zombiefortress_redux_2067604.sp
 forums/k/t/m/ktm/zombiefortress_redux_2067933.sp
@@ -4173,6 +4260,8 @@ forums/l/a/d/ladaladik/lTargets_2767036.sp
 forums/l/a/m/lamdacore/atac_515238.sp
 forums/l/a/m/lamdacore/atac_577029.sp
 forums/l/a/m/lamdacore/atac_slay_577029.sp
+forums/l/a/m/lamdacore/saysounds_577075.sp
+forums/l/a/r/larrybrains/l4d2scores_2722451.sp
 forums/l/a/y/lay295/CP_AdminMessages_2567848.sp
 forums/l/a/y/lay295/CustomKnives_2376755.sp
 forums/l/a/y/lay295/HLDJ_Vote_2390722.sp
@@ -4235,6 +4324,7 @@ forums/l/i/v/live4net/jail_shop_2213985.sp
 forums/l/i/v/live4net/jail_shop_2214413.sp
 forums/l/i/v/live4net/jail_shop_2217035.sp
 forums/l/i/v/live4net/jail_shop_2228283.sp
+forums/l/l/a/llamasking/exec_on_empty_2709770.sp
 forums/l/l/a/llamasking/player_analytics_2716328.sp
 forums/l/l/a/llamasking/wsvote_2717878.sp
 forums/l/o/a/loafmur/deathmatch_ragdolls_2811363.sp
@@ -4362,6 +4452,10 @@ forums/m/y/k/mykalodeon/store_2377503.sp
 forums/n/3/w/n3wton/PlayerAddCountryTag_1124023.sp
 forums/n/3/w/n3wton/_L4D2_Pause_1295519.sp
 forums/n/4/9/n491/sm_speedrunner_tools_2574530.sp
+forums/n/a/k/nakashimakun/sm_killcounter_1318591.sp
+forums/n/a/k/nakashimakun/sm_killcounter_1347727.sp
+forums/n/a/k/nakashimakun/sm_killcounter_1351409.sp
+forums/n/a/k/nakashimakun/sm_killcounter_1359043.sp
 forums/n/a/m/namazso/ptt_2299877.sp
 forums/n/a/p/napster_10/VPNBlock_2633902.sp
 forums/n/a/r/nargis/asdad_759297.sp
@@ -4468,6 +4562,7 @@ forums/n/o/o/noodleboy347/premium-051_982739.sp
 forums/n/o/s/nosoop/bot_randomizer_minimal_2644408.sp
 forums/n/o/s/nosoop/localization_server_2384497.sp
 forums/n/o/s/nosoop/mult_gravity_2714972.sp
+forums/n/o/s/nosoop/tf2attributes_2655184.sp
 forums/n/o/t/notyouraverage/l4d2_afk__fix_2746615.sp
 forums/n/o/t/notyouraverage/your_plugin_2746387.sp
 forums/n/v/n/nvn/healthkit_on_death_1274946.sp
@@ -4508,6 +4603,7 @@ forums/p/R/E/pRED_/nextmap_491740.sp
 forums/p/R/E/pRED_/sm_super_cmds_501184.sp
 forums/p/R/E/pRED_/sm_super_menu_557225.sp
 forums/p/R/E/pRED_/sm_super_menu_557510.sp
+forums/p/Z/v/pZv_/playersvotes_531561.sp
 forums/p/a/e/paegus/hsm_fakerate_782718.sp
 forums/p/a/e/paegus/hsm_radiotaunts_728424.sp
 forums/p/a/e/paegus/hsm_reqbackup_699599.sp
@@ -4542,12 +4638,18 @@ forums/p/a/u/paulo_crash/multi1v1_2707240.sp
 forums/p/c/m/pcmaster/donator_core_2386754.sp
 forums/p/c/m/pcmaster/noknife_2367996.sp
 forums/p/c/q/pcquad/getping_1875082.sp
+forums/p/e/a/pear/TF2_Dodgeball_2522613.sp
+forums/p/e/a/pear/sheens_2642807.sp
+forums/p/e/a/pear/sheens_2741147.sp
+forums/p/e/a/pear/smfire_2540511.sp
 forums/p/e/e/peewee41/tAutoDemoUpload_1778518.sp
 forums/p/e/n/pendrive148/TF2_Stats_2333949.sp
 forums/p/h/a/phantomx1/kento_rankme_2778121.sp
+forums/p/h/e/pheadxdll/huntsman_2138759.sp
 forums/p/h/e/pheadxdll/melee_suddendeath_1370400.sp
 forums/p/h/e/pheadxdll/rtd_666222.sp
 forums/p/h/e/pheadxdll/sidewinder_898475.sp
+forums/p/h/e/pheadxdll/thriller_1590169.sp
 forums/p/h/i/philipjfry/RestoreVocals_2671449.sp
 forums/p/h/o/phoenix0001/l4d_superversus_2607422.sp
 forums/p/i/g/pigophone/BeaconTimer_1320771.sp
@@ -4569,6 +4671,8 @@ forums/p/p/a/ppalex/sourcecomms_1883705.sp
 forums/p/r/0/pr0mers/discordgivecredit_2753160.sp
 forums/p/r/e/predaaator/respawnmanagement_2119085.sp
 forums/p/r/i/pribekerik/AntiDLL_2741496.sp
+forums/p/s/y/psychocoder/dodRealismPhysics_835667.sp
+forums/p/s/y/psychocoder/hpAntiCamp_1151140.sp
 forums/p/s/y/psychonic/bdayblocker_1276595.sp
 forums/p/s/y/psychonic/boomheadshotdods_837779.sp
 forums/p/s/y/psychonic/colorstrip_1005013.sp
@@ -4616,6 +4720,7 @@ forums/r/5/0/r5053/admconmsg_549444.sp
 forums/r/5/0/r5053/map-downloader_573366.sp
 forums/r/5/0/r5053/medicfarming_619890.sp
 forums/r/5/0/r5053/n1g-tf2-stats-au_834623.sp
+forums/r/a/f/rafradek/tf2hiddenattribs_2714858.sp
 forums/r/a/f/rafy21/zp_weapon_dronegun_2767610.sp
 forums/r/a/i/raizo11/Knife_Management_2395265.sp
 forums/r/a/i/raizo11/survivor_mvp_2744320.sp
@@ -4660,6 +4765,7 @@ forums/r/i/k/rikka0w0/acs_2595458.sp
 forums/r/i/k/rikka0w0/acs_2599504.sp
 forums/r/i/k/rikka0w0/l4d2_points_system_2601356.sp
 forums/r/i/k/rikka0w0/l4d2_points_system_2620238.sp
+forums/r/i/p/riptyde4/deathmatch_2305152.sp
 forums/r/o/b/robotortoise/ghostmode_boo_notredux_2132318.sp
 forums/r/o/b/robotortoise/ghostmode_boo_notredux_2132319.sp
 forums/r/o/c/rocknroll/char_parser_1923820.sp
@@ -4701,6 +4807,7 @@ forums/r/o/w/rowedahelicon/donator_recognition_tf2_2645258.sp
 forums/r/o/w/rowedahelicon/ftz_ignorelist_1886792.sp
 forums/r/s/w/rswallen/tf2itemsinfo_2177496.sp
 forums/r/t/l/rtldg/tf2centerprojectiles_2754222.sp
+forums/r/u/i/ruifung/TF2_DodgeballEx_1535262.sp
 forums/s/L/z/sLze/mpbhops_2498021.sp
 forums/s/a/d/sadhands/nadeblock_2571335.sp
 forums/s/a/d/sadhands/store-auras_2580534.sp
@@ -4863,11 +4970,16 @@ forums/s/n/e/sneaK/zeph_mathcredits_2509088.sp
 forums/s/n/e/sneaK/zeph_raffle_2489551.sp
 forums/s/n/e/sneakret/building_repair_1760999.sp
 forums/s/n/e/sneakret/killgod_2254872.sp
+forums/s/n/e/snelvuur/adsql_1860307.sp
 forums/s/n/e/snelvuur/ninjutsu_barrel_1884500.sp
 forums/s/n/i/snipercup/xpmod5_sxpm_menus_1725019.sp
 forums/s/n/o/snoopy174/afk_manager4_2581726.sp
 forums/s/n/o/snowyiet/detonator_1421790.sp
 forums/s/o/r/sorallll/incap_magnum_2794094.sp
+forums/s/o/r/sorallll/keyvalues_getint_2771691.sp
+forums/s/o/r/sorallll/safearea_teleport_2757998.sp
+forums/s/o/r/sorallll/safearea_teleport_2766514.sp
+forums/s/o/r/sorallll/safedoor_scavenge_2766715.sp
 forums/s/o/r/sorallll/transition_restore_fix_2770962.sp
 forums/s/o/r/sorallll/zombie_spawn_fix_2751992.sp
 forums/s/o/s/sos_crazy89/_L4D2_Mighty_Stomp_Foot_2350142.sp
@@ -4879,6 +4991,8 @@ forums/s/o/s/sos_crazy89/l4d_lamp_2354111.sp
 forums/s/o/s/sos_crazy89/l4dinfectedbots_2327150.sp
 forums/s/o/s/sos_crazy89/struggle_l4d_2348154.sp
 forums/s/o/u/soulreaper1o1/advcommands_1587647.sp
+forums/s/p/e/spelworm/uberslap_515367.sp
+forums/s/p/e/spelworm/uberslap_520339.sp
 forums/s/p/e/speziFanta/sf_f2p_kicker_1513852.sp
 forums/s/p/u/spunkster21/anti_stick_1269831.sp
 forums/s/r/v/srvmil/gungame_give_2100771.sp
@@ -4910,6 +5024,7 @@ forums/s/v/p/svpure/zriot_infected_2299486.sp
 forums/s/w/i/swiftswing1/scuffle_edit_2799226.sp
 forums/s/x/s/sxslmk/l4d_machine_2693827.sp
 forums/s/x/s/sxslmk/l4d_stats_2702571.sp
+forums/s/z/o/szogun/knife_round_2675545.sp
 forums/s/z/o/szogun/moce_2477224.sp
 forums/s/z/o/szogun/veterans1_2537112.sp
 forums/s/z/o/szogun/veterans2_2537158.sp
@@ -4939,9 +5054,13 @@ forums/t/h/e/theproperson/l4d_drop_2615272.sp
 forums/t/h/e/thesixhalcon/psyrtd-generic-effects_1296096.sp
 forums/t/h/e/thetwistedpanda/GrenadeTrails_1694537.sp
 forums/t/h/e/thetwistedpanda/GrenadeTrails_1694562.sp
+forums/t/h/e/thetwistedpanda/advancedc4timer_1934836.sp
 forums/t/h/e/thetwistedpanda/buildwars_v2_1599856.sp
+forums/t/h/e/thetwistedpanda/css_anti_nade_spam_968697.sp
+forums/t/h/e/thetwistedpanda/css_anti_team_flash_1313543.sp
 forums/t/h/e/thetwistedpanda/css_dice_1599877.sp
 forums/t/h/e/thetwistedpanda/css_dodgeball_1599894.sp
+forums/t/h/e/thetwistedpanda/css_spawning_1327058.sp
 forums/t/h/e/thetwistedpanda/css_supporter_colors_1691409.sp
 forums/t/h/e/thetwistedpanda/css_supporter_tracers_1691396.sp
 forums/t/h/e/thetwistedpanda/css_supporter_tracers_1753099.sp
@@ -4954,16 +5073,29 @@ forums/t/h/e/thetwistedpanda/l4d2_upgradesreloaded_1__1818718.sp
 forums/t/h/e/thetwistedpanda/lbd_basebans_1693332.sp
 forums/t/h/e/thetwistedpanda/lbd_sourcebans_1693332.sp
 forums/t/h/e/thetwistedpanda/levelmod_core_1647626.sp
+forums/t/h/e/thetwistedpanda/sm_autoskin_1349368.sp
+forums/t/h/e/thetwistedpanda/sm_autoskin_1932586.sp
+forums/t/h/e/thetwistedpanda/sm_crashhelper_2031093.sp
 forums/t/h/e/thetwistedpanda/sm_emergency_pack_1336738.sp
+forums/t/h/e/thetwistedpanda/sm_force_html_motd_1603281.sp
 forums/t/h/e/thetwistedpanda/sm_limit_ban_duration_1693332.sp
 forums/t/h/e/thetwistedpanda/sm_notices_1669678.sp
+forums/t/h/e/thetwistedpanda/sm_player_warnings_1533933.sp
+forums/t/h/e/thetwistedpanda/sm_protection_1208196.sp
 forums/t/h/e/thetwistedpanda/sm_rrbarrels_1215491.sp
 forums/t/h/e/thetwistedpanda/sm_rrcash_1214814.sp
 forums/t/h/e/thetwistedpanda/sm_rrcash_1215472.sp
 forums/t/h/e/thetwistedpanda/sm_rrextras_1215539.sp
+forums/t/h/e/thetwistedpanda/sm_spawning_1395980.sp
+forums/t/h/e/thetwistedpanda/sm_speedometer_1335264.sp
+forums/t/h/e/thetwistedpanda/sm_speedometer_1836405.sp
+forums/t/h/e/thetwistedpanda/sm_suicide_reward_1208105.sp
+forums/t/h/e/thetwistedpanda/sm_surfing_1334000.sp
 forums/t/h/e/thetwistedpanda/sm_trails_1403568.sp
 forums/t/h/e/thetwistedpanda/smacbans-block_1944372.sp
 forums/t/h/e/thetwistedpanda/store-skins_1999890.sp
+forums/t/h/e/thetwistedpanda/zeegrenades_1985630.sp
+forums/t/h/e/thetwistedpanda/zeesuicide_1985624.sp
 forums/t/h/e/thewintersoldier97/l4d2_sb_fix_2763964.sp
 forums/t/h/r/thresh0ld/l4d2_superboomer_1161933.sp
 forums/t/i/g/tigerox/gungame_missile_1365354.sp
@@ -4972,6 +5104,7 @@ forums/t/i/g/tigerox/rallyrace_1009933.sp
 forums/t/i/g/tigerox/rallyrace_times_1011901.sp
 forums/t/i/g/tigerox/rallyrace_times_1014393.sp
 forums/t/i/g/tigerox/snlite_1326308.sp
+forums/t/i/g/tigerox/team_noblock_1400370.sp
 forums/t/i/m/timtam95/tf2underworld_2621435.sp
 forums/t/i/p/tiphong/l4d2_hybrid_scoremod_2810953.sp
 forums/t/i/p/tiphong/l4d_boomerbitchslap_SM1_3_2806996.sp
@@ -5013,6 +5146,7 @@ forums/v/e/r/versatile_bfg/auto_steam_update_2171840.sp
 forums/v/e/r/versatile_bfg/hlstatsx_2150871.sp
 forums/v/e/r/versatile_bfg/rankme_2265964.sp
 forums/v/e/r/versatile_bfg/warmod_2672118.sp
+forums/v/e/r/vertigo/anti_team_flash_2730840.sp
 forums/v/e/x/vexium/lastrequest_hpfight_2009313.sp
 forums/v/e/x/vexium/lastrequest_hpfight_2009320.sp
 forums/v/e/x/vexyos/BodySearch_2410425.sp
@@ -5045,6 +5179,7 @@ forums/w/r/i/wribit/MyCompass_2273797.sp
 forums/w/y/d/wyd3x/shavit-credits_2314501.sp
 forums/w/y/d/wyd3x/store-winaward_2304562.sp
 forums/w/y/r/wyrda/smerrormail_2372356.sp
+forums/w/y/r/wyrda/tf2mvm10plr_2481650.sp
 forums/x/P/a/xPaw/GameDescChanger_1120270.sp
 forums/x/R/a/xRaven/warmup_1331306.sp
 forums/x/S/a/xSaucisse/Roleplay_2075845.sp
@@ -5132,8 +5267,11 @@ github.com/GAMMACASE/MomSurfFix/addons/sourcemod/scripting/momsurffix2.sp
 github.com/GAMMACASE/ServerRedirect/addons/sourcemod/scripting/server_redirect.sp
 github.com/GAMMACASE/ShowPlayerClips/addons/sourcemod/scripting/showplayerclips.sp
 github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/gokz-anticheat.sp
+github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/gokz-core.sp
+github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/gokz-jumpstats.sp
 github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/gokz-momsurffix.sp
 github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/gokz-replays.sp
+github.com/KZGlobalTeam/gokz/addons/sourcemod/scripting/gokz-tpanglefix.sp
 github.com/dysphie/nmrih-qol-ex/scripting/qol.sp
 github.com/dysphie/nmrih-team-healing/scripting/nmrih-team-healing.sp
 github.com/dysphie/sm-map-translator/scripting/map-translator.sp
@@ -5143,3 +5281,4 @@ github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-misc.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-replay-playback.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-stats.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-wr.sp
+github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-zones.sp
