@@ -1,0 +1,872 @@
+/**
+ * HLstatsX - SourceMod plugin to generate advanced weapon logging
+ * http://www.hlstatsx.com/
+ * Copyright (C) 2007-2009 TTS Oetzel & Goerz GmbH
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
+#include <sourcemod>
+#include <sdktools>
+
+
+#define HITGROUP_GENERIC   0
+#define HITGROUP_HEAD      1
+#define HITGROUP_CHEST     2
+#define HITGROUP_STOMACH   3
+#define HITGROUP_LEFTARM   4
+#define HITGROUP_RIGHTARM  5
+#define HITGROUP_LEFTLEG   6
+#define HITGROUP_RIGHTLEG  7
+
+#define MAX_LOG_PLAYERS    64
+#define MAX_LOG_WEAPONS    32
+
+#define LOG_HIT_OFFSET     7 
+
+#define LOG_HIT_SHOTS      0
+#define LOG_HIT_HITS       1
+#define LOG_HIT_KILLS      2
+#define LOG_HIT_HEADSHOTS  3
+#define LOG_HIT_TEAMKILLS  4
+#define LOG_HIT_DAMAGE     5
+#define LOG_HIT_DEATHS     6
+#define LOG_HIT_GENERIC    7
+#define LOG_HIT_HEAD       8
+#define LOG_HIT_CHEST      9
+#define LOG_HIT_STOMACH    10
+#define LOG_HIT_LEFTARM    11
+#define LOG_HIT_RIGHTARM   12
+#define LOG_HIT_LEFTLEG    13
+#define LOG_HIT_RIGHTLEG   14
+
+new String: game_mod[32];
+new String: team_list[16][64];
+
+// all weapon arrays are sorted by their usage to get faster access
+new weapon_stats[MAX_LOG_PLAYERS + 1][MAX_LOG_WEAPONS][15];
+
+// weapon list css
+new String: css_weapon_list[][] = {
+									"ak47", 
+									"m4a1",
+									"awp", 
+									"deagle",
+									"mp5navy",
+									"aug", 
+									"p90",
+									"famas",
+									"galil",
+									"scout",
+									"g3sg1",
+									"hegrenade",
+									"usp",
+									"glock",
+									"m249",
+									"m3",
+									"elite",
+									"fiveseven",
+									"mac10",
+									"p228",
+									"sg550",
+									"sg552",
+									"tmp",
+									"ump45",
+									"xm1014",
+									"knife",
+									"smokegrenade",
+									"flashbang"
+								};
+
+// weapon list dods
+new String: dods_weapon_list[][] = {
+									 "thompson",		// 11
+									 "m1carbine",		// 7
+									 "k98",				// 8
+									 "k98_scoped",		// 10	// 34
+									 "mp40",			// 12
+									 "mg42",			// 16	// 36
+									 "mp44",			// 13	// 38
+									 "colt",			// 3
+									 "garand",			// 31	// 6
+									 "spring",			// 9	// 33
+									 "c96",				// 5
+									 "bar",				// 14
+									 "30cal",			// 15	// 35
+									 "bazooka",			// 17
+									 "pschreck",		// 18
+									 "p38",				// 4
+									 "spade",			// 2
+									 "frag_ger",		// 20
+									 "punch",			// 30	// 29
+									 "frag_us",			// 19
+									 "amerknife",		// 1
+									 "riflegren_ger",	// 26
+									 "riflegren_us",	// 25
+									 "smoke_ger",		// 24
+									 "smoke_us",		// 23
+									 "dod_bomb_target"
+								};
+// weapon list l4d
+new String: l4d_weapon_list[][] = {
+									"rifle",
+									"autoshotgun",
+									"pumpshotgun",
+									"smg",
+									"dual_pistols",
+									"pipe_bomb",
+									"inferno",
+									"hunting_rifle",
+									"pistol",
+									"prop_minigun",
+									"tank_claw",
+									"hunter_claw",
+									"entitiyflame",
+									"smoker_claw",
+									"boomer_claw"
+								};
+
+
+public Plugin:myinfo = {
+	name = "Weapon Logging",
+	author = "TTS Oetzel & Goerz GmbH",
+	description = "Advanced weapon logging for HLstatsX",
+	version = "2.8",
+	url = "http://www.hlstatsx.com"
+};
+
+
+public OnPluginStart()
+{
+	for (new i = 0; (i < (MAX_LOG_PLAYERS + 1)); i++) {
+		reset_player_stats(i);
+	}
+
+	get_server_mod();
+}
+
+
+public OnMapStart()
+{
+	if ((strcmp(game_mod, "CSS") == 0) || (strcmp(game_mod, "DODS") == 0) || (strcmp(game_mod, "L4D") == 0)) {
+		new max_teams_count = GetTeamCount();
+		for (new team_index = 0; (team_index < max_teams_count); team_index++) {
+			decl String: team_name[64];
+			GetTeamName(team_index, team_name, 64);
+			if (strcmp(team_name, "") != 0) {
+				team_list[team_index] = team_name;
+			}
+		}
+	}
+}
+
+
+get_server_mod()
+{
+	if (strcmp(game_mod, "") == 0) {
+		new String: game_description[64];
+		GetGameDescription(game_description, 64, true);
+	
+		if (StrContains(game_description, "Counter-Strike", false) != -1) {
+			game_mod = "CSS";
+		}
+		if (StrContains(game_description, "Day of Defeat", false) != -1) {
+			game_mod = "DODS";
+		}
+		if (StrContains(game_description, "Half-Life 2 Deathmatch", false) != -1) {
+			game_mod = "HL2MP";
+		}
+		if (StrContains(game_description, "Team Fortress", false) != -1) {
+			game_mod = "TF";
+		}
+		if (StrContains(game_description, "Insurgency", false) != -1) {
+			game_mod = "INSMOD";
+		}
+		if (StrContains(game_description, "L4D", false) != -1) {
+			game_mod = "L4D";
+		}
+		if (StrContains(game_description, "Fortress Forever", false) != -1) {
+			game_mod = "FF";
+		}
+		if (StrContains(game_description, "Zombie Panic", false) != -1) {
+			game_mod = "ZPS";
+		}
+		if (StrContains(game_description, "Age of Chivalry", false) != -1) {
+			game_mod = "AOC";
+		}
+		
+		// game mod could not detected, try further
+		if (strcmp(game_mod, "") == 0) {
+			new String: game_folder[64];
+			GetGameFolderName(game_folder, 64);
+
+			if (StrContains(game_folder, "cstrike", false) != -1) {
+				game_mod = "CSS";
+			}
+			if (StrContains(game_folder, "dod", false) != -1) {
+				game_mod = "DODS";
+			}
+			if (StrContains(game_folder, "hl2mp", false) != -1) {
+				game_mod = "HL2MP";
+			}
+			if (StrContains(game_folder, "tf", false) != -1) {
+				game_mod = "TF";
+			}
+			if (StrContains(game_folder, "insurgency", false) != -1) {
+				game_mod = "INSMOD";
+			}
+			if (StrContains(game_folder, "left4dead", false) != -1) {
+				game_mod = "L4D";
+			}
+			if (StrContains(game_folder, "FortressForever", false) != -1) {
+				game_mod = "FF";
+			}
+			if (StrContains(game_folder, "Hidden", false) != -1) {
+				game_mod = "HIDDEN";
+			}
+			if (StrContains(game_folder, "zps", false) != -1) {
+				game_mod = "ZPS";
+			}
+			if (StrContains(game_folder, "ageofchivalry", false) != -1) {
+				game_mod = "AOC";
+			}			
+			if (strcmp(game_mod, "") == 0) {
+				LogToGame("Mod Detection (HLstatsX): Failed (%s, %s)", game_description, game_folder);
+			}
+		}
+
+		// hooks for css
+		if (strcmp(game_mod, "CSS") == 0) {
+			HookEvent("weapon_fire",  Event_CSSPlayerFire);
+			HookEvent("player_hurt",  Event_CSSPlayerHurt);
+			HookEvent("player_death", Event_CSSPlayerDeath);
+			HookEvent("player_spawn", Event_CSSPlayerSpawn);
+			HookEvent("round_end",    Event_CSSRoundEnd);
+		}
+
+		// hooks for dods
+		if (strcmp(game_mod, "DODS") == 0) {
+			HookEvent("dod_stats_weapon_attack", Event_DODSWeaponAttack);
+			HookEvent("player_hurt",  			 Event_DODSPlayerHurt);
+			HookEvent("player_death", 			 Event_DODSPlayerDeath);
+			HookEvent("player_spawn", 			 Event_DODSRoundEnd);
+		}
+
+		// hooks for l4d
+		if (strcmp(game_mod, "L4D") == 0) {
+		
+			HookEvent("weapon_fire",  			Event_L4DPlayerFire);
+			HookEvent("weapon_fire_on_empty",  	Event_L4DPlayerFireOnEmpty);
+			HookEvent("player_hurt",  			Event_L4DPlayerHurt);
+			HookEvent("infected_hurt",  		Event_L4DInfectedHurt);
+			HookEvent("player_death", 			Event_L4DPlayerDeath);
+			HookEvent("player_spawn", 			Event_L4DPlayerSpawn);
+			HookEvent("round_end",		    	Event_L4DRoundEnd);
+
+			// since almost no deaths occurs force the data to
+			// be logged at least every 120 seconds
+			CreateTimer(120.0, FlushWeaponLogs, 0, TIMER_REPEAT);
+
+		}
+
+		LogToGame("Mod Detection (Weapon Logging): %s [%s]", game_description, game_mod);
+	}
+}
+
+
+get_css_weapon_index(const String: weapon_name[])
+{
+	new loop_break = 0;
+	new index = 0;
+	
+	while ((loop_break == 0) && (index < sizeof(css_weapon_list))) {
+   	    if (strcmp(weapon_name, css_weapon_list[index], true) == 0) {
+       		loop_break++;
+        }
+   	    index++;
+	}
+
+	if (loop_break == 0) {
+		return -1;
+	} else {
+		return index - 1;
+	}
+}
+
+
+get_dods_weapon_index(const String: weapon_name[])
+{
+	new loop_break = 0;
+	new index = 0;
+	
+	while ((loop_break == 0) && (index < sizeof(dods_weapon_list))) {
+   	    if (strcmp(weapon_name, dods_weapon_list[index], true) == 0) {
+       		loop_break++;
+        }
+   	    index++;
+	}
+
+	if (loop_break == 0) {
+		return -1;
+	} else {
+		return index - 1;
+	}
+}
+
+
+get_l4d_weapon_index(const String: weapon_name[])
+{
+	new loop_break = 0;
+	new index = 0;
+	
+	while ((loop_break == 0) && (index < sizeof(l4d_weapon_list))) {
+   	    if (strcmp(weapon_name, l4d_weapon_list[index], true) == 0) {
+       		loop_break++;
+        }
+   	    index++;
+	}
+
+	if (loop_break == 0) {
+		return -1;
+	} else {
+		return index - 1;
+	}
+}
+
+
+reset_player_stats(player_index) 
+{
+	for (new i = 0; (i < MAX_LOG_WEAPONS); i++) {
+		weapon_stats[player_index][i][LOG_HIT_SHOTS]     = 0;
+		weapon_stats[player_index][i][LOG_HIT_HITS]      = 0;
+		weapon_stats[player_index][i][LOG_HIT_KILLS]     = 0;
+		weapon_stats[player_index][i][LOG_HIT_HEADSHOTS] = 0;
+		weapon_stats[player_index][i][LOG_HIT_TEAMKILLS] = 0;
+		weapon_stats[player_index][i][LOG_HIT_DAMAGE]    = 0;
+		weapon_stats[player_index][i][LOG_HIT_DEATHS]    = 0;
+		weapon_stats[player_index][i][LOG_HIT_GENERIC]   = 0;
+		weapon_stats[player_index][i][LOG_HIT_HEAD]      = 0;
+		weapon_stats[player_index][i][LOG_HIT_CHEST]     = 0;
+		weapon_stats[player_index][i][LOG_HIT_STOMACH]   = 0;
+		weapon_stats[player_index][i][LOG_HIT_LEFTARM]   = 0;
+		weapon_stats[player_index][i][LOG_HIT_RIGHTARM]  = 0;
+		weapon_stats[player_index][i][LOG_HIT_LEFTLEG]   = 0;
+		weapon_stats[player_index][i][LOG_HIT_RIGHTLEG]  = 0;
+	}
+}
+
+
+dump_player_stats(player_index)
+{
+	if ((IsClientConnected(player_index)) && (IsClientInGame(player_index)))  {
+
+		decl String: player_name[64];
+		if (!GetClientName(player_index, player_name, 64))	{
+			strcopy(player_name, 64, "UNKNOWN");
+		}
+		decl String: player_authid[64];
+		if (!GetClientAuthString(player_index, player_authid, 64)){
+			strcopy(player_authid, 64, "UNKNOWN");
+		}
+		new player_team_index = GetClientTeam(player_index);
+		decl String: player_team[64];
+		player_team = team_list[player_team_index];
+
+		new player_userid = GetClientUserId(player_index);
+
+		new is_logged = 0;
+		for (new i = 0; (i < MAX_LOG_WEAPONS); i++) {
+			if (weapon_stats[player_index][i][LOG_HIT_SHOTS] > 0) {
+				if (strcmp(game_mod, "CSS") == 0) {
+					LogToGame("\"%s<%d><%s><%s>\" triggered \"weaponstats\" (weapon \"%s\") (shots \"%d\") (hits \"%d\") (kills \"%d\") (headshots \"%d\") (tks \"%d\") (damage \"%d\") (deaths \"%d\")", player_name, player_userid, player_authid, player_team, css_weapon_list[i], weapon_stats[player_index][i][LOG_HIT_SHOTS], weapon_stats[player_index][i][LOG_HIT_HITS], weapon_stats[player_index][i][LOG_HIT_KILLS], weapon_stats[player_index][i][LOG_HIT_HEADSHOTS], weapon_stats[player_index][i][LOG_HIT_TEAMKILLS], weapon_stats[player_index][i][LOG_HIT_DAMAGE], weapon_stats[player_index][i][LOG_HIT_DEATHS]); 
+					LogToGame("\"%s<%d><%s><%s>\" triggered \"weaponstats2\" (weapon \"%s\") (head \"%d\") (chest \"%d\") (stomach \"%d\") (leftarm \"%d\") (rightarm \"%d\") (leftleg \"%d\") (rightleg \"%d\")", player_name, player_userid, player_authid, player_team, css_weapon_list[i], weapon_stats[player_index][i][LOG_HIT_HEAD], weapon_stats[player_index][i][LOG_HIT_CHEST], weapon_stats[player_index][i][LOG_HIT_STOMACH], weapon_stats[player_index][i][LOG_HIT_LEFTARM], weapon_stats[player_index][i][LOG_HIT_RIGHTARM], weapon_stats[player_index][i][LOG_HIT_LEFTLEG], weapon_stats[player_index][i][LOG_HIT_RIGHTLEG]); 
+				} else if (strcmp(game_mod, "DODS") == 0) {
+					LogToGame("\"%s<%d><%s><%s>\" triggered \"weaponstats\" (weapon \"%s\") (shots \"%d\") (hits \"%d\") (kills \"%d\") (headshots \"%d\") (tks \"%d\") (damage \"%d\") (deaths \"%d\")", player_name, player_userid, player_authid, player_team, dods_weapon_list[i], weapon_stats[player_index][i][LOG_HIT_SHOTS], weapon_stats[player_index][i][LOG_HIT_HITS], weapon_stats[player_index][i][LOG_HIT_KILLS], weapon_stats[player_index][i][LOG_HIT_HEADSHOTS], weapon_stats[player_index][i][LOG_HIT_TEAMKILLS], weapon_stats[player_index][i][LOG_HIT_DAMAGE], weapon_stats[player_index][i][LOG_HIT_DEATHS]); 
+					LogToGame("\"%s<%d><%s><%s>\" triggered \"weaponstats2\" (weapon \"%s\") (head \"%d\") (chest \"%d\") (stomach \"%d\") (leftarm \"%d\") (rightarm \"%d\") (leftleg \"%d\") (rightleg \"%d\")", player_name, player_userid, player_authid, player_team, dods_weapon_list[i], weapon_stats[player_index][i][LOG_HIT_HEAD], weapon_stats[player_index][i][LOG_HIT_CHEST], weapon_stats[player_index][i][LOG_HIT_STOMACH], weapon_stats[player_index][i][LOG_HIT_LEFTARM], weapon_stats[player_index][i][LOG_HIT_RIGHTARM], weapon_stats[player_index][i][LOG_HIT_LEFTLEG], weapon_stats[player_index][i][LOG_HIT_RIGHTLEG]); 
+				} else if (strcmp(game_mod, "L4D") == 0) {
+					LogToGame("\"%s<%d><%s><%s>\" triggered \"weaponstats\" (weapon \"%s\") (shots \"%d\") (hits \"%d\") (kills \"%d\") (headshots \"%d\") (tks \"%d\") (damage \"%d\") (deaths \"%d\")", player_name, player_userid, player_authid, player_team, l4d_weapon_list[i], weapon_stats[player_index][i][LOG_HIT_SHOTS], weapon_stats[player_index][i][LOG_HIT_HITS], weapon_stats[player_index][i][LOG_HIT_KILLS], weapon_stats[player_index][i][LOG_HIT_HEADSHOTS], weapon_stats[player_index][i][LOG_HIT_TEAMKILLS], weapon_stats[player_index][i][LOG_HIT_DAMAGE], weapon_stats[player_index][i][LOG_HIT_DEATHS]); 
+					LogToGame("\"%s<%d><%s><%s>\" triggered \"weaponstats2\" (weapon \"%s\") (head \"%d\") (chest \"%d\") (stomach \"%d\") (leftarm \"%d\") (rightarm \"%d\") (leftleg \"%d\") (rightleg \"%d\")", player_name, player_userid, player_authid, player_team, l4d_weapon_list[i], weapon_stats[player_index][i][LOG_HIT_HEAD], weapon_stats[player_index][i][LOG_HIT_CHEST], weapon_stats[player_index][i][LOG_HIT_STOMACH], weapon_stats[player_index][i][LOG_HIT_LEFTARM], weapon_stats[player_index][i][LOG_HIT_RIGHTARM], weapon_stats[player_index][i][LOG_HIT_LEFTLEG], weapon_stats[player_index][i][LOG_HIT_RIGHTLEG]); 
+				}
+				is_logged++;
+			}
+		}
+		if (is_logged > 0) {
+			reset_player_stats(player_index);
+		}
+	}
+	
+}
+
+
+public Action:FlushWeaponLogs(Handle:timer, any:index) 
+{
+	new max_clients = GetMaxClients();
+	for (new i = 1; (i <= max_clients); i++) {
+		dump_player_stats(i);
+	}
+}
+
+
+public Action:Event_CSSPlayerFire(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "userid"        "short"
+	// "weapon"        "string"        // weapon name used
+
+	new userid   = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (userid > 0) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64);
+		new weapon_index = get_css_weapon_index(weapon);
+		if (weapon_index > -1) {
+		    if ((strcmp(weapon, "flashbang") != 0) && (strcmp(weapon, "hegrenade") != 0) && (strcmp(weapon, "smokegrenade") != 0)) {
+				weapon_stats[userid][weapon_index][LOG_HIT_SHOTS]++;
+			}
+		}
+	}
+}
+
+
+public Action:Event_DODSWeaponAttack(Handle:event, const String:name[], bool:dontBroadcast)
+{
+    // "attacker"      "short"
+    // "weapon"        "byte"
+
+	new userid   = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if (userid > 0) {
+
+		new String: weapon[64];
+		new log_weapon_index  = GetEventInt(event, "weapon");
+		switch (log_weapon_index) {
+			case 1 :
+				weapon = "amerknife";
+			case 2 :
+				weapon = "spade";
+			case 3 :
+				weapon = "colt";
+			case 4 :
+				weapon = "p38";
+			case 5 :
+				weapon = "c96";
+			case 6 :
+				weapon = "garand";
+			case 7 :
+				weapon = "m1carbine";
+			case 8 :
+				weapon = "k98";
+			case 9 :
+				weapon = "spring";
+			case 10 :
+				weapon = "k98_scoped";
+			case 11 :
+				weapon = "thompson";
+			case 12 :
+				weapon = "mp40";
+			case 13 :
+				weapon = "mp44";
+			case 14 :
+				weapon = "bar";
+			case 15 :
+				weapon = "30cal";
+			case 16 :
+				weapon = "mg42";
+			case 17 :
+				weapon = "bazooka";
+			case 18 :
+				weapon = "pschreck";
+			case 19 :
+				weapon = "frag_us";
+			case 20 :
+				weapon = "frag_ger";
+			case 23 :
+				weapon = "smoke_us";
+			case 24 :
+				weapon = "smoke_ger";
+			case 25 :
+				weapon = "riflegren_us";
+			case 26 :
+				weapon = "riflegren_ger";
+			case 31 :
+				weapon = "garand";
+			case 33 :
+				weapon = "spring";
+			case 34 :
+				weapon = "k98_scoped";
+			case 35 :
+				weapon = "30cal";
+			case 36 :
+				weapon = "mg42";
+			case 38 :
+				weapon = "mp44";
+		}
+		
+		new weapon_index = get_dods_weapon_index(weapon);
+		if (weapon_index > -1) {
+			if ((strcmp(weapon, "dod_bomb_target") != 0) && (strcmp(weapon, "riflegren_ger") != 0) && (strcmp(weapon, "riflegren_us") != 0) && (strcmp(weapon, "smoke_ger") != 0) && (strcmp(weapon, "smoke_us") != 0)) {
+				weapon_stats[userid][weapon_index][LOG_HIT_SHOTS]++;
+			}
+		}
+	}
+
+}
+
+
+public Action:Event_L4DPlayerFire(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "local"         "1"             // don't network this, its way too spammy
+	// "userid"        "short"
+	// "weapon"        "string"        // used weapon name  
+	// "weaponid"      "short"         // used weapon ID
+	// "count"         "short"         // number of bullets
+
+	new userid   = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (userid > 0) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64);
+		new weapon_index = get_l4d_weapon_index(weapon);
+		if (weapon_index > -1) {
+		    if ((strcmp(weapon, "entityflame") != 0) && (strcmp(weapon, "inferno") != 0) && (strcmp(weapon, "world") != 0)) {
+				weapon_stats[userid][weapon_index][LOG_HIT_SHOTS]++;
+			}
+		}
+	}
+}
+
+
+public Action:Event_L4DPlayerFireOnEmpty(Handle:event, const String:name[], bool:dontBroadcast)
+{
+    // "local"         "1"             // don't network this, its way too spammy
+    // "userid"        "short"
+    // "weapon"        "string"        // weapon name used
+    // "count"         "short"         // number of bullets
+
+	new userid   = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (userid > 0) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64);
+		new weapon_index = get_l4d_weapon_index(weapon);
+		if (weapon_index > -1) {
+		    if ((strcmp(weapon, "entityflame") != 0) && (strcmp(weapon, "inferno") != 0) && (strcmp(weapon, "world") != 0)) {
+				weapon_stats[userid][weapon_index][LOG_HIT_SHOTS]++;
+			}
+		}
+	}
+}
+
+
+public Action:Event_CSSPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	//	"userid"        "short"         // player index who was hurt
+	//	"attacker"      "short"         // player index who attacked
+	//	"health"        "byte"          // remaining health points
+	//	"armor"         "byte"          // remaining armor points
+	//	"weapon"        "string"        // weapon name attacker used, if not the world
+	//	"dmg_health"    "byte"  		// damage done to health
+	//	"dmg_armor"     "byte"          // damage done to armor
+	//	"hitgroup"      "byte"          // hitgroup that was damaged
+
+	new attacker  = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new damage    = GetEventInt(event, "dmg_health");
+	new hitgroup  = GetEventInt(event, "hitgroup");
+	
+	if (attacker > 0) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64);
+		new weapon_index = get_css_weapon_index(weapon);
+		if (weapon_index > -1) {
+			if ((strcmp(weapon, "flashbang") != 0) && (strcmp(weapon, "hegrenade") != 0) && (strcmp(weapon, "smokegrenade") != 0)) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_SHOTS]++;
+			}
+			weapon_stats[attacker][weapon_index][LOG_HIT_HITS]++;
+			weapon_stats[attacker][weapon_index][LOG_HIT_DAMAGE] += damage;
+			if (hitgroup < 8) {
+				weapon_stats[attacker][weapon_index][hitgroup + LOG_HIT_OFFSET]++;
+			}
+		}
+	}
+
+	return Plugin_Continue
+}
+
+
+public Action:Event_DODSPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "userid"        "short"         // user ID who was hurt
+	// "attacker"      "short"         // user ID who attacked
+	// "weapon"        "string"        // weapon name attacker used
+	// "health"        "byte"          // health remaining
+	// "damage"        "byte"          // how much damage in this attack
+	// "hitgroup"      "byte"          // what hitgroup was hit
+	
+	new attacker  = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new damage    = GetEventInt(event, "health");
+	new hitgroup  = GetEventInt(event, "hitgroup");
+	
+	if (attacker > 0) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64)
+		new weapon_index = get_dods_weapon_index(weapon);
+		if (weapon_index > -1) {
+			weapon_stats[attacker][weapon_index][LOG_HIT_HITS]++;
+			weapon_stats[attacker][weapon_index][LOG_HIT_DAMAGE] += damage;
+			if (hitgroup < 8) {
+				weapon_stats[attacker][weapon_index][hitgroup + LOG_HIT_OFFSET]++;
+			}
+		}
+	}
+
+	return Plugin_Continue
+}
+
+
+public Action:Event_L4DPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "local"         "1"             // Not networked
+	// "userid"        "short"         // user ID who was hurt
+	// "attacker"      "short"         // user id who attacked
+	// "attackerentid" "long"          // entity id who attacked, if attacker not a player, and userid therefore invalid
+	// "health"        "short"         // remaining health points
+	// "armor"         "byte"          // remaining armor points
+	// "weapon"        "string"        // weapon name attacker used, if not the world
+	// "dmg_health"    "short"         // damage done to health
+	// "dmg_armor"     "byte"          // damage done to armor
+	// "hitgroup"      "byte"          // hitgroup that was damaged
+	// "type"          "long"          // damage type
+
+	new attacker  = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new damage    = GetEventInt(event, "dmg_health");
+	new hitgroup  = GetEventInt(event, "hitgroup");
+	
+	if (attacker > 0) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64)
+		new weapon_index = get_l4d_weapon_index(weapon);
+		if (weapon_index > -1) {
+			if ((strcmp(weapon, "entityflame") != 0) && (strcmp(weapon, "inferno") != 0) && (strcmp(weapon, "world") != 0)) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_SHOTS]++;
+			}
+			weapon_stats[attacker][weapon_index][LOG_HIT_HITS]++;
+			weapon_stats[attacker][weapon_index][LOG_HIT_DAMAGE] += damage;
+			if (hitgroup < 8) {
+				weapon_stats[attacker][weapon_index][hitgroup + LOG_HIT_OFFSET]++;
+			}
+		}
+	}
+
+	return Plugin_Continue
+}
+
+
+public Action:Event_L4DInfectedHurt(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "local"         "1"             // don't network this, its way too spammy
+	// "attacker"      "short"         // player userid who attacked
+	// "entityid"      "long"          // entity id of infected
+	// "hitgroup"      "byte"          // hitgroup that was damaged
+	// "amount"        "short"         // how much damage was done                  
+	// "type"          "long"          // damage type     
+
+	new attacker  = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new damage    = GetEventInt(event, "amount");
+	new hitgroup  = GetEventInt(event, "hitgroup");
+	
+	if (attacker > 0) {
+		decl String: weapon[64];
+
+		// retrieve the weapon of the attacker		
+		GetClientWeapon(attacker, weapon, 64);
+		ReplaceString(weapon, 64, "weapon_","");		
+
+		new weapon_index = get_l4d_weapon_index(weapon);
+		if (weapon_index > -1) {
+			if ((strcmp(weapon, "entityflame") != 0) && (strcmp(weapon, "inferno") != 0) && (strcmp(weapon, "world") != 0)) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_SHOTS]++;
+			}
+			weapon_stats[attacker][weapon_index][LOG_HIT_HITS]++;
+			weapon_stats[attacker][weapon_index][LOG_HIT_DAMAGE] += damage;
+			if (hitgroup < 8) {
+				weapon_stats[attacker][weapon_index][hitgroup + LOG_HIT_OFFSET]++;
+			}
+		}
+	}
+
+	return Plugin_Continue
+}
+
+ 
+public Action:Event_CSSPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// this extents the original player_death by a new fields
+	// "userid"        "short"         // user ID who died                             
+	// "attacker"      "short"         // user ID who killed
+	// "weapon"        "string"        // weapon name killer used 
+	// "headshot"      "bool"          // signals a headshot
+
+	new victim   = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new headshot = GetEventBool(event, "headshot");
+
+	if ((victim > 0) && (attacker > 0)) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64)
+		new weapon_index = get_css_weapon_index(weapon);
+		if (weapon_index > -1) {
+			weapon_stats[attacker][weapon_index][LOG_HIT_KILLS]++;
+			if (headshot == 1) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_HEADSHOTS]++;
+			}
+			weapon_stats[victim][weapon_index][LOG_HIT_DEATHS]++;
+			if (GetClientTeam(attacker) == GetClientTeam(victim)) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_TEAMKILLS]++;
+			}
+			dump_player_stats(victim);
+		}
+	}
+
+	return Plugin_Continue
+}
+
+
+public Action:Event_DODSPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// this extents the original player_death
+	// "userid"        "short"         // user ID who died
+	// "attacker"      "short"         // user ID who killed
+	// "weapon"        "string"        // weapon name killed used
+
+	new victim   = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+
+	if ((victim > 0) && (attacker > 0)) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64)
+		new weapon_index = get_dods_weapon_index(weapon);
+		if (weapon_index > -1) {
+			weapon_stats[attacker][weapon_index][LOG_HIT_KILLS]++;
+			weapon_stats[victim][weapon_index][LOG_HIT_DEATHS]++;
+			if (GetClientTeam(attacker) == GetClientTeam(victim)) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_TEAMKILLS]++;
+			}
+			dump_player_stats(victim);
+		}
+	}
+
+	return Plugin_Continue
+}
+
+
+public Action:Event_L4DPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "userid"        "short"         // user ID who died
+	// "entityid"      "long"          // entity ID who died, userid should be used first, to get the dead Player.  Otherwise, it is not a player, so use this.         $
+	// "attacker"      "short"         // user ID who killed   
+	// "attackername"  "string"        // What type of zombie, so we don't have zombie names
+	// "attackerentid" "long"          // if killer not a player, the entindex of who killed.  Again, use attacker first
+	// "weapon"        "string"        // weapon name killer used
+	// "headshot"      "bool"          // signals a headshot
+	// "attackerisbot" "bool"          // is the attacker a bot
+	// "victimname"    "string"        // What type of zombie, so we don't have zombie names
+	// "victimisbot"   "bool"          // is the victim a bot     
+	// "abort"         "bool"          // did the victim abort        
+	// "type"          "long"          // damage type      
+	// "victim_x"      "float"
+	// "victim_y"      "float"
+	// "victim_z"      "float"
+
+	new victim   = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new headshot = GetEventBool(event, "headshot");
+
+	if ((victim > 0) && (attacker > 0)) {
+		decl String: weapon[64];
+		GetEventString(event, "weapon", weapon, 64)
+		new weapon_index = get_css_weapon_index(weapon);
+		if (weapon_index > -1) {
+			weapon_stats[attacker][weapon_index][LOG_HIT_KILLS]++;
+			if (headshot == 1) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_HEADSHOTS]++;
+			}
+			weapon_stats[victim][weapon_index][LOG_HIT_DEATHS]++;
+			if (GetClientTeam(attacker) == GetClientTeam(victim)) {
+				weapon_stats[attacker][weapon_index][LOG_HIT_TEAMKILLS]++;
+			}
+			dump_player_stats(victim);
+		}
+	}
+
+	return Plugin_Continue
+}
+
+
+public Action:Event_CSSPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "userid"        "short"         // user ID on server          
+
+	new userid   = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (userid > 0) {
+		reset_player_stats(userid);
+	}
+	return Plugin_Continue
+}
+
+
+public Action:Event_L4DPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	// "userid"        "short"         // user ID on server          
+
+	new userid   = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (userid > 0) {
+		reset_player_stats(userid);
+	}
+	return Plugin_Continue
+}
+
+
+public Action:Event_CSSRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new max_clients = GetMaxClients();
+	for (new i = 1; (i <= max_clients); i++) {
+		dump_player_stats(i);
+	}
+	return Plugin_Continue
+}
+
+
+public Action:Event_DODSRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new max_clients = GetMaxClients();
+	for (new i = 1; (i <= max_clients); i++) {
+		dump_player_stats(i);
+	}
+	return Plugin_Continue
+}
+
+public Action:Event_L4DRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new max_clients = GetMaxClients();
+	for (new i = 1; (i <= max_clients); i++) {
+		dump_player_stats(i);
+	}
+	return Plugin_Continue
+}
+
+public OnClientDisconnect(client)
+{
+	if (client > 0) {
+		reset_player_stats(client);
+	}
+}
+
+
+

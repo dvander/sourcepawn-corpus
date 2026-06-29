@@ -1,0 +1,1027 @@
+/* 
+* 	DESCRIPTION:
+* 		When a player dies, this plugin will drop ammo boxes for the weapon the player was carrying.  Other players 
+* 		can pick up this ammo if their gun type matches, or if just their ammo type matches (if set this way).  You can also
+* 		set a CVar that will allow pistols to be filled by any pistol ammo box dropped, rifles (smgs, machine guns, smg, snipers) to
+* 		be filled by any rifle ammo box dropped, and shotguns to be filled by shotgun ammo boxes dropped.
+* 
+* 	Change Log:
+* 
+* 		Version 0.1.0.0
+* 			*	Initial proper release on request URL http://forums.alliedmods.net/showthread.php?t=173286
+* 
+* 		Version 0.1.1.0
+* 			*	Changed m_CollisionGroup from COLLISION_GROUP_NONE to COLLISION_GROUP_PLAYER
+* 				-	Thanks to GrO for testing and confirming
+* 			*	Added an enabled cvar
+* 
+* 		Version 0.1.1.1
+* 			*	Fixed sound not playing - or level was too low... I just removed the level variable.
+* 			*	Fixed ammo dropping through floor be redefining SOLID_VPHYSICS (I must have the wrong name for the value of 8)
+* 
+* 		Version 0.1.1.2
+* 			*	Now using the correct definitions for m_usSolidFlags - thanks to KyleS for posting them from the SDK
+* 			*	Removed Updater support
+* 
+* 		Version 0.2.0.0
+* 			*	Added CVar to allow players to refill their pistols by running over the pistol ammo box, regardless of ammo-type... same for shotguns and 
+* 				rifles (SMGs, machine guns, snipers, and rifles).
+* 
+* 		Version 0.2.0.1
+* 			*	Went through code, added a return in ProcessAmmo2 function and added a few more lines of code  comments
+* 			*	Fixed location descriptions for sound files
+* 			*	Added Updater ability
+* 			*	Public Release
+* 
+* 		Version 0.2.0.2
+* 			*	Addressed bug where too many times the trie would fail when a player touched the ammo box entity.
+* 
+* 		Version 0.2.1.0
+* 			+	Added dissolve feature for dropped ammo boxes (requested by blue zebra), using Bacardi's method from Healthkit from dead.
+* 
+* 		Version 0.2.1.1
+* 			+	Added dissolve feature for dropped weapons (requested by blue zebra).
+* 
+*		Version 0.2.1.2
+* 			*	Changed the prop type to avoid the mayhem bug and changed to collision alteration to before the prop is spawned.
+* 
+* 		Version 0.2.1.3
+* 			*	Fixed error in code that stopped the ammo boxes from working after being touched once.
+* 			*	Fixed the bug where shotguns could pickup rifle ammo
+* 
+* 		Version 0.2.1.4
+* 			*	Fixed gamedata file - plugin now requires SM 1.4.4
+* 
+* 		Version 0.2.1.5
+* 			*	Fixed gamedata file for 02/05/13 CS:S update
+* 
+* 		Version 0.2.1.6
+* 			*	Fixed gamedata file for 04/16/13 CS:S update
+* 
+* 		Version 0.2.1.7
+* 			*	Refixed gamedata file for 04/16/2013 CS:S update
+* 
+* 		Version 0.2.1.8
+* 			*	Removed left over debug command
+* 
+* 	SPECIAL THANKS to Gr0 for all of the help provided in making this plugin what it is.  Without the relentless testing by GrO, 
+* 	this plugin wouldn't be what it is.  It was his request and input that drove this plugin creation and tweaks.
+* 
+*/
+#pragma semicolon 1
+//========================================================================================
+// INCLUDES
+//========================================================================================
+
+#include <sdkhooks>
+#include <sdktools>
+#undef REQUIRE_PLUGIN
+#include <updater>
+
+//========================================================================================
+// DEFINES
+//========================================================================================
+
+#define PLUGIN_VERSION "0.2.1.8"
+
+#define UPDATE_URL "http://dl.dropbox.com/u/3266762/ammo_from_dead.txt"
+
+#define 	PistolAmmo 				"models/items/boxsrounds.mdl"
+#define 	OtherAmmo 				"models/items/boxmrounds.mdl"
+#define 	SGAmmo 					"models/items/boxbuckshot.mdl"
+#define		SOUND_FILE1				"items/itempickup.wav" // cstrike\sound\items
+#define		SOUND_FILE2				"items/ammo_pickup.wav" // hl2\sound\items
+#define		SOUND_FILE3				"items/ammopickup.wav" // cstrike\sound\items
+
+#define		PISTOLS					11
+#define		RIFLES					10
+#define		SHOTGUNS				9
+
+//========================================================================================
+// HANDLES & VARIABLES
+//========================================================================================
+
+new Handle:h_Trie;
+
+new SOUND_TYPE;
+new SOUND_PLAY;
+new bool:Enabled = true;
+new bool:BotsDropAmmo = true;
+new bool:PistolDrops = true;
+new bool:RifleDrops = true;
+new bool:AllowMixedAmmo = false;
+new bool:AllowAnyMixedAmmo = false;
+new bool:AbideByMaxAmmo = true;
+new bool:UseUpdater = false;
+
+new String:SOUND_FILE[64];
+
+new Float:lifetime = 0.0;
+new DestroyMode = 0;
+new Float:DisolveType = 0.0;
+
+new GunDestroyMode = 0;
+new Float:gunlifetime = 0.0;
+new Float:GunDisolveType = 0.0;
+
+enum AmmoAttributes
+{
+	ROUNDS,
+	TYPE,
+	GUN_TYPE,
+	RIFLE_TYPE
+};
+
+enum SolidFlags_t
+{
+	FSOLID_CUSTOMRAYTEST		= 0x0001,	// Ignore solid type + always call into the entity for ray tests
+	FSOLID_CUSTOMBOXTEST		= 0x0002,	// Ignore solid type + always call into the entity for swept box tests
+	FSOLID_NOT_SOLID			= 0x0004,	// Are we currently not solid?
+	FSOLID_TRIGGER				= 0x0008,	// This is something may be collideable but fires touch functions
+											// even when it's not collideable (when the FSOLID_NOT_SOLID flag is set)
+	FSOLID_NOT_STANDABLE		= 0x0010,	// You can't stand on this
+	FSOLID_VOLUME_CONTENTS		= 0x0020,	// Contains volumetric contents (like water)
+	FSOLID_FORCE_WORLD_ALIGNED	= 0x0040,	// Forces the collision rep to be world-aligned even if it's SOLID_BSP or SOLID_VPHYSICS
+	FSOLID_USE_TRIGGER_BOUNDS	= 0x0080,	// Uses a special trigger bounds separate from the normal OBB
+	FSOLID_ROOT_PARENT_ALIGNED	= 0x0100,	// Collisions are defined in root parent's local coordinate space
+	FSOLID_TRIGGER_TOUCH_DEBRIS	= 0x0200,	// This trigger will touch debris objects
+
+	FSOLID_MAX_BITS	= 10
+};
+
+enum Collision_Group_t
+{
+	COLLISION_GROUP_NONE  = 0,
+	COLLISION_GROUP_DEBRIS,				// Collides with nothing but world and static stuff
+	COLLISION_GROUP_DEBRIS_TRIGGER,		// Same as debris, but hits triggers
+	COLLISION_GROUP_INTERACTIVE_DEB,	// Collides with everything except other interactive debris or debris
+	COLLISION_GROUP_INTERACTIVE,		// Collides with everything except interactive debris or debris
+	COLLISION_GROUP_PLAYER,
+	COLLISION_GROUP_BREAKABLE_GLASS,
+	COLLISION_GROUP_VEHICLE,
+	COLLISION_GROUP_PLAYER_MOVEMENT,	// For HL2, same as Collision_Group_Player, for
+										// TF2, this filters out other players and CBaseObjects
+	COLLISION_GROUP_NPC,				// Generic NPC group
+	COLLISION_GROUP_IN_VEHICLE,			// for any entity inside a vehicle
+	COLLISION_GROUP_WEAPON,				// for any weapons that need collision detection
+	COLLISION_GROUP_VEHICLE_CLIP,		// vehicle clip brush to restrict vehicle movement
+	COLLISION_GROUP_PROJECTILE,			// Projectiles!
+	COLLISION_GROUP_DOOR_BLOCKER,		// Blocks entities not permitted to get near moving doors
+	COLLISION_GROUP_PASSABLE_DOOR,		// Doors that the player shouldn't collide with
+	COLLISION_GROUP_DISSOLVING,			// Things that are dissolving are in this group
+	COLLISION_GROUP_PUSHAWAY,			// Nonsolid on client and server, pushaway in player code
+
+	COLLISION_GROUP_NPC_ACTOR,			// Used so NPCs in scripts ignore the player.
+	COLLISION_GROUP_NPC_SCRIPTED		// USed for NPCs in scripts that should not collide with each other
+};
+
+//========================================================================================
+//========================================================================================
+
+public Plugin:myinfo = 
+{
+	name = "Ammo From Dead",
+	author = "TnTSCS aka ClarkKent	",
+	description = "Players will drop their extra ammo when they die",
+	version = PLUGIN_VERSION,
+	url = "http://www.sourcemod.net"
+}
+
+//========================================================================================
+
+/**
+ * Called when the plugin is fully initialized and all known external references 
+ * are resolved. This is only called once in the lifetime of the plugin, and is 
+ * paired with OnPluginEnd().
+ *
+ * If any run-time error is thrown during this callback, the plugin will be marked 
+ * as failed.
+ *
+ * It is not necessary to close any handles or remove hooks in this function.  
+ * SourceMod guarantees that plugin shutdown automatically and correctly releases 
+ * all resources.
+ *
+ * @noreturn
+ */
+public OnPluginStart()
+{
+	// Create this plugins CVars
+	new Handle:hRandom;// KyleS HATES handles
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_version", PLUGIN_VERSION, 
+	"Version of 'Ammo From Dead'", FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_NOTIFY | FCVAR_DONTRECORD)), OnVersionChanged);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_enabled", "1", 
+	"Am I enabled?  \n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnEnabledChanged);
+	Enabled = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_botsdrop", "1", 
+	"Do bots drop ammo?  \n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnBotsDropChanged);
+	BotsDropAmmo = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_mixedammo", "1", 
+	"Allow player to pickup ammo if \"ammo type\" is the same regardless of if \"gun type\" is different (UMP vs glock)?  \n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnMixedAmmoChanged);
+	AllowMixedAmmo = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_anymixedammo", "0", 
+	"If ON, players can refill their pistol ammo by picking up any pistol ammo box, same for shotguns with shotgun ammo box, and the same for rifles (SMG, Rifle, Sniper Rifle, and Machine Gun) with rifle ammo box.  \n1=ON, 0=OFF", _, true, 0.0, true, 1.0)), OnAnyMixedAmmoChanged);
+	AllowAnyMixedAmmo = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_pistols", "1", 
+	"Drop pistol ammo?  \n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnPistolDropsChanged);
+	PistolDrops = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_rifles", "1", 
+	"Drop rifle (shotty, awp, auto, rifle) ammo?  \n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnRifleDropsChanged);
+	RifleDrops = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_maxammo", "1", 
+	"Should plugin abide by the weapon's max ammo when picking up dropped ammo?  \nIf yes, then the left over ammo will remain on the ground.  If all of the ammo is picked up, then the ammo box will disappear.  \n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnMaxAmmoChanged);
+	AbideByMaxAmmo = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_sound", "1", 
+	"Which sound should we play when ammo is picked up?\n1 = cstrike/items/itempickup.wav \n2 = hl2/items/ammo_pickup.wav \n3 = cstrike/items/ammopickup.wav", _, true, 1.0, true, 3.0)), OnSoundTypeChanged);
+	SOUND_TYPE = GetConVarInt(hRandom);
+	SOUND_FILE = SOUND_FILE1;
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_playsound", "1", 
+	"Who should hear the sound?\n1 = Only the player \n2 = Everyone in the vicinity (like normal item pickups)", _, true, 1.0, true, 2.0)), OnPlaySoundChanged);
+	SOUND_PLAY = GetConVarInt(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_useupdater", "0", 
+	"Utilize 'Updater' plugin to auto-update Ammo From Dead when updates are published?\n1=yes, 0=no", _, true, 0.0, true, 1.0)), OnUseUpdaterChanged);
+	UseUpdater = GetConVarBool(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_lifetime", "20", 
+	"How many seconds ammo model will stay.  Less than 1.0 is disabled.", _, true, 0.0)), OnLifetimeChanged);
+	lifetime = GetConVarFloat(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_destroymode", "0", 
+	"How should the ammo model be destroyed?\n0 = Do not destroy, leave forever\n1 = Just make disappear\n2 = Use disolve feature.", _, true, 0.0, true, 2.0)), OnDestroyModeChanged);
+	DestroyMode = GetConVarInt(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_disolvetype", "3", 
+	"If sm_afd_destroymode=2, choose dissolve type\n0 = Energy\n1 = Heavy electrical\n2 = Light electrical\n3 = Core effect", _, true, 0.0, true, 3.0)), OnDisolveTypeChanged);
+	DisolveType = GetConVarFloat(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_gunlifetime", "20", 
+	"How many seconds gun model will stay.  Less than 1.0 is disabled.", _, true, 0.0)), OnGunLifetimeChanged);
+	gunlifetime = GetConVarFloat(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_gundestroymode", "0", 
+	"How should the gun model be destroyed?\n0 = Do not destroy, leave forever\n1 = Just make disappear\n2 = Use disolve feature.", _, true, 0.0, true, 2.0)), OnGunDestroyModeChanged);
+	GunDestroyMode = GetConVarInt(hRandom);
+	
+	HookConVarChange((hRandom = CreateConVar("sm_afd_gundisolvetype", "3", 
+	"If sm_afd_destroymode=2, choose dissolve type\n0 = Energy\n1 = Heavy electrical\n2 = Light electrical\n3 = Core effect", _, true, 0.0, true, 3.0)), OnGunDisolveTypeChanged);
+	GunDisolveType = GetConVarFloat(hRandom);
+	
+	CloseHandle(hRandom);// KyleS HATES Handles
+	
+	// Trie to hold ammo information
+	h_Trie = CreateTrie();
+	
+	// Execute the config file, and let it autoname it
+	AutoExecConfig(true);
+}
+
+//========================================================================================
+
+/**
+ * Called after a library is added that the current plugin references 
+ * optionally. A library is either a plugin name or extension name, as 
+ * exposed via its include file.
+ *
+ * @param name			Library name.
+ */
+public OnLibraryAdded(const String:name[])
+{
+	// Check if plugin Updater exists, if it does, add this plugin to its list of managed plugins
+	if(UseUpdater && StrEqual(name, "updater"))
+	{
+		Updater_AddPlugin(UPDATE_URL);
+	}
+}
+
+//========================================================================================
+
+/**
+ * Called when the map has loaded, servercfgfile (server.cfg) has been 
+ * executed, and all plugin configs are done executing.  This is the best
+ * place to initialize plugin functions which are based on cvar data.  
+ *
+ * @note This will always be called once and only once per map.  It will be 
+ * called after OnMapStart().
+ *
+ * @noreturn
+ */
+public OnConfigsExecuted()
+{
+	// Check if plugin Updater exists, if it does, add this plugin to its list of managed plugins
+	if (UseUpdater && LibraryExists("updater"))
+	{
+		Updater_AddPlugin(UPDATE_URL);
+	}
+	
+	// Pre-cache the models for the ammo boxes
+	PrecacheModel(PistolAmmo, true);
+	PrecacheModel(OtherAmmo, true);
+	PrecacheModel(SGAmmo, true);
+	
+	PrecacheSound(SOUND_FILE1, true);
+	PrecacheSound(SOUND_FILE2, true);
+	PrecacheSound(SOUND_FILE3, true);
+	
+	// Clear all entries of the Trie
+	ClearTrie(h_Trie);
+}
+
+//========================================================================================
+
+/**
+ * Called once a client is authorized and fully in-game, and 
+ * after all post-connection authorizations have been performed.  
+ *
+ * This callback is gauranteed to occur on all clients, and always 
+ * after each OnClientPutInServer() call.
+ *
+ * @param client		Client index.
+ * @noreturn
+ */
+public OnClientPostAdminCheck(client)
+{
+	if(Enabled && IsClientInGame(client))
+	{
+		// Hook player so we know when a weapon is dropped
+		SDKHook(client, SDKHook_WeaponDrop, OnWeaponDrop);
+	}
+}
+
+//========================================================================================
+
+/**
+ * Called when a client is disconnecting from the server.
+ *
+ * @param client		Client index.
+ * @noreturn
+ */
+public OnClientDisconnect(client)
+{
+	// You still need to check IsClientInGame(client) if you want to do the client specific stuff (exvel)
+	if(IsClientInGame(client))
+	{
+		// Unhook player since they're leaving the server
+		SDKUnhook(client, SDKHook_WeaponDrop, OnWeaponDrop);
+	}
+}
+
+//========================================================================================
+
+/**
+ * Called when a player drops a weapon (hooked with SDKHooks)
+ * 
+ * @param client		client index
+ * @param weapon	weapon index
+ * @noreturn
+ */
+public Action:OnWeaponDrop(client, weapon)
+{
+	// Retrieve the client's health to find out if they're dropping the weapon because they just died or not
+	new playerHealth = GetEntProp(client, Prop_Send, "m_iHealth");
+	
+	// If player is still alive, process drop as normal, since this is "drop ammo on 'death'"
+	if(playerHealth > 0)
+	{
+		return Plugin_Continue;
+	}
+	
+	decl String:WeaponName[64];	
+	WeaponName[0] = '\0';
+	
+	// Retrieve the weapon name since some SMLib functions require it.
+	GetEntityClassname(weapon, WeaponName, sizeof(WeaponName));
+	
+	// If the weapon being dropped is the C4 or any type of grenade, handle the drop as normal
+	if(!strcmp(WeaponName, "weapon_c4", false) || !strcmp(WeaponName, "weapon_hegrenade", false) || !strcmp(WeaponName, "weapon_flashbang", false) || !strcmp(WeaponName, "weapon_smokegrenade", false))
+	{
+		return Plugin_Continue;
+	}
+	
+	// If client is a bot and no ammo drops for bots is set or the weapon index is not a valid entity, handle the weapon drop as normal
+	if(!IsValidEntity(weapon) || (IsFakeClient(client) && !BotsDropAmmo))
+	{
+		return Plugin_Continue;
+	}
+	
+	/* 
+	* Since only one weapon will drop on death, we need to look at each one.
+	* If a player has both a rifle type and pistol type when they die, they will only drop the rifle.
+	* A pistol will drop on death if they only have a pistol and no rifle
+	*/
+	
+	new WeaponSlot0 = GetPlayerWeaponSlot(client, 0); // Rifle Slot
+	new WeaponSlot1 = GetPlayerWeaponSlot(client, 1); // Pistol Slot
+	
+	
+	// If the weapon being dropped is a rifle, and rifle ammo drops are not allowed, handle the drop as normal
+	if(WeaponSlot0 != -1 && (WeaponSlot0 == weapon && !RifleDrops))
+	{
+		return Plugin_Continue;
+	}
+	
+	// If the weapon being dropped is a pistol, but pistol ammo drops are not allowed, handle the drop as normal
+	if(WeaponSlot1 != -1 && (WeaponSlot1 == weapon && !PistolDrops))
+	{
+		return Plugin_Continue;
+	}
+	
+	new iAmmoType = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+	new ammo = GetEntProp(client, Prop_Data, "m_iAmmo", _, iAmmoType);
+	
+	// Retrieve the amount of ammo the player has that is 'extra' ammo, not including the amount already loaded in the active clip of the weapon.
+	
+	//Client_GetWeaponPlayerAmmo(client, WeaponName, ammo);
+	
+	// If the extra ammo for the weapon is 0, no need to drop an ammo box
+	if(ammo == 0)
+	{
+		return Plugin_Continue;
+	}
+	
+	// Set the extra/reserve ammo for the weapon being dropped to 0 since we're going to be dropping an ammo box with that ammount
+	SetEntProp(client, Prop_Data, "m_iAmmo", 0, _, iAmmoType);
+	
+	// See function for details
+	DropAmmo(weapon, WeaponName, WeaponSlot0, WeaponSlot1, client, ammo);
+	
+	if(GunDestroyMode > 0 && gunlifetime > 0.9)
+	{
+		new Float:origin[3];
+		
+		GetClientEyePosition(client, origin);
+		
+		Format(WeaponName, sizeof(WeaponName), "droppedgun_%i", weapon);
+		DispatchKeyValue(weapon, "targetname", WeaponName);
+		
+		if(GunDestroyMode == 2) // Disolve Effect
+		{
+			new entd;
+			
+			if((entd = CreateEntityByName("env_entity_dissolver")) != -1)
+			{
+				DispatchKeyValueFloat(entd, "dissolvetype", GunDisolveType);
+				
+				DispatchKeyValue(entd, "magnitude", "250"); // How strongly to push away from the center. Maybe not work
+				DispatchKeyValue(entd, "target", WeaponName); // "Targetname of the entity you want to dissolve."
+				
+				// Parent dissolver to healthkit. When entity destroyed, dissolver also.
+				TeleportEntity(entd, origin, NULL_VECTOR, NULL_VECTOR);
+				SetVariantString("!activator");
+				AcceptEntityInput(entd, "SetParent", weapon);
+				
+				Format(WeaponName, sizeof(WeaponName), "OnUser1 !self:Dissolve::%0.2f:-1", gunlifetime); // Delay dissolve
+				SetVariantString(WeaponName);
+				AcceptEntityInput(entd, "AddOutput");
+				
+				AcceptEntityInput(entd, "FireUser1");
+			}
+		}
+		else // Just make disappear
+		{
+			Format(WeaponName, sizeof(WeaponName), "OnUser1 !self:kill::%0.2f:-1", gunlifetime);
+			SetVariantString(WeaponName);
+			AcceptEntityInput(weapon, "AddOutput");
+			AcceptEntityInput(weapon, "FireUser1");
+		}
+	}
+	
+	return Plugin_Continue;
+}
+
+//========================================================================================
+
+public DropAmmo(any:weapon, const String:WeaponName[], any:WeaponSlot0, any:WeaponSlot1, any:client, any:ammo)
+{
+	new ent;
+	
+	// Ensure a successful entity creation - prop_physics_multiplayer
+	if((ent = CreateEntityByName("prop_physics")) != -1) // _multiplayer
+	{
+		new Float:origin[3];
+		new Float:vel[3];
+		
+		GetClientEyePosition(client, origin);
+		
+		// Random throw how Knagg0 made
+		vel[0] = GetRandomFloat(-200.0, 200.0);
+		vel[1] = GetRandomFloat(-200.0, 200.0);
+		vel[2] = GetRandomFloat(1.0, 200.0);
+		
+		TeleportEntity(ent, origin, NULL_VECTOR, vel); // Teleport ammo box
+		
+		decl String:targetname[100];
+		targetname[0] = '\0';
+		
+		Format(targetname, sizeof(targetname), "droppedammo_%i", ent); // Create name for entity - droppedammo_ENT#
+		
+		new weapontype;
+		new rifletype;
+		
+		// If weapon being dropped is a RIFLE type (defined later if a shotgun)
+		if(WeaponSlot0 != -1 && WeaponSlot0 == weapon)
+		{
+			// Set the weapon type to RIFLES so we know what type of gun (pistol or rifle) this ammo dropped from
+			weapontype = RIFLES;
+			
+			if(StrEqual(WeaponName, "weapon_xm1014", false) || StrEqual(WeaponName, "weapon_m3", false))
+			{
+				// If rifle being dropped is a SHOTGUN, set ammo model's key name to SGAmmo
+				DispatchKeyValue(ent, "model", SGAmmo);
+				
+				// Set the weapon type to SHOTGUNS so we know this ammo came from a shotgun
+				rifletype = SHOTGUNS;
+			}
+			else
+			{
+				// Otherwise set ammo model's key name to OtherAmmo
+				DispatchKeyValue(ent, "model", OtherAmmo);
+				
+				rifletype = RIFLES;
+			}
+		}
+		
+		// If weapon being dropped is a PISTOL type
+		if(WeaponSlot1 != -1 && WeaponSlot1 == weapon)
+		{
+			DispatchKeyValue(ent, "model", PistolAmmo); // Set the model's key name
+			weapontype = PISTOLS; // Set the weapon type to PISTOLS so we know what type of gun (pistol or rifle) this ammo dropped from
+		}
+		
+		// Set some of the Key Values of the newly created entity
+		DispatchKeyValue(ent, "physicsmode", "2"); // Non-Solid, Server-side
+		DispatchKeyValue(ent, "massScale", "8.0"); // A scale multiplier for the object's mass, too light and it moves too easy with blasts
+		DispatchKeyValue(ent, "targetname", targetname); // The name that other entities refer to this entity by.
+		DispatchSpawn(ent); // Spawn the entity
+		
+		// Set the entity as solid, noclip, and unable to take damage
+		SetEntProp(ent, Prop_Send, "m_usSolidFlags", FSOLID_TRIGGER);
+		SetEntProp(ent, Prop_Send, "m_CollisionGroup", COLLISION_GROUP_WEAPON);
+		
+		// Thanks to Bacardi for this code from his Healthkit from dead
+		if(DestroyMode > 0 && lifetime > 0.9)
+		{
+			if(DestroyMode == 2) // Disolve Effect
+			{
+				new entd;
+				
+				if((entd = CreateEntityByName("env_entity_dissolver")) != -1)
+				{
+					DispatchKeyValueFloat(entd, "dissolvetype", DisolveType);
+					
+					DispatchKeyValue(entd, "magnitude", "250"); // How strongly to push away from the center. Maybe not work
+					DispatchKeyValue(entd, "target", targetname); // "Targetname of the entity you want to dissolve."
+					
+					// Parent dissolver to healthkit. When entity destroyed, dissolver also.
+					TeleportEntity(entd, origin, NULL_VECTOR, NULL_VECTOR);
+					SetVariantString("!activator");
+					AcceptEntityInput(entd, "SetParent", ent);
+					
+					Format(targetname, sizeof(targetname), "OnUser1 !self:Dissolve::%0.2f:-1", lifetime); // Delay dissolve
+					SetVariantString(targetname);
+					AcceptEntityInput(entd, "AddOutput");
+					
+					AcceptEntityInput(entd, "FireUser1");
+				}
+			}
+			else // Just make disappear
+			{
+				Format(targetname, sizeof(targetname), "OnUser1 !self:kill::%0.2f:-1", lifetime);
+				SetVariantString(targetname);
+				AcceptEntityInput(ent, "AddOutput");
+				AcceptEntityInput(ent, "FireUser1");
+			}
+		}
+		
+		// Get the ammo type of the weapon being dropped
+		new type = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+		
+		// Convert the entity to a string to create the trie (since it requires a string)
+		decl String:sEntity[25];
+		sEntity[0] = '\0';
+		
+		IntToString(ent, sEntity, sizeof(sEntity));
+		
+		// Set the ammo information for number of rounds, type of ammo, and gun_type for the Trie
+		new SetAmmoInfo[AmmoAttributes];
+		SetAmmoInfo[ROUNDS] = ammo;
+		SetAmmoInfo[TYPE] = type;
+		SetAmmoInfo[GUN_TYPE] = weapontype;
+		SetAmmoInfo[RIFLE_TYPE] = rifletype;
+		
+		// Set trie for this entity with ammo information
+		SetTrieArray(h_Trie, sEntity, SetAmmoInfo[0], 4, true);
+		
+		// Hook the ammo box entity to know when a player touches it
+		SDKHook(ent, SDKHook_StartTouch, StartTouch);
+	}
+}
+
+//========================================================================================
+
+/**
+ * Called when a player touches a weapon that was dropped
+ * 
+ * @param entity		entity index of weapon
+ * @param other		entity index of player (client)
+ * @noreturn
+ */
+public Action:StartTouch(entity, other)
+{
+	// Retrieve and store the m_ModelName of the entity being touched
+	decl String:model[128];
+	model[0] = '\0';
+	
+	GetEntPropString(entity, Prop_Data, "m_ModelName", model, sizeof(model));
+	
+	// Make sure "other" is a valid client/player and that the entity being touched is a dropped ammo model
+	if(other > 0 && other <= MaxClients && (StrEqual(model, PistolAmmo) || StrEqual(model, SGAmmo) || StrEqual(model, OtherAmmo)))
+	{
+		// See function for details
+		ProcessAmmo(entity, other);
+	}
+}
+
+//========================================================================================
+
+/**
+ * Figure out if the gun the player is touching has the same ammo type as the guns
+ * they have in either slot 0 or slot 1
+ * If it's the same, strip the ammo from the gun and add it to the players ammo reserve
+ * 
+ * @param client		client index
+ * @param weapon	weapon index of weapon being touched
+ */
+public ProcessAmmo(entity, client)
+{
+	// Convert the entity to a string to search the trie (since it requires a string)
+	decl String:sEntity[25];
+	sEntity[0] = '\0';
+	
+	IntToString(entity, sEntity, sizeof(sEntity));
+	
+	new GetAmmoInfo[AmmoAttributes];
+
+	// Retrieves the stored information for the dropped ammo entity if it exists in the array GetAmmoInfo
+	if(!GetTrieArray(h_Trie, sEntity, GetAmmoInfo[0], 4))
+	{
+		LogMessage("****** Ammo Info does not exist!!!!");
+		
+		// Get rid of the dropped ammo model and unhook the entity
+		RemoveAmmoModel(entity);
+		
+		// Since there was no information for this ammo, stop processing
+		return;
+	}
+	
+	// Retrieve information from Trie for rounds, type, and gun_type
+	new ammo = GetAmmoInfo[ROUNDS];
+	new type = GetAmmoInfo[TYPE];
+	new weapontype = GetAmmoInfo[GUN_TYPE];
+	new rifletype = GetAmmoInfo[RIFLE_TYPE];
+	
+	// Retrieve weapon indexes for slot0 and slot1 weapons from client
+	new WeaponSlot0 = GetPlayerWeaponSlot(client, 0); // Rifle Slot
+	new WeaponSlot1 = GetPlayerWeaponSlot(client, 1); // Pistol Slot
+	
+	new playerrifletype;
+	
+	if(WeaponSlot0 != -1)// && (StrContains(WeaponName, "xm1014") != -1 || StrContains(WeaponName, "m3") != -1))
+	{
+		decl String:WeaponName[80];
+		WeaponName[0] = '\0';
+		
+		GetEntityClassname(WeaponSlot0, WeaponName, sizeof(WeaponName));
+		
+		if(StrEqual(WeaponName, "weapon_xm1014", false) || StrEqual(WeaponName, "weapon_m3", false))
+		{
+			playerrifletype = SHOTGUNS;
+		}
+		else
+		{
+			playerrifletype = RIFLES;
+		}
+	}
+	
+	/* 	If the client has a weapon in slot0 and the GUN_TYPE from the dropped ammo is a RIFLE (or CVar for Allow Mixed Ammo is true), and the ammo type from 
+	*	dropped ammo is the same as the ammo type of the weapon the player has in slot0
+	*	
+	*	Or if the client has a weapon is slot0 and the GUN_TYPE from the dropped ammos is a RIFLE and AllowAnyMixedAmmo is true
+	*/
+	if(WeaponSlot0 != -1 && ((weapontype == RIFLES && AllowAnyMixedAmmo && rifletype == playerrifletype) || 
+		((weapontype == RIFLES || AllowMixedAmmo) && (type == GetEntProp(WeaponSlot0, Prop_Send, "m_iPrimaryAmmoType")))))
+	{
+		if(AllowAnyMixedAmmo && rifletype == playerrifletype)
+		{
+			type = GetEntProp(WeaponSlot0, Prop_Send, "m_iPrimaryAmmoType");
+		}
+		
+		ProcessAmmo2(client, WeaponSlot0, ammo, type, weapontype, entity, rifletype); // See function for details
+		
+		return;
+	}
+	
+	/* 	If the client has a weapon in slot1 and the GUN_TYPE from the dropped ammo is a PISTOL (or CVar for Allow Mixed Ammo is true), and the ammo type from 
+	*	dropped ammo is the same as the ammo type of the weapon the player has in slot1 
+	*	
+	*	Or if the client has a weapon is slot1 and the GUN_TYPE from the dropped ammos is a PISTOL and AllowAnyMixedAmmo is true
+	*/
+	if(WeaponSlot1 != -1 && ((weapontype == PISTOLS && AllowAnyMixedAmmo) || 
+		((weapontype == PISTOLS || AllowMixedAmmo) && type == GetEntProp(WeaponSlot1, Prop_Send, "m_iPrimaryAmmoType"))))
+	{
+		if(AllowAnyMixedAmmo)
+		{
+			type = GetEntProp(WeaponSlot1, Prop_Send, "m_iPrimaryAmmoType");
+		}
+		
+		//RemoveFromTrie(h_Trie, sEntity); // Remove the information from the Trie since we've already extracted it
+		ProcessAmmo2(client, WeaponSlot1, ammo, type, weapontype, entity, rifletype); // See function for details
+		
+		return;
+	}
+}
+
+//========================================================================================
+
+/**
+ * Function to actually perform the ammo adjustments
+ * 
+ * @param client			client index
+ * @param weapon		weapon index of weapon being touched
+ * @param PlayerWeapon	weapon index of player
+ */
+public ProcessAmmo2(client, PlayerWeapon, ammo, ammoType, weapontype, entity, rifletype)
+{
+	new iAmmoType = GetEntProp(PlayerWeapon, Prop_Send, "m_iPrimaryAmmoType");
+	new PlayerAmmo = GetEntProp(client, Prop_Data, "m_iAmmo", _, iAmmoType);
+	
+	decl String:WeaponName[64];	
+	WeaponName[0] = '\0';
+	
+	// Get classname sting for weapon index
+	GetEntityClassname(PlayerWeapon, WeaponName, sizeof(WeaponName));
+	
+	// Convert the entity to a string to create the trie (since it requires a string)
+	decl String:sEntity[25];
+	sEntity[0] = '\0';
+
+	IntToString(entity, sEntity, sizeof(sEntity));
+	
+	// If AbideByMaxAmmo, then we'll use the SDKCall for GiveAmmo so that we don't give more ammo than what the max is for that gun.
+	if(AbideByMaxAmmo)
+	{
+		/**
+		 * GiveAmmo gives ammo of a certain type to a player - duh. (for SDKCall(g_hGiveAmmo)
+		 *
+		 * @param client		The client index.
+		 * @param ammo			Amount of bullets to give. Is capped at weapon's limit.
+		 * @param ammotype		Type of ammo to give to player.
+		 * @param suppressSound Don't play the ammo pickup sound.
+		 * 
+		 * @return Amount of bullets actually given.
+		 */
+		new ret = GivePlayerAmmo(client, ammo, ammoType, true);
+		
+		if(ret != 0) // Player picked up 1 or more rounds from the ammo box
+		{
+			PlaySound(client);
+		}
+		else
+		{
+			// The player didn't pick up any ammo from that box because they already have the maximum amount of ammo allowed for that gun.
+			return;
+		}
+		
+		if(ret != ammo) // Player only picked up a portion of the ammo that was in that ammo box
+		{
+			// Figure out how much ammo is left after the player took some
+			new newammo = ammo - ret;
+			
+			// Set the new ammo information for number of rounds, type of ammo, and gun_type
+			new SetAmmoInfo[AmmoAttributes];
+			SetAmmoInfo[ROUNDS] = newammo;
+			SetAmmoInfo[TYPE] = ammoType;
+			SetAmmoInfo[GUN_TYPE] = weapontype;
+			SetAmmoInfo[RIFLE_TYPE] = rifletype;
+			
+			// Set trie for this entity with ammo information
+			SetTrieArray(h_Trie, sEntity, SetAmmoInfo[0], 4, true);
+			
+			return;
+		}
+		
+		// Get rid of the dropped ammo model and unhook the entity since all of the ammo has been picked up
+		RemoveAmmoModel(entity);
+		RemoveFromTrie(h_Trie, sEntity); // Remove the information from the Trie since we're done with it
+	}
+	else // Give player all of the ammo since we're not abiding by any ammo limits
+	{
+		PlaySound(client);
+		
+		// Increase the ammo by the amount they just picked up from the dropped ammo box
+		SetEntProp(client, Prop_Data, "m_iAmmo", ammo + PlayerAmmo, _, iAmmoType);
+		
+		// Get rid of the dropped ammo model and unhook the entity
+		RemoveAmmoModel(entity);
+		RemoveFromTrie(h_Trie, sEntity); // Remove the information from the Trie since we're done with it
+	}
+}
+
+//========================================================================================
+
+public PlaySound(client)
+{
+	switch(SOUND_PLAY)
+	{
+		case 1:
+		{
+			EmitSoundToClient(client, SOUND_FILE); // Play sound only to player
+		}
+		
+		case 2:
+		{
+			EmitSoundToAll(SOUND_FILE, client); // Play sound to all players within range
+		}
+	}
+}
+
+//========================================================================================
+
+
+public RemoveAmmoModel(entity)
+{
+	if(IsValidEntity(entity))
+	{
+		AcceptEntityInput(entity, "Kill");
+		SDKUnhook(entity, SDKHook_StartTouch, StartTouch);
+	}
+}
+
+//========================================================================================
+
+public OnVersionChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	// Make sure the version number is what is set in the compiled plugin, not a config file or changed CVar
+	if (!StrEqual(newVal, PLUGIN_VERSION))
+	{
+		SetConVarString(cvar, PLUGIN_VERSION);
+	}
+}
+
+//========================================================================================
+
+public OnEnabledChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	Enabled = GetConVarBool(cvar);
+	
+	switch(Enabled)
+	{
+		case 0:
+		{
+			for(new i = 1; i <= MaxClients; i++)
+			{
+				SDKUnhook(i, SDKHook_WeaponDrop, OnWeaponDrop);
+			}
+		}
+		
+		case 1:
+		{
+			for(new i = 1; i <= MaxClients; i++)
+			{
+				SDKHook(i, SDKHook_WeaponDrop, OnWeaponDrop);
+			}
+		}
+	}
+}
+
+//========================================================================================
+
+public OnBotsDropChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	BotsDropAmmo = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnMixedAmmoChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	AllowMixedAmmo = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnAnyMixedAmmoChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	AllowAnyMixedAmmo = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnPistolDropsChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	PistolDrops = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnRifleDropsChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	RifleDrops = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnMaxAmmoChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	AbideByMaxAmmo = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnSoundTypeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	SOUND_TYPE = GetConVarInt(cvar);
+	
+	switch(SOUND_TYPE)
+	{
+		case 1:
+		{
+			SOUND_FILE = SOUND_FILE1;
+		}
+		case 2:
+		{
+			SOUND_FILE = SOUND_FILE2;
+		}
+		case 3:
+		{
+			SOUND_FILE = SOUND_FILE3;
+		}
+	}
+}
+
+//========================================================================================
+
+public OnPlaySoundChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	SOUND_PLAY = GetConVarInt(cvar);
+}
+
+//========================================================================================
+
+public OnUseUpdaterChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	UseUpdater = GetConVarBool(cvar);
+}
+
+//========================================================================================
+
+public OnLifetimeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	lifetime = GetConVarFloat(cvar);
+}
+
+//========================================================================================
+
+public OnDestroyModeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	DestroyMode = GetConVarInt(cvar);
+}
+
+//========================================================================================
+
+public OnDisolveTypeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	DisolveType = GetConVarFloat(cvar);
+}
+
+//========================================================================================
+
+public OnGunLifetimeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	gunlifetime = GetConVarFloat(cvar);
+}
+
+//========================================================================================
+
+public OnGunDestroyModeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	GunDestroyMode = GetConVarInt(cvar);
+}
+
+//========================================================================================
+
+public OnGunDisolveTypeChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	GunDisolveType = GetConVarFloat(cvar);
+}
+
+//========================================================================================

@@ -1,0 +1,1084 @@
+#pragma newdecls required
+#pragma semicolon 1
+
+#include <sourcemod>
+#include <sdktools>
+#include <sdkhooks>
+
+#include <Skills>
+
+#define MyName "Lethal Weapons"
+
+#define CVAR_FLAGS FCVAR_SPONLY|FCVAR_NOTIFY
+#define MOLOTOV 0
+#define EXPLODE 1
+
+/*
+Datamap m_iAmmo
+offset to add
+
++12: M4A1, AK74, Desert Rifle, also SG552 - ammo_assaultrifle_max
++20: both SMGs, also the MP5 - ammo_smg_max
++28: both Pump Shotguns - ammo_shotgun_max
++32: both autoshotguns - ammo_autoshotgun_max
++36: Hunting Rifle - ammo_huntingrifle_max
++40: Military Sniper, AWP, Scout - ammo_sniperrifle_max
++68: Grenade Launcher - ammo_grenadelauncher_max
+*/
+const HUNTING_RIFLE_OFFSET_IAMMO	= 36;
+const MILITARY_SNIPER_OFFSET_IAMMO	= 40;
+
+int ChargeLock[65];
+int ReleaseLock[65];
+int CurrentWeapon;
+int ClipSize;
+int ChargeEndTime[65];
+Handle ClientTimer[65];
+int g_sprite;
+float myPos[3], trsPos[3], trsPos002[3];
+
+/* Sound */
+#define CHARGESOUND 	"ambient/spacial_loops/lights_flicker.wav"
+#define CHARGEDUPSOUND	"level/startwam.wav"
+#define AWPSHOT			"weapons/awp/gunfire/awp1.wav"
+#define EXPLOSIONSOUND	"animation/bombing_run_01.wav"
+
+/* Sprite */
+#define SPRITE_BEAM		"materials/sprites/laserbeam.vmt"
+
+public Plugin myinfo = 
+{
+	name = "[L4D2] Lethal weapon Module",
+	author = "Zakikun",
+	description = "Sniper rifles super shoot",
+	version = "2.1.13",
+	url = "SDKCall"
+};
+
+bool g_bDamageAlly = false, l4d2_lw_shootonce, l4d2_lw_friendlyfire, l4d2_lw_scout, l4d2_lw_awp;
+bool g_bHooked[MAXPLAYERS+1], l4d2_lw_huntingrifle, l4d2_lw_g3sg1, l4d2_lw_flash, l4d2_lw_chargingsound, l4d2_lw_chargedsound;
+bool g_bBlockBlastDamage = false, l4d2_lw_moveandcharge, l4d2_lw_chargeparticle, l4d2_lw_useammo, l4d2_lw_shake;
+bool g_bBlockFireDamage = false, l4d2_lw_shake_shooteronly, l4d2_lw_adminonly;
+bool g_bLeft4Dead2 = false;
+
+int g_iOnlyAllowedClient = 0, l4d2_lw_laseroffset, l4d2_lw_useammocount, l4d2_lw_lethaldamage, l4d2_lw_lethalweapon;
+int g_iCurWeapon[MAXPLAYERS+1];
+int g_iFireLifetime = 15;
+int g_iAmmoOffset;
+
+bool g_bHave[MAXPLAYERS + 1];
+int g_iCost;
+float l4d2_lw_lethalforce, l4d2_lw_shake_intensity, l4d2_lw_chargetime;
+
+ConVar hConVar_FireLifetime;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	EngineVersion test = GetEngineVersion();
+	if (test != Engine_Left4Dead && test != Engine_Left4Dead2)
+	{
+		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 and Left 4 Dead 2.");
+		return APLRes_SilentFailure;
+	}
+	g_bLeft4Dead2 = (test == Engine_Left4Dead2);
+
+	CreateNative("Lethal_SetAllowedClient", NATIVE_Lethal_SetAllowedClient);
+	CreateNative("Lethal_SetAllowedClientsAll", NATIVE_Lethal_SetAllowedClientsAll);
+	CreateNative("Lethal_FriendlyFire", NATIVE_Lethal_FriendlyFire);
+	RegPluginLibrary("lethal_helpers");
+	return APLRes_Success;
+}
+
+public int NATIVE_Lethal_SetAllowedClient(Handle plugin, int numParams)
+{
+	if(numParams < 1)
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid numParams");
+	
+	g_iOnlyAllowedClient = GetNativeCell(1);
+	return 0;
+}
+
+public int NATIVE_Lethal_SetAllowedClientsAll(Handle plugin, int numParams)
+{
+	g_iOnlyAllowedClient = 0;
+	return 0;
+}
+
+public int NATIVE_Lethal_FriendlyFire(Handle plugin, int numParams)
+{
+	if(numParams < 1)
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid numParams");
+
+	g_bDamageAlly = view_as<bool>(GetNativeCell(1));
+	return 0;
+}
+
+bool UseAllowed(int client)
+{
+	if (g_iOnlyAllowedClient == client)
+		return true;
+	
+	if (g_iOnlyAllowedClient != 0)
+		return false;
+	
+	if (!HasAccess(client) && l4d2_lw_adminonly)
+		return false;
+
+	return true; // g_iOnlyAllowedClient == 0 => allow for @all
+}
+
+public iReloadReType OnReloadConfig(const char[] szPerkName)
+{
+	if (strcmp(szPerkName, MyName) != 0 && strcmp(szPerkName, "666") != 0)
+		return RE_NONE;
+		
+	char szPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, szPath, sizeof(szPath), CONFIG_SETTINGS);
+	
+	if (!FileExists(szPath))
+		return RE_FAIL;
+		
+	KeyValues hFile = new KeyValues("Data");
+	
+	if(!hFile.ImportFromFile(szPath))
+		return RE_FAIL;
+	
+	iReloadReType iResult = LoadData(hFile, szPath);
+	
+	delete hFile;
+	return iResult;
+}
+
+public void OnAllPluginsLoaded()
+{
+	if (!LibraryExists("l4d2_skills_core"))
+		SetFailState("l4d2_skills_core.smx is not loaded.");
+		
+	char szPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, szPath, sizeof(szPath), CONFIG_SETTINGS);
+	
+	if (!FileExists(szPath))
+		return;
+		
+	KeyValues hFile = new KeyValues("Data");
+	
+	if(!hFile.ImportFromFile(szPath))
+		return;
+	
+	LoadData(hFile, szPath);
+
+	delete hFile;
+}
+
+public void OnPluginStart()
+{
+	LoadTranslations("Lethal_AR.phrases");
+	hConVar_FireLifetime = FindConVar("inferno_flame_lifetime");
+
+	g_iAmmoOffset = FindSendPropInfo("CTerrorPlayer", "m_iAmmo");
+	
+	// Hooks
+	HookEvent("player_spawn", Event_Player_Spawn);
+	HookEvent("weapon_fire", Event_Weapon_Fire);
+	HookEvent("bullet_impact", Event_Bullet_Impact);
+	HookEvent("player_incapacitated", Event_Player_Incap, EventHookMode_Pre);
+	HookEvent("round_start", Event_Round_Start, EventHookMode_PostNoCopy);
+	HookEvent("finale_win", Event_Round_End, EventHookMode_PostNoCopy);
+	HookEvent("mission_lost", Event_Round_End, EventHookMode_PostNoCopy);
+	HookEvent("map_transition", Event_Round_End, EventHookMode_PostNoCopy);
+	HookEvent("round_end", Event_Round_End, EventHookMode_Pre);
+	
+	// Weapon stuff
+	CurrentWeapon	= FindSendPropInfo ("CTerrorPlayer", "m_hActiveWeapon");
+	ClipSize	= FindSendPropInfo("CBaseCombatWeapon", "m_iClip1");
+	
+	hConVar_FireLifetime.AddChangeHook(ConVarChanged_Cvars);
+	GetCvars();
+}
+
+public void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	GetCvars();
+}
+
+void GetCvars()
+{
+	g_iFireLifetime = hConVar_FireLifetime.IntValue;
+}
+
+public void OnMapStart()
+{
+	InitPrecache();
+
+	int i;
+	for (i = 1; i <= MaxClients; i++)
+	{
+		ChargeEndTime[i] = 0;
+		ReleaseLock[i] = 0;
+		ChargeLock[i] = 0;
+		ClientTimer[i] = INVALID_HANDLE;
+	}
+}
+
+public int OnClientPerkStateChanged (int client, const char[] szPerkName)
+{
+	if (strcmp(szPerkName, MyName) == 0)
+	{
+		if (!g_bHave[client])
+		{
+			g_bHave[client] = true;
+			PrintToChat(client, "%s \x04You \x03bought perk \x04%s", CHAT_TAG, szPerkName);
+			return g_iCost;
+		}
+		else
+			PrintToChat(client, "%s \x04You \x03already have perk \x04%s", CHAT_TAG, szPerkName);
+	}
+	return 0;
+}
+
+iReloadReType LoadData(KeyValues hFile, const char[] szPath)
+{
+	if (hFile.JumpToKey(MyName))
+	{
+			// ConVars
+
+		g_iCost = hFile.GetNum("Cost");
+
+		l4d2_lw_lethalweapon	= hFile.GetNum("Lethal Weapon Enable");
+		l4d2_lw_lethaldamage	= hFile.GetNum("Lethal Weapon Damage");
+		l4d2_lw_lethalforce		= hFile.GetFloat("Lethal Weapon force");
+		l4d2_lw_chargetime		= hFile.GetFloat("Lethal Weapon charge time");
+		l4d2_lw_shootonce		= view_as<bool>(hFile.GetNum("Once per round"));
+		g_bDamageAlly			= view_as<bool>(hFile.GetNum("Friendly Fire"));
+		l4d2_lw_friendlyfire	= view_as<bool>(hFile.GetNum("Friendly fire indirect damage"));
+		l4d2_lw_scout			= view_as<bool>(hFile.GetNum("Enable Lethal Weapon for Scout"));
+		l4d2_lw_awp				= view_as<bool>(hFile.GetNum("Enable Lethal Weapon for AWP"));
+		l4d2_lw_huntingrifle	= view_as<bool>(hFile.GetNum("Enable Lethal Weapon for Hunting Rifle"));
+		l4d2_lw_g3sg1			= view_as<bool>(hFile.GetNum("Enable Lethal Weapon for G3SG1"));
+		l4d2_lw_laseroffset		= hFile.GetNum("Tracker offeset");
+		
+		// Additional ConVars
+		l4d2_lw_flash				= view_as<bool>(hFile.GetNum("Enable screen flash"));
+		l4d2_lw_chargingsound		= view_as<bool>(hFile.GetNum("Enable charging sound"));
+		l4d2_lw_chargedsound		= view_as<bool>(hFile.GetNum("Enable charged up sound"));
+		l4d2_lw_moveandcharge		= view_as<bool>(hFile.GetNum("Enable charging while crouched and moving"));
+		l4d2_lw_chargeparticle		= view_as<bool>(hFile.GetNum("Enable showing electric particles when charged"));
+		l4d2_lw_useammo				= view_as<bool>(hFile.GetNum("Enable and require use of addtional ammunition"));
+		l4d2_lw_useammocount		= hFile.GetNum("Ammo per Lethal Shoot");
+		l4d2_lw_shake				= view_as<bool>(hFile.GetNum("Enable screen shake during explosion"));
+		l4d2_lw_shake_intensity		= hFile.GetFloat("Intensity of screen shake");
+		l4d2_lw_shake_shooteronly	= view_as<bool>(hFile.GetNum("Only the shooter screen shake"));
+		g_iFireLifetime				= hFile.GetNum("Seconds for flame to exist");
+		l4d2_lw_adminonly			= view_as<bool>(hFile.GetNum("Admin only"));
+		
+		RegisterPerk (MyName, Activate, g_iCost, false);
+		return RE_SUCCESSFUL;
+	}
+	else
+	{
+		hFile.JumpToKey(MyName, true);
+	
+		hFile.SetNum("Cost", 15000);
+		hFile.SetNum("Lethal Weapon Enable", 1);
+		hFile.SetNum("Lethal Weapon Damage", 3000);
+		hFile.SetFloat("Lethal Weapon force", 500.0);
+		hFile.SetNum("Lethal Weapon charge time", 7);
+		
+		hFile.SetNum("Once per round", 0);
+		hFile.SetNum("Friendly Fire", 0);
+		hFile.SetNum("Friendly fire indirect damage", 0);
+		hFile.SetNum("Enable Lethal Weapon for Scout", 1);
+		hFile.SetNum("Enable Lethal Weapon for AWP", 1);
+		hFile.SetNum("Enable Lethal Weapon for Hunting Rifle", 1);
+		hFile.SetNum("Enable Lethal Weapon for G3SG1", 1);
+		hFile.SetNum("Tracker offeset", 36);
+		
+		hFile.SetNum("Enable screen flash",1);
+		hFile.SetNum("Enable charging sound", 1);
+		hFile.SetNum("Enable charged up sound", 1);
+		hFile.SetNum("Enable charging while crouched and moving", 1);
+		hFile.SetNum("Enable showing electric particles when charged", 1);
+		hFile.SetNum("Enable and require use of addtional ammunition", 1);
+		hFile.SetNum("Ammo per Lethal Shoot", 999);
+		hFile.SetNum("Enable screen shake during explosion", 1);
+		hFile.SetFloat("Intensity of screen shake", 50.0);
+		hFile.SetNum("Only the shooter screen shake", 0);
+		hFile.SetFloat("Seconds for flame to exist", 2.0);
+		hFile.SetNum("Admin only", 0);
+		
+		hFile.Rewind();
+		hFile.ExportToFile(szPath);
+		
+		LoadData(hFile, szPath);
+		return RE_CFGCREATED;
+	}
+}
+
+public void OnShouldReset()
+{
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		g_bHave[i] = false;
+	}
+}
+
+/*
+void InitCharge()
+{
+	// Initalize charge parameter
+	int i;
+	for (i = 1; i <= MaxClients; i++)
+	{
+		ChargeEndTime[i] = 0;
+		ReleaseLock[i] = 0;
+		ChargeLock[i] = 0;
+		ClientTimer[i] = INVALID_HANDLE;
+	}
+	for (i = 1; i <= MaxClients; i++)
+	{
+		if (IsValidEntity(i) && IsClientInGame(i))
+		{
+			if (GetClientTeam(i) == 2 && !IsFakeClient(i))
+				ClientTimer[i] = CreateTimer(0.5, ChargeTimer, i, TIMER_REPEAT);
+		}
+	}
+}
+*/
+
+void InitPrecache()
+{
+	/* Precache models */
+	PrecacheModel("models/props_junk/propanecanister001a.mdl", true);
+	PrecacheModel("models/props_junk/gascan001a.mdl", true);
+	
+	/* Precache sounds */
+	PrecacheSound(CHARGESOUND, true);
+	PrecacheSound(CHARGEDUPSOUND, true);
+	PrecacheSound(AWPSHOT, true);
+	PrecacheSound(EXPLOSIONSOUND, true);
+	
+	/* Precache particles */
+	PrecacheParticle("gas_explosion_main");
+	PrecacheParticle("electrical_arc_01_cp0");
+	PrecacheParticle("electrical_arc_01_system");
+	
+	g_sprite = PrecacheModel(SPRITE_BEAM);
+}
+
+public void OnClientPutInServer(int client)
+{
+	if (GetClientTeam(client) != 3)
+		Set_SDKHook(client);
+	if (IsFakeClient(client))
+		SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+}
+public void OnEntityCreated(int entity, const char[] classname)
+{
+    if (entity < 1 || entity > 2048)
+    {
+        return;
+    }
+    
+    if (strcmp(classname, "witch") == 0)
+    {
+        SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+    }
+}
+public Action Event_Round_Start(Event event, const char[] name, bool dontBroadcast)
+{
+	g_bBlockBlastDamage = false;
+	g_bBlockFireDamage = false;
+}
+
+public Action Event_Round_End(Event event, char[] event_name, bool dontBroadcast)
+{
+	/* Timer end */
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (ClientTimer[i] != INVALID_HANDLE)
+		{
+			delete ClientTimer[i];
+			ClientTimer[i] = INVALID_HANDLE;
+		}
+		if (IsValidEntity(i) && IsClientInGame(i))
+		{
+			ChargeEndTime[i] = 0;
+			ReleaseLock[i] = 0;
+			ChargeLock[i] = 0;
+		}
+		g_bHooked[i] = false;
+	}
+}
+
+void Set_SDKHook(int client)
+{
+	if (!g_bHooked[client])
+	{
+		SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+		g_bHooked[client] = true;
+	}
+}
+
+/*
+void Remove_SDKHook(int client)
+{
+	if (g_bHooked[client]) 
+	{
+		SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+		g_bHooked[client] = false;
+	}
+}
+*/
+
+public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+{
+	if(GetEntityClassname(victim, "witch", 10) && attacker > 0 && GetClientTeam(attacker) == 2 && ReleaseLock[attacker] && attacker <= MaxClients && victim > MaxClients)
+	{
+		ReleaseLock[attacker] = 0;
+
+		damage = l4d2_lw_lethaldamage + damage + 1;
+
+		float TargetPosition[3];
+		int target = GetClientAimTarget(attacker, false);
+		if (target < 0)
+		{
+			return Plugin_Continue;
+		}
+
+		GetEntityAbsOrigin(target, TargetPosition);
+		
+		/* Smash target */
+		if (l4d2_lw_lethalweapon != 2)
+			Smash(attacker, target, l4d2_lw_lethalforce, 1.5, 2.0);
+
+		/* Explode effect */
+		EmitSoundToAll(EXPLOSIONSOUND, target);
+		ExplodeMain(TargetPosition);
+		return Plugin_Changed;
+	}
+	if (g_bBlockBlastDamage || g_bBlockFireDamage)
+	{
+		if (inflictor == attacker && attacker > MaxClients) // not impersonated entity
+		{
+			// DMG_BLAST
+			// DMG_BURN | DMG_PREVENT_PHYSICS_FORCE
+			// DMG_DIRECT | DMG_PREVENT_PHYSICS_FORCE
+
+			if ((g_bBlockBlastDamage && (damagetype & DMG_BLAST == 64)) || (g_bBlockFireDamage && (damagetype & DMG_BURN == 8)))
+			{
+				if (victim > 0 && victim <= MaxClients && GetClientTeam(victim) == 2)
+				{
+					return Plugin_Handled; // block friendly fire on propanetank blast or fire
+				}
+			}
+		}
+	}
+	if (attacker != 0 && ReleaseLock[attacker])
+	{
+		/* Reset Lethal Weapon lock */
+		ReleaseLock[attacker] = 0;
+
+		damage = l4d2_lw_lethaldamage + damage + 1;
+
+		float TargetPosition[3];
+		int target = GetClientAimTarget(attacker, false);
+		if (target < 0)
+		{
+			return Plugin_Continue;
+		}
+
+		GetEntityAbsOrigin(target, TargetPosition);
+		
+		/* Smash target */
+		if (l4d2_lw_lethalweapon != 2)
+			Smash(attacker, target, l4d2_lw_lethalforce, 1.5, 2.0);
+
+		/* Explode effect */
+		EmitSoundToAll(EXPLOSIONSOUND, target);
+		ExplodeMain(TargetPosition);
+		return Plugin_Changed;
+	}
+	return Plugin_Continue;
+}
+
+public Action Event_Player_Spawn(Event event, const char[] name, bool dontBroadcast)
+{
+	/* Timer start */
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	
+	if (client > 0 && client <= MaxClients)
+	{
+		if (IsValidEntity(client) && IsClientInGame(client))
+		{
+			if (GetClientTeam(client) == 2)
+			{
+				if (ClientTimer[client] != INVALID_HANDLE)
+					delete ClientTimer[client];
+				ChargeLock[client] = 0;
+				ClientTimer[client] = CreateTimer(0.5, ChargeTimer, client, TIMER_REPEAT);
+			}
+		}
+	}
+}
+
+public Action Event_Player_Incap(Event event, const char[] name, bool dontBroadcast)
+{
+	/* Reset client condition */
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (client != 0)
+	{
+		ReleaseLock[client] = 0;
+		ChargeEndTime[client] = RoundToCeil(GetGameTime()) + RoundToCeil(l4d2_lw_chargetime);
+	}
+}
+
+public Action Event_Bullet_Impact(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	
+	if (client != 0 && ReleaseLock[client])
+	{
+		float TargetPosition[3];
+		
+		TargetPosition[0] = event.GetFloat("x");
+		TargetPosition[1] = event.GetFloat("y");
+		TargetPosition[2] = event.GetFloat("z");
+		
+		/* Explode effect */
+		ExplodeMain(TargetPosition);
+	}
+	return Plugin_Continue;
+}
+
+void DamageEntity(int client, int target, int damage)
+{
+	char sTemp[16];
+	int entity = CreateEntityByName("point_hurt");
+	Format(sTemp, sizeof(sTemp), "ext%d%d", EntIndexToEntRef(entity), client);
+	DispatchKeyValue(target, "targetname", sTemp);
+	DispatchKeyValue(entity, "DamageTarget", sTemp);
+	DispatchKeyValue(entity, "DamageType", "8");
+	IntToString(damage, sTemp, sizeof(sTemp));
+	DispatchKeyValue(entity, "Damage", sTemp);
+	DispatchSpawn(entity);
+	AcceptEntityInput(entity, "Hurt", client);
+	RemoveEdict(entity);
+}
+
+public Action Event_Weapon_Fire(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	ChargeEndTime[client] = RoundToCeil(GetGameTime()) + RoundToCeil(l4d2_lw_chargetime);
+	
+	if (client != 0 && ReleaseLock[client])
+	{
+		if (!g_bDamageAlly)
+		{
+			g_bBlockBlastDamage = true;
+			g_bBlockFireDamage = true;
+			CreateTimer(0.5, Timer_AllowBlastDamage, _, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(float(g_iFireLifetime) + 1.0, Timer_AllowFireDamage, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+
+		g_iCurWeapon[client] = GetEntDataEnt2(client, CurrentWeapon);
+
+		/* Flash screen */
+		if (l4d2_lw_flash)
+		{
+			ScreenFade(client, 200, 200, 255, 255, 100, 1);
+		}
+
+		if (l4d2_lw_shake)
+		{
+			ScreenShake(client);
+		}
+		
+		/* Laser effect */
+		GetTracePosition(client);
+		CreateLaserEffect(client, 0, 0, 200, 230, 2.0, 1.00);
+		
+		/* Emit sound */
+		EmitSoundToAll(
+			AWPSHOT, client,
+			SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL,
+			125, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+
+		/* Reset client condition */
+		CreateTimer(0.2, ReleaseTimer, client);
+		if (l4d2_lw_shootonce)
+		{
+			ChargeLock[client] = 1;
+			//PrintHintText(client, "Lethal Weapon can only be fired once per round");
+		}
+		else
+		{
+			// Enable shooting more than once per round again
+			ChargeLock[client] = 0;
+		}
+	}
+}
+
+public Action Timer_AllowBlastDamage(Handle timer)
+{
+	g_bBlockBlastDamage = false;
+}
+public Action Timer_AllowFireDamage(Handle timer)
+{
+	g_bBlockFireDamage = false;
+}
+
+public Action ReleaseTimer(Handle timer, any client)
+{
+	/* Set ammo after using */
+	if (l4d2_lw_useammo)
+	{
+		
+		char weapon[32];
+		GetClientWeapon(client, weapon, 32);
+		int iAmmoSpend = l4d2_lw_useammocount;
+		int iAmmoLeft, iAmmoOffsetToAdd;
+		int iAmmoClip = GetEntProp(g_iCurWeapon[client], Prop_Send, "m_iClip1", 0);
+
+		if (g_bLeft4Dead2)
+		{
+			/* Check weapon class and set Offset to add */
+			if (StrEqual(weapon, "weapon_hunting_rifle"))
+			{
+				iAmmoOffsetToAdd = HUNTING_RIFLE_OFFSET_IAMMO;
+			}
+			else if (StrEqual(weapon, "weapon_sniper_military") || StrEqual(weapon, "weapon_sniper_awp") || StrEqual(weapon, "weapon_sniper_scout"))
+					{
+						iAmmoOffsetToAdd = MILITARY_SNIPER_OFFSET_IAMMO;
+					}
+
+		}
+		else
+		{
+			iAmmoOffsetToAdd = 8;
+		}
+
+		/* Set how much ammo should set */
+		iAmmoLeft = GetEntData(client, g_iAmmoOffset + iAmmoOffsetToAdd);
+
+		iAmmoLeft -= iAmmoSpend;
+		if (iAmmoLeft < 0) iAmmoLeft = 0;
+
+		/* Modify reserve ammunition */
+		SetEntData(client, g_iAmmoOffset + iAmmoOffsetToAdd, iAmmoLeft);
+
+		/* Set clip size */
+		if ((g_iCurWeapon[client]) != 0)
+		{
+			if (IsValidEntity(g_iCurWeapon[client]))
+			{
+				SetEntProp(g_iCurWeapon[client], Prop_Send, "m_iClip1", iAmmoClip + 1);
+			}
+		}
+	}
+	
+	/* Reset flags */
+	ReleaseLock[client] = 0;
+	ChargeEndTime[client] = RoundToCeil(GetGameTime()) + RoundToCeil(l4d2_lw_chargetime);
+}
+
+public Action ChargeTimer(Handle timer, any client)
+{
+	// Make sure we remove the lock if this ConVar is later disabled
+	if (l4d2_lw_shootonce)
+	{
+		ChargeLock[client] = 0;
+	}
+
+	if (IsClientInGame(client))
+		StopSound(client, SNDCHAN_AUTO, CHARGESOUND);
+
+	if (!l4d2_lw_lethalweapon || ChargeLock[client] || !g_bHave[client])
+		return Plugin_Continue;
+
+	if (!IsClientInGame(client) || !IsValidEntity(client))
+	{
+		ClientTimer[client] = INVALID_HANDLE;
+		return Plugin_Stop;
+	}
+	
+	/* Get data */
+	int gt = RoundToCeil(GetGameTime());
+	int ct = RoundToCeil(l4d2_lw_chargetime);
+	int buttons = GetClientButtons(client);
+	int WeaponClass = GetEntDataEnt2(client, CurrentWeapon);
+	char weapon[32];
+	GetClientWeapon(client, weapon, 32);
+	int iAmmoSpend = l4d2_lw_useammocount;
+	int iAmmoLeft, iAmmoOffsetToAdd;
+
+	if (g_bLeft4Dead2)
+	{
+	/* Check weapon class and set Offset to add */
+	if (StrEqual(weapon, "weapon_hunting_rifle"))
+		{
+				iAmmoOffsetToAdd = HUNTING_RIFLE_OFFSET_IAMMO;
+		}
+		else if (StrEqual(weapon, "weapon_sniper_military") || StrEqual(weapon, "weapon_sniper_awp") || StrEqual(weapon, "weapon_sniper_scout"))
+				{
+					iAmmoOffsetToAdd = MILITARY_SNIPER_OFFSET_IAMMO;
+				}
+
+	}
+	else
+	{
+		iAmmoOffsetToAdd = 8;
+	}
+
+	/* Check how much ammunition left in the weapon */
+	iAmmoLeft = GetEntData(client, g_iAmmoOffset + iAmmoOffsetToAdd);
+	
+	/* Check if "l4d2_lw_useammocount" > iAmmoLeft , reset it */
+	if (iAmmoLeft < iAmmoSpend)
+		iAmmoSpend = iAmmoLeft;
+	
+	/* These weapons allow you to start charging */
+	/* Now allowed: Hunting Rifle, G3SG1, Scout, AWP */
+	if (!(StrEqual(weapon, "weapon_sniper_military") && l4d2_lw_g3sg1) &&
+		!(StrEqual(weapon, "weapon_sniper_awp") && l4d2_lw_awp) &&
+		!(StrEqual(weapon, "weapon_sniper_scout") && l4d2_lw_scout) &&
+		!(StrEqual(weapon, "weapon_hunting_rifle") && l4d2_lw_huntingrifle))
+	{
+		StopSound(client, SNDCHAN_AUTO, CHARGESOUND);
+		ReleaseLock[client] = 0;
+		ChargeEndTime[client] = gt + ct;
+		return Plugin_Continue;
+	}
+	
+	if (!UseAllowed(client))
+	{
+		StopSound(client, SNDCHAN_AUTO, CHARGESOUND);
+		ReleaseLock[client] = 0;
+		ChargeEndTime[client] = gt + ct;
+		return Plugin_Continue;
+	}
+
+	// Base case to be overridden, just in case someone messes with the ConVar
+	int inCharge = ((GetEntityFlags(client) & FL_DUCKING) &&
+					(GetEntityFlags(client) & FL_ONGROUND) &&
+					!(buttons & IN_ATTACK) &&
+					!(buttons & IN_ATTACK2));
+	
+        if (l4d2_lw_moveandcharge)
+        {
+		/* Ducked, not moving, not attacking, not incapacitated */
+		inCharge = ((GetEntityFlags(client) & FL_DUCKING) &&
+					(GetEntityFlags(client) & FL_ONGROUND) &&
+					!(buttons & IN_FORWARD) &&
+					!(buttons & IN_MOVERIGHT) &&
+					!(buttons & IN_MOVELEFT) &&
+					!(buttons & IN_BACK) &&
+					!(buttons & IN_ATTACK) &&
+					!(buttons & IN_ATTACK2));
+        }
+        else
+        {
+		/* Ducked, moving, not attacking, not incapacitated */
+		inCharge = ((GetEntityFlags(client) & FL_DUCKING) &&
+					(GetEntityFlags(client) & FL_ONGROUND) &&
+					!(buttons & IN_ATTACK) &&
+					!(buttons & IN_ATTACK2));
+        }
+	
+	/* If in charging, display charge bar */
+	if (inCharge && GetEntData(WeaponClass, ClipSize) && iAmmoLeft>=iAmmoSpend && iAmmoLeft != 0)
+	{
+		if (ChargeEndTime[client] < gt)
+		{
+			/* Charge end, ready to fire */
+			PrintCenterText(client, "☠☠☠☠☠☠ %t ☠☠☠☠☠☠", "SHOOT"); // СТРЕЛЯЙ
+			if (ReleaseLock[client] != 1)
+			{
+				float pos[3];
+				GetClientAbsOrigin(client, pos);
+				if (l4d2_lw_chargedsound)
+				{
+					EmitSoundToAll(CHARGEDUPSOUND, client);
+				}
+				if (l4d2_lw_chargeparticle)
+				{
+					ShowParticle(pos, "electrical_arc_01_system", 5.0);
+				}
+			}
+			ReleaseLock[client] = 1;
+		}
+		else
+		{
+			/* Not charged yet. Display charge gauge */
+			int i, j;
+			char ChargeBar[50];
+			char Gauge1[2] = "|";
+			char Gauge2[2] = " ";
+			float GaugeNum = (float(ct) - (float(ChargeEndTime[client] - gt))) * (100.0/float(ct))/2.0;
+			ReleaseLock[client] = 0;
+			if(GaugeNum > 50.0)
+				GaugeNum = 50.0;
+			
+			for(i=0; i<GaugeNum; i++)
+				ChargeBar[i] = Gauge1[0];
+			for(j=i; j<50; j++)
+				ChargeBar[j] = Gauge2[0];
+			if (GaugeNum >= 15)
+			{
+				/* Gauge meter is 30% or more */
+				float pos[3];
+				GetClientAbsOrigin(client, pos);
+				pos[2] += 45;
+				if (l4d2_lw_chargeparticle)
+				{
+					ShowParticle(pos, "electrical_arc_01_cp0", 5.0);
+				}
+				if (l4d2_lw_chargingsound)
+				{
+					EmitSoundToAll(CHARGESOUND, client);
+				}
+			}
+			/* Display gauge */
+			PrintCenterText(client, "★★★ %t ★★★\n0%% %s %3.0f%%", "Charging...", ChargeBar, GaugeNum*2); // Заряжается...
+		}
+	}
+	else
+	{
+		/* Not matching condition */
+		StopSound(client, SNDCHAN_AUTO, CHARGESOUND);
+		ReleaseLock[client] = 0;
+		ChargeEndTime[client] = gt + ct;
+	}
+	return Plugin_Continue;
+}
+
+public void ExplodeMain(float pos[3])
+{
+	hConVar_FireLifetime.SetInt(g_iFireLifetime, true, false);
+
+	/* Main effect when hit */
+	if (l4d2_lw_chargeparticle)
+	{
+		ShowParticle(pos, "electrical_arc_01_system", float(g_iFireLifetime));
+	}
+	LittleFlower(pos, EXPLODE);
+	
+	if (l4d2_lw_lethalweapon == 1)
+	{
+		ShowParticle(pos, "gas_explosion_main", float(g_iFireLifetime));
+		LittleFlower(pos, MOLOTOV);
+	}
+	CreateTimer(g_iFireLifetime + 0.5, Timer_RestoreLifeTime);
+}
+
+public Action Timer_RestoreLifeTime(Handle timer)
+{
+	hConVar_FireLifetime.RestoreDefault(true, false);
+}
+
+public void ShowParticle(float pos[3], char[] particlename, float time)
+{
+	/* Show particle effect you like */
+	int particle = CreateEntityByName("info_particle_system");
+	if (IsValidEntity(particle) || IsValidEdict(particle))
+	{
+		char sBuffer[32];
+		sBuffer[0] = 0;
+		TeleportEntity(particle, pos, NULL_VECTOR, NULL_VECTOR);
+		DispatchKeyValue(particle, "effect_name", particlename);
+		DispatchKeyValue(particle, "targetname", "particle");
+		DispatchSpawn(particle);
+		ActivateEntity(particle);
+		AcceptEntityInput(particle, "start");
+//		CreateTimer(time, DeleteParticles, particle);
+		Format(sBuffer, sizeof(sBuffer), "OnUser1 !self:Kill::%f:-1", time);
+		SetVariantString(sBuffer);
+		AcceptEntityInput(particle, "AddOutput");
+		AcceptEntityInput(particle, "FireUser1");
+	}  
+}
+
+public void PrecacheParticle(char[] particlename)
+{
+	/* Precache particle */
+	int particle = CreateEntityByName("info_particle_system");
+	if (IsValidEntity(particle) || IsValidEdict(particle))
+	{
+		DispatchKeyValue(particle, "effect_name", particlename);
+		DispatchKeyValue(particle, "targetname", "particle");
+		DispatchSpawn(particle);
+		ActivateEntity(particle);
+		AcceptEntityInput(particle, "start");
+//		CreateTimer(0.01, DeleteParticles, particle);
+		SetVariantString("OnUser1 !self:Kill::0.01:-1");
+		AcceptEntityInput(particle, "AddOutput");
+		AcceptEntityInput(particle, "FireUser1");
+	}  
+}
+
+/*
+public Action:DeleteParticles(Handle:timer, any:particle)
+{
+    if (IsValidEntity(particle))
+	{
+		new String:classname[64];
+		GetEdictClassname(particle, classname, sizeof(classname));
+		if (StrEqual(classname, "info_particle_system", false))
+            		RemoveEdict(particle);
+	}
+}
+*/
+
+public void LittleFlower(float pos[3], int type)
+{
+	/* Cause fire(type=0) or explosion(type=1) */
+	int entity = CreateEntityByName("prop_physics");
+	if (IsValidEntity(entity))
+	{
+		pos[2] += 10.0;
+		if (type == 0)
+			/* fire */
+			DispatchKeyValue(entity, "model", "models/props_junk/gascan001a.mdl");
+		else
+			/* explode */
+			DispatchKeyValue(entity, "model", "models/props_junk/propanecanister001a.mdl");
+		DispatchSpawn(entity);
+		SetEntData(entity, GetEntSendPropOffs(entity, "m_CollisionGroup"), 1, 1, true);
+		TeleportEntity(entity, pos, NULL_VECTOR, NULL_VECTOR);
+		AcceptEntityInput(entity, "break");
+	}
+}
+
+public Action GetEntityAbsOrigin(int entity, float origin[3])
+{
+	/* Get target posision */
+	float mins[3], maxs[3];
+	GetEntPropVector(entity,Prop_Send,"m_vecOrigin",origin);
+	GetEntPropVector(entity,Prop_Send,"m_vecMins",mins);
+	GetEntPropVector(entity,Prop_Send,"m_vecMaxs",maxs);
+	
+	origin[0] += (mins[0] + maxs[0]) * 0.5;
+	origin[1] += (mins[1] + maxs[1]) * 0.5;
+	origin[2] += (mins[2] + maxs[2]) * 0.5;
+}
+
+void Smash(int client, int target, float power, float powHor, float powVec)
+{
+	/* Smash target */
+	// Check so that we don't "smash" other Survivors (only if "g_bDamageAlly" is 0)
+	if (!IsValidClient(client) || !IsValidClient(target))
+		return;
+
+	if (g_bDamageAlly || GetClientTeam(target) != 2)
+	{
+		float HeadingVector[3], AimVector[3];
+		GetClientEyeAngles(client, HeadingVector);
+	
+		AimVector[0] = Cosine(DegToRad(HeadingVector[1])) * (power * powHor);
+		AimVector[1] = Sine(DegToRad(HeadingVector[1])) * (power * powHor);
+	
+		float current[3];
+		GetEntPropVector(target, Prop_Data, "m_vecVelocity", current);
+	
+		float resulting[3];
+		resulting[0] = current[0] + AimVector[0];
+		resulting[1] = current[1] + AimVector[1];
+		resulting[2] = power * powVec;
+	
+		TeleportEntity(target, NULL_VECTOR, NULL_VECTOR, resulting);
+	}
+}
+
+bool IsValidClient(int client) 
+{
+    return ((1 <= client <= MaxClients) && IsClientInGame(client));
+}
+
+public void ScreenFade(int target, int red, int green, int blue, int alpha, int duration, int type)
+{
+	Handle msg = StartMessageOne("Fade", target);
+	if (msg == INVALID_HANDLE)
+		return;
+	BfWriteShort(msg, 500);
+	BfWriteShort(msg, duration);
+	if (type == 0)
+	{
+		BfWriteShort(msg, (0x0002 | 0x0008));
+	}
+	else
+	{
+		BfWriteShort(msg, (0x0001 | 0x0010));
+	}
+	BfWriteByte(msg, red);
+	BfWriteByte(msg, green);
+	BfWriteByte(msg, blue);
+	BfWriteByte(msg, alpha);
+	EndMessage();
+}
+
+public void ScreenShake(int target)
+{
+	Handle msg;
+	if (l4d2_lw_shake_shooteronly)
+	{
+		msg = StartMessageAll("Shake");
+	}
+	else
+	{
+		msg = StartMessageOne("Shake", target);
+	}
+	if (msg == INVALID_HANDLE)
+		return;
+	BfWriteByte(msg, 0);
+ 	BfWriteFloat(msg, l4d2_lw_shake_intensity);
+ 	BfWriteFloat(msg, 10.0);
+ 	BfWriteFloat(msg, 3.0);
+	EndMessage();
+}
+
+public void GetTracePosition(int client)
+{
+	float myAng[3];
+	GetClientEyePosition(client, myPos);
+	GetClientEyeAngles(client, myAng);
+	Handle trace = TR_TraceRayFilterEx(myPos, myAng, CONTENTS_SOLID|CONTENTS_MOVEABLE, RayType_Infinite, TraceEntityFilterPlayer, client);
+	if(TR_DidHit(trace))
+		TR_GetEndPosition(trsPos, trace);
+	delete trace;
+	for(int i = 0; i < 3; i++)
+		trsPos002[i] = trsPos[i];
+}
+
+public bool TraceEntityFilterPlayer(int entity, int contentsMask)
+{
+	return entity > MaxClients || !entity;
+}
+
+public void CreateLaserEffect(int client, int colRed, int colGre, int colBlu, int alpha, float width, float duration)
+{
+	float tmpVec[3];
+	SubtractVectors(myPos, trsPos, tmpVec);
+	NormalizeVector(tmpVec, tmpVec);
+	ScaleVector(tmpVec, float(l4d2_lw_laseroffset));
+	SubtractVectors(myPos, tmpVec, trsPos);
+	
+	int color[4];
+	color[0] = colRed; 
+	color[1] = colGre;
+	color[2] = colBlu;
+	color[3] = alpha;
+	TE_SetupBeamPoints(myPos, trsPos002, g_sprite, 0, 0, 0, duration, width, width, 1, 0.0, color, 0);
+	TE_SendToAll();
+}
+
+bool HasAccess(int client)
+{
+	/* check player whether have access flag */
+	if (CheckCommandAccess(client, "lethal_weapon", 0, true))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
