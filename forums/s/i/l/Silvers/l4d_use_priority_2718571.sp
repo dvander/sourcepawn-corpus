@@ -1,6 +1,6 @@
 /*
 *	Use Priority Patch
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.5"
+#define PLUGIN_VERSION 		"2.6"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+2.6 (05-May-2024)
+	- Switched to using VTable offsets for L4D1 and L4D2 on Windows - due to signatures always breaking. Thanks to "Bakugo" and Arona" for info.
+	- Plugin and GameData file updated.
+
+2.5a (29-Apr-2024)
+	- Fixed Windows L4D1 signature.
 
 2.5 (22-Nov-2022)
 	- Fixed crash on L4D1 on Windows. Thanks to "ZBzibing" for testing.
@@ -72,8 +79,13 @@
 #include <sdktools>
 #include <dhooks>
 
+#define MAX_EDICTS			2048
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define GAMEDATA			"l4d_use_priority"
+
+Handle g_hGetUsePriority;
+bool g_bLateLoad;
+bool g_bLinux;
 
 
 
@@ -97,14 +109,17 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+
+	g_bLateLoad = late;
+
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-	// ====================================================================================================
-	// Detours
-	// ====================================================================================================
+	// =================
+	// DETOURS
+	// =================
 	char sPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
 	if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
@@ -112,19 +127,57 @@ public void OnPluginStart()
 	Handle hGameData = LoadGameConfigFile(GAMEDATA);
 	if( hGameData == null ) SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
 
-	Handle hDetour = DHookCreateFromConf(hGameData, "CBaseEntity::GetUsePriority");
-	if( !hDetour )
-		SetFailState("Failed to find \"CBaseEntity::GetUsePriority\" signature.");
-	if( !DHookEnableDetour(hDetour, false, GetUsePriority_Pre) )
-		SetFailState("Failed to detour \"CBaseEntity::GetUsePriority\" pre.");
+	int offset = GameConfGetOffset(hGameData, "CBaseEntity::GetUsePriority");
+	if( offset != -1 )
+	{
+		g_bLinux = false;
 
-	delete hDetour;
+		// VTABLE METHOD
+		g_hGetUsePriority = DHookCreate(offset, HookType_Entity, ReturnType_Int, ThisPointer_CBaseEntity, GetUsePriority_Pre);
+		DHookAddParam(g_hGetUsePriority, HookParamType_CBaseEntity);
+	}
+	else
+	{
+		g_bLinux = true;
+
+		// DETOUR METHOD
+		Handle hDetour = DHookCreateFromConf(hGameData, "CBaseEntity::GetUsePriority");
+		if( !hDetour )
+			SetFailState("Failed to find \"CBaseEntity::GetUsePriority\" signature.");
+		if( !DHookEnableDetour(hDetour, false, GetUsePriority_Pre) )
+			SetFailState("Failed to detour \"CBaseEntity::GetUsePriority\" pre.");
+
+		delete hDetour;
+	}
+
 	delete hGameData;
 
-	// ====================================================================================================
+	// =================
+	// LATE LOAD
+	// =================
+	if( g_bLateLoad && !g_bLinux )
+	{
+		for( int i = 1; i < MAX_EDICTS; i++ )
+		{
+			if( IsValidEdict(i) )
+			{
+				DHookEntity(g_hGetUsePriority, false, i);
+			}
+		}
+	}
+
+	// =================
 	// CVAR
-	// ====================================================================================================
+	// =================
 	CreateConVar("l4d_use_priority_version", PLUGIN_VERSION, "Use Priority Patch plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+}
+
+public void OnEntityCreated(int entity, const char[] classname)
+{
+	if( !g_bLinux && entity > 0 )
+	{
+		DHookEntity(g_hGetUsePriority, false, entity);
+	}
 }
 
 
@@ -136,6 +189,7 @@ MRESReturn GetUsePriority_Pre(int pThis, Handle hReturn, Handle hParams)
 {
 	if( pThis == -1 ) return MRES_Ignored;
 	int parent = GetEntPropEnt(pThis, Prop_Send, "moveparent");
+	// PrintToChatAll("USE: %d", pThis);
 
 	// Is attached to something attached to clients?
 	while( parent > MaxClients )
@@ -146,6 +200,8 @@ MRESReturn GetUsePriority_Pre(int pThis, Handle hReturn, Handle hParams)
 	// Don't allow using
 	if( parent > 0 && parent <= MaxClients )
 	{
+		// PrintToChatAll("BLK: %d", pThis);
+
 		DHookSetReturn(hReturn, 0);
 		return MRES_Override;
 		// return MRES_Supercede; // Infinite loop crash with DHooks

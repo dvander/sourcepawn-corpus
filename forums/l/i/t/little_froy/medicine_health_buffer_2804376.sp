@@ -1,8 +1,5 @@
-#define PLUGIN_VERSION	"1.4"
-#define PLUGIN_NAME		"Medicine Health Buffer"
-#define PLUGIN_PREFIX	"medicine_health_buffer"
+#define PLUGIN_VERSION	"2.0"
 
-#pragma tabsize 0
 #pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
@@ -13,7 +10,7 @@
 
 public Plugin myinfo =
 {
-	name = PLUGIN_NAME,
+	name = "Medicine Health Buffer",
 	author = "little_froy",
 	description = "game play",
 	version = PLUGIN_VERSION,
@@ -22,8 +19,8 @@ public Plugin myinfo =
 
 ConVar C_enable;
 int O_enable;
-ConVar C_buffer_decay_rate;
-float O_buffer_decay_rate;
+ConVar C_pain_pills_decay_rate;
+float O_pain_pills_decay_rate;
 ConVar C_max_health_pills;
 float O_max_health_pills;
 ConVar C_max_health_adrenaline;
@@ -31,14 +28,14 @@ float O_max_health_adrenaline;
 ConVar C_max_health_medkit;
 float O_max_health_medkit;
 
-bool is_survivor_alright(int client)
+bool is_player_alright(int client)
 {
 	return !GetEntProp(client, Prop_Send, "m_isIncapacitated");
 }
 
 float get_temp_health(int client)
 {
-	float buffer = GetEntPropFloat(client, Prop_Send, "m_healthBuffer") - (GetGameTime() - GetEntPropFloat(client, Prop_Send, "m_healthBufferTime")) * O_buffer_decay_rate;
+	float buffer = GetEntPropFloat(client, Prop_Send, "m_healthBuffer") - (GetGameTime() - GetEntPropFloat(client, Prop_Send, "m_healthBufferTime")) * O_pain_pills_decay_rate;
 	return buffer < 0.0 ? 0.0 : buffer;
 }
 
@@ -48,13 +45,17 @@ void set_temp_health(int client, float buffer)
 	SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", GetGameTime());
 }
 
-void extra_heal(int client, float max)
+void extra_heal(int userid, float max)
 {
-	float health = float(GetClientHealth(client));
-	if(health + get_temp_health(client) < max)
-	{
-		set_temp_health(client, max - health);
-	}
+    int client = GetClientOfUserId(userid);
+    if(client > 0 && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_player_alright(client))
+    {
+		float health = float(GetClientHealth(client));
+		if(health + get_temp_health(client) < max)
+		{
+			set_temp_health(client, max - health);
+		}
+    }
 }
 
 void event_pills_used(Event event, const char[] name, bool dontBroadcast)
@@ -63,11 +64,7 @@ void event_pills_used(Event event, const char[] name, bool dontBroadcast)
 	{
 		return;
 	}
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    if(client != 0 && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_survivor_alright(client))
-    {
-		extra_heal(client, O_max_health_pills);
-    }
+	extra_heal(event.GetInt("userid"), O_max_health_pills);
 }
 
 void event_adrenaline_used(Event event, const char[] name, bool dontBroadcast)
@@ -76,11 +73,7 @@ void event_adrenaline_used(Event event, const char[] name, bool dontBroadcast)
 	{
 		return;
 	}
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    if(client != 0 && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_survivor_alright(client))
-    {
-		extra_heal(client, O_max_health_adrenaline);
-    }
+	extra_heal(event.GetInt("userid"), O_max_health_adrenaline);
 }
 
 void event_heal_success(Event event, const char[] name, bool dontBroadcast)
@@ -89,30 +82,45 @@ void event_heal_success(Event event, const char[] name, bool dontBroadcast)
 	{
 		return;
 	}
-	int client = GetClientOfUserId(event.GetInt("subject"));
-    if(client != 0 && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_survivor_alright(client))
-    {
-		extra_heal(client, O_max_health_medkit);
-    }
+	extra_heal(event.GetInt("subject"), O_max_health_medkit);
 }
 
-void get_cvars()
+void get_all_cvars()
 {
-	O_buffer_decay_rate = C_buffer_decay_rate.FloatValue;
+	O_pain_pills_decay_rate = C_pain_pills_decay_rate.FloatValue;
 	O_max_health_pills = C_max_health_pills.FloatValue;
 	O_max_health_adrenaline = C_max_health_adrenaline.FloatValue;
 	O_max_health_medkit = C_max_health_medkit.FloatValue;
 	O_enable = C_enable.IntValue;
 }
 
-void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
+void get_single_cvar(ConVar convar)
 {
-	get_cvars();
+	if(convar == C_pain_pills_decay_rate)
+	{
+		O_pain_pills_decay_rate = C_pain_pills_decay_rate.FloatValue;
+	}
+	else if(convar == C_max_health_pills)
+	{
+		O_max_health_pills = C_max_health_pills.FloatValue;
+	}
+	else if(convar == C_max_health_adrenaline)
+	{
+		O_max_health_adrenaline = C_max_health_adrenaline.FloatValue;
+	}
+	else if(convar == C_max_health_medkit)
+	{
+		O_max_health_medkit = C_max_health_medkit.FloatValue;
+	}
+	else if(convar == C_enable)
+	{
+		O_enable = C_enable.IntValue;
+	}
 }
 
-public void OnConfigsExecuted()
+void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	get_cvars();
+	get_single_cvar(convar);
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -131,17 +139,17 @@ public void OnPluginStart()
     HookEvent("adrenaline_used", event_adrenaline_used);
 	HookEvent("heal_success", event_heal_success);
 
-	C_buffer_decay_rate = FindConVar("pain_pills_decay_rate");
-	C_buffer_decay_rate.AddChangeHook(convar_changed);
-	C_max_health_pills = CreateConVar(PLUGIN_PREFIX ... "_max_health_pills", "80.2", "if pain pills used health lower than this value, add health buffer to it", _, true, 1.0);
+	C_pain_pills_decay_rate = FindConVar("pain_pills_decay_rate");
+	C_pain_pills_decay_rate.AddChangeHook(convar_changed);
+	C_max_health_pills = CreateConVar("medicine_health_buffer_max_health_pills", "80.3", "if pain pills used health lower than this value, fill the remainder with health buffer", _, true, 1.0);
 	C_max_health_pills.AddChangeHook(convar_changed);
-	C_max_health_adrenaline = CreateConVar(PLUGIN_PREFIX ... "_max_health_adrenaline", "55.2", "if adrenaline used health lower than this value, add health buffer to it", _, true, 1.0);
+	C_max_health_adrenaline = CreateConVar("medicine_health_buffer_max_health_adrenaline", "55.3", "if adrenaline used health lower than this value, fill the remainder with health buffer", _, true, 1.0);
 	C_max_health_adrenaline.AddChangeHook(convar_changed);
-	C_max_health_medkit = CreateConVar(PLUGIN_PREFIX ... "_max_health_medkit", "100.2", "if first aid kit used health lower than this value, add health buffer to it", _, true, 1.0);
+	C_max_health_medkit = CreateConVar("medicine_health_buffer_max_health_medkit", "100.3", "if first aid kit used health lower than this value, fill the remainder with health buffer", _, true, 1.0);
 	C_max_health_medkit.AddChangeHook(convar_changed);
-	C_enable = CreateConVar(PLUGIN_PREFIX ... "_enable", "3", "0 = disable, 1 = enable pain pills, 2 = enable adrenaline, 4 = enable first aid kit. add numbers together", _, true, 0.0, true, 7.0);
+	C_enable = CreateConVar("medicine_health_buffer_enable", "3", "0 = disable, 1 = enable pain pills, 2 = enable adrenaline, 4 = enable first aid kit. add numbers together");
 	C_enable.AddChangeHook(convar_changed);	
-	CreateConVar(PLUGIN_PREFIX ... "_version", PLUGIN_VERSION, "version of " ... PLUGIN_NAME, FCVAR_NOTIFY | FCVAR_DONTRECORD);
-	AutoExecConfig(true, PLUGIN_PREFIX);
-	get_cvars();
+	CreateConVar("medicine_health_buffer_version", PLUGIN_VERSION, "version of Medicine Health Buffer", FCVAR_NOTIFY | FCVAR_DONTRECORD);
+	AutoExecConfig(true, "medicine_health_buffer");
+	get_all_cvars();
 }

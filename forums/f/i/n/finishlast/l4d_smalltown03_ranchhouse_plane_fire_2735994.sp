@@ -52,7 +52,7 @@ public void player_left_start_area(Event event, const char[] name, bool dontBroa
 {
 	char sMap[64];
 	GetCurrentMap(sMap, sizeof(sMap));
-	if (StrEqual(sMap, "l4d_vs_smalltown03_ranchhouse", false) || StrEqual(sMap, "l4d_smalltown03_ranchhouse", false))
+	if (StrEqual(sMap, "l4d_vs_smalltown03_ranchhouse", false) || StrEqual(sMap, "l4d_smalltown03_ranchhouse", false) || StrEqual(sMap, "c10m3_ranchhouse", false))
 	{
 	//if(onetime == 0)
 	//{

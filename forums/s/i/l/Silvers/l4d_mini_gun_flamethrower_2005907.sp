@@ -1,6 +1,6 @@
 /*
 *	Mini Gun Flamethrowers
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.8"
+#define PLUGIN_VERSION		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.8 (11-Jun-2022)
 	- Added a "heat" effect to the barrel when a Mini Gun Flamethrower is used.
@@ -255,8 +258,6 @@ void DeleteEntity(int index)
 	g_iSpawned[index][INDEX_ENTITY] = 0;
 	g_iSpawned[index][INDEX_MODEL] = 0;
 	g_iSpawned[index][INDEX_TYPE] = 0;
-	// g_fLastUse[index] = 0.0;
-	// g_fStartUse[index] = 0.0;
 
 	if( IsValidEntRef(entity) )
 	{
@@ -286,6 +287,19 @@ void DeleteEntity(int index)
 
 	g_iSpawned[index][INDEX_EFFECTS] = 0;
 	g_iSpawned[index][INDEX_PARTICLE] = 0;
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
+	}
 }
 
 
@@ -479,7 +493,7 @@ Action TimerStart(Handle timer)
 
 		if( count )
 		{
-			SortIntegers(entities, count, Sort_Random);
+			SortCustom(entities, count);
 			float vAng[3], vPos[3];
 
 			for( int i = 1; i <= count; i++ )
@@ -552,7 +566,7 @@ void LoadGuns()
 		for( i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -1552,7 +1566,7 @@ bool IsValidEntRef(int entity)
 	return false;
 }
 
-bool FilterExcludeSelf(int entity, int contentsMask, any client)
+bool FilterExcludeSelf(int entity, int contentsMask, int client)
 {
 	if( entity == client )
 		return false;

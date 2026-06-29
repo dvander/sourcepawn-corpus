@@ -111,14 +111,6 @@ public void OnPluginStart()
 
 /****************************************************************************************************/
 
-public void OnMapStart()
-{
-    // Fix for when OnConfigsExecuted is not executed by SM in some games
-    RequestFrame(OnConfigsExecuted);
-}
-
-/****************************************************************************************************/
-
 public void OnConfigsExecuted()
 {
     GetCvars();

@@ -143,6 +143,9 @@ public void OnPluginStart()
 	HookEvent( "revive_success",				EVENT_ReviveSuccess );
 	HookEvent( "pills_used",					EVENT_PillsUsed );
 	HookEvent( "adrenaline_used",				EVENT_PillsUsed );
+	HookEvent( "round_end",						EVENT_RoundEnd );
+	HookEvent( "map_transition",				EVENT_RoundEnd );
+	HookEvent( "finale_win",					EVENT_RoundEnd );
 
 	selfstandup_enable.AddChangeHook(bw_CVARChanged);
 	selfstandup_blackwhite.AddChangeHook(bw_CVARChanged);
@@ -203,6 +206,10 @@ public void OnMapStart()
 	PrecacheSound( SOUND_HEART_BEAT, true );
 	PrecacheSound( SOUND_GETUP, true );
 	PrecacheSound( SOUND_ERROR, true );
+}
+
+public void OnConfigsExecuted()
+{
 	UdateCvarChange();
 }
 
@@ -215,12 +222,12 @@ public void OnClientDisconnect( int client )
 	}
 }
 
-public void bw_CVARChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void bw_CVARChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	UdateCvarChange();
 }
 
-public void EVENT_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void EVENT_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	for ( int i = 1; i <= MaxClients; i++ )
 	{
@@ -240,13 +247,13 @@ public void EVENT_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	UdateCvarChange();
 }
 
-public void EVENT_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void EVENT_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	FindConVar("survivor_allow_crawling").SetInt(NONE);
 	FindConVar("survivor_crawl_speed").SetInt(15);
 }
 
-public void EVENT_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void EVENT_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int client = GetClientOfUserId( event.GetInt( "userid" ));
@@ -267,7 +274,7 @@ public void EVENT_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void EVENT_TongueGrab (Event event, const char[] name, bool dontBroadcast)
+void EVENT_TongueGrab (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -282,7 +289,7 @@ public void EVENT_TongueGrab (Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void EVENT_TongueRelease (Event event, const char[] name, bool dontBroadcast)
+void EVENT_TongueRelease (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -292,7 +299,7 @@ public void EVENT_TongueRelease (Event event, const char[] name, bool dontBroadc
 	}
 }
 
-public void EVENT_LungePounce (Event event, const char[] name, bool dontBroadcast)
+void EVENT_LungePounce (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -307,7 +314,7 @@ public void EVENT_LungePounce (Event event, const char[] name, bool dontBroadcas
 	}
 }
 
-public void EVENT_PounceStopped (Event event, const char[] name, bool dontBroadcast)
+void EVENT_PounceStopped (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -317,7 +324,7 @@ public void EVENT_PounceStopped (Event event, const char[] name, bool dontBroadc
 	}
 }
 
-public void EVENT_JockeyRide (Event event, const char[] name, bool dontBroadcast)
+void EVENT_JockeyRide (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -332,7 +339,7 @@ public void EVENT_JockeyRide (Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void EVENT_JockeyRideEnd (Event event, const char[] name, bool dontBroadcast)
+void EVENT_JockeyRideEnd (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -342,7 +349,7 @@ public void EVENT_JockeyRideEnd (Event event, const char[] name, bool dontBroadc
 	}
 }
 
-public void EVENT_ChargerPummelStart (Event event, const char[] name, bool dontBroadcast)
+void EVENT_ChargerPummelStart (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "victim" ));
@@ -357,7 +364,7 @@ public void EVENT_ChargerPummelStart (Event event, const char[] name, bool dontB
 	}
 }
 
-public void EVENT_ChargerPummelEnd (Event event, const char[] name, bool dontBroadcast)
+void EVENT_ChargerPummelEnd (Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim	= GetClientOfUserId( event.GetInt( "victim" ));
@@ -367,7 +374,7 @@ public void EVENT_ChargerPummelEnd (Event event, const char[] name, bool dontBro
 	}
 }
 
-public void EVENT_PlayerIncapacitated(Event event, const char[] name, bool dontBroadcast)
+void EVENT_PlayerIncapacitated(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim = GetClientOfUserId( event.GetInt( "userid" ));
@@ -380,7 +387,7 @@ public void EVENT_PlayerIncapacitated(Event event, const char[] name, bool dontB
 	}
 }
 
-public void EVENT_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
+void EVENT_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim = GetClientOfUserId( event.GetInt( "userid" ));
@@ -399,7 +406,7 @@ public void EVENT_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void EVENT_HealSuccess(Event event, const char[] name, bool dontBroadcast)
+void EVENT_HealSuccess(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim = GetClientOfUserId( event.GetInt( "subject" ));
@@ -416,7 +423,7 @@ public void EVENT_HealSuccess(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void EVENT_ReviveBegin(Event event, const char[] name, bool dontBroadcast)
+void EVENT_ReviveBegin(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim		= GetClientOfUserId( event.GetInt( "subject" ));
@@ -430,7 +437,7 @@ public void EVENT_ReviveBegin(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void EVENT_ReviveEnd(Event event, const char[] name, bool dontBroadcast)
+void EVENT_ReviveEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim = GetClientOfUserId( event.GetInt( "subject" ));
@@ -440,7 +447,7 @@ public void EVENT_ReviveEnd(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void EVENT_ReviveSuccess(Event event, const char[] name, bool dontBroadcast)
+void EVENT_ReviveSuccess(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim = GetClientOfUserId( event.GetInt( "subject" ));
@@ -486,7 +493,7 @@ public void EVENT_ReviveSuccess(Event event, const char[] name, bool dontBroadca
 	RevHelper[victim] = NONE;
 }
 
-public void EVENT_PillsUsed(Event event, const char[] name, bool dontBroadcast)
+void EVENT_PillsUsed(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int userid = GetClientOfUserId( event.GetInt( "userid" ));
@@ -496,7 +503,7 @@ public void EVENT_PillsUsed(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void EVENT_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void EVENT_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	if ( g_enable == NONE ) return;
 	int victim = GetClientOfUserId( event.GetInt( "userid" ));
@@ -539,102 +546,105 @@ public void EVENT_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-    if ( !Button[client] )
-    {
-    	if (client > NONE)
-    	{
-    	    if(buttons & IN_ZOOM)
-    	    {
-    	        if(Attacker[client] > NONE && IsNo_IncapLedge(client))
-    		    {
-    			    if (IsValidSlotToKill(client))
-    			    {
-    	                UseAdrenKill[client] = true;
-    	                GetUp(client);
-    			    }
-    		    }
-    	    }
-    
-    	    if (buttons & IN_DUCK)
-    		{
-    			int target = GetClientAimTarget( client, true );
-    			float TPos[3], PPos[3];
-    			if ( target != -1 && IsValidSurvivor( target ) && g_teamdistance > NONE_F && ProgressionTeam( client, target ) == true )
-    			{
-    				GetEntPropVector( client, Prop_Send, "m_vecOrigin", PPos );
-    				GetEntPropVector( target, Prop_Send, "m_vecOrigin", TPos );
-    
-    				if ( GetVectorDistance( TPos, PPos ) > g_teamdistance )
-    				{
-    					Button[client]		= true;
-    					CreateTimer( 2.0, Button_Restore, client );
-    					return Plugin_Continue;
-    				}
-    
-    				GetDuration( client );
-    				Timers[client]			= CreateTimer( 0.1, Timer_TeamGetUP, client, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE );
-    				Button[client]			= true;
-    				Button[target]			= true;
-    				TargetTeam[client]		= target;
-    				PrintHintText( client, "%t", "[GETUP]: Your target is %N", target );
-    				return Plugin_Continue;
-    			}
-    
-    			if( Attacker[client] > NONE || !IsNo_Incap( client ) || !IsNo_IncapLedge( client ))
-    			{
-    				if ( g_costly > NONE && IsValidSlot( client ) == false )
-    				{
-    					if ( g_message > NONE )
-    					{
-    						if ( Attacker[client] > NONE )
-    						{
-    							PrintHintText( client, "%t", "Required Item to Break Free" );
-    						}
-    						else if ( !IsNo_Incap( client ) || !IsNo_IncapLedge( client ) )
-    						{
-    							PrintHintText( client, "%t", "Required Item to Get Up" );
-    						}
-    					}
-    					Button[client] = true;
-    					EmitSoundToClient( client, SOUND_ERROR );
-    					CreateTimer( 2.0, Button_Restore, client );
-    					return Plugin_Continue;
-    				}
-    				GetDuration( client );
-    				Timers[client] = CreateTimer( 0.1, Timer_SelfGetUP, client, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE );
-    				Button[client] = true;
-    			}
-    		}
+	if ( !Button[client] )
+	{
+		if (client > NONE)
+		{
+			if(buttons & IN_ZOOM)
+			{
+				if(Attacker[client] > NONE && IsNo_IncapLedge(client))
+				{
+					if (IsValidSlotToKill(client))
+					{
+						UseAdrenKill[client] = true;
+						GetUp(client);
+					}
+				}
+			}
 
-            if(g_selfstandup_enable_incap_pickup)
-            {
-                if (buttons & IN_USE)
-                {
-                    if(!g_bIsOnUse[client])
-                    {
-                        g_bIsOnUse[client] = true;
-                        float vecOrigin[3], item_pos[3];
-                        GetClientEyePosition(client, vecOrigin);
-                        int itemtarget = GetClientAimTarget(client, false);
-                        float distance = g_selfstandup_incap_pickup_distance;
-                        if (!IsValidItemPickup(itemtarget)) itemtarget = GetItemOnFloor(client, "weapon_*", distance);
-                        if (IsValidItemPickup(itemtarget))
-                        {
-                            int owneritem = GetEntPropEnt(itemtarget, Prop_Data, "m_hOwnerEntity");
-                            GetEntPropVector(itemtarget, Prop_Data, "m_vecAbsOrigin", item_pos);
-                            if ((owneritem == client || owneritem == -1) && GetVectorDistance(vecOrigin, item_pos) <= distance && IsVisibleTo(vecOrigin, item_pos))
-                            AcceptEntityInput(itemtarget, "Use", client, itemtarget);
-                        }
-                    }
-                }
-                else if(!(buttons & IN_USE) && g_bIsOnUse[client]) g_bIsOnUse[client] = false;
-            }
-    	}
-    }
-    return Plugin_Continue;
+			if (buttons & IN_DUCK)
+			{
+				int target = GetClientAimTarget( client, true );
+				float TPos[3], PPos[3];
+				if ( target != -1 && IsValidSurvivor( target ) && g_teamdistance > NONE_F && ProgressionTeam( client, target ) == true )
+				{
+					GetEntPropVector( client, Prop_Send, "m_vecOrigin", PPos );
+					GetEntPropVector( target, Prop_Send, "m_vecOrigin", TPos );
+
+					if ( GetVectorDistance( TPos, PPos ) > g_teamdistance )
+					{
+						Button[client]		= true;
+						CreateTimer( 2.0, Button_Restore, client );
+						return Plugin_Continue;
+					}
+
+					GetDuration( client );
+					Button[client]			= true;
+					Button[target]			= true;
+					TargetTeam[client]		= target;
+					Timers[client]			= CreateTimer( 0.1, Timer_TeamGetUP, client, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE );
+					PrintHintText( client, "%t", "[GETUP]: Your target is %N", target );
+					return Plugin_Continue;
+				}
+
+				if( Attacker[client] > NONE || !IsNo_Incap( client ) || !IsNo_IncapLedge( client ))
+				{
+					if ( g_costly > NONE && IsValidSlot( client ) == false )
+					{
+						if ( g_message > NONE )
+						{
+							if ( Attacker[client] > NONE )
+							{
+								PrintHintText( client, "%t", "Required Item to Break Free" );
+							}
+							else if ( !IsNo_Incap( client ) || !IsNo_IncapLedge( client ) )
+							{
+								PrintHintText( client, "%t", "Required Item to Get Up" );
+							}
+						}
+						Button[client] = true;
+						EmitSoundToClient( client, SOUND_ERROR );
+						CreateTimer( 2.0, Button_Restore, client );
+						return Plugin_Continue;
+					}
+					GetDuration( client );
+					Timers[client] = CreateTimer( 0.1, Timer_SelfGetUP, client, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE );
+					Button[client] = true;
+				}
+			}
+
+			if(g_selfstandup_enable_incap_pickup)
+			{
+				if (buttons & IN_USE)
+				{
+					if(IsPlayerIncapped(client))
+					{
+						if(!g_bIsOnUse[client])
+						{
+							g_bIsOnUse[client] = true;
+							float vecOrigin[3], item_pos[3];
+							GetClientEyePosition(client, vecOrigin);
+							int itemtarget = GetClientAimTarget(client, false);
+							float distance = g_selfstandup_incap_pickup_distance;
+							if (!IsValidItemPickup(itemtarget)) itemtarget = GetItemOnFloor(client, "weapon_*", distance);
+							if (IsValidItemPickup(itemtarget))
+							{
+								int owneritem = GetEntPropEnt(itemtarget, Prop_Data, "m_hOwnerEntity");
+								GetEntPropVector(itemtarget, Prop_Data, "m_vecAbsOrigin", item_pos);
+								if ((owneritem == client || owneritem == -1) && GetVectorDistance(vecOrigin, item_pos) <= distance && IsVisibleTo(vecOrigin, item_pos))
+								AcceptEntityInput(itemtarget, "Use", client, itemtarget);
+							}
+						}
+					}
+				}
+				else if(!(buttons & IN_USE) && g_bIsOnUse[client]) g_bIsOnUse[client] = false;
+			}
+		}
+	}
+	return Plugin_Continue;
 }
 
-public Action Timer_SelfGetUP( Handle timer, any victim )
+Action Timer_SelfGetUP( Handle timer, any victim )
 {
 	float EngTime = GetEngineTime();
 	if ( Progression( victim ) && ( GetClientButtons( victim ) & IN_DUCK ))
@@ -703,105 +713,111 @@ public Action Timer_SelfGetUP( Handle timer, any victim )
 	return Plugin_Stop;
 }
 
-public Action Timer_TeamGetUP( Handle timer, any helper )
+Action Timer_TeamGetUP( Handle timer, any helper )
 {
-	int target = TargetTeam[helper];
-	float EngTime = GetEngineTime();
-	
-	if ( ProgressionTeam( helper, target ) && ( GetClientButtons( helper ) & IN_DUCK ))
+	if(IsValidSurvivor( helper ))
 	{
-		if ( HelpState[helper] == STATE_NONE )
+		int target = TargetTeam[helper];
+		if(target > 0)
 		{
-			StartTime[helper]			= EngTime;
-			TeamHealth[helper]		= GetEntProp( helper, Prop_Data, "m_iHealth" );
-			TeamHealthBuff[helper]	= GetEntPropFloat( helper, Prop_Send, "m_healthBuffer" );
-			TeamHealth[target]		= GetEntProp( target, Prop_Data, "m_iHealth" );
-			TeamHealthBuff[target]	= GetEntPropFloat( target, Prop_Send, "m_healthBuffer" );
-			SetEntProp( helper, Prop_Data, "m_MoveType", NONE );
-			SetEntProp( target, Prop_Data, "m_MoveType", NONE );
-			SetEntPropEnt( target, Prop_Send, "m_reviveOwner", helper );
-			SetEntPropEnt( helper, Prop_Send, "m_reviveTarget", target );
+			float EngTime = GetEngineTime();
+			
+			if ( ProgressionTeam( helper, target ) && ( GetClientButtons( helper ) & IN_DUCK ))
+			{
+				if ( HelpState[helper] == STATE_NONE )
+				{
+					StartTime[helper]			= EngTime;
+					TeamHealth[helper]		= GetEntProp( helper, Prop_Data, "m_iHealth" );
+					TeamHealthBuff[helper]	= GetEntPropFloat( helper, Prop_Send, "m_healthBuffer" );
+					TeamHealth[target]		= GetEntProp( target, Prop_Data, "m_iHealth" );
+					TeamHealthBuff[target]	= GetEntPropFloat( target, Prop_Send, "m_healthBuffer" );
+					SetEntProp( helper, Prop_Data, "m_MoveType", NONE );
+					SetEntProp( target, Prop_Data, "m_MoveType", NONE );
+					SetEntPropEnt( target, Prop_Send, "m_reviveOwner", helper );
+					SetEntPropEnt( helper, Prop_Send, "m_reviveTarget", target );
 
-			ShowBar( helper, EngTime - StartTime[helper], Duration[helper] );
-			ShowBar( target, EngTime - StartTime[helper], Duration[helper] );
-			LoadUnloadProgressBar( helper, Duration[helper] );
-			LoadUnloadProgressBar( target, Duration[helper] );
-			Execute_EventReviveBegin( helper, target );
-			HelpState[helper] = STATE_SELFGETUP;
-		}
-		if ( HelpState[helper] == STATE_SELFGETUP )
-		{
-			if ( RevHelper[target] != helper )
-			{
-				Restart[helper] = true;
-			}
-			if (( EngTime - StartTime[helper] ) <= Duration[helper] )
-			{
-				if (( !IsNo_Incap( helper ) || !IsNo_IncapLedge( helper )) && Attacker[helper] == NONE )
-				{
-					SetEntProp( helper, Prop_Data, "m_iHealth", TeamHealth[helper] );
-					SetEntPropFloat( helper, Prop_Send, "m_healthBuffer", TeamHealthBuff[helper] );
+					ShowBar( helper, EngTime - StartTime[helper], Duration[helper] );
+					ShowBar( target, EngTime - StartTime[helper], Duration[helper] );
+					LoadUnloadProgressBar( helper, Duration[helper] );
+					LoadUnloadProgressBar( target, Duration[helper] );
+					Execute_EventReviveBegin( helper, target );
+					HelpState[helper] = STATE_SELFGETUP;
 				}
-				if (( !IsNo_Incap( target ) || !IsNo_IncapLedge( target )) && Attacker[target] == NONE )
+				if ( HelpState[helper] == STATE_SELFGETUP )
 				{
-					SetEntProp( helper, Prop_Data, "m_iHealth", TeamHealth[helper] );
-					SetEntPropFloat( helper, Prop_Send, "m_healthBuffer", TeamHealthBuff[helper] );
+					if ( RevHelper[target] != helper )
+					{
+						Restart[helper] = true;
+					}
+					if (( EngTime - StartTime[helper] ) <= Duration[helper] )
+					{
+						if (( !IsNo_Incap( helper ) || !IsNo_IncapLedge( helper )) && Attacker[helper] == NONE )
+						{
+							SetEntProp( helper, Prop_Data, "m_iHealth", TeamHealth[helper] );
+							SetEntPropFloat( helper, Prop_Send, "m_healthBuffer", TeamHealthBuff[helper] );
+						}
+						if (( !IsNo_Incap( target ) || !IsNo_IncapLedge( target )) && Attacker[target] == NONE )
+						{
+							SetEntProp( helper, Prop_Data, "m_iHealth", TeamHealth[helper] );
+							SetEntPropFloat( helper, Prop_Send, "m_healthBuffer", TeamHealthBuff[helper] );
+						}
+						ShowBar( helper, EngTime - StartTime[helper], Duration[helper] );
+						ShowBar( target, EngTime - StartTime[helper], Duration[helper] );
+					}
+					if (( EngTime - StartTime[helper] ) > Duration[helper] )
+					{
+						ShowBar( helper, -1.0, Duration[helper] );
+						ShowBar( target, -1.0, Duration[helper] );
+						LoadUnloadProgressBar( helper, NONE_F );
+						LoadUnloadProgressBar( target, NONE_F );
+						RevHelper[target] = NONE;
+						GetUpTeam( helper, target );
+					}
 				}
-				ShowBar( helper, EngTime - StartTime[helper], Duration[helper] );
-				ShowBar( target, EngTime - StartTime[helper], Duration[helper] );
+				return Plugin_Continue;
 			}
-			if (( EngTime - StartTime[helper] ) > Duration[helper] )
+
+			if ( IsValidSurvivor( helper ))
 			{
 				ShowBar( helper, -1.0, Duration[helper] );
-				ShowBar( target, -1.0, Duration[helper] );
-				LoadUnloadProgressBar( helper, NONE_F );
-				LoadUnloadProgressBar( target, NONE_F );
-				RevHelper[target] = NONE;
-				GetUpTeam( helper, target );
+				SetEntProp( helper, Prop_Data, "m_MoveType", 2 );
+				SetEntPropEnt( helper, Prop_Send, "m_reviveTarget", -1 );
+				if ( RevHelper[helper] < 1 )
+				{
+					LoadUnloadProgressBar( helper, NONE_F );
+				}
 			}
-		}
-		return Plugin_Continue;
-	}
+			if ( IsValidSurvivor( target ))
+			{
+				ShowBar( target, -1.0, Duration[helper] );
+				SetEntProp( target, Prop_Data, "m_MoveType", 2 );
+				if (( !IsNo_Incap( target ) || !IsNo_IncapLedge( target )) && RevHelper[target] == helper )
+				{
+					SetEntPropEnt( target, Prop_Send, "m_reviveOwner", -1 );
+					LoadUnloadProgressBar( target, NONE_F );
+					Execute_EventReviveEnd( helper, target );
+				}
+			}
+			CreateTimer( 0.5, Button_Restore, helper );
+			CreateTimer( 0.5, Button_Restore, target );
 
-	if ( IsValidSurvivor( helper ))
-	{
-		ShowBar( helper, -1.0, Duration[helper] );
-		SetEntProp( helper, Prop_Data, "m_MoveType", 2 );
-		SetEntPropEnt( helper, Prop_Send, "m_reviveTarget", -1 );
-		if ( RevHelper[helper] < 1 )
-		{
-			LoadUnloadProgressBar( helper, NONE_F );
+			HelpState[helper]		= STATE_NONE;
+			Restart[helper]		= false;
+			Restart[target]		= false;
+			TargetTeam[helper]	= NONE;
+			Timers[helper]			= null;
 		}
 	}
-	if ( IsValidSurvivor( target ))
-	{
-		ShowBar( target, -1.0, Duration[helper] );
-		SetEntProp( target, Prop_Data, "m_MoveType", 2 );
-		if (( !IsNo_Incap( target ) || !IsNo_IncapLedge( target )) && RevHelper[target] == helper )
-		{
-			SetEntPropEnt( target, Prop_Send, "m_reviveOwner", -1 );
-			LoadUnloadProgressBar( target, NONE_F );
-			Execute_EventReviveEnd( helper, target );
-		}
-	}
-	CreateTimer( 0.5, Button_Restore, helper );
-	CreateTimer( 0.5, Button_Restore, target );
-
-	HelpState[helper]		= STATE_NONE;
-	Restart[helper]		= false;
-	Restart[target]		= false;
-	TargetTeam[helper]	= NONE;
-	Timers[helper]			= null;
 	return Plugin_Stop;
 }
 
-public Action Button_Restore( Handle timer, any attacker )
+Action Button_Restore( Handle timer, any attacker )
 {
 	Button[attacker] = false;
 	return Plugin_Stop;
 }
 
-public Action Timer_RestoreCollution( Handle timer, any attacker )
+Action Timer_RestoreCollution( Handle timer, any attacker )
 {
 	if( IsValidSpecInfected( attacker ))
 	{
@@ -810,7 +826,7 @@ public Action Timer_RestoreCollution( Handle timer, any attacker )
 	return Plugin_Stop;
 }
 
-public Action Timer_ThirdStrike( Handle timer, any victim )
+Action Timer_ThirdStrike( Handle timer, any victim )
 {
 	if ( IsValidSurvivor( victim ))
 	{
@@ -833,7 +849,7 @@ public Action Timer_ThirdStrike( Handle timer, any victim )
 	return Plugin_Stop;
 }
 
-public Action Timer_Hint( Handle timer, any playeR )
+Action Timer_Hint( Handle timer, any playeR )
 {
 	if ( IsValidSurvivor( playeR ))
 	{
@@ -842,7 +858,7 @@ public Action Timer_Hint( Handle timer, any playeR )
 	return Plugin_Stop;
 }
 
-public Action ResetReviveCount( Handle timer, any victim )
+Action ResetReviveCount( Handle timer, any victim )
 {
 	if( IsValidSurvivor( victim ))
 	{
@@ -1708,11 +1724,9 @@ bool IsVisibleTo(float position[3], float targetposition[3])
 	return isVisible;
 }
 
-public bool _TraceFilter(int entity, int contentsMask)
+bool _TraceFilter(int entity, int contentsMask)
 {
-	if( entity <= MaxClients || !IsValidEntity(entity) )
-		return false;
-	return true;
+	return entity > MaxClients && IsValidEntity(entity);
 }
 
 stock bool IsWeaponSpawner(int weapon){

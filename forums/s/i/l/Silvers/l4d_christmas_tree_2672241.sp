@@ -1,6 +1,6 @@
 /*
 *	Christmas Tree
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (28-Jan-2024)
+	- Fixed memory leak caused by clearing StringMap/ArrayList data instead of deleting.
 
 1.8 (30-Jul-2022)
 	- Changed cvar "l4d_tree_effects" to turn gifts smoke on or off. This may fix a random rare server crash. Thanks to "Hawkins" for reporting.
@@ -460,7 +463,11 @@ public void OnMapEnd()
 	ResetPlugin(false);
 	g_bMapStarted = false;
 	g_iRoundNumber = 0;
-	g_aSelected.Clear();
+
+	// .Clear() is creating a memory leak
+	// g_aSelected.Clear();
+	delete g_aSelected;
+	g_aSelected = CreateArray();
 }
 
 
@@ -1247,7 +1254,7 @@ Action OnTakeDamage(int gift, int &attacker, int &inflictor, float &damage, int 
 	return Plugin_Continue;
 }
 
-Action Timer_Rainbow(Handle timer, any entity)
+Action Timer_Rainbow(Handle timer, int entity)
 {
 	entity = EntRefToEntIndex(entity);
 	if( IsValidEntRef(entity) == false ) return Plugin_Stop;
@@ -2043,7 +2050,10 @@ void ResetPlugin(bool all = true)
 				RemoveEntity(entity);
 		}
 
-		g_aGifts.Clear();
+		// .Clear() is creating a memory leak
+		// g_aGifts.Clear();
+		delete g_aGifts;
+		g_aGifts = CreateArray();
 
 		// Delete items
 		len = g_aItems.Length;
@@ -2055,7 +2065,10 @@ void ResetPlugin(bool all = true)
 				RemoveEntity(entity);
 		}
 
-		g_aItems.Clear();
+		// .Clear() is creating a memory leak
+		// g_aItems.Clear();
+		delete g_aItems;
+		g_aItems = CreateArray();
 	}
 }
 

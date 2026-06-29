@@ -1,6 +1,6 @@
 /*
 *	Transition Level Fix
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.0"
+#define PLUGIN_VERSION		"1.2"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.2 (25-Mar-2024)
+	- More accurate detection of players within the saferoom. Requires Left4DHooks version 1.144 or newer.
+	- Now checks on Survivor death if the saferoom door is closed and all Survivors are inside.
+
+1.1 (20-Dec-2023)
+	- Fixed teleporting after a mission change. Thanks to "JustMadMan" for reporting.
 
 1.0 (27-Nov-2023)
 	- Initial release.
@@ -48,9 +55,12 @@
 #define DELAY_TELEPORT		1.5
 
 Handle g_hTimer;
+bool g_bMapLoaded;
+bool g_bRoundStart;
+bool g_bLateLoad;
+int g_iChangeLevel = -1;
+int g_iSaferoomDoor = -1;
 float g_vPos[3];
-float g_vMin[3];
-float g_vMax[3];
 
 
 
@@ -75,7 +85,16 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+
+	g_bLateLoad = late;
+
 	return APLRes_Success;
+}
+
+public void OnAllPluginsLoaded()
+{
+    if( GetFeatureStatus(FeatureType_Native, "Left4DHooks_Version") != FeatureStatus_Available || Left4DHooks_Version() < 1144 )
+		SetFailState("\n==========\nThis plugin requires 'Left 4 DHooks' version 1.139 or newer. Please update that plugin.\n==========");
 }
 
 public void OnPluginStart()
@@ -83,46 +102,80 @@ public void OnPluginStart()
 	HookEvent("map_transition",	Event_RoundEnd, EventHookMode_PostNoCopy);
 	HookEvent("round_end",		Event_RoundEnd, EventHookMode_PostNoCopy);
 	HookEvent("round_start",	Event_RoundStart, EventHookMode_PostNoCopy);
+	HookEvent("player_death",	Event_PlayerDeath, EventHookMode_PostNoCopy);
+
+	if( g_bLateLoad )
+		StartMap();
 
 	CreateConVar("l4d_transition_level_version", PLUGIN_VERSION, "Transition Level Fix plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 }
 
 public void OnMapStart()
 {
-	StartMap();
+	if( g_bRoundStart && !g_bMapLoaded ) // Sometimes round_start happens before OnMapStart
+		StartMap();
+
+	g_bMapLoaded = true;
+	delete g_hTimer;
+}
+
+public void OnMapEnd()
+{
+	g_bMapLoaded = false;
+	g_bRoundStart = false;
+	delete g_hTimer;
 }
 
 void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
-	StartMap();
+	if( g_bMapLoaded && !g_bRoundStart )
+		StartMap();
+
+	g_bRoundStart = true;
+	delete g_hTimer;
 }
 
 void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
+	g_bRoundStart = false;
 	delete g_hTimer;
+}
+
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+{
+	if( EntRefToEntIndex(g_iSaferoomDoor) != INVALID_ENT_REFERENCE && GetEntProp(g_iSaferoomDoor, Prop_Data, "m_eDoorState") == DOOR_STATE_CLOSED && IsEveryoneInside() )
+	{
+		delete g_hTimer;
+		g_hTimer = CreateTimer(DELAY_TELEPORT, TimerEndMission);
+	}
 }
 
 void StartMap()
 {
+	if( L4D_IsMissionFinalMap() ) return;
+
 	// Find end saferoom door
-	int door = L4D_GetCheckpointLast();
-	if( door != -1 )
+	g_iSaferoomDoor = L4D_GetCheckpointLast();
+	if( g_iSaferoomDoor != INVALID_ENT_REFERENCE )
 	{
 		// Hook door
-		HookSingleEntityOutput(door, "OnFullyClosed", OnFullyClosed);
+		HookSingleEntityOutput(g_iSaferoomDoor, "OnFullyClosed", OnFullyClosed);
+		g_iSaferoomDoor = EntIndexToEntRef(g_iSaferoomDoor);
 
 		// Get saferoom size
-		int entity = FindEntityByClassname(-1, "info_changelevel");
-		if( entity != -1 )
+		g_iChangeLevel = FindEntityByClassname(-1, "info_changelevel");
+		if( g_iChangeLevel != INVALID_ENT_REFERENCE )
 		{
-			GetEntPropVector(entity, Prop_Data, "m_vecMaxs", g_vMax);
-			GetEntPropVector(entity, Prop_Data, "m_vecMins", g_vMin);
+			float vMin[3], vMax[3];
+			GetEntPropVector(g_iChangeLevel, Prop_Data, "m_vecMaxs", vMax);
+			GetEntPropVector(g_iChangeLevel, Prop_Data, "m_vecMins", vMin);
+			g_iChangeLevel = EntIndexToEntRef(g_iChangeLevel);
 
 			// Get center of "info_changelevel"
-			SubtractVectors(g_vMax, g_vMin, g_vPos);
-			g_vPos[0] = g_vMax[0] - (g_vPos[0] / 2);
-			g_vPos[1] = g_vMax[1] - (g_vPos[1] / 2);
-			g_vPos[2] = g_vMax[2] - (g_vPos[2] / 2);
+			SubtractVectors(vMax, vMin, g_vPos);
+			g_vPos[0] = vMax[0] - (g_vPos[0] / 2);
+			g_vPos[1] = vMax[1] - (g_vPos[1] / 2);
+			g_vPos[2] = vMax[2] - (g_vPos[2] / 2);
 
 			/* DEBUG:
 			// Get "m_vecMaxs" / "m_vecMins" size
@@ -139,28 +192,30 @@ void StartMap()
 
 void OnFullyClosed(const char[] output, int caller, int activator, float delay)
 {
-	float vPos[3];
+	if( IsEveryoneInside() )
+	{
+		delete g_hTimer;
+		g_hTimer = CreateTimer(DELAY_TELEPORT, TimerEndMission);
+	}
+}
+
+bool IsEveryoneInside()
+{
+	if( EntRefToEntIndex(g_iChangeLevel) == INVALID_ENT_REFERENCE )
+		return false;
 
 	for( int i = 1; i <= MaxClients; i++ )
 	{
 		if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
 		{
-			GetClientAbsOrigin(i, vPos);
-
-			if( vPos[0] > g_vMin[0] && vPos[1] > g_vMin[1] && vPos[2] > g_vMin[2] && vPos[0] < g_vMax[0] && vPos[1] < g_vMax[1] && vPos[2] < g_vMax[2] )
+			if( !L4D_IsTouchingTrigger(g_iChangeLevel, i) )
 			{
-				// PrintToChatAll("\x04Inside: %N", i);
-			}
-			else
-			{
-				return;
-				// PrintToChatAll("\x03Outside: %N", i);
+				return false;
 			}
 		}
 	}
 
-	delete g_hTimer;
-	g_hTimer = CreateTimer(DELAY_TELEPORT, TimerEndMission);
+	return true;
 }
 
 // Round hasn't ended, teleport everyone to center

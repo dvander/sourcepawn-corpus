@@ -63,12 +63,8 @@ public Plugin myinfo =
 
 #define DAMAGE_YES                    2
 
-#define MAXENTITIES                   2048
-
-// ====================================================================================================
-// entity - Plugin Variables
-// ====================================================================================================
-bool ge_bOnStartTouchPostHooked[MAXENTITIES+1];
+#define MAX_EDICT_BITS                11
+#define MAX_EDICTS                    (1<<MAX_EDICT_BITS)
 
 // ====================================================================================================
 // enum structs - Plugin Variables
@@ -100,7 +96,9 @@ enum struct PluginData
 {
     PluginCvars cvars;
 
-    bool enabled;
+    bool hooked[MAX_EDICTS+1];
+
+    bool enable;
 
     void Init()
     {
@@ -110,12 +108,23 @@ enum struct PluginData
 
     void GetCvarValues()
     {
-        this.enabled = this.cvars.l4d2_gl_world_hit_fix_enable.BoolValue;
+        this.enable = this.cvars.l4d2_gl_world_hit_fix_enable.BoolValue;
     }
 
     void RegisterCmds()
     {
         RegAdminCmd("sm_print_cvars_l4d2_gl_world_hit_fix", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+    }
+
+    void LateLoad()
+    {
+        int entity;
+
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "grenade_launcher_projectile")) != INVALID_ENT_REFERENCE)
+        {
+            plugin.enable ? HookEntity(entity) : UnhookEntity(entity);
+        }
     }
 }
 
@@ -154,28 +163,14 @@ void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newV
 public void OnConfigsExecuted()
 {
     plugin.GetCvarValues();
-
-    LateLoad();
-}
-
-/****************************************************************************************************/
-
-void LateLoad()
-{
-    int entity;
-
-    entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, "grenade_launcher_projectile")) != INVALID_ENT_REFERENCE)
-    {
-        plugin.enabled ? HookEntity(entity) : UnhookEntity(entity);
-    }
+    plugin.LateLoad();
 }
 
 /****************************************************************************************************/
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     if (entity < 0)
@@ -192,17 +187,17 @@ public void OnEntityDestroyed(int entity)
     if (entity < 0)
         return;
 
-    ge_bOnStartTouchPostHooked[entity] = false;
+    UnhookEntity(entity);
 }
 
 /****************************************************************************************************/
 
 void HookEntity(int entity)
 {
-    if (ge_bOnStartTouchPostHooked[entity])
+    if (plugin.hooked[entity])
         return;
 
-    ge_bOnStartTouchPostHooked[entity] = true;
+    plugin.hooked[entity] = true;
     SDKHook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
 }
 
@@ -210,10 +205,10 @@ void HookEntity(int entity)
 
 void UnhookEntity(int entity)
 {
-    if (!ge_bOnStartTouchPostHooked[entity])
+    if (!plugin.hooked[entity])
         return;
 
-    ge_bOnStartTouchPostHooked[entity] = false;
+    plugin.hooked[entity] = false;
     SDKUnhook(entity, SDKHook_StartTouchPost, OnStartTouchPost);
 }
 
@@ -221,7 +216,7 @@ void UnhookEntity(int entity)
 
 void OnStartTouchPost(int entity, int other)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     if (other != ENTITY_WORLDSPAWN)
@@ -242,7 +237,7 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "---------------- Plugin Cvars (l4d2_gl_world_hit_fix) ----------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_gl_world_hit_fix_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d2_gl_world_hit_fix_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
+    PrintToConsole(client, "l4d2_gl_world_hit_fix_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

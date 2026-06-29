@@ -514,23 +514,12 @@ stock SaveData(client)
 {
 	if(iSaveFeature[client] == 1 && GetClientTeam(client) != 3)
 	{
-		decl String:TQuery[3000], String:SteamID[64], String:UpgradeBinary[64] = "", String:DisabledBinary[64] = "", String:BoosterBinary[64] = "";
+		char TQuery[512],SteamID[64],UpgradeBinary[64],DisabledBinary[64],BoosterBinary[64];
 		for(new i = 0; i < MAX_UPGRADES; i++)
 		{
-			if(iUpgrade[client][i] > 0)
-				Format(UpgradeBinary, sizeof(UpgradeBinary), "%s1", UpgradeBinary);
-			else
-				Format(UpgradeBinary, sizeof(UpgradeBinary), "%s0", UpgradeBinary);
-
-			if(iUpgradeDisabled[client][i] > 0)
-				Format(DisabledBinary, sizeof(DisabledBinary), "%s1", DisabledBinary);
-			else
-				Format(DisabledBinary, sizeof(DisabledBinary), "%s0", DisabledBinary);
-
-			if(iBooster[client][i] > 0)
-				Format(BoosterBinary, sizeof(BoosterBinary), "%s1", BoosterBinary);
-			else
-				Format(BoosterBinary, sizeof(BoosterBinary), "%s0", BoosterBinary);
+			UpgradeBinary[i]=iUpgrade[client][i]?'1':'0';
+			DisabledBinary[i]=iUpgradeDisabled[client][i]?'1':'0';
+			BoosterBinary[i]=iBooster[client][i]?'1':'0';
 		}
 		GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 		new m_survivorCharacter = GetEntProp(client, Prop_Send, "m_survivorCharacter");
@@ -573,7 +562,7 @@ public LoadPlayerData(Handle:owner, Handle:hndl, const String:error[], any:clien
 	}	
 	iBitsUpgrades[client] = 0;
 
-	decl String:UpgradeBinary[64], String:DisabledBinary[64], String:BoosterBinary[64];
+	char UpgradeBinary[64],DisabledBinary[64],BoosterBinary[64];
 
 	iSaveFeature[client] = SQL_FetchInt(hndl, 1);
 	if(iSaveFeature[client] == 0)
@@ -585,35 +574,14 @@ public LoadPlayerData(Handle:owner, Handle:hndl, const String:error[], any:clien
 	SQL_FetchString(hndl, 5, DisabledBinary, sizeof(DisabledBinary));
 	iBoosterSlots[client] = SQL_FetchInt(hndl, 6);
 	SQL_FetchString(hndl, 7, BoosterBinary, sizeof(BoosterBinary));
-
-	new len = strlen(UpgradeBinary);
-	for (new i = 0; i <= len; i++)
-	{
-		if(UpgradeBinary[i] == '1')
-		{
-			iUpgrade[client][i] = UpgradeIndex[i];
-		}
-	}
-
-	len = strlen(DisabledBinary);
-	for (new i = 0; i <= len; i++)
-	{
-		if(DisabledBinary[i] == '1')
-		{
-			iUpgradeDisabled[client][i] = 1;
-		}
-	}
 	
-	len = strlen(BoosterBinary);
-	for (new i = 0; i <= len; i++)
-	{
-		if(BoosterBinary[i] == '1')
-		{
-			iBooster[client][i] = 1;
-		}
-	}
-	if(IsValidEntity(client))
-		LogMessage("Loading Client %N - %d, %d, %s", client, iSaveFeature[client], iAnnounceText[client], UpgradeBinary);
+	for (new i = 0;i<MAX_UPGRADES; i++)
+    {
+        iUpgrade[client][i] = UpgradeBinary[i] == '1'? UpgradeIndex[i] : 0;
+        iUpgradeDisabled[client][i] = DisabledBinary[i] == '1'? 1 : 0;
+		iBooster[client][i] = BoosterBinary[i] == '1'? 1 : 0;
+    }
+	LogMessage("Loading Client %N - %d, %d, %s", client, iSaveFeature[client], iAnnounceText[client], UpgradeBinary);
 }
 
 public Action:CommandGiveUpgrade(client, args)

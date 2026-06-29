@@ -101,8 +101,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-    LoadTranslations("common.phrases");
-
     g_hCvar_mp_disablespecial = FindConVar("mp_disablespecial");
 
     CreateConVar("pvk2_infinite_special_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
@@ -118,14 +116,6 @@ public void OnPluginStart()
     // Admin Commands
     RegAdminCmd("sm_fullspecial", CmdFullSpecial, ADMFLAG_ROOT, "Fill the special bar for self (no args) or specified targets. Example: self -> sm_fullspecial / target -> sm_fullspecial @bots");
     RegAdminCmd("sm_print_cvars_pvk2_infinite_special", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
-}
-
-/****************************************************************************************************/
-
-public void OnMapStart()
-{
-    // Fix for when OnConfigsExecuted is not executed by SM in some games
-    RequestFrame(OnConfigsExecuted);
 }
 
 /****************************************************************************************************/
@@ -214,16 +204,10 @@ void FillSpecial(int client)
 // ====================================================================================================
 Action CmdFullSpecial(int client, int args)
 {
-    int target_count;
-    int target_list[MAXPLAYERS];
-
     if (args == 0) // self
     {
         if (IsValidClient(client))
-        {
-            target_count = 1;
-            target_list[0] = client;
-        }
+            FillSpecial(client);
     }
     else // specified target
     {
@@ -231,6 +215,8 @@ Action CmdFullSpecial(int client, int args)
         GetCmdArg(1, arg1, sizeof(arg1));
 
         char target_name[MAX_TARGET_LENGTH];
+        int target_list[MAXPLAYERS];
+        int target_count;
         bool tn_is_ml;
 
         if ((target_count = ProcessTargetString(
@@ -243,13 +229,13 @@ Action CmdFullSpecial(int client, int args)
             sizeof(target_name),
             tn_is_ml)) <= 0)
         {
-            ReplyToTargetError(client, target_count);
+            return Plugin_Handled;
         }
-    }
 
-    for (int i = 0; i < target_count; i++)
-    {
-        FillSpecial(target_list[i]);
+        for (int i = 0; i < target_count; i++)
+        {
+            FillSpecial(target_list[i]);
+        }
     }
 
     return Plugin_Handled;

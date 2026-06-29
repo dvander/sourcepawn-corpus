@@ -1,6 +1,6 @@
 /*
 *	Weapon Spawn
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.14"
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,15 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
+
+1.16 (21-Mar-2025)
+	- Fixed the M60 spawning a Scout weapon when the "_count" cvar was not set to 1. Thanks to "Mizuki" for reporting.
+
+1.15 (25-Mar-2024)
+	- Changes to fix conflicts with the "ConVars Anomaly Fixer" plugin. Thanks to "komikoza" for reporting and testing.
 
 1.14 (25-May-2023)
 	- Fixed the M60, Grenade Launcher and Chainsaw not following the count cvar limit. Thanks to "gamer_kanelita" for reporting.
@@ -668,7 +677,7 @@ void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 
 		int type;
 
-		if( strncmp(classname, "weapon_rifle_m60", 16) == 0 )				type = 16;
+		if( strncmp(classname, "weapon_rifle_m60", 16) == 0 )				type = 17;
 		else if( strncmp(classname, "weapon_grenade_launcher", 23) == 0 )	type = 18;
 		else if( strncmp(classname, "weapon_chainsaw", 15) == 0 )			type = 19;
 
@@ -736,7 +745,7 @@ Action TimerStart(Handle timer)
 // ====================================================================================================
 void LoadSpawns()
 {
-	if( g_bLoaded || g_iCvarRandom == 0 ) return;
+	if( !g_bMapStarted || g_bLoaded || g_iCvarRandom == 0 ) return;
 	g_bLoaded = true;
 
 	char sPath[PLATFORM_MAX_PATH];
@@ -785,7 +794,7 @@ void LoadSpawns()
 		for( int i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -951,7 +960,10 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 	// Save M60, Grenade Launcher and Chainsaw spawn counts
 	if( g_bLeft4Dead2 && iCount != 1 && (model == 17 || model == 18 || model == 19) )
 	{
-		g_iSpawns[iSpawnIndex][2] = respawn_count != -1 ? respawn_count : iCount;
+		if( iCount == 0 )
+			g_iSpawns[iSpawnIndex][2] = 999;
+		else
+			g_iSpawns[iSpawnIndex][2] = respawn_count != -1 ? respawn_count : iCount;
 	}
 
 	g_iSpawns[iSpawnIndex][0] = EntIndexToEntRef(entity_weapon);
@@ -1786,6 +1798,19 @@ void RemoveSpawn(int index)
 		{
 			RemoveEntity(entity);
 		}
+	}
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
 	}
 }
 

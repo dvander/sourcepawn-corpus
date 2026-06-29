@@ -9,16 +9,14 @@ Description:
 This plugin is free software: you can redistribute 
 it and/or modify it under the terms of the GNU General Public License as
 published by the Free Software Foundation, either version 3 of the License, or
-later version. 
-
+later version.
 This plugin is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
+but WITHOUT ANY WARRANTY;
+without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-
 You should have received a copy of the GNU General Public License
 along with this plugin.  If not, see <http://www.gnu.org/licenses/>.
-
 *****************************
 Author: Goerge
 
@@ -26,6 +24,7 @@ Thanks r5053, it was your script that helped me understand a lot of this sql stu
 */
 
 #pragma semicolon 1
+#pragma newdecls required
 
 #include <sourcemod>
 #include <sdktools>
@@ -37,7 +36,7 @@ Thanks r5053, it was your script that helped me understand a lot of this sql stu
 #include <clientprefs>
 #define REQUIRE_EXTENSIONS
 
-#define PLUGIN_VERSION "3.3.2"
+#define PLUGIN_VERSION "4.0.0"
 
 #define SOUND			"vo/announcer_am_killstreak0"
 #define NUMSOUNDS		9
@@ -51,81 +50,82 @@ enum a_state
 	normalRound,
 	bonusRound,
 };
-new Handle:g_hResetTimer[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
 
-static const iSoundIndexes[] = {6,9,3,8,2,7,4,1,5};
-new Handle:g_hDb = INVALID_HANDLE;			/** Database connection */
-new bool:useDatabase = false,
-	bool:g_arena,
-	bool:g_sqlite = false,
-	a_state:g_state,
-	bool:g_bUseClientPrefs = false,
-	bool:g_bEnabled,
-	bool:g_bCountBots,
-	bool:firstFrag = false;
+Handle g_hResetTimer[MAXPLAYERS+1] = {null, ...};
 
-enum e_PlayerData
+static const int iSoundIndexes[] = {6,9,3,8,2,7,4,1,5};
+Database g_hDb = null;
+
+/** Database connection */
+bool useDatabase = false;
+bool g_arena;
+bool g_sqlite = false;
+a_state g_state;
+bool g_bUseClientPrefs = false;
+bool g_bEnabled;
+bool g_bCountBots;
+bool firstFrag = false;
+
+enum struct PlayerData
 {
-	iKillStreak,
-	iOrgasmTrigger,
-	iHighStreak,
-	iSavedStreak,
-	iNumTriggers,
-	iNextMessage,
-	iFireWorkTrigger,
-	iTarget,
-	iEnabled,
-};
+	int iKillStreak;
+	int iOrgasmTrigger;
+	int iHighStreak;
+	int iSavedStreak;
+	int iNumTriggers;
+	int iNextMessage;
+	int iFireWorkTrigger;
+	int iTarget;
+	int iEnabled;
+}
 
-new g_aPlayers[MAXPLAYERS + 1][e_PlayerData];
+PlayerData g_aPlayers[MAXPLAYERS + 1];
 
-new g_iMinPlayers,
-	Handle:cvar_LowInterval		= INVALID_HANDLE,
-	Handle:cvar_HighInterval 	= INVALID_HANDLE,
-	Handle:cvar_Message 		= INVALID_HANDLE,
-	Handle:cvar_ShowKills 		= INVALID_HANDLE,
-	Handle:cvar_FirstInterval 	= INVALID_HANDLE,
-	Handle:cvar_RandomMode		= INVALID_HANDLE,
-	Handle:cvar_FireWorks	 	= INVALID_HANDLE,
-	Handle:cvar_Reset			= INVALID_HANDLE,
-	Handle:cvar_SQL				= INVALID_HANDLE,
-	Handle:cvar_RemoveDays		= INVALID_HANDLE,
-	Handle:g_cookie_enabled 	= INVALID_HANDLE,
-	Handle:cvar_logMinPlayers	= INVALID_HANDLE,
-	Handle:g_enabled			= INVALID_HANDLE,
-	Handle:cvar_CountBots		=INVALID_HANDLE,
-	Handle:cvar_disableSounds	=INVALID_HANDLE;
+int g_iMinPlayers;
+ConVar cvar_LowInterval		= null;
+ConVar cvar_HighInterval 	= null;
+ConVar cvar_Message 		= null;
+ConVar cvar_ShowKills 		= null;
+ConVar cvar_FirstInterval 	= null;
+ConVar cvar_RandomMode		= null;
+ConVar cvar_FireWorks	 	= null;
+ConVar cvar_Reset			= null;
+ConVar cvar_SQL				= null;
+ConVar cvar_RemoveDays		= null;
+Cookie g_cookie_enabled 	= null;
+ConVar cvar_logMinPlayers	= null;
+ConVar g_enabled			= null;
+ConVar cvar_CountBots		= null;
+ConVar cvar_disableSounds	= null;
 
-public Plugin:myinfo = 
+public Plugin myinfo = 
 {
 	name = "Kill Streak Orgasms",
 	author = "Goerge",
 	description = "Kill Streak Orgasms",
 	version = PLUGIN_VERSION,
-	url = "http://www.fpsbanana.com"
+	url = "https://github.com/BrutalGoerge/tf2tmng"
 };
 
-public OnPluginStart()
+/**
+ * Called when the plugin is first loaded.
+ * Registers ConVars, commands, event hooks, and initializes the database and clientprefs.
+ */
+public void OnPluginStart()
 {
 	cvar_logMinPlayers = CreateConVar("sm_orgasm_log_minplayers", "10", "How many players connected before streaks are logged to database", FCVAR_PLUGIN, true, 0.0, false);
 	g_enabled = CreateConVar("orgasm_enabled", "1", "enable the plugin", FCVAR_PLUGIN|FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	cvar_FirstInterval 	= CreateConVar("sm_orgasm_first_interval", "3", 
 										"First interval in which the plugin triggers", FCVAR_PLUGIN, true, 1.0, true, 10.0);
-	
 	cvar_LowInterval 	= CreateConVar("sm_orgasm_low_interval", "2", 
 										"Low random value in whichthe plugin will trigger a sound.\nEX: low = 3, high = 5, then the plugin will trigger a sound every 3 kills, 4 kills, or 5 kills", 
 										FCVAR_PLUGIN, true, 1.0, true, 10.0);
-	
 	cvar_HighInterval 	= CreateConVar("sm_orgasm_high_interval", "4", "High random interval in which the plugin will trigger random kill-streak sounds.", FCVAR_PLUGIN, true, 1.0, true, 10.0);
-	
 	cvar_Message 		= CreateConVar("sm_orgasm_message", "9", "If someone dies with this many, or more kills, print a special message to everyone", FCVAR_PLUGIN, true, 1.0, false);
-	
 	CreateConVar("sm_orgasm_version", PLUGIN_VERSION, "Orgasm version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	
 	cvar_ShowKills 		= CreateConVar("sm_orgasm_showallkills", "1", "Show all kill-streaks greater than 1 as hint messages to clients", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	
 	cvar_RandomMode 	= CreateConVar("sm_orgasm_random_mode", "1", "Play sounds randomly. 1 enables. 0 plays the sounds in order", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	
 	cvar_FireWorks 		= CreateConVar("sm_orgasm_fireworks_trigger", "6", 
 										"After a client get this many sound triggers, attach the achievement fireworks to him for 5 seconds. 0 disables", FCVAR_PLUGIN, true, 0.0, false);
 	cvar_Reset			= CreateConVar("sm_orgasm_reset_at_round_end", "1", "Enable/disable high-streak resetting between rounds", FCVAR_PLUGIN, true, 0.0, true, 1.0);
@@ -142,49 +142,50 @@ public OnPluginStart()
 	
 	RegConsoleCmd("say", cmd_say);
 	RegConsoleCmd("say_team", cmd_say);
-	
 	RegAdminCmd("sm_orgasm_reset", cmd_Reset, ADMFLAG_ROOT, "Resets the kill-streak database");
+	
 	LoadTranslations("common.phrases");
 	LoadTranslations("orgasm.phrases");
 	AutoExecConfig(true, "orgasm");
 	ConnectToDatabase();
-	HookConVarChange(g_enabled, ConVarChange);
-	HookConVarChange(cvar_logMinPlayers, ConVarChange);
-	HookConVarChange(cvar_CountBots, ConVarChange);
 	
-	/**
-	check to see if client prefs is loaded and configured properly
-	*/
-	new String:sExtError[124];
-	new iExtStatus = GetExtensionFileStatus("clientprefs.ext", sExtError, sizeof(sExtError));
+	g_enabled.AddChangeHook(ConVarChange);
+	cvar_logMinPlayers.AddChangeHook(ConVarChange);
+	cvar_CountBots.AddChangeHook(ConVarChange);
+	
+	// Check to see if the optional clientprefs extension is loaded and configured properly
+	char sExtError[124];
+	int iExtStatus = GetExtensionFileStatus("clientprefs.ext", sExtError, sizeof(sExtError));
+	
 	if (iExtStatus == -1)
-		LogAction(-1, 0, "Optional extension clientprefs failed to load.");	
+		LogAction(-1, 0, "Optional extension clientprefs failed to load.");
 	if (iExtStatus == 0)
 	{
 		LogAction(-1, 0, "Optional extension clientprefs is loaded with errors.");
-		LogAction(-1, 0, "Status reported was [%s].", sExtError);	
+		LogAction(-1, 0, "Status reported was [%s].", sExtError);
 	}
 	else if (iExtStatus == -2)
 		LogAction(-1, 0, "Optional extension clientprefs is missing.");
 	else if (iExtStatus == 1)
 	{
 		if (SQL_CheckConfig("clientprefs"))		
-			g_bUseClientPrefs = true;		
+			g_bUseClientPrefs = true;
 		else
 			LogAction(-1, 0, "Optional extension clientprefs found, but no database entry is present");
 	}
 	
-	/**
-	now that we have checked for the clientprefs ext, see if we can use its natives
-	*/
+	// If clientprefs is available, register a cookie to allow players to toggle effects
 	if (g_bUseClientPrefs)
 	{
-		g_cookie_enabled = RegClientCookie("enable", "enable sounds and messages for the client", CookieAccess_Public);
+		g_cookie_enabled = new Cookie("enable", "enable sounds and messages for the client", CookieAccess_Public);
 		SetCookieMenuItem(CookieMenu_TopMenu, g_cookie_enabled, "Kill-Streaks");
 	}
 }
 
-public ConVarChange(Handle:convar, const String:oldValue[], const String:newValue[])
+/**
+ * Handles live updates to ConVars so server restarts aren't needed to apply settings.
+ */
+public void ConVarChange(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == g_enabled)
 	{
@@ -201,21 +202,27 @@ public ConVarChange(Handle:convar, const String:oldValue[], const String:newValu
 		g_iMinPlayers = StringToInt(newValue);
 	if (convar == cvar_CountBots)
 		StringToInt(newValue) == 1 ? (g_bCountBots = true) : (g_bCountBots = false);
-		
 }
 
-public Action:cmd_Reset(client, args)
+/**
+ * Admin command to clear out the database.
+ * Requires the user to type it twice within 30 seconds to confirm.
+ */
+public Action cmd_Reset(int client, int args)
 {
-	if (g_hResetTimer[client] != INVALID_HANDLE)
+	// If the timer is active, they are confirming the reset.
+	if (g_hResetTimer[client] != null)
 	{
-		CloseTimer(client);
+		CloseResetTimer(client);
 		ResetDatabase();
 		ReplyToCommand(client, "[SM] %t", "DatabaseReset");
 		LogAction(client, -1, "%N reset the database", client);
 		return Plugin_Handled;
 	}
+	
+	// Otherwise, prompt them to confirm and start the timer.
 	ReplyToCommand(client, "[SM] %t", "AreYouSure");
-	new id;
+	int id;
 	if (client)
 	{
 		id = GetClientUserId(client);
@@ -224,38 +231,52 @@ public Action:cmd_Reset(client, args)
 	return Plugin_Handled;
 }
 
-public Action:timer_Confirm(Handle:timer, any:id)
+/**
+ * Clears the reset confirmation timer if the admin doesn't confirm in time.
+ */
+public Action timer_Confirm(Handle timer, any id)
 {
-	new client;
+	int client;
 	if (id)
 	{
 		client = GetClientOfUserId(id);
 	}
-	g_hResetTimer[client] = INVALID_HANDLE;
+	g_hResetTimer[client] = null;
+	return Plugin_Handled;
 }
 
-CloseTimer(client)
+/**
+ * Helper to manually kill the reset confirmation timer.
+ */
+void CloseResetTimer(int client)
 {
-	if (g_hResetTimer[client] != INVALID_HANDLE)
+	if (g_hResetTimer[client] != null)
 	{
 		KillTimer(g_hResetTimer[client]);
-		g_hResetTimer[client] = INVALID_HANDLE;
+		g_hResetTimer[client] = null;
 	}
 }
 
-public Action:cmd_say(client, args)
+/**
+ * Intercepts chat commands (like saying "TopStreak" or "StreakTop") to open the Top 10 menu.
+ */
+public Action cmd_say(int client, int args)
 {
 	if (!client || !useDatabase)
 		return Plugin_Continue;
-	new String:text[32], startidx;
+		
+	char text[32];
+	int startidx = 0;
 	GetCmdArgString(text, sizeof(text));
-
+	
+	// Strip trailing quotes if present
 	if (text[strlen(text)-1] == '"')
 	{		
 		text[strlen(text)-1] = '\0';
 		startidx = 1;	
 	}
 	
+	// Check if the user is requesting the top streak panel
 	if (!strcmp(text[startidx], "TopStreak", false) || !strcmp(text[startidx], "StreakTop", false))
 	{
 		top10pnl(client);
@@ -263,22 +284,26 @@ public Action:cmd_say(client, args)
 	return Plugin_Continue;
 }
 
-ConnectToDatabase()
+/**
+ * Establishes a connection to the SQL or SQLite database defined in databases.cfg.
+ */
+void ConnectToDatabase()
 {
-	new String:error[255];
+	char error[255];
 	
 	if (SQL_CheckConfig("orgasm"))
 	{
-		g_hDb = SQL_Connect("orgasm",true,error, sizeof(error));
-		if (g_hDb == INVALID_HANDLE)		
+		g_hDb = SQL_Connect("orgasm", true, error, sizeof(error));
+		if (g_hDb == null)		
 			PrintToServer("Failed to connect: %s", error);
 		else
 			useDatabase = true;
 	}
 	else
 	{
+		// Fallback to SQLite if no external database is configured
 		g_hDb = SQLite_UseDatabase("orgasm", error, sizeof(error));    
-		if (g_hDb == INVALID_HANDLE)
+		if (g_hDb == null)
 			PrintToServer("SQL error: %s", error);
 		else		
 			useDatabase = true;		
@@ -286,25 +311,28 @@ ConnectToDatabase()
 	
 	if (useDatabase) 
 	{
-		new String:driver[32];
-		new Handle:hDriver = SQL_ReadDriver(g_hDb, driver, 32);
-		CloseHandle(hDriver);		
+		char driver[32];
+		g_hDb.Driver.GetIdentifier(driver, sizeof(driver));		
 		LogMessage("DatabaseInit (CONNECTED) with db driver: %s", driver);
+		
 		if (strcmp(driver, "sqlite", false) == 0)
 			g_sqlite = true;
 		else
 		{
-			/* Set codepage to utf8 */
-			decl String:query[255];
+			// Set codepage to utf8 for MySQL to properly store special characters in names
+			char query[255];
 			Format(query, sizeof(query), "SET NAMES 'utf8'");
-			if (!SQL_FastQuery(g_hDb, query))			
+			if (!SQL_FastQuery(g_hDb, query))		
 				LogMessage("Can't select character set (%s)", query);
 		}			
 		CreateTables();
 	}	
 }
 
-CreateTables()
+/**
+ * Routes to the correct table creation logic based on the database type.
+ */
+void CreateTables()
 {	
 	if (g_sqlite)
 		createdbplayerLite();
@@ -312,10 +340,13 @@ CreateTables()
 		createdbplayer();
 }
 
-createdbplayer()
+/**
+ * Creates the MySQL table structure if it doesn't already exist.
+ */
+void createdbplayer()
 {
-	new len = 0;
-	decl String:query[512];
+	int len = 0;
+	char query[512];
 	len += Format(query[len], sizeof(query)-len, "CREATE TABLE IF NOT EXISTS `OrgasmPlayer` (");
 	len += Format(query[len], sizeof(query)-len, "`STEAMID` varchar(25) NOT NULL,");
 	len += Format(query[len], sizeof(query)-len, "`NAME` varchar(30) NOT NULL,");
@@ -326,17 +357,24 @@ createdbplayer()
 	SQL_FastQuery(g_hDb, query);
 }
 
-createdbplayerLite()
+/**
+ * Creates the SQLite table structure if it doesn't already exist.
+ */
+void createdbplayerLite()
 {
-	new len = 0;
-	decl String:query[512];
+	int len = 0;
+	char query[512];
 	len += Format(query[len], sizeof(query)-len, "CREATE TABLE IF NOT EXISTS `OrgasmPlayer`");
 	len += Format(query[len], sizeof(query)-len, " (`STEAMID` TEXT, `NAME` TEXT,");
 	len += Format(query[len], sizeof(query)-len, "  `STREAK` INTEGER,`LASTCONNECT` INTEGER);");
+	
 	SQL_FastQuery(g_hDb, query);
 }
 
-public OnClientPostAdminCheck(client)
+/**
+ * Called when a player fully joins the server. Fetches or generates their profile in the database.
+ */
+public void OnClientPostAdminCheck(int client)
 {
 	if (IsFakeClient(client) || !useDatabase || !g_bEnabled)
 		return;
@@ -344,174 +382,234 @@ public OnClientPostAdminCheck(client)
 	InitiateClient(client);
 }
 
-public hook_Event_TFRestartRound(Handle:event, const String:name[], bool:dontBroadcast)
+/**
+ * Adjusts game state when a round is restarted.
+ */
+public void hook_Event_TFRestartRound(Event event, const char[] name, bool dontBroadcast)
 {
-	g_state = normalRound;  // game got restarted, re-enable pre-game
+	g_state = normalRound;
 }
 
-public hook_Event_GameStart(Handle:event, const String:name[], bool:dontBroadcast)
+/**
+ * Adjusts game state when the game fully starts.
+ */
+public void hook_Event_GameStart(Event event, const char[] name, bool dontBroadcast)
 {
-	g_state = normalRound;  // game got restarted, re-enable pre-game
+	g_state = normalRound;
 }
 
-public OnConfigsExecuted()
+/**
+ * Called when server configs are processed. Caches CVars and precaches audio files.
+ */
+public void OnConfigsExecuted()
 {
-	g_bEnabled = GetConVarBool(g_enabled);
-	g_iMinPlayers = GetConVarInt(cvar_logMinPlayers);
-	g_bCountBots = GetConVarBool(cvar_CountBots);
-	if (GetConVarBool(cvar_SQL) && !useDatabase)
+	g_bEnabled = g_enabled.BoolValue;
+	g_iMinPlayers = cvar_logMinPlayers.IntValue;
+	g_bCountBots = cvar_CountBots.BoolValue;
+	
+	if (cvar_SQL.BoolValue && !useDatabase)
 		SetFailState("unable to connect to database");
 	
 	g_arena = false;
-	new String:buffer[64];
-	for (new i = 1; i<= NUMSOUNDS; i++)
+	char buffer[64];
+	for (int i = 1; i<= NUMSOUNDS; i++)
 	{
 		Format(buffer, sizeof(buffer), "%s%i.mp3", SOUND, i);
 		PrecacheSound(buffer, true);
 	}
 	
 	PrecacheSound(BIRTHDAY, true);
-	new Handle:arena = FindConVar("tf_gamemode_arena");
-	if (GetConVarBool(arena))
+	
+	// Check if arena mode is active
+	ConVar arena = FindConVar("tf_gamemode_arena");
+	if (arena != null && arena.BoolValue)
 		g_arena = true;
-	CloseHandle(arena);
+	delete arena;
 }
 
-public OnMapStart()
+/**
+ * Called when a new map loads. Resets states and runs database cleanup.
+ */
+public void OnMapStart()
 {
 	g_state = newMap;
 	firstFrag = false;
 	RemoveOldPlayers();
 }
 
-public hook_Death(Handle:event, const String:name[], bool:dontBroadcast)
+/**
+ * Core logic hook. Called every time a player dies. 
+ * Evaluates who killed who, triggers sounds, handles first blood, and resets the victim's streak.
+ */
+public void hook_Death(Event event, const char[] name, bool dontBroadcast)
 {	
 	if (!g_bEnabled || g_state != normalRound)
 		return;
-	//get killer id
-	new killer = GetClientOfUserId(GetEventInt(event, "attacker")),
-		victim	= GetClientOfUserId(GetEventInt(event, "userid"));
 		
-	if (g_aPlayers[killer][iEnabled] && GetEventInt(event, "death_flags") & 32) // dead ringer kill print message but really do nothing
+	// Block streaks from triggering or logging during the "Waiting for Players" phase
+	if (GameRules_GetProp("m_bInWaitingForPlayers"))
+		return;
+		
+	int killer = GetClientOfUserId(event.GetInt("attacker"));
+	int victim = GetClientOfUserId(event.GetInt("userid"));
+	
+	// Ignore Dead Ringer fake deaths, but still print current streak hint to the killer
+	if (g_aPlayers[killer].iEnabled && event.GetInt("death_flags") & 32) 
 	{
-		if (killer && g_aPlayers[killer][iKillStreak] > 1  && GetConVarBool(cvar_ShowKills))
-			PrintHintText(killer, "%t", "GenericStreak", g_aPlayers[killer][iKillStreak]+1);
+		if (killer && g_aPlayers[killer].iKillStreak > 1  && cvar_ShowKills.BoolValue)
+			PrintHintText(killer, "%t", "GenericStreak", g_aPlayers[killer].iKillStreak+1);
 		return;
 	}
-	if (GetEventInt(event, "weaponid") == TF_WEAPON_BAT_FISH && GetEventInt(event, "customkill") != TF_CUSTOM_FISH_KILL)
+	
+	// Ignore custom Holy Mackerel bat hits (only count the actual kill)
+	if (event.GetInt("weaponid") == TF_WEAPON_BAT_FISH && event.GetInt("customkill") != TF_CUSTOM_FISH_KILL)
 	{
 		return;
 	}
+	
+	// If it wasn't a suicide, advance the killer's streak
 	if (killer != victim)
 	{
 		AdvanceStreak(killer);	
 		DoFirstBloodCheck(killer, victim);
 	}
+	
+	// Check if the victim had a high streak and broadcast a message
 	DoDeathMessageCheck(killer, victim);
 	
-	//reset dead guy's numbers
+	// Reset the victim's active streak logic back to zero
 	ResetClient(victim);
 }
 
-StartLooper(client)
+/**
+ * Prepares the back-to-back fireworks particles attached to a player.
+ */
+void StartLooper(int client)
 {
 	CreateTimer(0.1, Timer_Particles, client, TIMER_FLAG_NO_MAPCHANGE);	// first firework
-	CreateTimer(2.0, Timer_Particles, client, TIMER_FLAG_NO_MAPCHANGE);		// second firework
+	CreateTimer(2.0, Timer_Particles, client, TIMER_FLAG_NO_MAPCHANGE); // second firework
 }
 
-public Action:Timer_Particles(Handle:timer, any:client)
+/**
+ * Timer callback to physically attach the firework particle system.
+ */
+public Action Timer_Particles(Handle timer, any client)
 {
 	if (IsPlayerAlive(client))
 		AttachParticle(client, "mini_fireworks");
 	return Plugin_Handled;
 }
 
-public hook_Win(Handle:event, const String:name[], bool:dontBroadcast)
+/**
+ * Called when a round is won. Determines highest streaks for the round and announces them.
+ */
+public void hook_Win(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!g_bEnabled)
 		return;
 	g_state = bonusRound;
-	new varMessage = GetConVarInt(cvar_Message), highestVal = 0, highStreaks = 0, ClientList[MAXPLAYERS+1], String:s_Name[MAX_NAME_LENGTH + 1], String:message[255];	
 	
-	for (new i=1;i <= MaxClients;i++)
+	int varMessage = cvar_Message.IntValue;
+	int highestVal = 0;
+	int highStreaks = 0;
+	int ClientList[MAXPLAYERS+1];
+	char s_Name[MAX_NAME_LENGTH + 1];
+	char message[255];
+	
+	// Iterate through clients, save their data, and announce anyone who passed the 'cvar_Message' threshold
+	for (int i=1;i <= MaxClients;i++)
 	{
 		if (!IsClientInGame(i) || IsFakeClient(i))
 			continue;
-		if (g_aPlayers[i][iKillStreak] >= varMessage)
+		if (g_aPlayers[i].iKillStreak >= varMessage)
 		{
-			if (g_aPlayers[i][iKillStreak] > g_aPlayers[i][iSavedStreak])
+			if (g_aPlayers[i].iKillStreak > g_aPlayers[i].iSavedStreak)
 				SaveStreak(i);
 			GetClientName(i, s_Name, sizeof(s_Name));
 			Format(s_Name, sizeof(s_Name), "\x03%s\x05", s_Name);
-			CPrintToChatAllEx(i, "[SM] %t", "RoundEndMsg", s_Name, g_aPlayers[i][iKillStreak]);
-			if(g_aPlayers[i][iKillStreak] > g_aPlayers[i][iHighStreak])
-				g_aPlayers[i][iHighStreak] = g_aPlayers[i][iKillStreak];
+			CPrintToChatAllEx(i, "[SM] %t", "RoundEndMsg", s_Name, g_aPlayers[i].iKillStreak);
+			
+			if(g_aPlayers[i].iKillStreak > g_aPlayers[i].iHighStreak)
+				g_aPlayers[i].iHighStreak = g_aPlayers[i].iKillStreak;
 		}
 	}	
-	for (new i=1; i<=MaxClients;i++)
+	
+	// Find what the absolute highest streak of the round was
+	for (int i=1; i<=MaxClients;i++)
 	{
-		if(g_aPlayers[i][iHighStreak] > highestVal)
+		if(g_aPlayers[i].iHighStreak > highestVal)
 		{
-			highestVal = g_aPlayers[i][iHighStreak];
+			highestVal = g_aPlayers[i].iHighStreak;
 		}
 	}
 	
-	for (new i=1; i<=MaxClients; i++)
+	// Collect all players who tied for that highest streak
+	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && g_aPlayers[i][iHighStreak] == highestVal)
+		if (IsClientInGame(i) && g_aPlayers[i].iHighStreak == highestVal)
 		{
 			ClientList[highStreaks] = i;
 			highStreaks++;
 		}
 	}
 	
-	if (highestVal >= GetConVarInt(cvar_FirstInterval))
+	// Prepare the final announcement for the top streaker(s)
+	if (highestVal >= cvar_FirstInterval.IntValue)
 	{
 		if (highStreaks == 1)
 		{	
-			decl String:h_name[32];
+			char h_name[32];
 			GetClientName(ClientList[0], h_name, sizeof(h_name));
 			Format(message, sizeof(message), "{default}[SM] %T", "HighestStreak", LANG_SERVER, h_name, highestVal);
-			new Handle:MessagePack;		
+			
+			DataPack MessagePack;		
 			CreateDataTimer(3.0, TimerMessage, MessagePack, TIMER_FLAG_NO_MAPCHANGE);
-			WritePackCell(MessagePack, ClientList[0]);
-			WritePackString(MessagePack, message);
+			MessagePack.WriteCell(ClientList[0]);
+			MessagePack.WriteString(message);
 		}
 		else if (highStreaks > 1)
 		{
-			decl String:list[1024];
+			// Formatting logic if multiple people tied for top streak
+			char list[1024];
 			list = "";
-			decl String:tmpName[64];
-			for (new i = 0; i < highStreaks-1; i++)
+			char tmpName[64];
+			
+			for (int i = 0; i < highStreaks-1; i++)
 			{
-				GetClientName(ClientList[i], tmpName, 64);
+				GetClientName(ClientList[i], tmpName, sizeof(tmpName));
 				if (highStreaks == 2)
-					Format(list, 1024, "%s%s ", list, tmpName);
+					Format(list, sizeof(list), "%s%s ", list, tmpName);
 				else
-					Format(list, 1024, "%s%s, ", list, tmpName);
+					Format(list, sizeof(list), "%s%s, ", list, tmpName);
 			}
-			GetClientName(ClientList[highStreaks-1], tmpName, 64);
-			Format(list, 1024, "%sand %s", list, tmpName);
+			GetClientName(ClientList[highStreaks-1], tmpName, sizeof(tmpName));
+			Format(list, sizeof(list), "%sand %s", list, tmpName);
+			
 			if (highStreaks == 2)
 				Format(message, sizeof(message), "{default}[SM] %T", "Highest2", LANG_SERVER, list, highestVal);
 			else
 				Format(message, sizeof(message), "{default}[SM] %T", "HighestMult", LANG_SERVER, list, highestVal);
-			new Handle:MessagePack;
+				
+			DataPack MessagePack;
 			CreateDataTimer(3.0, TimerMessage, MessagePack, TIMER_FLAG_NO_MAPCHANGE);
-			WritePackCell(MessagePack, 0);
-			WritePackString(MessagePack, message);
+			MessagePack.WriteCell(0);
+			MessagePack.WriteString(message);
 		}
 	}
-	ResetAll(GetConVarBool(cvar_Reset));
+	// Purge high streaks back to 0 if the cvar is configured to reset on round end
+	ResetAll(cvar_Reset.BoolValue);
 }
 
-
-public Action:TimerMessage(Handle:timer, any:pack)
+/**
+ * Fires the delayed chat announcement populated during the end-of-round evaluation.
+ */
+public Action TimerMessage(Handle timer, DataPack pack)
 {
-	ResetPack(pack);
-	new	client = ReadPackCell(pack);
-	new String:message[255];
-	ReadPackString(pack, message, sizeof(message));	
+	pack.Reset();
+	int client = pack.ReadCell();
+	char message[255];
+	pack.ReadString(message, sizeof(message));	
+	
 	if (client && IsClientInGame(client))
 		CPrintToChatAllEx(client, message);
 	else
@@ -519,165 +617,213 @@ public Action:TimerMessage(Handle:timer, any:pack)
 	return Plugin_Handled;
 }
 
-public hook_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+/**
+ * Re-enables First Blood checks when a new round begins.
+ */
+public void hook_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	firstFrag = false;
 	if (g_bEnabled)
 		g_state == newMap ? (g_state = preGame) : (g_state = normalRound);
 }
 
-//will be needed if change to a round_Start hook above :D
-//also should reset between maps
-public OnClientDisconnect(client)
+/**
+ * Commits a player's last connect time and streak data when they leave the server.
+ */
+public void OnClientDisconnect(int client)
 {
 	UpdatePlayerConnectTime(client);
-	ResetClient(true);
+	ResetClient(client, true);
 }
 
-DoDeathMessageCheck(killer, victim)
+/**
+ * Called when a player dies. If their current streak was high enough, prints a broadcast message
+ * noting that their streak was ended (and by who).
+ */
+void DoDeathMessageCheck(int killer, int victim)
 {
-	if (g_aPlayers[victim][iKillStreak] < GetConVarInt(cvar_Message))
+	if (g_aPlayers[victim].iKillStreak < cvar_Message.IntValue)
 		return;
 
-	if (useDatabase && g_aPlayers[victim][iKillStreak] > g_aPlayers[victim][iSavedStreak])
+	// Save the data right away if their final streak beat their previous record
+	if (useDatabase && g_aPlayers[victim].iKillStreak > g_aPlayers[victim].iSavedStreak)
 		SaveStreak(victim);	
 	
-	decl String:v_name[MAX_NAME_LENGTH + 1];
-	GetClientName(victim, v_name, sizeof(v_name));	
+	char v_name[MAX_NAME_LENGTH + 1];
+	GetClientName(victim, v_name, sizeof(v_name));
+	
 	if (killer != victim)
 	{
-		decl String:k_name[MAX_NAME_LENGTH + 1];
-		decl String:translation[32];
+		char k_name[MAX_NAME_LENGTH + 1];
+		char translation[32];
+		
+		// If the world killed them (fall damage, map hazard, etc)
 		if (killer < 1 || killer > MaxClients)
 			Format(k_name, sizeof(k_name), "World");
 		else if (IsClientInGame(killer))
 			GetClientName(killer, k_name, sizeof(k_name));
+			
 		Format(translation, sizeof(translation), "DeathMsg%i", GetRandomInt(1,3));	
-		CPrintToChatAllEx(victim, "[SM] %t", translation, v_name, g_aPlayers[victim][iKillStreak], k_name);	
+		CPrintToChatAllEx(victim, "[SM] %t", translation, v_name, g_aPlayers[victim].iKillStreak, k_name);
 	}
-	else
-		CPrintToChatAllEx(victim, "[SM] %t", "SuicideMsg", v_name, g_aPlayers[victim][iKillStreak]);	
+	else // If they suicided
+		CPrintToChatAllEx(victim, "[SM] %t", "SuicideMsg", v_name, g_aPlayers[victim].iKillStreak);	
 }
 
-DoFirstBloodCheck(killer, victim)
+/**
+ * Checks if a kill is the very first one in the round and broadcasts a First Blood sound/message.
+ */
+void DoFirstBloodCheck(int killer, int victim)
 {
 	if (!killer || g_arena)
 		return;
+		
 	if (!firstFrag)
 	{
 		firstFrag = true;
-		decl String:killerName[MAX_NAME_LENGTH + 1], String:victimName[MAX_NAME_LENGTH + 1];	
+		char killerName[MAX_NAME_LENGTH + 1], victimName[MAX_NAME_LENGTH + 1];	
 		GetClientName(killer, killerName, sizeof(killerName));
 		GetClientName(victim, victimName, sizeof(victimName));
 		CPrintToChatAllEx(killer, "[SM] %t", "FirstBlood", killerName, victimName);
-		if (GetConVarBool(cvar_disableSounds))
+		if (cvar_disableSounds.BoolValue)
 			EmitSoundToAll(FIRST_BLOOD, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL);		
 	}
 }
 
-stock ResetClient(client, bool:all = false)
+/**
+ * Zeros out a player's streak tracking variables.
+ * @param all If true, wipes their High Streak for the map too (useful for map changes or disconnects).
+ */
+void ResetClient(int client, bool all = false)
 {
-	g_aPlayers[client][iKillStreak] = 0;
+	g_aPlayers[client].iKillStreak = 0;
 	if (all)
-		g_aPlayers[client][iHighStreak] = 0;
-	g_aPlayers[client][iNumTriggers] = 0;
-	g_aPlayers[client][iNextMessage] = 0;
-	g_aPlayers[client][iOrgasmTrigger] = GetConVarInt(cvar_FirstInterval);
-	g_aPlayers[client][iFireWorkTrigger] = GetConVarInt(cvar_FireWorks);
+		g_aPlayers[client].iHighStreak = 0;
+	g_aPlayers[client].iNumTriggers = 0;
+	g_aPlayers[client].iNextMessage = 0;
+	g_aPlayers[client].iOrgasmTrigger = cvar_FirstInterval.IntValue;
+	g_aPlayers[client].iFireWorkTrigger = cvar_FireWorks.IntValue;
 }
 
-stock ResetAll(bool:all = false)
+/**
+ * Helper to apply ResetClient to the entire server simultaneously.
+ */
+void ResetAll(bool all = false)
 {
-	for (new i=1; i<= MaxClients; i++)
-		ResetClient(i, all);	
+	for (int i=1; i<= MaxClients; i++)
+		ResetClient(i, all);
 }
 
-SaveStreak(client)
+/**
+ * Pushes the client's current highest streak to the database, ensuring min player thresholds are met.
+ */
+void SaveStreak(int client)
 {
-	new iCount;
+	int iCount;
 	if (g_bCountBots)
 		iCount = GetClientCount(true);
 	else
 		iCount = MyClientCount();
+		
+	// Don't log to DB if the server is practically empty to prevent easy stat padding
 	if (iCount < g_iMinPlayers)
 		return;
-	g_aPlayers[client][iSavedStreak] = g_aPlayers[client][iHighStreak];
-	new String:buffer[250], String:ClientSteamID[32];
+		
+	g_aPlayers[client].iSavedStreak = g_aPlayers[client].iHighStreak;
+	char buffer[250], ClientSteamID[32];
 	GetClientAuthId(client, AuthId_Steam2, ClientSteamID, sizeof(ClientSteamID));
-	Format(buffer, sizeof(buffer), "UPDATE OrgasmPlayer SET STREAK = '%i' WHERE STEAMID = '%s'", g_aPlayers[client][iKillStreak], ClientSteamID);
-	SQL_TQuery(g_hDb,SQLErrorCheckCallback, buffer);
+	Format(buffer, sizeof(buffer), "UPDATE OrgasmPlayer SET STREAK = '%i' WHERE STEAMID = '%s'", g_aPlayers[client].iKillStreak, ClientSteamID);
+	g_hDb.Query(SQLErrorCheckCallback, buffer);
 }
 
-AdvanceStreak(killer)
+/**
+ * Increments the killer's streak count by 1 and delegates to Orgasm() if a milestone threshold is met.
+ */
+void AdvanceStreak(int killer)
 {
 	if (!killer)
 		return;
 		
-	g_aPlayers[killer][iKillStreak]++;
+	g_aPlayers[killer].iKillStreak++;
 	
-	if (g_aPlayers[killer][iKillStreak] > g_aPlayers[killer][iHighStreak])
-		g_aPlayers[killer][iHighStreak] = g_aPlayers[killer][iKillStreak];		
+	if (g_aPlayers[killer].iKillStreak > g_aPlayers[killer].iHighStreak)
+		g_aPlayers[killer].iHighStreak = g_aPlayers[killer].iKillStreak;		
 	
-	if	(g_aPlayers[killer][iKillStreak] >  1)
+	if	(g_aPlayers[killer].iKillStreak >  1)
 	{
-		if (g_aPlayers[killer][iKillStreak] == g_aPlayers[killer][iOrgasmTrigger])
+		// Did they hit the next milestone threshold?
+		if (g_aPlayers[killer].iKillStreak == g_aPlayers[killer].iOrgasmTrigger)
 			Orgasm(killer);
-		else if (g_aPlayers[killer][iEnabled] && GetConVarBool(cvar_ShowKills))	
-			PrintHintText(killer, "%t", "GenericStreak", g_aPlayers[killer][iKillStreak]);
+		// Otherwise, just print a basic hint text updating their count
+		else if (g_aPlayers[killer].iEnabled && cvar_ShowKills.BoolValue)	
+			PrintHintText(killer, "%t", "GenericStreak", g_aPlayers[killer].iKillStreak);
 	}
 }
 
-Orgasm(killer)
+/**
+ * The core milestone reward function. Calculates the player's next target milestone, 
+ * handles fireworks triggers, and pushes the audio/visual hints to the client.
+ */
+void Orgasm(int killer)
 {
-	g_aPlayers[killer][iNumTriggers]++;
-	g_aPlayers[killer][iOrgasmTrigger] += GetRandomInt(GetConVarInt(cvar_LowInterval), GetConVarInt(cvar_HighInterval));
+	g_aPlayers[killer].iNumTriggers++;
+	// Calculate the next random interval jump for their streak
+	g_aPlayers[killer].iOrgasmTrigger += GetRandomInt(cvar_LowInterval.IntValue, cvar_HighInterval.IntValue);
 	
-	if (GetConVarBool(cvar_FireWorks) && g_aPlayers[killer][iNumTriggers] == g_aPlayers[killer][iFireWorkTrigger])
+	// Has the player hit the threshold to spawn a firework effect?
+	if (cvar_FireWorks.BoolValue && g_aPlayers[killer].iNumTriggers == g_aPlayers[killer].iFireWorkTrigger)
 	{
-		g_aPlayers[killer][iFireWorkTrigger] += GetConVarInt(cvar_FireWorks);		
-		decl String:streakerName[MAX_NAME_LENGTH + 1];
+		g_aPlayers[killer].iFireWorkTrigger += cvar_FireWorks.IntValue;		
+		char streakerName[MAX_NAME_LENGTH + 1];
 		GetClientName(killer, streakerName, sizeof(streakerName));
-		CPrintToChatAllEx(killer, "[SM] %t", "StreakMsg", streakerName, g_aPlayers[killer][iKillStreak]);
-		if (TFClassType:TF2_GetPlayerClass(killer) != TFClass_Spy)
+		CPrintToChatAllEx(killer, "[SM] %t", "StreakMsg", streakerName, g_aPlayers[killer].iKillStreak);
+		
+		// Don't spawn fireworks on Spies to prevent giving away their position/disguise
+		if (TF2_GetPlayerClass(killer) != TFClass_Spy)
 		{
 			StartLooper(killer);
-			if (GetConVarBool(cvar_disableSounds))
+			if (cvar_disableSounds.BoolValue)
 				EmitSoundToAll(BIRTHDAY, killer, SNDCHAN_AUTO, SNDLEVEL_NORMAL);
 		}
 	}
 	
-	if (!g_aPlayers[killer][iEnabled])
+	if (!g_aPlayers[killer].iEnabled)
 		return;
 		
-	new switcher;
-	if (!GetConVarBool(cvar_RandomMode))
+	// Decide which announcer line to play
+	int switcher;
+	if (!cvar_RandomMode.BoolValue)
 	{
-		g_aPlayers[killer][iNextMessage]++;
-		if (g_aPlayers[killer][iNextMessage] > 9)	
-			g_aPlayers[killer][iNextMessage] = 1;
-		switcher = g_aPlayers[killer][iNextMessage];
+		g_aPlayers[killer].iNextMessage++;
+		if (g_aPlayers[killer].iNextMessage > 9)	
+			g_aPlayers[killer].iNextMessage = 1;
+		switcher = g_aPlayers[killer].iNextMessage;
 	}
 	else
 		switcher = GetRandomInt(1,9);
 	
-	new String:translation[32];
-	new String:sound[64];	
+	char translation[32];
+	char sound[64];
 	Format(sound, sizeof(sound), "%s%i.mp3", SOUND, iSoundIndexes[switcher-1]);
 	Format(translation, sizeof(translation), "Hint%i", switcher);
-	if (GetConVarBool(cvar_disableSounds))
+	
+	if (cvar_disableSounds.BoolValue)
 		EmitSoundToClient(killer, sound, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL);
-	PrintHintText(killer, "%t", translation, g_aPlayers[killer][iKillStreak]);
+	PrintHintText(killer, "%t", translation, g_aPlayers[killer].iKillStreak);
 }
 
-AttachParticle(ent, String:particleType[])
+/**
+ * Spawns and configures a particle entity attached to a client.
+ */
+void AttachParticle(int ent, const char[] particleType)
 {
-	new particle = CreateEntityByName("info_particle_system");	
-	new String:tName[128];
+	int particle = CreateEntityByName("info_particle_system");	
+	char tName[128];
 	if (IsValidEdict(particle))
 	{
-		new Float:pos[3] ;
+		float pos[3];
 		GetEntPropVector(ent, Prop_Send, "m_vecOrigin", pos);
-		pos[2] += 55;
+		pos[2] += 55.0; // Raise the origin slightly above the player model
 		TeleportEntity(particle, pos, NULL_VECTOR, NULL_VECTOR);
 		
 		Format(tName, sizeof(tName), "target%i", ent);
@@ -695,16 +841,22 @@ AttachParticle(ent, String:particleType[])
 	}
 }
 
-public top10pnl(client)
+/**
+ * Submits the SQL query to fetch the Top 10 users to display in the UI panel.
+ */
+public void top10pnl(int client)
 {	
-	new String:buffer[255];
+	char buffer[255];
 	Format(buffer, sizeof(buffer), "SELECT NAME,STREAK FROM `OrgasmPlayer` ORDER BY STREAK DESC LIMIT 0,10");
-	SQL_TQuery(g_hDb, T_ShowTOP, buffer, GetClientUserId(client));
+	g_hDb.Query(T_ShowTOP, buffer, GetClientUserId(client));
 }
 
-public T_ShowTOP(Handle:owner, Handle:hndl, const String:error[], any:data)
+/**
+ * Parses the DB result for the Top 10 query and builds the visual Menu panel for the client.
+ */
+public void T_ShowTOP(Database owner, DBResultSet hndl, const char[] error, any data)
 {
-	new client;
+	int client;
 	
 	/* Make sure the client didn't disconnect while the thread was running */
 	if ((client = GetClientOfUserId(data)) == 0)
@@ -712,41 +864,42 @@ public T_ShowTOP(Handle:owner, Handle:hndl, const String:error[], any:data)
 		return;
 	}
  
-	if (hndl == INVALID_HANDLE)
+	if (hndl == null)
 	{
 		LogError("Query failed! %s", error);
 	} 
 	else 
 	{
+		Panel menu = new Panel();		
+		int i  = 1;
+		char plname[32];
+		int score;
+		menu.DrawItem("Top-10 Kill-Streaks");
 		
-		new Handle:menu = CreatePanel(INVALID_HANDLE);		
-		new i  = 1;
-		new String:plname[32];
-		new score;
-		DrawPanelItem(menu, "Top-10 Kill-Streaks");
-		while (SQL_FetchRow(hndl))
+		// Loop through the results and build out the panel lines
+		while (hndl.FetchRow())
 		{
-			SQL_FetchString(hndl,0, plname , 32);
-			score = SQL_FetchInt(hndl,1);
-			new String:menuline[50];
+			hndl.FetchString(0, plname, sizeof(plname));
+			score = hndl.FetchInt(1);
+			char menuline[50];
 			Format(menuline, sizeof(menuline), "  %02.2d  %i  %s", i, score, plname);
-			DrawPanelText(menu, menuline);
+			menu.DrawText(menuline);
 			
 			i++;
-		}/*
-		SetMenuPagination(menu, MENU_NO_PAGINATION);
-		SetMenuExitButton(menu, false);
-		DisplayMenu(menu, client, 60);*/
-		SendPanelToClient(menu, client, TopMenuHandler1, 20);	 
+		}
+		menu.Send(client, TopMenuHandler1, 20);
+		delete menu;	 
 		return;
 	}
 	return;	
 }
 
-public T_CheckConnectingUsr(Handle:owner, Handle:hndl, const String:error[], any:data)
+/**
+ * DB Callback fired when a player connects. Validates their name and logs/updates them into the database.
+ */
+public void T_CheckConnectingUsr(Database owner, DBResultSet hndl, const char[] error, any data)
 {
-	new client;
- 
+	int client;
 	/* Make sure the client didn't disconnect while the thread was running */
 	
 	if ((client = GetClientOfUserId(data)) == 0)
@@ -754,12 +907,12 @@ public T_CheckConnectingUsr(Handle:owner, Handle:hndl, const String:error[], any
 		return;
 	}
 	
-	if (hndl == INVALID_HANDLE)
+	if (hndl == null)
 		LogError("Query failed! %s", error);
-	
 	else 
 	{
-		new String:clientname[60];
+		// Clean out malicious characters from their Steam name before DB insertion
+		char clientname[60];
 		GetClientName( client, clientname, sizeof(clientname) );
 		ReplaceString(clientname, sizeof(clientname), "'", "");
 		ReplaceString(clientname, sizeof(clientname), "<?", "");
@@ -767,37 +920,40 @@ public T_CheckConnectingUsr(Handle:owner, Handle:hndl, const String:error[], any
 		ReplaceString(clientname, sizeof(clientname), "\"", "");
 		ReplaceString(clientname, sizeof(clientname), "<?PHP", "");
 		ReplaceString(clientname, sizeof(clientname), "<?php", "");
-		new String:ClientSteamID[60];
-		GetClientAuthId(client, AuthId_Steam2, ClientSteamID, sizeof(ClientSteamID));
-		new String:buffer[255];
 		
-		if (!SQL_GetRowCount(hndl)) 
+		char ClientSteamID[60];
+		GetClientAuthId(client, AuthId_Steam2, ClientSteamID, sizeof(ClientSteamID));
+		char buffer[255];
+		
+		// If RowCount is zero, this user has never connected before. Create them.
+		if (!hndl.RowCount) 
 		{
-		/*insert user*/	
 			if (!g_sqlite)
 			{
 				Format(buffer, sizeof(buffer), "INSERT INTO OrgasmPlayer (`NAME`,`STEAMID`) VALUES ('%s','%s')", clientname, ClientSteamID);
-				SQL_TQuery(g_hDb, SQLErrorCheckCallback, buffer);
+				g_hDb.Query(SQLErrorCheckCallback, buffer);
 			}
 			else
 			{
-				Format(buffer, sizeof(buffer), "INSERT INTO OrgasmPlayer VALUES('%s','%s',0,0);", ClientSteamID,clientname);
-				SQL_TQuery(g_hDb, SQLErrorCheckCallback, buffer);
+				Format(buffer, sizeof(buffer), "INSERT INTO OrgasmPlayer VALUES('%s','%s',0,0);", ClientSteamID, clientname);
+				g_hDb.Query(SQLErrorCheckCallback, buffer);
 			
 			}
 			UpdatePlayerConnectTime(client);
 		}
 		else
 		{
-			/*update name*/
+			// Otherwise update their name (in case it changed) and fetch their points.
 			Format(buffer, sizeof(buffer), "UPDATE OrgasmPlayer SET NAME = '%s' WHERE STEAMID = '%s'", clientname, ClientSteamID);
-			SQL_TQuery(g_hDb,SQLErrorCheckCallback, buffer);
+			g_hDb.Query(SQLErrorCheckCallback, buffer);
 			UpdatePlayerConnectTime(client);
-			new clientpoints;
-			while (SQL_FetchRow(hndl))
+			
+			int clientpoints;
+			while (hndl.FetchRow())
 			{
-				clientpoints = SQL_FetchInt(hndl,0);
-				g_aPlayers[client][iSavedStreak] = clientpoints;
+				clientpoints = hndl.FetchInt(0);
+				g_aPlayers[client].iSavedStreak = clientpoints;
+				// If their stored streak is over 10, brag about it globally on connect
 				if (clientpoints > 10)
 					CPrintToChatAll("[SM] %t", "ConnectMessage", clientname, clientpoints);
 			}
@@ -805,19 +961,24 @@ public T_CheckConnectingUsr(Handle:owner, Handle:hndl, const String:error[], any
 	}	
 }
 
-public InitializeClientondb(client)
+/**
+ * Submits the initial query to find a user in the database when they connect.
+ */
+public void InitializeClientondb(int client)
 {
-	new String:ConUsrSteamID[60];
-	new String:buffer[255];
+	char ConUsrSteamID[60];
+	char buffer[255];
 
 	GetClientAuthId(client, AuthId_Steam2, ConUsrSteamID, sizeof(ConUsrSteamID));
 	Format(buffer, sizeof(buffer), "SELECT STREAK FROM OrgasmPlayer WHERE STEAMID = '%s'", ConUsrSteamID);
-	new conuserid;
-	conuserid = GetClientUserId(client);
-	SQL_TQuery(g_hDb, T_CheckConnectingUsr, buffer, conuserid);
+	int conuserid = GetClientUserId(client);
+	g_hDb.Query(T_CheckConnectingUsr, buffer, conuserid);
 }
 
-public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
+/**
+ * Late load initialization for client cookies so the plugin functions gracefully if loaded mid-map.
+ */
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	MarkNativeAsOptional("RegClientCookie");
 	MarkNativeAsOptional("SetClientCookie");
@@ -829,26 +990,31 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	return APLRes_Success;
 }
 
-public SQLErrorCheckCallback(Handle:owner, Handle:hndl, const String:error[], any:data)
+/**
+ * Standard error callback handler for blind SQL queries.
+ */
+public void SQLErrorCheckCallback(Database owner, DBResultSet hndl, const char[] error, any data)
 {
-	if(!StrEqual("", error))
+	if(error[0] != '\0')
 		LogError("SQL Error: %s", error);
-	
 }
 
-
-public TopMenuHandler1(Handle:menu, MenuAction:action, param1, param2)
+/**
+ * Stub handler to satisfy Panel signature constraints. Panels auto-close when interaction ends.
+ */
+public int TopMenuHandler1(Menu menu, MenuAction action, int param1, int param2)
 {
-	if (action == MenuAction_End)
-	{
-		CloseHandle(menu);
-	}
+	// Panel handles are closed automatically. MenuAction_End can be used if we had standard menus.
+	return 0;
 }
 
-stock MyClientCount()
+/**
+ * Returns a count of active, non-bot players currently on the server.
+ */
+int MyClientCount()
 {
-	new clients;
-	for (new i = 1; i <= MaxClients; i++)
+	int clients;
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i))
 			clients++;
@@ -856,44 +1022,56 @@ stock MyClientCount()
 	return clients;
 }
 
-stock RemoveOldPlayers()
+/**
+ * Executes a DELETE query pruning players from the database whose LASTCONNECT is older than cvar_RemoveDays.
+ */
+void RemoveOldPlayers()
 {
-	new days = GetConVarInt(cvar_RemoveDays);
+	int days = cvar_RemoveDays.IntValue;
 	if (days >= 1)
 	{
-		new timesec = GetTime() - (days * 86400);
-		new String:query[512];
+		int timesec = GetTime() - (days * 86400); // 86400 seconds in a day
+		char query[512];
 		Format(query, sizeof(query), "DELETE FROM OrgasmPlayer WHERE LASTCONNECT < '%i'",timesec);
-		SQL_TQuery(g_hDb,SQLErrorCheckCallback, query);
+		g_hDb.Query(SQLErrorCheckCallback, query);
 	}
 }
 
-stock UpdatePlayerConnectTime(client)
+/**
+ * Stamps the player's profile in the database with the current UNIX timestamp.
+ */
+void UpdatePlayerConnectTime(int client)
 {
-	new String:clsteamId[60];
-	new time = GetTime();
-
+	char clsteamId[60];
+	int time = GetTime();
 	if (IsClientInGame(client))
 	{
 		GetClientAuthId(client, AuthId_Steam2, clsteamId, sizeof(clsteamId));
-		new String:query[512];
-		Format(query, sizeof(query), "UPDATE OrgasmPlayer SET LASTCONNECT = '%i' WHERE STEAMID = '%s'",time ,clsteamId);
-		SQL_TQuery(g_hDb,SQLErrorCheckCallback, query);
+		char query[512];
+		Format(query, sizeof(query), "UPDATE OrgasmPlayer SET LASTCONNECT = '%i' WHERE STEAMID = '%s'", time, clsteamId);
+		g_hDb.Query(SQLErrorCheckCallback, query);
 	}
 }
 
-stock ResetDatabase()
+/**
+ * Empties the entire tracking database table.
+ */
+void ResetDatabase()
 {
-	new String:query[512];
+	char query[512];
 	Format(query, sizeof(query), "TRUNCATE TABLE OrgasmPlayer");
-	SQL_TQuery(g_hDb,SQLErrorCheckCallback, query);	
+	g_hDb.Query(SQLErrorCheckCallback, query);	
 	CreateTimer(1.0, lateInit);
 }
 
-public Action:lateInit(Handle:timer)
+/**
+ * A delayed loop that re-initializes all clients currently on the server.
+ * This is especially useful if the plugin is loaded or reloaded mid-map.
+ */
+public Action lateInit(Handle timer)
 {
 	g_state = normalRound;
-	for (new i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
@@ -901,74 +1079,91 @@ public Action:lateInit(Handle:timer)
 			InitializeClientondb(i);
 		}
 	}
+	return Plugin_Handled;
 }
 
-stock InitiateClient(client)
+/**
+ * Wrapper function for querying a user on connection.
+ */
+void InitiateClient(int client)
 {
-	new String:ConUsrSteamID[60];
-	new String:buffer[255];
+	char ConUsrSteamID[60];
+	char buffer[255];
 	GetClientAuthId(client, AuthId_Steam2, ConUsrSteamID, sizeof(ConUsrSteamID));
 	Format(buffer, sizeof(buffer), "SELECT STREAK FROM OrgasmPlayer WHERE STEAMID = '%s'", ConUsrSteamID);
-	new conuserid;
-	conuserid = GetClientUserId(client);
-	SQL_TQuery(g_hDb, T_CheckConnectingUsr, buffer, conuserid);
+	int conuserid = GetClientUserId(client);
+	g_hDb.Query(T_CheckConnectingUsr, buffer, conuserid);
 }
 
-public OnClientCookiesCached(client)
+/**
+ * Called automatically by clientprefs when a player's cookies have been loaded from the DB.
+ * We use this to set their individual toggle preference for the plugin's effects.
+ */
+public void OnClientCookiesCached(int client)
 {
-	g_aPlayers[client][iEnabled] = 1;
-	decl String:sEnabled[4];
-	GetClientCookie(client, g_cookie_enabled, sEnabled, sizeof(sEnabled));
+	g_aPlayers[client].iEnabled = 1;
+	char sEnabled[4];
+	g_cookie_enabled.Get(client, sEnabled, sizeof(sEnabled));
+	
+	// If the cookie holds "-1", they opted out. Otherwise, opt them in.
 	if (StringToInt(sEnabled) == -1)
-		g_aPlayers[client][iEnabled] = 0;
+		g_aPlayers[client].iEnabled = 0;
 	else 
-		g_aPlayers[client][iEnabled] = 1;
+		g_aPlayers[client].iEnabled = 1;
 }
 
-public CookieMenu_TopMenu(client, CookieMenuAction:action, any:info, String:buffer[], maxlen)
+/**
+ * The callback for building the top-level option in the standard !settings menu.
+ */
+public void CookieMenu_TopMenu(int client, CookieMenuAction action, any info, char[] buffer, int maxlen)
 {
 	if (action == CookieMenuAction_DisplayOption)
 	{
-		//don't think we need to do anything
+		// Native clientprefs handles the display name, nothing needed here
 	}
 	else
 	{
-		new Handle:hMenu = CreateMenu(Menu_CookieSettings);
-		SetMenuTitle(hMenu, "Options (Current Setting)");
-		if (g_aPlayers[client][iEnabled] == 1)
-			AddMenuItem(hMenu, "enable", "Enabled/Disable (Enabled)");		
+		Menu hMenu = new Menu(Menu_CookieSettings);
+		hMenu.SetTitle("Options (Current Setting)");
+		
+		if (g_aPlayers[client].iEnabled == 1)
+			hMenu.AddItem("enable", "Enabled/Disable (Enabled)");		
 		else
-			AddMenuItem(hMenu, "enable", "Enabled/Disable (Disabled)");
-		SetMenuExitBackButton(hMenu, true);
-		DisplayMenu(hMenu, client, MENU_TIME_FOREVER);
+			hMenu.AddItem("enable", "Enabled/Disable (Disabled)");
+			
+		hMenu.ExitBackButton = true;
+		hMenu.Display(client, MENU_TIME_FOREVER);
 	}
 }
 
-public Menu_CookieSettings(Handle:menu, MenuAction:action, param1, param2)
+/**
+ * Sub-menu handler when they select the plugin from !settings.
+ */
+public int Menu_CookieSettings(Menu menu, MenuAction action, int param1, int param2)
 {
-	new client = param1;
+	int client = param1;
 	if (action == MenuAction_Select) 
 	{
-		new String:sSelection[24];
-		GetMenuItem(menu, param2, sSelection, sizeof(sSelection));
+		char sSelection[24];
+		menu.GetItem(param2, sSelection, sizeof(sSelection));
 		if (StrEqual(sSelection, "enable", false))
 		{
-			new Handle:hMenu = CreateMenu(Menu_CookieSettingsEnable);
-			SetMenuTitle(hMenu, "Enable/Disable kill-streaks");
+			Menu hMenu = new Menu(Menu_CookieSettingsEnable);
+			hMenu.SetTitle("Enable/Disable kill-streaks");
 			
-			if (g_aPlayers[client][iEnabled] == 1)
+			if (g_aPlayers[client].iEnabled == 1)
 			{
-				AddMenuItem(hMenu, "enable", "Enable (Set)");
-				AddMenuItem(hMenu, "disable", "Disable");
+				hMenu.AddItem("enable", "Enable (Set)");
+				hMenu.AddItem("disable", "Disable");
 			}
 			else
 			{
-				AddMenuItem(hMenu, "enable", "Enabled");
-				AddMenuItem(hMenu, "disable", "Disable (Set)");
+				hMenu.AddItem("enable", "Enabled");
+				hMenu.AddItem("disable", "Disable (Set)");
 			}
 			
-			SetMenuExitBackButton(hMenu, true);
-			DisplayMenu(hMenu, client, MENU_TIME_FOREVER);
+			hMenu.ExitBackButton = true;
+			hMenu.Display(client, MENU_TIME_FOREVER);
 		}
 	}
 	else if (action == MenuAction_Cancel) 
@@ -980,32 +1175,40 @@ public Menu_CookieSettings(Handle:menu, MenuAction:action, param1, param2)
 	}
 	else if (action == MenuAction_End)
 	{
-		CloseHandle(menu);
+		delete menu;
 	}
+	return 0;
 }
 
-public Menu_CookieSettingsEnable(Handle:menu, MenuAction:action, param1, param2)
+/**
+ * Final menu handler that actually saves their toggle choice to the clientprefs database.
+ */
+public int Menu_CookieSettingsEnable(Menu menu, MenuAction action, int param1, int param2)
 {
-	new client = param1;
+	int client = param1;
 	if (action == MenuAction_Select) 
 	{
-		new String:sSelection[24];
-		GetMenuItem(menu, param2, sSelection, sizeof(sSelection));
+		char sSelection[24];
+		menu.GetItem(param2, sSelection, sizeof(sSelection));
+		
+		// Set the cookie and live variable to enabled
 		if (StrEqual(sSelection, "enable", false))
 		{
-			SetClientCookie(client, g_cookie_enabled, "1");
-			g_aPlayers[client][iEnabled] = 1;
+			g_cookie_enabled.Set(client, "1");
+			g_aPlayers[client].iEnabled = 1;
 			PrintToChat(client, "[SM] Kill-streaks are ENABLED");
 		}
+		// Set the cookie and live variable to disabled
 		else
 		{
-			SetClientCookie(client, g_cookie_enabled, "-1");
-			g_aPlayers[client][iEnabled] = 0;
+			g_cookie_enabled.Set(client, "-1");
+			g_aPlayers[client].iEnabled = 0;
 			PrintToChat(client, "[SM] kill-streaks are DISABLED");
 		}
 	}
 	else if (action == MenuAction_Cancel) 
 	{
+		// Navigate back up the menu tree
 		if (param2 == MenuCancel_ExitBack)
 		{
 			ShowCookieMenu(client);
@@ -1013,7 +1216,8 @@ public Menu_CookieSettingsEnable(Handle:menu, MenuAction:action, param1, param2)
 	}
 	else if (action == MenuAction_End)
 	{
-		CloseHandle(menu);
+		// Clean up the memory allocated for the menu
+		delete menu;
 	}
+	return 0;
 }
-		

@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (04-Jun-2026)
+	- Added cvar "l4d_unvomit_mobs" to prevent mob spawn when someone is vomitted. Requested by "apples1949".
+	- This feature requires "Left4DHooks".
 
 1.8 (14-Jul-2022)
 	- Fixed not removing the effect on players when taking over a bot who has been covered in vomit. Thanks to "hefiwhfcds2" for reporting.
@@ -69,13 +73,14 @@
 
 #include <sourcemod>
 #include <sdktools>
+#tryinclude <left4dhooks>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarChase, g_hCvarDuration, g_hCvarFlags, g_hCvarGlowC, g_hCvarGlowV, g_hCvarParticle;
-bool g_bCvarAllow, g_bMapStarted, g_bCvarChase, g_bLeft4Dead2;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarChase, g_hCvarDuration, g_hCvarFlags, g_hCvarGlowC, g_hCvarGlowV, g_hCvarParticle, g_hCvarMobs;
+bool g_bCvarAllow, g_bMapStarted, g_bCvarChase, g_bCvarMobs, g_bLeft4Dead2, g_bLeft4DHooks;
 int g_iCvarFlags, g_iCvarGlowC, g_iCvarGlowV, g_iChase[MAXPLAYERS+1];
-float g_fCvarDuration, g_fCvarParticle, g_fLastVomit[MAXPLAYERS+1];
+float g_fCvarDuration, g_fCvarParticle, g_fBlockMob, g_fLastVomit[MAXPLAYERS+1];
 Handle g_hSDKVomit, g_hSDKUnVomit;
 
 
@@ -103,6 +108,18 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_SilentFailure;
 	}
 	return APLRes_Success;
+}
+
+public void OnLibraryAdded(const char[] name)
+{
+	if( strcmp(name, "left4dhooks") == 0 )
+		g_bLeft4DHooks = true;
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+	if( strcmp(name, "left4dhooks") == 0 )
+		g_bLeft4DHooks = false;
 }
 
 public void OnPluginStart()
@@ -136,6 +153,7 @@ public void OnPluginStart()
 	g_hCvarChase =			CreateConVar(	"l4d_unvomit_chase",			"1",				"0=Off. 1=Attach a info_goal_infected_chase to players for common infected to chase them.", CVAR_FLAGS );
 	g_hCvarDuration =		CreateConVar(	"l4d_unvomit_duration",			"20",				"Duration of the effect (game default: 20). How long to keep the chase and glow enabled.", CVAR_FLAGS );
 	g_hCvarFlags =			CreateConVar(	"l4d_unvomit_flags",			"",					"Only users with these flags will be unvomited. Empty = allow all players.", CVAR_FLAGS );
+	g_hCvarMobs =			CreateConVar(	"l4d_unvomit_mobs",				"1",				"0=Prevent mob spawn (Requires the \"Left4DHooks\" plugin). 1=Allow mob spawn.", CVAR_FLAGS );
 	g_hCvarParticle =		CreateConVar(	"l4d_unvomit_particle",			"0.0",				"0.0=Instant. Duration of the particle effect (game default: 10.0). How long to keep the on-screen green effect enabled.", CVAR_FLAGS );
 	if( g_bLeft4Dead2 )
 	{
@@ -157,6 +175,7 @@ public void OnPluginStart()
 	g_hCvarChase.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDuration.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarFlags.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarMobs.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarParticle.AddChangeHook(ConVarChanged_Cvars);
 	if( g_bLeft4Dead2 )
 	{
@@ -190,6 +209,12 @@ public void OnMapStart()
 
 public void OnMapEnd()
 {
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		g_fLastVomit[i] = 0.0;
+	}
+
+	g_fBlockMob = 0.0;
 	g_bMapStarted = false;
 }
 
@@ -215,6 +240,7 @@ void GetCvars()
 	g_iCvarFlags = ReadFlagString(sTemp);
 	g_bCvarChase = g_hCvarChase.BoolValue;
 	g_fCvarDuration = g_hCvarDuration.FloatValue;
+	g_bCvarMobs = g_hCvarMobs.BoolValue;
 	g_fCvarParticle = g_hCvarParticle.FloatValue;
 
 	if( g_bLeft4Dead2 )
@@ -249,6 +275,7 @@ void IsAllowed()
 			HookEvent("player_death",			Event_PlayerDeath);
 		HookEvent("player_now_it",				Event_IsIt, EventHookMode_Pre);
 		HookEvent("bot_player_replace",			Event_PlayerReplace);
+		HookEvent("round_end",					Event_RoundEnd);
 		g_bCvarAllow = true;
 	}
 
@@ -258,6 +285,7 @@ void IsAllowed()
 			UnhookEvent("player_death",			Event_PlayerDeath);
 		UnhookEvent("player_now_it",			Event_IsIt, EventHookMode_Pre);
 		UnhookEvent("bot_player_replace",		Event_PlayerReplace);
+		UnhookEvent("round_end",				Event_RoundEnd);
 		g_bCvarAllow = false;
 	}
 }
@@ -413,6 +441,16 @@ Action Timer_Unvomit( Handle timer, int UserId )
 	return Plugin_Continue;
 }
 
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+{
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		g_fLastVomit[i] = 0.0;
+	}
+
+	g_fBlockMob = 0.0;
+}
+
 void Event_PlayerReplace(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("player"));
@@ -453,6 +491,12 @@ Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 
 Action Event_IsIt(Event event, const char[] name, bool dontBroadcast)
 {
+	// Event fires after "L4D_OnSpawnITMob" so we use L4DD "L4D_OnVomitedUpon" to detect first
+	if( !g_bCvarMobs && g_bLeft4DHooks )
+	{
+		return Plugin_Continue;
+	}
+
 	int userid = event.GetInt("userid");
 	int client = GetClientOfUserId(userid);
 	if( client && IsFakeClient(client) == false )
@@ -539,7 +583,7 @@ Action EventIsIt(int client, float time)
 	return Plugin_Continue;
 }
 
-Action Timer_Reset(Handle timer, any userid)
+Action Timer_Reset(Handle timer, int userid)
 {
 	int client = GetClientOfUserId(userid);
 	if( client && IsClientInGame(client) )
@@ -564,6 +608,30 @@ Action Timer_Reset(Handle timer, any userid)
 		Event event = CreateEvent("player_no_longer_it", true);
 		event.SetInt("userid", userid);
 		event.Fire(false);
+	}
+
+	return Plugin_Continue;
+}
+
+public Action L4D_OnVomitedUpon(int victim, int &attacker, bool &boomerExplosion)
+{
+	g_fBlockMob = GetGameTime();
+	return Plugin_Continue;
+}
+
+public void L4D_OnVomitedUpon_Post(int victim, int attacker, bool boomerExplosion)
+{
+	if( !g_bCvarMobs )
+	{
+		EventIsIt(victim, g_fCvarDuration);
+	}
+}
+
+public Action L4D_OnSpawnITMob(int &amount)
+{
+	if( !g_bCvarMobs && GetGameTime() - g_fBlockMob < 0.2 )
+	{
+		return Plugin_Handled;
 	}
 
 	return Plugin_Continue;

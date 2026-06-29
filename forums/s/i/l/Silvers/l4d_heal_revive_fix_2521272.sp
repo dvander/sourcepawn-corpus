@@ -1,6 +1,6 @@
 /*
 *	Heal Revive Exploit Bug Fix
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.5"
+#define PLUGIN_VERSION		"1.6"
 
 /*=======================================================================================
 	Plugin Info:
@@ -32,7 +32,10 @@
 ========================================================================================
 	Change Log:
 
-1.4 (11-Dec-2022)
+1.6 (07-Sep-2024)
+	- Added some extra timers, due to the exploit still working sometimes. Thanks to "Yabi" for reporting.
+
+1.5 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
 
 1.4a (09-Jul-2021)
@@ -114,13 +117,17 @@ public void OnPluginStart()
 	CreateConVar("l4d_heal_revive_fix", PLUGIN_VERSION, "Heal Revive Exploit Bug Fix version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 }
 
-public void Event_Revive(Event event, const char[] name, bool dontBroadcast)
+void Event_Revive(Event event, const char[] name, bool dontBroadcast)
 {
 	int userid = event.GetInt("userid");
+
 	CreateTimer(0.1, TimerBlock, userid);
+	CreateTimer(0.2, TimerBlock, userid);
+	CreateTimer(0.3, TimerBlock, userid);
+	CreateTimer(0.5, TimerBlock, userid);
 }
 
-public Action TimerBlock(Handle timer, any client)
+Action TimerBlock(Handle timer, int client)
 {
 	client = GetClientOfUserId(client);
 	if( client && IsClientInGame(client) )

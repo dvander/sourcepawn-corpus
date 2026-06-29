@@ -1,6 +1,6 @@
 /*
 *	Dev Cmds
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.49"
+#define PLUGIN_VERSION 		"1.55"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,25 @@
 
 ========================================================================================
 	Change Log:
+
+1.55 (04-Jun-2026)
+	- Added commands "sm_addy" and "sm_addye" to get the address of an entity.
+
+1.54 (14-Mar-2026)
+	- Added command "sm_setdmg" to apply specific damage to an entity.
+
+1.53 (17-Feb-2026)
+	- L4D/2: Added command "sm_temp" to set temporary health on a player.
+	- Fixed throwing errors for games which have no "m_iHammerID". Thanks to "caxanga334" for reporting.
+
+1.52 (22-Sep-2024)
+	- Changed commands "sm_setang", "sm_setpos", "sm_tele" and "sm_tel" to allow placing "?" in any given XYZ vector to ignore and use the current targets value. Requested by "Tonblader".
+
+1.51 (17-Jun-2024)
+	- Fixed command "sm_weapons" showing your own held weapon, instead of the targets.
+
+1.50 (05-Mar-2024)
+	- Added a few more "m_h*" variables to read the entity index instead of reference number. Probably only for L4D/2 series.
 
 1.49 (22-Nov-2023)
 	- Added command "sm_delents" to delete entities of a certain classnames. Allows using * wildcard to match various entities for example "weapon_*" can be used.
@@ -139,7 +158,7 @@
 1.23 (11-Aug-2021)
 	- Added commands "sm_bit" and "sm_val" to get and return values from: "1<<20" to "1048576" and "1048577" to "(1<<0); (1<<20)" for example.
 	- Added command "sm_dmg" to return SDKHooks damage flags from a value. For example "sm_dmg 9" returns "DMG_CRUSH (1<<0); DMG_BURN (1<<3)".
-	- Added command "sm_adm" to toggle between ROOT and BAN admin flags (or specified target flags). Requires ROOT to work. E.g: "sm_adm BAN KICK".
+	- Added command "sm_adm" to toggle between ROOT and BAN admin flags (or specified target flags). Requires ROOT to work. e.g: "sm_adm BAN KICK".
 	- Changed command "sm_anim" to watch sequence numbers on every frame and display only when they change, until toggled off.
 
 1.22 (29-Jul-2021)
@@ -412,11 +431,11 @@ public void OnPluginStart()
 	RegAdminCmd("sm_viewr",			CmdViewR,		ADMFLAG_ROOT, "Teleports you to the saved position and eye angles.");
 	RegAdminCmd("sm_pos",			CmdPosition,	ADMFLAG_ROOT, "Displays your position vector.");
 	RegAdminCmd("sm_aimpos",		CmdAimPos,		ADMFLAG_ROOT, "Displays the position vector where your crosshair is aiming.");
-	RegAdminCmd("sm_setang",		CmdSetAng,		ADMFLAG_ROOT, "<#userid|name> <vector ang>. Teleport someone to the x y z angles vector specified.");
-	RegAdminCmd("sm_setpos",		CmdSetPos,		ADMFLAG_ROOT, "<#userid|name> <vector pos>. Teleport someone to the x y z origin vector specified.");
-	RegAdminCmd("sm_bringents",		CmdBring,		ADMFLAG_ROOT, "<classname> [distance: (default 50)]. Teleport specified entities by classname to around the player. E.G. sm_bringents weapon_rifle.");
-	RegAdminCmd("sm_tele",			CmdTele,		ADMFLAG_ROOT, "<#userid|name> [x y z vecctor pos]. Teleport specified targets to aim location or to the x y z origin vector specified.");
-	RegAdminCmd("sm_tel",			CmdTeleport,	ADMFLAG_ROOT, "<vector pos> [vector ang]. Teleport yourself to the x y z vector specified.");
+	RegAdminCmd("sm_setang",		CmdSetAng,		ADMFLAG_ROOT, "<#userid|name> <vector ang>. Teleport someone to the x y z angles vector specified. Place ? to ignore an XYZ vector and use the targets current value.");
+	RegAdminCmd("sm_setpos",		CmdSetPos,		ADMFLAG_ROOT, "<#userid|name> <vector pos>. Teleport someone to the x y z origin vector specified. Place ? to ignore an XYZ vector and use the targets current value.");
+	RegAdminCmd("sm_bringents",		CmdBring,		ADMFLAG_ROOT, "<classname> [distance: (default 50)]. Teleport specified entities by classname to around the player. e.g. sm_bringents weapon_rifle.");
+	RegAdminCmd("sm_tele",			CmdTele,		ADMFLAG_ROOT, "<#userid|name> [x y z vector pos]. Teleport specified targets to aim location or to the x y z origin vector specified. Place ? to ignore an XYZ vector and use the targets current value.");
+	RegAdminCmd("sm_tel",			CmdTeleport,	ADMFLAG_ROOT, "<vector pos> [vector ang]. Teleport yourself to the x y z vector specified. Place ? to ignore an XYZ vector and use the targets current value.");
 	RegAdminCmd("sm_range",			CmdRange,		ADMFLAG_ROOT, "[entity] Shows how far away an object is that you're aiming at, or optional arg to specify an entity index.");
 	RegAdminCmd("sm_near",			CmdNear,		ADMFLAG_ROOT, "Lists all nearby entities within the specified range. Usage sm_near: [range].");
 	RegAdminCmd("sm_dist",			CmdDist,		ADMFLAG_ROOT, "Enter twice to measure distance between the origins you stand on.");
@@ -431,6 +450,8 @@ public void OnPluginStart()
 	RegAdminCmd("sm_delents",		CmdDelEnts,		ADMFLAG_ROOT, "<classname> Delete all the entities of a specific classname.");
 	RegAdminCmd("sm_ent",			CmdEnt,			ADMFLAG_ROOT, "Displays info about the entity your crosshair is over.");
 	RegAdminCmd("sm_ente",			CmdEntE,		ADMFLAG_ROOT, "<entity>. Displays info about the entity you specify.");
+	RegAdminCmd("sm_addy",			CmdAddy,		ADMFLAG_ROOT, "Displays the entity address for the entity your crosshair is over.");
+	RegAdminCmd("sm_addye",			CmdAddyE,		ADMFLAG_ROOT, "<entity>. Displays the entity address for the entity you specify.");
 	RegAdminCmd("sm_vertex",		CmdVertex,		ADMFLAG_ROOT, "[entity]. Displays vMaxs and vMins bounding box about the specified entity or aimed at entity.");
 	RegAdminCmd("sm_box",			CmdBox,			ADMFLAG_ROOT, "[entity]. Displays a beam box around the specified entity or aimed at entity for 10 seconds.");
 	RegAdminCmd("sm_find",			CmdFind,		ADMFLAG_ROOT, "<classname> List entity indexes from the given classname.");
@@ -454,8 +475,9 @@ public void OnPluginStart()
 	RegAdminCmd("sm_solid",			CmdSolid,		ADMFLAG_ROOT, "<flags>. Returns the SolidType_t flags from a flag value.");
 	RegAdminCmd("sm_solidf",		CmdSolidF,		ADMFLAG_ROOT, "<flags>. Returns the SolidFlags_t flags from a flag value.");
 	RegAdminCmd("sm_dmg",			CmdDmg,			ADMFLAG_ROOT, "<flags>. Returns the SDKHooks DamageType from a flag value.");
-	RegAdminCmd("sm_val",			CmdVal,			ADMFLAG_ROOT, "<bit value>. E.g: sm_val 1<<20. Returns: 1048576");
-	RegAdminCmd("sm_bit",			CmdBit,			ADMFLAG_ROOT, "<bit value>. E.g: sm_bit 1048577. Returns: (1<<0); (1<<20)");
+	RegAdminCmd("sm_setdmg",		CmdSetDmg,		ADMFLAG_ROOT, "<target index> <damage amount> [damage type enum] [inflictor index]. Deal damage to an entity.");
+	RegAdminCmd("sm_val",			CmdVal,			ADMFLAG_ROOT, "<bit value>. e.g: sm_val 1<<20. Returns: 1048576");
+	RegAdminCmd("sm_bit",			CmdBit,			ADMFLAG_ROOT, "<bit value>. e.g: sm_bit 1048577. Returns: (1<<0); (1<<20)");
 	RegAdminCmd("sm_adm",			CmdAdm,			0, "Toggles between ROOT and BAN admin flags, for testing stuff without ROOT access. Or specified flags e.g. Usage: sm_adm BAN KICK");
 	RegAdminCmd("sm_hexcols",		CmdHexCol,		ADMFLAG_ROOT, "Print a list of hex colors to chat.");
 
@@ -485,6 +507,7 @@ public void OnPluginStart()
 		RegAdminCmd("sm_lobby",			CmdLobby,		0,	"Starts a vote return to lobby.");
 		RegAdminCmd("sm_ledge",			CmdLedge,		ADMFLAG_ROOT, "Enables/Disables ledge hanging.");
 		RegAdminCmd("sm_spit",			CmdSpit,		ADMFLAG_ROOT, "[#userid|name] Toggles spitter goo dribble on self (with no args) or specified targets.");
+		RegAdminCmd("sm_temp",			CmdTemp,		ADMFLAG_ROOT, "<#userid|name> <amount> Set temporary health on a client.");
 
 		RegAdminCmd("sm_alloff",		CmdAll,			ADMFLAG_ROOT, "Toggles - AI director on/off, z_common_limit, sb_hold.");
 		RegAdminCmd("sm_director",		CmdDirector,	ADMFLAG_ROOT, "Toggles - AI director on/off.");
@@ -602,6 +625,12 @@ public void OnPluginStart()
 	g_hEntityKeys.SetValue("m_hViewPosition", true);
 	g_hEntityKeys.SetValue("m_hWeapon", true);
 	g_hEntityKeys.SetValue("m_hZoomOwner", true);
+	g_hEntityKeys.SetValue("m_useActionTarget", true);
+	g_hEntityKeys.SetValue("m_useActionOwner", true);
+	g_hEntityKeys.SetValue("m_reviveTarget", true);
+	g_hEntityKeys.SetValue("m_reviveOwner", true);
+	g_hEntityKeys.SetValue("m_healTarget", true);
+	g_hEntityKeys.SetValue("m_survivor", true);
 
 	// GameRules net class name
 	switch( g_iEngine )
@@ -1232,16 +1261,33 @@ Action CmdSetAng(int client, int args)
 
 	int target;
 	float vAng[3];
+	bool x, y, z;
+
 	GetCmdArg(2, arg1, sizeof(arg1));
-	vAng[0] = StringToFloat(arg1);
+	if( strcmp(arg1, "?") == 0 ) x = true;
+	else vAng[0] = StringToFloat(arg1);
+
 	GetCmdArg(3, arg1, sizeof(arg1));
-	vAng[1] = StringToFloat(arg1);
+	if( strcmp(arg1, "?") == 0 ) y = true;
+	else vAng[1] = StringToFloat(arg1);
+
 	GetCmdArg(4, arg1, sizeof(arg1));
-	vAng[2] = StringToFloat(arg1);
+	if( strcmp(arg1, "?") == 0 ) z = true;
+	else vAng[2] = StringToFloat(arg1);
 
 	for( int i = 0; i < target_count; i++ )
 	{
 		target = target_list[i];
+
+		if( x || y || z )
+		{
+			float vVec[3];
+			GetEntPropVector(target, Prop_Data, "m_angRotation", vVec);
+			if( x ) vAng[0] = vVec[0];
+			if( y ) vAng[1] = vVec[1];
+			if( z ) vAng[2] = vVec[2];
+		}
+
 		TeleportEntity(target, NULL_VECTOR, vAng, view_as<float>({ 0.0, 0.0, 0.0}));
 	}
 
@@ -1284,16 +1330,33 @@ Action CmdSetPos(int client, int args)
 
 	int target;
 	float vPos[3];
+	bool x, y, z;
+
 	GetCmdArg(2, arg1, sizeof(arg1));
-	vPos[0] = StringToFloat(arg1);
+	if( strcmp(arg1, "?") == 0 ) x = true;
+	else vPos[0] = StringToFloat(arg1);
+
 	GetCmdArg(3, arg1, sizeof(arg1));
-	vPos[1] = StringToFloat(arg1);
+	if( strcmp(arg1, "?") == 0 ) y = true;
+	else vPos[1] = StringToFloat(arg1);
+
 	GetCmdArg(4, arg1, sizeof(arg1));
-	vPos[2] = StringToFloat(arg1);
+	if( strcmp(arg1, "?") == 0 ) z = true;
+	else vPos[2] = StringToFloat(arg1);
 
 	for( int i = 0; i < target_count; i++ )
 	{
 		target = target_list[i];
+
+		if( x || y || z )
+		{
+			float vVec[3];
+			GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vVec);
+			if( x ) vPos[0] = vVec[0];
+			if( y ) vPos[1] = vVec[1];
+			if( z ) vPos[2] = vVec[2];
+		}
+
 		TeleportEntity(target, vPos, NULL_VECTOR, view_as<float>({ 0.0, 0.0, 0.0}));
 	}
 
@@ -1384,31 +1447,82 @@ Action CmdTeleport(int client, int args)
 	char arg[16];
 	if( args == 6 )
 	{
+		bool x, y, z;
+
 		GetCmdArg(1, arg, sizeof(arg));
-		vPos[0] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) x = true;
+		else vPos[0] = StringToFloat(arg);
+
 		GetCmdArg(2, arg, sizeof(arg));
-		vPos[1] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) y = true;
+		else vPos[1] = StringToFloat(arg);
+
 		GetCmdArg(3, arg, sizeof(arg));
-		vPos[2] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) z = true;
+		else vPos[2] = StringToFloat(arg);
+
+		if( x || y || z )
+		{
+			float vVec[3];
+			GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", vVec);
+			if( x ) vPos[0] = vVec[0];
+			if( y ) vPos[1] = vVec[1];
+			if( z ) vPos[2] = vVec[2];
+			x = false;
+			y = false;
+			z = false;
+		}
 
 		float vAng[3];
+
 		GetCmdArg(4, arg, sizeof(arg));
-		vAng[0] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) x = true;
+		else vAng[0] = StringToFloat(arg);
+
 		GetCmdArg(5, arg, sizeof(arg));
-		vAng[1] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) y = true;
+		else vAng[1] = StringToFloat(arg);
+
 		GetCmdArg(6, arg, sizeof(arg));
-		vAng[2] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) z = true;
+		else vAng[2] = StringToFloat(arg);
+
+		if( x || y || z )
+		{
+			float vVec[3];
+			GetEntPropVector(client, Prop_Data, "m_angRotation", vVec);
+			if( x ) vAng[0] = vVec[0];
+			if( y ) vAng[1] = vVec[1];
+			if( z ) vAng[2] = vVec[2];
+		}
+
 		TeleportEntity(client, vPos, vAng, NULL_VECTOR);
 		return Plugin_Handled;
 	}
 	else if( args == 3 )
 	{
+		bool x, y, z;
+
 		GetCmdArg(1, arg, sizeof(arg));
-		vPos[0] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) x = true;
+		else vPos[0] = StringToFloat(arg);
+
 		GetCmdArg(2, arg, sizeof(arg));
-		vPos[1] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) y = true;
+		else vPos[1] = StringToFloat(arg);
+
 		GetCmdArg(3, arg, sizeof(arg));
-		vPos[2] = StringToFloat(arg);
+		if( strcmp(arg, "?") == 0 ) z = true;
+		else vPos[2] = StringToFloat(arg);
+
+		if( x || y || z )
+		{
+			float vVec[3];
+			GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", vVec);
+			if( x ) vPos[0] = vVec[0];
+			if( y ) vPos[1] = vVec[1];
+			if( z ) vPos[2] = vVec[2];
+		}
 	}
 	else if( args == 1 )
 	{
@@ -1465,16 +1579,21 @@ Action CmdTele(int client, int args)
 	}
 
 	float vPos[3];
+	bool x, y, z;
+
 	if( args == 4 )
 	{
 		GetCmdArg(2, arg1, sizeof(arg1));
-		vPos[0] = StringToFloat(arg1);
+		if( strcmp(arg1, "?") == 0 ) x = true;
+		else vPos[0] = StringToFloat(arg1);
 
 		GetCmdArg(3, arg1, sizeof(arg1));
-		vPos[1] = StringToFloat(arg1);
+		if( strcmp(arg1, "?") == 0 ) y = true;
+		else vPos[1] = StringToFloat(arg1);
 
 		GetCmdArg(4, arg1, sizeof(arg1));
-		vPos[2] = StringToFloat(arg1);
+		if( strcmp(arg1, "?") == 0 ) z = true;
+		else vPos[2] = StringToFloat(arg1);
 	} else {
 		SetTeleportEndPoint(client, vPos);
 	}
@@ -1483,6 +1602,15 @@ Action CmdTele(int client, int args)
 	for( int i = 0; i < target_count; i++ )
 	{
 		target = target_list[i];
+
+		if( x || y || z )
+		{
+			float vVec[3];
+			GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vVec);
+			if( x ) vPos[0] = vVec[0];
+			if( y ) vPos[1] = vVec[1];
+			if( z ) vPos[2] = vVec[2];
+		}
 
 		TeleportEntity(target, vPos, NULL_VECTOR, NULL_VECTOR);
 	}
@@ -1928,8 +2056,9 @@ Action CmdEnt(int client, int args)
 		char sModel[128];
 		GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
 
-		int iHammerID;
-		iHammerID = GetEntProp(entity, Prop_Data, "m_iHammerID");
+		int iHammerID = -1;
+		if( HasEntProp(entity, Prop_Data, "m_iHammerID") )
+			iHammerID = GetEntProp(entity, Prop_Data, "m_iHammerID");
 
 		float vPos[3];
 		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
@@ -1945,11 +2074,11 @@ Action CmdEnt(int client, int args)
 
 Action CmdEntE(int client, int args)
 {
-	char sTemp[32];
 	int entity;
 
 	if( args == 1 )
 	{
+		char sTemp[32];
 		GetCmdArg(1, sTemp, sizeof(sTemp));
 		entity = StringToInt(sTemp);
 
@@ -1976,8 +2105,9 @@ Action CmdEntE(int client, int args)
 		char sModel[128];
 		GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
 
-		int iHammerID;
-		iHammerID = GetEntProp(entity, Prop_Data, "m_iHammerID");
+		int iHammerID = -1;
+		if( HasEntProp(entity, Prop_Data, "m_iHammerID") )
+			iHammerID = GetEntProp(entity, Prop_Data, "m_iHammerID");
 
 		float vPos[3];
 		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vPos);
@@ -1989,6 +2119,61 @@ Action CmdEntE(int client, int args)
 			PrintToChat(client, "\x05%d \x01Class: \x05%s \x01Targetname: \x05%s \x01Model: \x05%s \x01HammerID: \x05%d \x01Position: \x05%.2f %.2f %.2f \x01Angles: \x05%.2f %.2f %.2f", entity, sClass, sName, sModel, iHammerID, vPos[0], vPos[1], vPos[2], vAng[0], vAng[1], vAng[2]);
 		else
 			ReplyToCommand(client, "\x05%d \x01Class: \x05%s \x01Targetname: \x05%s \x01Model: \x05%s \x01HammerID: \x05%d \x01Position: \x05%.2f %.2f %.2f \x01Angles: \x05%.2f %.2f %.2f", entity, sClass, sName, sModel, iHammerID, vPos[0], vPos[1], vPos[2], vAng[0], vAng[1], vAng[2]);
+	} else {
+		ReplyToCommand(client, "[SM] Invalid Entity %d", entity);
+	}
+
+	return Plugin_Handled;
+}
+
+Action CmdAddy(int client, int args)
+{
+	if( !client )
+	{
+		ReplyToCommand(client, "Command can only be used %s", IsDedicatedServer() ? "in game on a dedicated server." : "in chat on a Listen server.");
+		return Plugin_Handled;
+	}
+
+	int entity = GetClientAimTarget(client, false);
+	if( entity > 0 )
+	{
+		PrintToChat(client, "\x05%d \x01Address: \x05%d", entity, GetEntityAddress(entity));
+	}
+
+	return Plugin_Handled;
+}
+
+Action CmdAddyE(int client, int args)
+{
+	int entity;
+
+	if( args == 1 )
+	{
+		char sTemp[32];
+
+		GetCmdArg(1, sTemp, sizeof(sTemp));
+		entity = StringToInt(sTemp);
+
+		if( (entity < -1 && EntRefToEntIndex(entity) == INVALID_ENT_REFERENCE) || (entity >= MaxClients && IsValidEntity(entity) == false) )
+		{
+			ReplyToCommand(client, "[SM] Invalid Entity %d", entity);
+			return Plugin_Handled;
+		}
+	}
+
+	if( client && args == 0 )
+	{
+		entity = GetClientAimTarget(client, false);
+		if( entity == -1 )
+			return Plugin_Handled;
+	}
+
+	if( IsValidEntity(entity) )
+	{
+		if( client )
+			PrintToChat(client, "\x05%d \x01Address: \x05%d", entity, GetEntityAddress(entity));
+		else
+			ReplyToCommand(client, "\x05%d \x01Address: \x05%d", entity, GetEntityAddress(entity));
 	} else {
 		ReplyToCommand(client, "[SM] Invalid Entity %d", entity);
 	}
@@ -2250,7 +2435,7 @@ Action CmdFindName(int client, int args)
 	{
 		if( IsValidEntity(i) )
 		{
-			if( i < 2048 || EntIndexToEntRef(i) != -1 )
+			if( i <= 2048 || EntIndexToEntRef(i) != -1 )
 			{
 				GetEntPropString(i, Prop_Data, "m_iName", sName, sizeof(sName));
 				if( StrContains(sName, sFind, false) != -1 )
@@ -2385,7 +2570,7 @@ Action CmdColli(int client, int args)
 		GetCmdArg(1 ,sArg, sizeof(sArg));
 
 		entity = StringToInt(sArg);
-		if( entity <= 0 || entity >= 2048 || !IsValidEntity(entity) )
+		if( entity <= 0 || entity > 2048 || !IsValidEntity(entity) )
 		{
 			ReplyToCommand(client, "[SM] sm_collision: Invalid entity specified.");
 			return Plugin_Handled;
@@ -2436,7 +2621,7 @@ Action CmdMoveType(int client, int args)
 		GetCmdArg(2 ,sArg, sizeof(sArg));
 
 		entity = StringToInt(sArg);
-		if( entity <= 0 || entity >= 2048 || !IsValidEntity(entity) )
+		if( entity <= 0 || entity > 2048 || !IsValidEntity(entity) )
 		{
 			ReplyToCommand(client, "[SM] sm_collision: Invalid entity specified.");
 			return Plugin_Handled;
@@ -2563,7 +2748,7 @@ Action CmdWeapons(int client, int args)
 
 	ReplyToCommand(client, "Showing weapons for: %N", target);
 
-	weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+	weapon = GetEntPropEnt(target, Prop_Send, "m_hActiveWeapon");
 	if( weapon != -1 )
 	{
 		GetEdictClassname(weapon, classname, sizeof(classname));
@@ -2676,7 +2861,7 @@ void GetAttachments(int client, int target)
 {
 	char classname[64];
 
-	for( int i = 1; i < 2048; i++ )
+	for( int i = 1; i <= 2048; i++ )
 	{
 		if( IsValidEntity(i) && HasEntProp(i, Prop_Send, "moveparent") && GetEntPropEnt(i, Prop_Send, "moveparent") == target )
 		{
@@ -2957,6 +3142,7 @@ Action CmdDamage(int client, int args)
 		if( client ) PrintToChat(client, "\x04[Damage Info]\x01 enabled!");
 		else ReplyToCommand(client, "[Damage Info] enabled!");
 	}
+
 	g_bDamage = !g_bDamage;
 	return Plugin_Handled;
 }
@@ -2981,7 +3167,7 @@ Action CmdSolid(int client, int args)
 		case view_as<int>(SOLID_BBOX):							sTemp = "SOLID_BBOX = 2";
 		case view_as<int>(SOLID_OBB):							sTemp = "SOLID_OBB = 3";
 		case view_as<int>(SOLID_OBB_YAW):						sTemp = "SOLID_OBB_YAW = 4";
-		case view_as<int>(SOLID_CUSTOM):						sTemp = "SOLID_CUSTOM = 5";
+		case view_as<int>(SOLID_CUSTOM):							sTemp = "SOLID_CUSTOM = 5";
 		case view_as<int>(SOLID_VPHYSICS):						sTemp = "SOLID_VPHYSICS = 6";
 	}
 
@@ -3002,11 +3188,11 @@ Action CmdSolidF(int client, int args)
 	int flags = StringToInt(sTemp);
 
 	sTemp[0] = 0;
-	if( flags & view_as<int>(FSOLID_CUSTOMRAYTEST) )			StrCat(sTemp, sizeof(sTemp), "FSOLID_CUSTOMRAYTEST = 0x0001; ");
-	if( flags & view_as<int>(FSOLID_CUSTOMBOXTEST) )			StrCat(sTemp, sizeof(sTemp), "FSOLID_CUSTOMBOXTEST = 0x0002; ");
-	if( flags & view_as<int>(FSOLID_NOT_SOLID) )				StrCat(sTemp, sizeof(sTemp), "FSOLID_NOT_SOLID = 0x0004; ");
+	if( flags & view_as<int>(FSOLID_CUSTOMRAYTEST) )				StrCat(sTemp, sizeof(sTemp), "FSOLID_CUSTOMRAYTEST = 0x0001; ");
+	if( flags & view_as<int>(FSOLID_CUSTOMBOXTEST) )				StrCat(sTemp, sizeof(sTemp), "FSOLID_CUSTOMBOXTEST = 0x0002; ");
+	if( flags & view_as<int>(FSOLID_NOT_SOLID) )					StrCat(sTemp, sizeof(sTemp), "FSOLID_NOT_SOLID = 0x0004; ");
 	if( flags & view_as<int>(FSOLID_TRIGGER) )					StrCat(sTemp, sizeof(sTemp), "FSOLID_TRIGGER = 0x0008; ");
-	if( flags & view_as<int>(FSOLID_NOT_STANDABLE) )			StrCat(sTemp, sizeof(sTemp), "FSOLID_NOT_STANDABLE = 0x0010; ");
+	if( flags & view_as<int>(FSOLID_NOT_STANDABLE) )				StrCat(sTemp, sizeof(sTemp), "FSOLID_NOT_STANDABLE = 0x0010; ");
 	if( flags & view_as<int>(FSOLID_VOLUME_CONTENTS) )			StrCat(sTemp, sizeof(sTemp), "FSOLID_VOLUME_CONTENTS = 0x0020; ");
 	if( flags & view_as<int>(FSOLID_FORCE_WORLD_ALIGNED) )		StrCat(sTemp, sizeof(sTemp), "FSOLID_FORCE_WORLD_ALIGNED = 0x0040; ");
 	if( flags & view_as<int>(FSOLID_USE_TRIGGER_BOUNDS) )		StrCat(sTemp, sizeof(sTemp), "FSOLID_USE_TRIGGER_BOUNDS = 0x0080; ");
@@ -3070,11 +3256,45 @@ Action CmdDmg(int client, int args)
 	return Plugin_Handled;
 }
 
+Action CmdSetDmg(int client, int args)
+{
+	if( args < 2 )
+	{
+		ReplyToCommand(client, "Usage: sm_setdmg <target index> <damage amount> [damage type enum] [inflictor index]");
+		return Plugin_Handled;
+	}
+
+	char sArg[16];
+	GetCmdArg(1, sArg, sizeof(sArg));
+	int target = StringToInt(sArg);
+
+	GetCmdArg(2, sArg, sizeof(sArg));
+	float damage = StringToFloat(sArg);
+
+	int type = DMG_GENERIC;
+	if( args >= 3 )
+	{
+		GetCmdArg(3, sArg, sizeof(sArg));
+		type = StringToInt(sArg);
+	}
+
+	int inflictor;
+	if( args == 4 )
+	{
+		GetCmdArg(4, sArg, sizeof(sArg));
+		inflictor = StringToInt(sArg);
+	}
+
+	SDKHooks_TakeDamage(target, inflictor, inflictor, damage, type);
+
+	return Plugin_Handled;
+}
+
 Action CmdVal(int client, int args)
 {
 	if( args != 1 )
 	{
-		ReplyToCommand(client, "Usage: sm_val <bit value>. E.g: sm_val 1<<20");
+		ReplyToCommand(client, "Usage: sm_val <bit value>. e.g: sm_val 1<<20");
 		return Plugin_Handled;
 	}
 
@@ -3085,7 +3305,7 @@ Action CmdVal(int client, int args)
 	int pos = SplitString(sArg, "<<", sTemp, sizeof(sTemp));
 	if( pos == -1 )
 	{
-		ReplyToCommand(client, "Usage: sm_val <bit value>. E.g: sm_val 1<<20");
+		ReplyToCommand(client, "Usage: sm_val <bit value>. e.g: sm_val 1<<20");
 		return Plugin_Handled;
 	}
 
@@ -3101,7 +3321,7 @@ Action CmdBit(int client, int args)
 {
 	if( args != 1 )
 	{
-		ReplyToCommand(client, "Usage: sm_bit <bit value>. E.g: sm_bit 1048576");
+		ReplyToCommand(client, "Usage: sm_bit <bit value>. e.g: sm_bit 1048576");
 		return Plugin_Handled;
 	}
 
@@ -4438,6 +4658,50 @@ Action CmdSpit(int client, int args)
 				PrintToChat(client, "[Spit] %s for %N", g_iLedge[target] ? "Removed" : "Added", target);
 			}
 		}
+	}
+
+	return Plugin_Handled;
+}
+
+Action CmdTemp(int client, int args)
+{
+	if( args != 2 )
+	{
+		ReplyToCommand(client, "Usage: sm_temp <#userid|name> <amount>");
+		return Plugin_Handled;
+	}
+
+	char sTemp[32];
+	GetCmdArg(1, sTemp, sizeof(sTemp));
+
+	char target_name[MAX_TARGET_LENGTH];
+	int target_list[MAXPLAYERS], target_count;
+	bool tn_is_ml;
+
+	if( (target_count = ProcessTargetString(
+		sTemp,
+		client,
+		target_list,
+		MAXPLAYERS,
+		0,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml)) <= 0)
+	{
+		ReplyToTargetError(client, target_count);
+		return Plugin_Handled;
+	}
+
+	GetCmdArg(2, sTemp, sizeof(sTemp));
+	float health = StringToFloat(sTemp);
+
+	int target;
+	for( int i = 0; i < target_count; i++ )
+	{
+		target = target_list[i];
+
+		SetEntPropFloat(target, Prop_Send, "m_healthBuffer", health);
+		SetEntPropFloat(target, Prop_Send, "m_healthBufferTime", GetGameTime());
 	}
 
 	return Plugin_Handled;

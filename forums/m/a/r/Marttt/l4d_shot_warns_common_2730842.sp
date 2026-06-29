@@ -117,7 +117,7 @@ public Plugin myinfo =
 #define L4D2_WEPID_CHAINSAW                 20
 #define L4D2_WEPID_GRENADE_LAUNCHER         21
 #define L4D2_WEPID_ADRENALINE               23
-#define L4D2_WEPID_VOMITJAR                25
+#define L4D2_WEPID_VOMITJAR                 25
 #define L4D2_WEPID_RIFLE_AK47               26
 #define L4D2_WEPID_GNOME                    27
 #define L4D2_WEPID_COLA_BOTTLES             28

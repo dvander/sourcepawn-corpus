@@ -1,6 +1,6 @@
 /*
 *	Block Stumble From Tanks
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.0"
+#define PLUGIN_VERSION 		"2.1"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+2.1 (14-Mar-2026)
+	- Fixed the "l4d_block_stumble_allow" cvar not working correctly.
+	- Changed cvar "l4d_block_stumble_allow" to allow blocking Tank punches from flinging players.
 
 2.0 (30-Sep-2022)
 	- Plugin now requires "Left 4 DHooks" plugin to function.
@@ -73,6 +77,7 @@
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
 bool g_bCvarAllow, g_bMapStarted;
+int g_iCvarAllow;
 
 
 
@@ -103,7 +108,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
 	// CVARS
-	g_hCvarAllow = CreateConVar(	"l4d_block_stumble_allow",			"1",					"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
+	g_hCvarAllow = CreateConVar(	"l4d_block_stumble_allow",			"1",					"0=Plugin off, 1=Plugin on, 2=Plugin on and block being flung.", CVAR_FLAGS );
 	g_hCvarModes = CreateConVar(	"l4d_block_stumble_modes",			"",						"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff = CreateConVar(	"l4d_block_stumble_modes_off",		"",						"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog = CreateConVar(	"l4d_block_stumble_modes_tog",		"0",					"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
@@ -145,15 +150,15 @@ void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newV
 
 void IsAllowed()
 {
-	bool bCvarAllow = g_hCvarAllow.BoolValue;
+	g_iCvarAllow = g_hCvarAllow.IntValue;
 	bool bAllowMode = IsAllowedGameMode();
 
-	if( g_bCvarAllow == false && bCvarAllow == true && bAllowMode == true )
+	if( g_bCvarAllow == false && g_iCvarAllow && bAllowMode == true )
 	{
 		g_bCvarAllow = true;
 	}
 
-	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
+	else if( g_bCvarAllow == true && (g_iCvarAllow == 0 || bAllowMode == false) )
 	{
 		g_bCvarAllow = false;
 	}
@@ -236,7 +241,7 @@ void OnGamemode(const char[] output, int caller, int activator, float delay)
 // ====================================================================================================
 public Action L4D_OnKnockedDown(int client, int reason)
 {
-	if( g_hCvarAllow && reason == 2 )
+	if( g_bCvarAllow && reason == 2 )
 	{
 		return Plugin_Handled;
 	}
@@ -246,7 +251,17 @@ public Action L4D_OnKnockedDown(int client, int reason)
 
 public Action L4D_TankClaw_OnPlayerHit_Pre(int tank, int claw, int player)
 {
-	if( g_hCvarAllow )
+	if( g_bCvarAllow )
+	{
+		return Plugin_Handled;
+	}
+
+	return Plugin_Continue;
+}
+
+public Action L4D2_OnPlayerFling(int client, int attacker, float vecDir[3])
+{
+	if( g_iCvarAllow == 2 )
 	{
 		return Plugin_Handled;
 	}

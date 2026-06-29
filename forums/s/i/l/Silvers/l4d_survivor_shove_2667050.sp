@@ -1,6 +1,6 @@
 /*
 *	Survivor Shove
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2025 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.16"
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (04-Jan-2025)
+	- Added cvar "l4d_survivor_shove_immune" to set client immunity from being shoved. Requested by "Polyano".
 
 1.16 (02-Oct-2023)
 	- Changed cvar "l4d_survivor_shove_bots" to allow setting bots to not push humans. Requested by "Automage".
@@ -118,7 +121,7 @@
 #define GAMEDATA			"l4d_survivor_shove"
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarBots, g_hCvarDelay, g_hCvarFlags, g_hCvarKey, g_hCvarStart, g_hCvarVoca, g_hCvarVocaType, g_hGearTransferReal;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarBots, g_hCvarDelay, g_hCvarFlags, g_hCvarImmune, g_hCvarKey, g_hCvarStart, g_hCvarVoca, g_hCvarVocaType, g_hGearTransferReal;
 bool g_bCvarAllow, g_bMapStarted, g_bLateLoad, g_bLeft4Dead2, g_bGearTransfer, g_bCanShove[MAXPLAYERS + 1] = {true, ...};
 float g_fTimeout[MAXPLAYERS + 1];
 Handle g_hConfStagger;
@@ -245,6 +248,7 @@ public void OnPluginStart()
 	g_hCvarBots = CreateConVar(		"l4d_survivor_shove_bots",			"0",			"Who can be shoved. 0=Everyone. 1=Bots only. 2-Humans only. 4=Bots cannot push humans. Add numbers together (7 will block all).", CVAR_FLAGS );
 	g_hCvarDelay = CreateConVar(	"l4d_survivor_shove_delay",			"0",			"0=No timeout. How many seconds until someone can shove again.", CVAR_FLAGS, true, 0.0 );
 	g_hCvarFlags = CreateConVar(	"l4d_survivor_shove_flags",			"z",			"Empty string = All. Players with one of these flags have access to the shove feature.", CVAR_FLAGS );
+	g_hCvarImmune = CreateConVar(	"l4d_survivor_shove_immune",		"",				"Empty string = No immunity. Players with one of these flags are immune from being shoved.", CVAR_FLAGS );
 	g_hCvarKey = CreateConVar(		"l4d_survivor_shove_keys",			"1",			"1=Shove. 2=Shove + Use. Which keys to shove players.", CVAR_FLAGS );
 	g_hCvarStart = CreateConVar(	"l4d_survivor_shove_start",			"1",			"0=Off. 1=On. Should shoving be turned on or off for players when they join.", CVAR_FLAGS );
 	g_hCvarVoca = CreateConVar(		"l4d_survivor_shove_vocalize",		"50",			"0=Off. The chance out of 100 for the survivor being shoved to scream.", CVAR_FLAGS );
@@ -663,7 +667,6 @@ void OnFramShove(DataPack hPack)
 
 	client = GetClientOfUserId(client);
 	int target = GetClientOfUserId(userid);
-
 	if( !client || !target || !IsClientInGame(client) || !IsClientInGame(target) )
 		return;
 
@@ -683,7 +686,9 @@ void OnFramShove(DataPack hPack)
 	g_hCvarFlags.GetString(sTemp, sizeof(sTemp));
 
 	if( sTemp[0] == 0 )
+	{
 		access = true;
+	}
 	else
 	{
 		char sVal[2];
@@ -702,6 +707,24 @@ void OnFramShove(DataPack hPack)
 
 	if( access == false )
 		return;
+
+	// Immunity
+	g_hCvarImmune.GetString(sTemp, sizeof(sTemp));
+
+	if( sTemp[0] != 0 )
+	{
+		char sVal[2];
+		for( int i = 0; i < strlen(sTemp); i++ )
+		{
+			sVal[0] = sTemp[i];
+			flags = ReadFlagString(sVal);
+
+			if( CheckCommandAccess(target, "", flags, true) == true )
+			{
+				return;
+			}
+		}
+	}
 
 	// Block shoving for transferable items or allowed Gear Transfer items.
 	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");

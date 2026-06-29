@@ -2,10 +2,15 @@
 // ====================================================================================================
 Change Log:
 
-1.2.1 (29-April-2021)
-    - New version released.
+1.3.0 (09-August-2024)
+    - Added cvar to control when to start the countdown message.
+    - Renamed and changed the default value of some cvars.
+
+1.2.0 (29-April-2021)
     - Added Hungarian (hu) translation. (thanks to "KasperH")
-    - Added Romanian (ro) translation. (thanks to "CryWolf")
+
+1.1.0 (30-September-2020)
+    - Added Hungarian (hu) translation. (thanks to "KasperH")
 
 1.0.0 (03-March-2019)
     - Initial release.
@@ -19,7 +24,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Spitter Dies After Spit (SDAS)"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Kills the Spitter some seconds later after spitting"
-#define PLUGIN_VERSION                "1.2.1"
+#define PLUGIN_VERSION                "1.3.0"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=314715"
 
 // ====================================================================================================
@@ -71,45 +76,158 @@ public Plugin myinfo =
 #define FLAG_MSG_DISPLAY_INSTRUCTOR   (1 << 2) // 3 | 100
 
 // ====================================================================================================
-// Plugin Cvars
+// enum structs - Plugin Variables
 // ====================================================================================================
-ConVar g_hCvar_Enabled;
-ConVar g_hCvar_Bots;
-ConVar g_hCvar_Flags;
-ConVar g_hCvar_AliveTime;
-ConVar g_hCvar_CountdownSound;
-ConVar g_hCvar_SpitMsg;
-ConVar g_hCvar_SpitCountdownMsg;
-ConVar g_hCvar_DeadBySpitMsg;
+PluginData plugin;
 
 // ====================================================================================================
-// bool - Plugin Cvar Variables
+// enums / enum structs
 // ====================================================================================================
-bool g_bEventsHooked;
-bool g_bCvar_Enabled;
-bool g_bCvar_Bots;
-bool g_bCvar_Flags;
-bool g_bCvar_CountdownSound;
+enum struct PluginCvars
+{
+    ConVar l4d2_sdas_version;
+    ConVar l4d2_sdas_enable;
+    ConVar l4d2_sdas_bots;
+    ConVar l4d2_sdas_flags;
+    ConVar l4d2_sdas_alive_time;
+    ConVar l4d2_sdas_spit_countdown_sound;
+    ConVar l4d2_sdas_spit_msg;
+    ConVar l4d2_sdas_spit_countdown_start;
+    ConVar l4d2_sdas_spit_countdown_msg;
+    ConVar l4d2_sdas_dead_by_spit_msg;
 
-// ====================================================================================================
-// int - Plugin Cvar Variables
-// ====================================================================================================
-int g_iCvar_Flags;
-int g_iCvar_AliveTime;
-int g_iCvar_SpitMsg;
-int g_iCvar_SpitCountdownMsg;
-int g_iCvar_DeadBySpitMsg;
+    void Init()
+    {
+        this.l4d2_sdas_version = CreateConVar("l4d2_sdas_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.l4d2_sdas_enable = CreateConVar("l4d2_sdas_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d2_sdas_bots = CreateConVar("l4d2_sdas_bots", "1", "Enables/Disables the plugin behaviour on Spitter bots.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d2_sdas_flags = CreateConVar("l4d2_sdas_flags", "", "Players with these flags are immune to the plugin behaviour.\nEmpty = none.\nKnown values at \"\\addons\\sourcemod\\configs\\admin_levels.cfg\".\nExample: \"az\", will apply immunity to players with \"a\" (reservation) or \"z\" (root) flag.", CVAR_FLAGS);
+        this.l4d2_sdas_alive_time = CreateConVar("l4d2_sdas_alive_time", "10", "How long (in seconds) will Spitter have after spitting before being killed by the plugin.", CVAR_FLAGS, true, 1.0);
+        this.l4d2_sdas_spit_msg = CreateConVar("l4d2_sdas_spit_msg", "3", "Display type for the \"Spit\" message.\n0 = OFF, 1 = CHAT, 2 = HINT, 4 = INSTRUCTOR HINT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", displays the message in CHAT and as a HINT.", CVAR_FLAGS, true, 0.0, true, 7.0);
+        this.l4d2_sdas_spit_countdown_msg = CreateConVar("l4d2_sdas_spit_countdown_msg", "2", "Display type for the \"Spit Countdown\" message.\n0 = OFF, 1 = CHAT, 2 = HINT, 4 = INSTRUCTOR HINT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", displays the message in CHAT and as a HINT.", CVAR_FLAGS, true, 0.0, true, 7.0);
+        this.l4d2_sdas_spit_countdown_start = CreateConVar("l4d2_sdas_spit_countdown_start", "3", "Start displaying the countdown message when the time left reaches this value.", CVAR_FLAGS, true, 1.0);
+        this.l4d2_sdas_spit_countdown_sound = CreateConVar("l4d2_sdas_spit_countdown_sound", "", "Spitter countdown sound after spit.\nEmpty = OFF.\nRecommended: buttons/blip1.wav", CVAR_FLAGS);
+        this.l4d2_sdas_dead_by_spit_msg = CreateConVar("l4d2_sdas_dead_by_spit_msg", "3", "Display type for the \"Dead By Spit\" message.\n0 = OFF, 1 = CHAT, 2 = HINT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", displays the message in CHAT and as a HINT.", CVAR_FLAGS, true, 0.0, true, 3.0);
 
-// ====================================================================================================
-// string - Plugin Cvar Variables
-// ====================================================================================================
-char g_sCvar_Flags[27];
-char g_sCvar_CountdownSound[PLATFORM_MAX_PATH];
+        this.l4d2_sdas_enable.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_bots.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_flags.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_alive_time.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_spit_msg.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_spit_countdown_msg.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_spit_countdown_start.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_spit_countdown_sound.AddChangeHook(Event_ConVarChanged);
+        this.l4d2_sdas_dead_by_spit_msg.AddChangeHook(Event_ConVarChanged);
 
-// ====================================================================================================
-// client - Plugin Variables
-// ====================================================================================================
-int gc_iClient_SpitCountdown[MAXPLAYERS+1];
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
+
+/****************************************************************************************************/
+
+enum struct PluginData
+{
+    PluginCvars cvars;
+
+    Handle timerCountdown[MAXPLAYERS+1];
+    int spitCountdown[MAXPLAYERS+1];
+
+    bool eventsHooked;
+
+    bool enable;
+    bool bots;
+    char sFlags[27];
+    int iFlags;
+    bool flags;
+    int aliveTime;
+    int spitMsg;
+    int spitCountdownMsg;
+    int spitCountdownStart;
+    char sSpitCountdownSound[PLATFORM_MAX_PATH];
+    bool spitCountdownSound;
+    int deadBySpitMsg;
+
+    void Init()
+    {
+        this.LoadPluginTranslations();
+        this.cvars.Init();
+        this.RegisterCmds();
+    }
+
+    void LoadPluginTranslations()
+    {
+        char path[PLATFORM_MAX_PATH];
+        BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
+        if (FileExists(path))
+            LoadTranslations(TRANSLATION_FILENAME);
+        else
+            SetFailState("Missing required translation file on \"translations/%s.txt\", please re-download.", TRANSLATION_FILENAME);
+    }
+
+    void GetCvarValues()
+    {
+        this.enable = this.cvars.l4d2_sdas_enable.BoolValue;
+        this.bots = this.cvars.l4d2_sdas_bots.BoolValue;
+        this.cvars.l4d2_sdas_flags.GetString(this.sFlags, sizeof(this.sFlags));
+        TrimString(this.sFlags);
+        this.iFlags = ReadFlagString(this.sFlags);
+        this.flags = this.iFlags > 0;
+        this.aliveTime = this.cvars.l4d2_sdas_alive_time.IntValue;
+        this.cvars.l4d2_sdas_spit_countdown_sound.GetString(this.sSpitCountdownSound, sizeof(this.sSpitCountdownSound));
+        TrimString(this.sSpitCountdownSound);
+        this.spitCountdownSound = (this.sSpitCountdownSound[0] != 0);
+        if (this.spitCountdownSound)
+            PrecacheSound(this.sSpitCountdownSound, true);
+        this.spitMsg = this.cvars.l4d2_sdas_spit_msg.IntValue;
+        this.spitCountdownStart = this.cvars.l4d2_sdas_spit_countdown_start.IntValue;
+        this.spitCountdownMsg = this.cvars.l4d2_sdas_spit_countdown_msg.IntValue;
+        this.deadBySpitMsg = this.cvars.l4d2_sdas_dead_by_spit_msg.IntValue;
+
+        if (!this.enable)
+        {
+            for (int client = 1; client <= MaxClients; client++)
+            {
+                this.ResetClient(client);
+            }
+        }
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_print_cvars_l4d2_sdas", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
+    }
+
+    void HookEvents()
+    {
+        if (this.enable && !this.eventsHooked)
+        {
+            this.eventsHooked = true;
+
+            HookEvent("ability_use", Event_AbilityUse);
+            HookEvent("player_spawn", Event_PlayerSpawn);
+            HookEvent("player_death", Event_PlayerDeath);
+
+            return;
+        }
+
+        if (!this.enable && this.eventsHooked)
+        {
+            this.eventsHooked = false;
+
+            UnhookEvent("ability_use", Event_AbilityUse);
+            UnhookEvent("player_spawn", Event_PlayerSpawn);
+            UnhookEvent("player_death", Event_PlayerDeath);
+
+            return;
+        }
+    }
+
+    void ResetClient(int client)
+    {
+        delete plugin.timerCountdown[client];
+        plugin.spitCountdown[client] = 0;
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
@@ -131,114 +249,29 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-    LoadPluginTranslations();
-
-    CreateConVar("l4d2_sdas_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled          = CreateConVar("l4d2_sdas_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Bots             = CreateConVar("l4d2_sdas_bots", "1", "Enables/Disables the plugin behaviour on Spitter bots.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Flags            = CreateConVar("l4d2_sdas_flags", "", "Players with these flags are immune to the plugin behaviour.\nEmpty = none.\nKnown values at \"\\addons\\sourcemod\\configs\\admin_levels.cfg\".\nExample: \"az\", will apply immunity to players with \"a\" (reservation) or \"z\" (root) flag.", CVAR_FLAGS);
-    g_hCvar_AliveTime        = CreateConVar("l4d2_sdas_alive_time", "10", "How long (in seconds) will Spitter have after spitting before being killed by the plugin.", CVAR_FLAGS, true, 1.0);
-    g_hCvar_CountdownSound   = CreateConVar("l4d2_sdas_countdown_sound", "buttons/blip1.wav", "Spitter countdown sound after spit.\nEmpty = OFF.", CVAR_FLAGS);
-    g_hCvar_SpitMsg          = CreateConVar("l4d2_sdas_spit_msg", "5", "Display type for the \"Spit\" message.\n0 = OFF, 1 = CHAT, 2 = HINT, 4 = INSTRUCTOR HINT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", displays the message in CHAT and as a HINT.", CVAR_FLAGS, true, 0.0, true, 7.0);
-    g_hCvar_SpitCountdownMsg = CreateConVar("l4d2_sdas_spit_countdown_msg", "5", "Display type for the \"Spit Countdown\" message.\n0 = OFF, 1 = CHAT, 2 = HINT, 4 = INSTRUCTOR HINT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", displays the message in CHAT and as a HINT.", CVAR_FLAGS, true, 0.0, true, 7.0);
-    g_hCvar_DeadBySpitMsg    = CreateConVar("l4d2_sdas_dead_by_spit_msg", "3", "Display type for the \"Dead By Spit\" message.\n0 = OFF, 1 = CHAT, 2 = HINT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", displays the message in CHAT and as a HINT.", CVAR_FLAGS, true, 0.0, true, 3.0);
-
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Bots.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Flags.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_AliveTime.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_CountdownSound.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_SpitMsg.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_SpitCountdownMsg.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_DeadBySpitMsg.AddChangeHook(Event_ConVarChanged);
-
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_print_cvars_l4d2_sdas", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
-}
-
-/****************************************************************************************************/
-
-void LoadPluginTranslations()
-{
-    char path[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
-    if (FileExists(path))
-        LoadTranslations(TRANSLATION_FILENAME);
-    else
-        SetFailState("Missing required translation file on \"translations/%s.txt\", please re-download.", TRANSLATION_FILENAME);
-}
-
-/****************************************************************************************************/
-
-public void OnConfigsExecuted()
-{
-    GetCvars();
-
-    HookEvents();
+    plugin.Init();
 }
 
 /****************************************************************************************************/
 
 void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-    GetCvars();
-
-    HookEvents();
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
-void GetCvars()
+public void OnConfigsExecuted()
 {
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-    g_bCvar_Bots = g_hCvar_Bots.BoolValue;
-    g_hCvar_Flags.GetString(g_sCvar_Flags, sizeof(g_sCvar_Flags));
-    TrimString(g_sCvar_Flags);
-    g_iCvar_Flags = ReadFlagString(g_sCvar_Flags);
-    g_bCvar_Flags = g_iCvar_Flags > 0;
-    g_iCvar_AliveTime = g_hCvar_AliveTime.IntValue;
-    g_hCvar_CountdownSound.GetString(g_sCvar_CountdownSound, sizeof(g_sCvar_CountdownSound));
-    TrimString(g_sCvar_CountdownSound);
-    g_bCvar_CountdownSound = (g_sCvar_CountdownSound[0] != 0);
-    if (g_bCvar_CountdownSound)
-        PrecacheSound(g_sCvar_CountdownSound, true);
-    g_iCvar_SpitMsg = g_hCvar_SpitMsg.IntValue;
-    g_iCvar_SpitCountdownMsg = g_hCvar_SpitCountdownMsg.IntValue;
-    g_iCvar_DeadBySpitMsg = g_hCvar_DeadBySpitMsg.IntValue;
+    plugin.GetCvarValues();
+    plugin.HookEvents();
 }
 
 /****************************************************************************************************/
 
 public void OnClientDisconnect(int client)
 {
-    gc_iClient_SpitCountdown[client] = 0;
-}
-
-/****************************************************************************************************/
-
-void HookEvents()
-{
-    if (g_bCvar_Enabled && !g_bEventsHooked)
-    {
-        g_bEventsHooked = true;
-
-        HookEvent("ability_use", Event_AbilityUse);
-
-        return;
-    }
-
-    if (!g_bCvar_Enabled && g_bEventsHooked)
-    {
-        g_bEventsHooked = false;
-
-        UnhookEvent("ability_use", Event_AbilityUse);
-
-        return;
-    }
+    plugin.ResetClient(client);
 }
 
 /****************************************************************************************************/
@@ -246,88 +279,104 @@ void HookEvents()
 void Event_AbilityUse(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
+
+    if (client == 0)
+        return;
+
+    plugin.ResetClient(client);
+
     char ability[16];
     event.GetString("ability", ability, sizeof(ability));
 
     if (!StrEqual(ability, "ability_spit"))
         return;
 
-    if (client == 0)
-        return;
-
     if (!IsValidSpitter(client))
         return;
 
-    gc_iClient_SpitCountdown[client] = g_iCvar_AliveTime;
+    plugin.timerCountdown[client] = CreateTimer(1.0, Timer_KillSpitter, GetClientUserId(client), TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+    plugin.spitCountdown[client] = plugin.aliveTime;
 
-    CreateTimer(1.0, TimerKillSpitter, GetClientUserId(client), TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+    if (IsFakeClient(client))
+        return;
 
-    if (!IsFakeClient(client))
-    {
-        if (g_bCvar_CountdownSound)
-            EmitSoundToClient(client, g_sCvar_CountdownSound);
+    if (plugin.spitMsg & FLAG_MSG_DISPLAY_CHAT)
+        CPrintToChat(client, "%t", "Spit", plugin.spitCountdown[client]);
 
-        if (g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_CHAT)
-            CPrintToChat(client, "%t", "Spit", gc_iClient_SpitCountdown[client]);
+    if (plugin.spitMsg & FLAG_MSG_DISPLAY_HINT)
+        CPrintHintText(client, "%t", "Spit", plugin.spitCountdown[client]);
 
-        if (g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_HINT)
-            CPrintHintText(client, "%t", "Spit", gc_iClient_SpitCountdown[client]);
-
-        if (g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_INSTRUCTOR)
-            PrintInstructorHintText(client, "%t", "Spit", gc_iClient_SpitCountdown[client]);
-    }
+    if (plugin.spitMsg & FLAG_MSG_DISPLAY_INSTRUCTOR)
+        PrintInstructorHintText(client, "%t", "Spit", plugin.spitCountdown[client]);
 }
 
 /****************************************************************************************************/
 
-Action TimerKillSpitter(Handle timer, int userid)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-    if (!g_bCvar_Enabled)
-        return Plugin_Stop;
+    int client = GetClientOfUserId(event.GetInt("userid"));
 
+    if (client == 0)
+        return;
+
+    plugin.ResetClient(client);
+}
+
+/****************************************************************************************************/
+
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+{
+    int client = GetClientOfUserId(event.GetInt("userid"));
+
+    if (client == 0)
+        return;
+
+    plugin.ResetClient(client);
+}
+
+/****************************************************************************************************/
+
+Action Timer_KillSpitter(Handle timer, int userid)
+{
     int client = GetClientOfUserId(userid);
 
     if (client == 0)
         return Plugin_Stop;
 
-    if (!IsValidSpitter(client))
-        return Plugin_Stop;
+    plugin.spitCountdown[client]--;
 
-    gc_iClient_SpitCountdown[client]--;
-
-    if (gc_iClient_SpitCountdown[client] > 0)
+    if (plugin.spitCountdown[client] > 0)
     {
-        if (!IsFakeClient(client))
+        if (!IsFakeClient(client) && plugin.spitCountdownStart >= plugin.spitCountdown[client])
         {
-            if (g_bCvar_CountdownSound)
-                EmitSoundToClient(client, g_sCvar_CountdownSound);
+            if (plugin.spitCountdownSound)
+                EmitSoundToClient(client, plugin.sSpitCountdownSound);
 
-            if (g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_CHAT)
-                CPrintToChat(client, "%t", "Spit Countdown", gc_iClient_SpitCountdown[client]);
+            if (plugin.spitCountdownMsg & FLAG_MSG_DISPLAY_CHAT)
+                CPrintToChat(client, "%t", "Spit Countdown", plugin.spitCountdown[client]);
 
-            if (g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_HINT)
-                CPrintHintText(client, "%t", "Spit Countdown", gc_iClient_SpitCountdown[client]);
+            if (plugin.spitCountdownMsg & FLAG_MSG_DISPLAY_HINT)
+                CPrintHintText(client, "%t", "Spit Countdown", plugin.spitCountdown[client]);
 
-            if (g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_INSTRUCTOR)
-                PrintInstructorHintText(client, "%t", "Spit Countdown", gc_iClient_SpitCountdown[client]);
-
-            return Plugin_Continue;
+            if (plugin.spitCountdownMsg & FLAG_MSG_DISPLAY_INSTRUCTOR)
+                PrintInstructorHintText(client, "%t", "Spit Countdown", plugin.spitCountdown[client]);
         }
     }
     else
     {
+        plugin.timerCountdown[client] = null; // prevent delete timer errors due to ForcePlayerSuicide + player_death event
         ForcePlayerSuicide(client);
 
         if (!IsFakeClient(client))
         {
-            if (g_iCvar_DeadBySpitMsg & FLAG_MSG_DISPLAY_CHAT)
+            if (plugin.deadBySpitMsg & FLAG_MSG_DISPLAY_CHAT)
                 CPrintToChat(client, "%t", "Dead By Spit");
 
-            if (g_iCvar_DeadBySpitMsg & FLAG_MSG_DISPLAY_HINT)
+            if (plugin.deadBySpitMsg & FLAG_MSG_DISPLAY_HINT)
                 CPrintHintText(client, "%t", "Dead By Spit");
-
-            return Plugin_Stop;
         }
+
+        return Plugin_Stop;
     }
 
     return Plugin_Continue;
@@ -360,7 +409,7 @@ void PrintInstructorHintText(int client, char[] message, any ...)
     char hintTarget[18];
     Format(hintTarget, sizeof(hintTarget), "l4d2_sdas_hint_%i", client);
 
-    float fCountdownHeat = float(gc_iClient_SpitCountdown[client]) / g_iCvar_AliveTime;
+    float fCountdownHeat = float(plugin.spitCountdown[client]) / plugin.aliveTime;
     int iCountdownStage;
 
     if (fCountdownHeat > 0.8)
@@ -438,10 +487,10 @@ bool IsValidSpitter(int client)
     if (!IsValidClient(client))
         return false;
 
-    if (IsFakeClient(client) && !g_bCvar_Bots)
+    if (IsFakeClient(client) && !plugin.bots)
         return false;
 
-    if (g_bCvar_Flags && (GetUserFlagBits(client) & g_iCvar_Flags))
+    if (plugin.flags && (GetUserFlagBits(client) & plugin.iFlags))
         return false;
 
     if (GetClientTeam(client) != TEAM_INFECTED)
@@ -470,14 +519,15 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "---------------------- Plugin Cvars (l4d2_sdas) ----------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_sdas_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d2_sdas_enabled : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d2_sdas_bots : %b (%s)", g_bCvar_Bots, g_bCvar_Bots ? "true" : "false");
-    PrintToConsole(client, "l4d2_sdas_flags : %s (%i)", g_sCvar_Flags, g_iCvar_Flags);
-    PrintToConsole(client, "l4d2_sdas_alive_time : %i (seconds)", g_iCvar_AliveTime);
-    PrintToConsole(client, "l4d2_sdas_countdown_sound : \"%s\"", g_sCvar_CountdownSound);
-    PrintToConsole(client, "l4d2_sdas_spit_msg : %i (CHAT: %s | HINT: %s | INSTRUCTOR: %s)", g_iCvar_SpitMsg, g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF", g_iCvar_SpitMsg & FLAG_MSG_DISPLAY_INSTRUCTOR ? "ON" : "OFF");
-    PrintToConsole(client, "l4d2_sdas_spit_countdown_msg : %i (CHAT: %s | HINT: %s | INSTRUCTOR: %s)", g_iCvar_SpitCountdownMsg, g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF", g_iCvar_SpitCountdownMsg & FLAG_MSG_DISPLAY_INSTRUCTOR ? "ON" : "OFF");
-    PrintToConsole(client, "l4d2_sdas_dead_by_spit_msg : %i (CHAT: %s | HINT: %s)", g_iCvar_DeadBySpitMsg, g_iCvar_DeadBySpitMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", g_iCvar_DeadBySpitMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF");
+    PrintToConsole(client, "l4d2_sdas_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
+    PrintToConsole(client, "l4d2_sdas_bots : %b (%s)", plugin.bots, plugin.bots ? "true" : "false");
+    PrintToConsole(client, "l4d2_sdas_flags : %s (%i)", plugin.sFlags, plugin.iFlags);
+    PrintToConsole(client, "l4d2_sdas_alive_time : %i (seconds)", plugin.aliveTime);
+    PrintToConsole(client, "l4d2_sdas_spit_countdown_sound : \"%s\" (%s)", plugin.sSpitCountdownSound, plugin.spitCountdownSound ? "true" : "false");
+    PrintToConsole(client, "l4d2_sdas_spit_msg : %i (CHAT: %s | HINT: %s | INSTRUCTOR: %s)", plugin.spitMsg, plugin.spitMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", plugin.spitMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF", plugin.spitMsg & FLAG_MSG_DISPLAY_INSTRUCTOR ? "ON" : "OFF");
+    PrintToConsole(client, "l4d2_sdas_spit_countdown_msg : %i (CHAT: %s | HINT: %s | INSTRUCTOR: %s)", plugin.spitCountdownMsg, plugin.spitCountdownMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", plugin.spitCountdownMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF", plugin.spitCountdownMsg & FLAG_MSG_DISPLAY_INSTRUCTOR ? "ON" : "OFF");
+    PrintToConsole(client, "l4d2_sdas_spit_countdown_start : %i", plugin.spitCountdownStart);
+    PrintToConsole(client, "l4d2_sdas_dead_by_spit_msg : %i (CHAT: %s | HINT: %s)", plugin.deadBySpitMsg, plugin.deadBySpitMsg & FLAG_MSG_DISPLAY_CHAT ? "ON" : "OFF", plugin.deadBySpitMsg & FLAG_MSG_DISPLAY_HINT ? "ON" : "OFF");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

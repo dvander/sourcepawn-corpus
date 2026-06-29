@@ -1,27 +1,21 @@
-#define PLUGIN_VERSION  "3.3"
-#define PLUGIN_NAME     "Thirdstrike Glow"
-#define PLUGIN_PREFIX   "thirdstrike_glow"
+#define PLUGIN_VERSION  "4.8"
 
-#pragma tabsize 0
 #pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
-#include <sdktools>
+#include <little_froy_utils>
 
 public Plugin myinfo =
 {
-	name = PLUGIN_NAME,
+	name = "Thirdstrike Glow",
 	author = "little_froy",
 	description = "game play",
 	version = PLUGIN_VERSION,
-	url = "https://forums.alliedmods.net/showthread.php?t=340159"
+	url = "https://forums.alliedmods.net/Should_add_glowthread.php?t=340159"
 };
 
-GlobalForward Forward_OnSetGlow;
-GlobalForward Forward_OnResetGlow;
-
 ConVar C_color;
-int O_color;
+int O_color[3];
 ConVar C_range;
 int O_range;
 ConVar C_range_min;
@@ -30,27 +24,72 @@ ConVar C_through_wall;
 bool O_through_wall;
 ConVar C_flash;
 bool O_flash;
+ConVar C_pulse_duration;
+float O_pulse_duration;
+ConVar C_pulse_interval;
+float O_pulse_interval;
+ConVar C_revive_keep_duration;
+float O_revive_keep_duration;
+ConVar C_auto_through_wall;
+bool O_auto_through_wall;
+ConVar C_sv_disable_glow_survivors;
+bool O_sv_disable_glow_survivors;
 
 bool Added[MAXPLAYERS+1];
+Handle H_keep[MAXPLAYERS+1];
+ArrayList Used_timer;
 
-bool is_survivor_on_thirdstrike(int client)
+Handle H_set_true;
+Handle H_set_false;
+bool Should_add_glow = true;
+int Glow_type;
+
+bool is_player_on_thirdstrike(int client)
 {
 	return !!GetEntProp(client, Prop_Send, "m_bIsOnThirdStrike");
 }
 
-void set_glow(int client)
+void set_glow(int entity, int type = 0, const int color[3] = {0, 0, 0}, int range = 0, int range_min = 0, bool flash = false)
+{
+    SetEntProp(entity, Prop_Send, "m_iGlowType", type);
+    SetEntProp(entity, Prop_Send, "m_glowColorOverride", color[0] + color[1] * 256 + color[2] * 65536);
+    SetEntProp(entity, Prop_Send, "m_nGlowRange", range);
+    SetEntProp(entity, Prop_Send, "m_nGlowRangeMin", range_min);
+    SetEntProp(entity, Prop_Send, "m_bFlashing", flash ? 1 : 0);
+}
+
+void update_glow_type()
+{
+    if(O_auto_through_wall)
+    {
+        if(O_sv_disable_glow_survivors)
+        {
+            Glow_type = 2;
+        }
+        else
+        {
+            Glow_type = 3;
+        }
+    }
+    else
+    {
+        if(O_through_wall)
+        {
+            Glow_type = 3;
+        }
+        else
+        {
+            Glow_type = 2;
+        }
+    }
+}
+
+void add_glow(int client)
 {
     if(!Added[client])
     {
         Added[client] = true;
-        SetEntProp(client, Prop_Send, "m_iGlowType", O_through_wall ? 3 : 2);
-        SetEntProp(client, Prop_Send, "m_glowColorOverride", O_color);
-        SetEntProp(client, Prop_Send, "m_nGlowRange", O_range);
-        SetEntProp(client, Prop_Send, "m_nGlowRangeMin", O_range_min);
-        SetEntProp(client, Prop_Send, "m_bFlashing", O_flash ? 1 : 0);
-        Call_StartForward(Forward_OnSetGlow);
-        Call_PushCell(client);
-        Call_Finish();
+        set_glow(client, Glow_type, O_color, O_range, O_range_min, O_flash);
     }
 }
 
@@ -59,44 +98,83 @@ void reset_glow(int client)
     if(Added[client])
     {
         Added[client] = false;
-        SetEntProp(client, Prop_Send, "m_iGlowType", 0);
-        SetEntProp(client, Prop_Send, "m_glowColorOverride", 0);
-        SetEntProp(client, Prop_Send, "m_nGlowRange", 0);
-        SetEntProp(client, Prop_Send, "m_nGlowRangeMin", 0);
-        SetEntProp(client, Prop_Send, "m_bFlashing", 0);
-        Call_StartForward(Forward_OnResetGlow);
-        Call_PushCell(client);
-        Call_Finish();
+        set_glow(client);
     }
 }
 
-public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float vel[3], const float angles[3], int weapon, int subtype, int cmdnum, int tickcount, int seed, const int mouse[2])
+void reset_player(int client)
 {
-    if(GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_survivor_on_thirdstrike(client))
+    H_keep[client] = null;
+}
+
+public void OnGameFrame()
+{
+    for(int client = 1; client <= MaxClients; client++)
     {
-        set_glow(client);
-    }
-    else
-    {
-        reset_glow(client);
+        if(IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
+        {
+            if((Should_add_glow || H_keep[client]) && is_player_on_thirdstrike(client))
+            {
+                add_glow(client);
+            }
+            else
+            {
+                reset_glow(client);
+            }
+        }
     }
 }
 
 public void OnClientDisconnect_Post(int client)
 {
 	Added[client] = false;
+    reset_player(client);
 }
 
 void reset_all()
 {
-    for(int client = 1; client <= MAXPLAYERS; client++)
+    for(int client = 1; client <= MaxClients; client++)
     {
-        if(client <= MaxClients && IsClientInGame(client))
+        if(IsClientInGame(client))
         {
             reset_glow(client);
+            reset_player(client);
         }
-        Added[client] = false;
     }
+}
+
+void event_player_spawn(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if(client > 0 && IsClientInGame(client))
+	{
+		reset_glow(client);
+        reset_player(client);
+	}
+}
+
+void event_player_team(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if(client > 0 && IsClientInGame(client))
+	{
+		reset_glow(client);
+        if(IsFakeClient(client) && event.GetInt("team") == 1 && event.GetInt("oldteam") == 2)
+        {
+            return;
+        }
+        reset_player(client);
+	}
+}
+
+void event_player_death(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if(client > 0 && IsClientInGame(client))
+	{
+		reset_glow(client);
+        reset_player(client);
+	}
 }
 
 void event_round_start(Event event, const char[] name, bool dontBroadcast)
@@ -104,39 +182,184 @@ void event_round_start(Event event, const char[] name, bool dontBroadcast)
     reset_all();
 }
 
-void get_cvars()
+void event_revive_success(Event event, const char[] name, bool dontBroadcast)
 {
-    char cvar_colors[13];
+    if(O_revive_keep_duration < 0.1 || event.GetBool("ledge_hang"))
+    {
+        return;
+    }
+	int client = GetClientOfUserId(event.GetInt("subject"));
+	if(client > 0 && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_player_on_thirdstrike(client))
+	{
+        for(int i = 0; i < Used_timer.Length; i++)
+        {
+            Handle timer = Used_timer.Get(i);
+            bool got = false;
+            for(int j = 1; j <= MaxClients; j++)
+            {
+                if(timer == H_keep[j])
+                {
+                    got = true;
+                    break;
+                }
+            }
+            if(!got)
+            {
+                Used_timer.Erase(i--);
+                delete timer;
+            }
+        }
+        H_keep[client] = CreateTimer(O_revive_keep_duration, timer_keep);
+        Used_timer.Push(H_keep[client]);
+	}
+}
+
+void timer_keep(Handle timer)
+{
+    int idx = Used_timer.FindValue(timer);
+    if(idx != -1)
+    {
+        Used_timer.Erase(idx);
+    }
+    for(int client = 1; client <= MaxClients; client++)
+    {
+        if(timer == H_keep[client])
+        {
+            reset_player(client);
+        }
+    }
+}
+
+void data_trans(int client, int prev)
+{
+    H_keep[client] = H_keep[prev];
+}
+
+void event_player_bot_replace(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("bot"));
+	if(client > 0 && IsClientInGame(client))
+	{
+		int prev = GetClientOfUserId(event.GetInt("player"));
+		if(prev > 0 && IsClientInGame(prev))
+		{
+            data_trans(client, prev);
+		}
+	}
+}
+
+void event_bot_player_replace(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("player"));
+	if(client > 0 && IsClientInGame(client))
+	{
+		int prev = GetClientOfUserId(event.GetInt("bot"));
+		if(prev > 0 && IsClientInGame(prev))
+		{
+			data_trans(client, prev);
+		}
+	}
+}
+
+void timer_set_false(Handle timer)
+{
+    H_set_false = null;
+    Should_add_glow = false;
+    H_set_true = CreateTimer(O_pulse_interval, timer_set_true);
+}
+
+void timer_set_true(Handle timer)
+{
+    H_set_true = null;
+    Should_add_glow = true;
+    H_set_false = CreateTimer(O_pulse_duration, timer_set_false);
+}
+
+void data_reset()
+{
+    delete H_set_true;
+    delete H_set_false;
+    Should_add_glow = true;
+    if(O_pulse_duration >= 0.1 && O_pulse_interval >= 0.1)
+    {
+        H_set_false = CreateTimer(O_pulse_duration, timer_set_false);
+    }
+}
+
+void get_all_cvars()
+{
+    char cvar_colors[12];
     C_color.GetString(cvar_colors, sizeof(cvar_colors));
-	char colors_get[3][4];
-	ExplodeString(cvar_colors, " ", colors_get, 3, 4);
-    O_color = StringToInt(colors_get[0]) + StringToInt(colors_get[1]) * 256 + StringToInt(colors_get[2]) * 65536;
+    explode_string_to_cell_array(cvar_colors, " ", O_color, sizeof(O_color), 4, StringExplodeType_Int);
     O_range = C_range.IntValue;
     O_range_min = C_range_min.IntValue;
     O_through_wall = C_through_wall.BoolValue;
     O_flash = C_flash.BoolValue;
+    O_pulse_duration = C_pulse_duration.FloatValue;
+    O_pulse_interval = C_pulse_interval.FloatValue;
+    O_revive_keep_duration = C_revive_keep_duration.FloatValue;
+    O_auto_through_wall = C_auto_through_wall.BoolValue;
+    O_sv_disable_glow_survivors = C_sv_disable_glow_survivors.BoolValue;
 
-    reset_all();
+    data_reset();
+    update_glow_type();
+}
+
+void get_single_cvar(ConVar convar)
+{
+    if(convar == C_color)
+    {
+        char cvar_colors[12];
+        C_color.GetString(cvar_colors, sizeof(cvar_colors));
+        explode_string_to_cell_array(cvar_colors, " ", O_color, sizeof(O_color), 4, StringExplodeType_Int);
+    }
+    else if(convar == C_range)
+    {
+        O_range = C_range.IntValue;
+    }
+    else if(convar == C_range_min)
+    {
+        O_range_min = C_range_min.IntValue;
+    }
+    else if(convar == C_through_wall)
+    {   
+        O_through_wall = C_through_wall.BoolValue;
+        update_glow_type();
+    }
+    else if(convar == C_flash)
+    {
+        O_flash = C_flash.BoolValue;
+    }
+    else if(convar == C_pulse_duration)
+    {
+        O_pulse_duration = C_pulse_duration.FloatValue;
+    }
+    else if(convar == C_pulse_interval)
+    {
+        O_pulse_interval = C_pulse_interval.FloatValue;
+    }
+    else if(convar == C_revive_keep_duration)
+    {
+        O_revive_keep_duration = C_revive_keep_duration.FloatValue;
+    }
+    else if(convar == C_auto_through_wall)
+    {
+        O_auto_through_wall = C_auto_through_wall.BoolValue;
+        update_glow_type();
+    }
+    else if(convar == C_sv_disable_glow_survivors)
+    {
+        O_sv_disable_glow_survivors = C_sv_disable_glow_survivors.BoolValue;
+        update_glow_type();
+    }
 }
 
 void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	get_cvars();
-}
+	get_single_cvar(convar);
 
-public void OnConfigsExecuted()
-{
-	get_cvars();
-}
-
-any native_ThirdstrikeGlow_HasSetGlow(Handle plugin, int numParams)
-{
-	int client = GetNativeCell(1);
-	if(client < 1 || client > MaxClients)
-	{
-		ThrowNativeError(SP_ERROR_INDEX, "client index %d is out of bound", client);
-	}
-	return Added[client];
+    reset_all();
+    data_reset();
 }
 
 public APLRes AskPluginLoad2(Handle plugin, bool late, char[] error, int err_max)
@@ -146,29 +369,44 @@ public APLRes AskPluginLoad2(Handle plugin, bool late, char[] error, int err_max
         strcopy(error, err_max, "this plugin only runs in \"Left 4 Dead 2\"");
         return APLRes_SilentFailure;
     }
-    Forward_OnSetGlow = new GlobalForward("ThirdstrikeGlow_OnSetGlow", ET_Ignore, Param_Cell);
-    Forward_OnResetGlow = new GlobalForward("ThirdstrikeGlow_OnResetGlow", ET_Ignore, Param_Cell);
-    CreateNative("ThirdstrikeGlow_HasSetGlow", native_ThirdstrikeGlow_HasSetGlow);
-    RegPluginLibrary(PLUGIN_PREFIX);
     return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-    HookEvent("round_start", event_round_start);
+	Used_timer = new ArrayList();
 
-    C_color = CreateConVar(PLUGIN_PREFIX ... "_color", "255 255 255", "color of glow, split up with space");
+    HookEvent("player_spawn", event_player_spawn);
+	HookEvent("player_team", event_player_team);
+    HookEvent("player_death", event_player_death);
+    HookEvent("round_start", event_round_start);
+    HookEvent("revive_success", event_revive_success);
+	HookEvent("player_bot_replace", event_player_bot_replace);
+	HookEvent("bot_player_replace", event_bot_player_replace);
+
+    C_color = CreateConVar("thirdstrike_glow_color", "255 255 255", "color of glow, split up with space");
     C_color.AddChangeHook(convar_changed);
-    C_range = CreateConVar(PLUGIN_PREFIX ... "_range", "0", "max visible range of glow. 0 = infinite", _, true, 0.0);
+    C_range = CreateConVar("thirdstrike_glow_range", "0", "max visible range of glow. 0 = infinite", _, true, 0.0);
     C_range.AddChangeHook(convar_changed);
-    C_range_min = CreateConVar(PLUGIN_PREFIX ... "_range_min", "0", "min range far away to visible the glow, 0 = no limit", _, true, 0.0);
+    C_range_min = CreateConVar("thirdstrike_glow_range_min", "0", "min range far away to visible the glow, 0 = no limit", _, true, 0.0);
     C_range_min.AddChangeHook(convar_changed);
-    C_through_wall = CreateConVar(PLUGIN_PREFIX ... "_through_wall", "1", "1 = enable, 0 = disable. can the glow be seen through wall?");
+    C_through_wall = CreateConVar("thirdstrike_glow_through_wall", "1", "1 = enable, 0 = disable. can the glow be seen through wall?");
     C_through_wall.AddChangeHook(convar_changed);
-    C_flash = CreateConVar(PLUGIN_PREFIX ... "_flash", "0", "1 = enable, 0 = disable. will the glow flash?");
+    C_flash = CreateConVar("thirdstrike_glow_flash", "1", "1 = enable, 0 = disable. will the glow flash?");
     C_flash.AddChangeHook(convar_changed);
-    CreateConVar(PLUGIN_PREFIX ... "_version", PLUGIN_VERSION, "version of " ... PLUGIN_NAME, FCVAR_NOTIFY | FCVAR_DONTRECORD);
-    AutoExecConfig(true, PLUGIN_PREFIX);
+    C_pulse_duration = CreateConVar("thirdstrike_glow_pulse_duration", "1.0", "duration of pulse to add glow. lower than 0.1 = disable");
+    C_pulse_duration.AddChangeHook(convar_changed);
+    C_pulse_interval = CreateConVar("thirdstrike_glow_pulse_interval", "0.5", "interval of pulse to add glow. lower than 0.1 = disable");
+    C_pulse_interval.AddChangeHook(convar_changed);
+    C_revive_keep_duration = CreateConVar("thirdstrike_glow_revive_keep_duration", "1.5", "after revived from down, always add glow for this duration even in the pulse interval. lower than 0.1 = disable");
+    C_revive_keep_duration.AddChangeHook(convar_changed);
+    C_auto_through_wall = CreateConVar("thirdstrike_glow_auto_through_wall", "0", "1 = enable, 0 = disable. ignore \"thirdstrike_glow_through_wall\", and only let glow pass through wall when \"sv_disable_glow_survivors\" disabled(for realism modes)");
+    C_auto_through_wall.AddChangeHook(convar_changed);
+    C_sv_disable_glow_survivors = FindConVar("sv_disable_glow_survivors");
+    C_sv_disable_glow_survivors.AddChangeHook(convar_changed);
+    CreateConVar("thirdstrike_glow_version", PLUGIN_VERSION, "version of Thirdstrike Glow", FCVAR_NOTIFY | FCVAR_DONTRECORD);
+    AutoExecConfig(true, "thirdstrike_glow");
+    get_all_cvars();
 }
 
 public void OnPluginEnd()

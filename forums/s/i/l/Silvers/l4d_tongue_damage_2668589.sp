@@ -1,6 +1,6 @@
 /*
 *	Tongue Damage
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.10"
+#define PLUGIN_VERSION 		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,11 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (05-Mar-2024)
+	- Added cvars "l4d_tongue_damage_damage_easy", "l4d_tongue_damage_damage_normal", "l4d_tongue_damage_damage_hard" and "l4d_tongue_damage_damage_impossible".
+	- Removed cvar "l4d_tongue_damage_damage" due to using the new cvars.
+	- Thanks to "bullet28" for this update.
 
 1.10 (01-Jul-2022)
 	- Fixed the "choke_end" event throwing unhook event errors under certain conditions.
@@ -82,12 +87,12 @@
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
-
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamage, g_hCvarFrames, g_hCvarTimeDelay, g_hCvarTimeDmg;
+ConVar g_hCvarAllow, g_hCvarDifficulty, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamageEasy, g_hCvarDamageNormal, g_hCvarDamageHard, g_hCvarDamageImpossible, g_hCvarFrames, g_hCvarTimeDelay, g_hCvarTimeDmg;
 bool g_bCvarAllow, g_bMapStarted, g_bLeft4DHooks, g_bTongueDamage;
 bool g_bChoking[MAXPLAYERS+1], g_bBlockReset[MAXPLAYERS+1];
 float g_fDelay[MAXPLAYERS+1];
 Handle g_hTimers[MAXPLAYERS+1];
+int g_iCurrentDifficulty;
 
 // ==================================================
 // 				LEFT 4 DHOOKS - OPTIONAL
@@ -142,17 +147,23 @@ public void OnLibraryRemoved(const char[] sName)
 
 public void OnPluginStart()
 {
-	g_hCvarAllow =			CreateConVar(	"l4d_tongue_damage_allow",			"1",				"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
-	g_hCvarModes =			CreateConVar(	"l4d_tongue_damage_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
-	g_hCvarModesOff =		CreateConVar(	"l4d_tongue_damage_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
-	g_hCvarModesTog =		CreateConVar(	"l4d_tongue_damage_modes_tog",		"3",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
-	g_hCvarDamage =			CreateConVar(	"l4d_tongue_damage_damage",			"5.0",				"How much damage to apply.", CVAR_FLAGS );
-	g_hCvarFrames =			CreateConVar(	"l4d_tongue_damage_frames",			"0",				"0=Damage Survivors when God Frames are active. 1=Allow God Frames to protect Survivors. (Requires \"Left4DHooks\" or the \"God Frames Patch\" plugin).", CVAR_FLAGS );
-	g_hCvarTimeDmg =		CreateConVar(	"l4d_tongue_damage_time",			"0.5",				"How often to damage players.", CVAR_FLAGS );
-	g_hCvarTimeDelay =		CreateConVar(	"l4d_tongue_damage_time_delay",		"0.0",				"How long after grabbing a Survivor until damage is allowed.", CVAR_FLAGS );
-	CreateConVar(							"l4d_tongue_damage_version",		PLUGIN_VERSION,		"Tongue Damage plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
-	AutoExecConfig(true,					"l4d_tongue_damage");
+	g_hCvarAllow =				CreateConVar(	"l4d_tongue_damage_allow",				"1",		"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
+	g_hCvarModes =				CreateConVar(	"l4d_tongue_damage_modes",				"",			"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
+	g_hCvarModesOff =			CreateConVar(	"l4d_tongue_damage_modes_off",			"",			"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
+	g_hCvarModesTog =			CreateConVar(	"l4d_tongue_damage_modes_tog",			"3",		"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 
+	g_hCvarDamageEasy =			CreateConVar(	"l4d_tongue_damage_damage_easy",		"1.0",		"How much damage to apply on Easy difficulty.", CVAR_FLAGS );
+	g_hCvarDamageNormal =		CreateConVar(	"l4d_tongue_damage_damage_normal",		"2.0",		"How much damage to apply on Normal difficulty.", CVAR_FLAGS );
+	g_hCvarDamageHard =			CreateConVar(	"l4d_tongue_damage_damage_hard",		"3.0",		"How much damage to apply on Hard difficulty.", CVAR_FLAGS );
+	g_hCvarDamageImpossible =	CreateConVar(	"l4d_tongue_damage_damage_impossible",	"4.0",		"How much damage to apply on Expert difficulty.", CVAR_FLAGS );
+
+	g_hCvarFrames =				CreateConVar(	"l4d_tongue_damage_frames",				"0",		"0=Damage Survivors when God Frames are active. 1=Allow God Frames to protect Survivors. (Requires \"Left4DHooks\" or the \"God Frames Patch\" plugin).", CVAR_FLAGS );
+	g_hCvarTimeDmg =			CreateConVar(	"l4d_tongue_damage_time",				"1.0625",	"How often to damage players.", CVAR_FLAGS );
+	g_hCvarTimeDelay =			CreateConVar(	"l4d_tongue_damage_time_delay",			"0.0",		"How long after grabbing a Survivor until damage is allowed.", CVAR_FLAGS );
+	CreateConVar(								"l4d_tongue_damage_version",		PLUGIN_VERSION,	"Tongue Damage plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	AutoExecConfig(true,						"l4d_tongue_damage");
+
+	g_hCvarDifficulty = FindConVar("z_difficulty");
 	g_hCvarMPGameMode = FindConVar("mp_gamemode");
 	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModes.AddChangeHook(ConVarChanged_Allow);
@@ -160,9 +171,12 @@ public void OnPluginStart()
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 
+	g_iCurrentDifficulty = GetCurrentDifficulty();
+
 	HookEvent("tongue_grab", Event_GrabStart);
 	HookEvent("choke_start", Event_ChokeStart);
 	HookEvent("choke_end", Event_ChokeStop);
+	HookEvent("difficulty_changed", Event_DifficultyChanged);
 }
 
 
@@ -362,6 +376,11 @@ void Event_GrabStop(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
+void Event_DifficultyChanged(Event event, const char[] name, bool dontBroadcast)
+{
+	g_iCurrentDifficulty = event.GetInt("newDifficulty");
+}
+
 Action TimerDamage(Handle timer, any client)
 {
 	client = GetClientOfUserId(client);
@@ -394,7 +413,7 @@ Action TimerDamage(Handle timer, any client)
 				}
 
 				g_bBlockReset[client] = true;
-				HurtEntity(client, attacker, g_hCvarDamage.FloatValue);
+				HurtEntity(client, attacker, GetDragDamage());
 				g_bBlockReset[client] = false;
 				return Plugin_Continue;
 			}
@@ -408,7 +427,7 @@ Action TimerDamage(Handle timer, any client)
 void HurtEntity(int victim, int client, float damage)
 {
 	g_bTongueDamage = true;
-	SDKHooks_TakeDamage(victim, client, client, damage, DMG_SLASH);
+	SDKHooks_TakeDamage(victim, client, client, damage, DMG_ACID);
 	g_bTongueDamage = false;
 }
 
@@ -421,4 +440,39 @@ public Action OnTakeDamage_Invulnerable(int client, int attacker, float &damage,
 	}
 
 	return Plugin_Continue;
+}
+
+float GetDragDamage()
+{
+	switch( g_iCurrentDifficulty )
+	{
+		case 1: return g_hCvarDamageNormal.FloatValue;
+		case 2: return g_hCvarDamageHard.FloatValue;
+		case 3: return g_hCvarDamageImpossible.FloatValue;
+	}
+
+	return g_hCvarDamageEasy.FloatValue;
+}
+
+int GetCurrentDifficulty()
+{
+	char value[11];
+	g_hCvarDifficulty.GetString(value, sizeof(value));
+
+	if( strcmp(value, "normal", false) == 0 )
+	{
+		return 1;
+	}
+
+	if( strcmp(value, "hard", false) == 0 )
+	{
+		return 2;
+	}
+
+	if( strcmp(value, "impossible", false) == 0 )
+	{
+		return 3;
+	}
+
+	return 0;
 }

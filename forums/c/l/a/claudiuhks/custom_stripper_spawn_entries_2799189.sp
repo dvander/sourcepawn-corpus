@@ -8,7 +8,7 @@ public Plugin myinfo =
     name = "Custom Stripper Spawn Entries",
     description = "Provides CS:GO, CS:S & DOD:S Custom Stripper Spawn Entries For The Map",
     author = "Hattrick HKS (CARAMEL® HACK)",
-    version = SOURCEMOD_VERSION,
+    version = __DATE__,
     url = "https://hattrick.go.ro/",
 };
 
@@ -78,8 +78,6 @@ public int g_nBlue = 0;
 
 public char g_szPath[256] = { 0, ... };
 
-public bool g_bLate = false;
-
 public bool g_bOnlyInBZ = false;
 
 public bool g_bActive = false;
@@ -124,14 +122,11 @@ public void OnMapEnd()
                 {
                     g_nTotalB = 0;
                     {
-                        g_bLate = false;
+                        g_nRed = 0;
                         {
-                            g_nRed = 0;
+                            g_nBlue = 0;
                             {
-                                g_nBlue = 0;
-                                {
-                                    g_bOnlyInBZ = false;
-                                }
+                                g_bOnlyInBZ = false;
                             }
                         }
                     }
@@ -198,38 +193,6 @@ public void RestoreOrgVars()
             }
         }
     }
-}
-
-public APLRes AskPluginLoad2(Handle hSelf, bool bLate, char[] szError, int nSize)
-{
-    g_nEngVs = GetEngineVersion();
-    {
-        g_bLate = false;
-        {
-            if (bLate)
-            {
-                if (Engine_CSGO != g_nEngVs)
-                {
-                    g_bLate = !(IsModelPrecached("sprites/redglow3.vmt") && IsModelPrecached("sprites/blueglow1.vmt"));
-                }
-
-                else
-                {
-                    g_bLate = !(IsModelPrecached("sprites/purpleglow1.vmt") && IsModelPrecached("sprites/blueglow1.vmt"));
-                }
-
-                if (!g_bLate)
-                {
-                    OnMapStart();
-                    {
-                        OnConfigsExecuted();
-                    }
-                }
-            }
-        }
-    }
-
-    return APLRes_Success;
 }
 
 public bool RmThis(int nPlr)
@@ -1025,96 +988,93 @@ public void OnConfigsExecuted()
     int nEntity = -1, nDirs = 0, nItr = 0;
     char szDirs[16][128], szPath[256] = { 0, ... };
 
-    if (!g_bLate)
+    if (g_nEngVs != Engine_DODS)
     {
-        if (g_nEngVs != Engine_DODS)
+        nEntity = -1;
         {
-            nEntity = -1;
+            while ((nEntity = FindEntityByClassname(nEntity, "info_player_counterterrorist")) != -1)
             {
-                while ((nEntity = FindEntityByClassname(nEntity, "info_player_counterterrorist")) != -1)
+                TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
                 {
-                    TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
+                    if (m_fEffects > 0)
                     {
-                        if (m_fEffects > 0)
-                        {
-                            SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
-                        }
-                    }
-                }
-            }
-
-            nEntity = -1;
-            {
-                while ((nEntity = FindEntityByClassname(nEntity, "info_player_terrorist")) != -1)
-                {
-                    TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
-                    {
-                        if (m_fEffects > 0)
-                        {
-                            SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
-                        }
+                        SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
                     }
                 }
             }
         }
 
-        else
+        nEntity = -1;
         {
-            nEntity = -1;
+            while ((nEntity = FindEntityByClassname(nEntity, "info_player_terrorist")) != -1)
             {
-                while ((nEntity = FindEntityByClassname(nEntity, "info_player_axis")) != -1)
+                TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
                 {
-                    TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
+                    if (m_fEffects > 0)
                     {
-                        if (m_fEffects > 0)
-                        {
-                            SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
-                        }
+                        SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
                     }
                 }
             }
+        }
+    }
 
-            nEntity = -1;
+    else
+    {
+        nEntity = -1;
+        {
+            while ((nEntity = FindEntityByClassname(nEntity, "info_player_axis")) != -1)
             {
-                while ((nEntity = FindEntityByClassname(nEntity, "info_player_allies")) != -1)
+                TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
                 {
-                    TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
+                    if (m_fEffects > 0)
                     {
-                        if (m_fEffects > 0)
-                        {
-                            SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
-                        }
+                        SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
                     }
                 }
             }
         }
 
-        GetCurrentMap(szPath, sizeof szPath);
+        nEntity = -1;
         {
-            BuildPath(Path_SM, g_szPath, sizeof g_szPath, "%s.se.cfg", szPath);
+            while ((nEntity = FindEntityByClassname(nEntity, "info_player_allies")) != -1)
             {
-                ReplaceString(g_szPath, sizeof g_szPath, "\\", "/", false);
+                TryOnceReadOffsComplex(nEntity, "m_fEffects", m_fEffects, m_fEffectsBytes);
                 {
-                    if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/sourcemod/", "/stripper/maps/", 11, 15, false))
+                    if (m_fEffects > 0)
                     {
-                        if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/source_mod/", "/stripper/maps/", 12, 15, false))
+                        SetEntData(nEntity, m_fEffects, GetEntData(nEntity, m_fEffects, m_fEffectsBytes) | 32, m_fEffectsBytes, false);
+                    }
+                }
+            }
+        }
+    }
+
+    GetCurrentMap(szPath, sizeof szPath);
+    {
+        BuildPath(Path_SM, g_szPath, sizeof g_szPath, "%s.se.cfg", szPath);
+        {
+            ReplaceString(g_szPath, sizeof g_szPath, "\\", "/", false);
+            {
+                if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/sourcemod/", "/stripper/maps/", 11, 15, false))
+                {
+                    if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/source_mod/", "/stripper/maps/", 12, 15, false))
+                    {
+                        if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/smod/", "/stripper/maps/", 6, 15, false))
                         {
-                            if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/smod/", "/stripper/maps/", 6, 15, false))
+                            if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/s_mod/", "/stripper/maps/", 7, 15, false))
                             {
-                                if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/s_mod/", "/stripper/maps/", 7, 15, false))
+                                if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/sourcem/", "/stripper/maps/", 9, 15, false))
                                 {
-                                    if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/sourcem/", "/stripper/maps/", 9, 15, false))
+                                    if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/source_m/", "/stripper/maps/", 10, 15, false))
                                     {
-                                        if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/source_m/", "/stripper/maps/", 10, 15, false))
+                                        if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/srcmod/", "/stripper/maps/", 8, 15, false))
                                         {
-                                            if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/srcmod/", "/stripper/maps/", 8, 15, false))
+                                            if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/src_mod/", "/stripper/maps/", 9, 15, false))
                                             {
-                                                if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/src_mod/", "/stripper/maps/", 9, 15, false))
+                                                if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/sm/", "/stripper/maps/", 4, 15, false))
                                                 {
-                                                    if (-1 == ReplaceStringEx(g_szPath, sizeof g_szPath, "/sm/", "/stripper/maps/", 4, 15, false))
-                                                    {
-                                                        ReplaceStringEx(g_szPath, sizeof g_szPath, "/s_m/", "/stripper/maps/", 5, 15, false);
-                                                    }
+                                                    ReplaceStringEx(g_szPath, sizeof g_szPath, "/s_m/", "/stripper/maps/", 5, 15, false);
                                                 }
                                             }
                                         }
@@ -1124,28 +1084,28 @@ public void OnConfigsExecuted()
                         }
                     }
                 }
+            }
 
-                nDirs = ExplodeString(g_szPath, "/", szDirs, sizeof szDirs, sizeof szDirs[], false);
+            nDirs = ExplodeString(g_szPath, "/", szDirs, sizeof szDirs, sizeof szDirs[], false);
+            {
+                if (nDirs > 0)
                 {
-                    if (nDirs > 0)
+                    szPath[0] = 0;
                     {
-                        szPath[0] = 0;
+                        for (nItr = 0; nItr < nDirs; nItr++)
                         {
-                            for (nItr = 0; nItr < nDirs; nItr++)
+                            if (strlen(szDirs[nItr]) > 0)
                             {
-                                if (strlen(szDirs[nItr]) > 0)
+                                if (StrContains(szDirs[nItr], ".cfg", false) == -1)
                                 {
-                                    if (StrContains(szDirs[nItr], ".cfg", false) == -1)
+                                    StrCat(szPath, sizeof szPath, szDirs[nItr]);
                                     {
-                                        StrCat(szPath, sizeof szPath, szDirs[nItr]);
+                                        if (!DirExists(szPath))
                                         {
-                                            if (!DirExists(szPath))
-                                            {
-                                                TryMkDir(szPath);
-                                            }
-
-                                            StrCat(szPath, sizeof szPath, "/");
+                                            TryMkDir(szPath);
                                         }
+
+                                        StrCat(szPath, sizeof szPath, "/");
                                     }
                                 }
                             }
@@ -1159,50 +1119,40 @@ public void OnConfigsExecuted()
 
 public void OnMapStart()
 {
-    if (!g_bLate)
+    g_nEngVs = GetEngineVersion();
+
+    g_nTotalA = 0;
+    g_nTotalB = 0;
+
+    g_bOnlyInBZ = false;
+
+    if (Engine_CSGO != g_nEngVs)
     {
-        g_nTotalA = 0;
-        g_nTotalB = 0;
-
-        g_bOnlyInBZ = false;
-
-        if (Engine_CSGO != g_nEngVs)
+        g_nRed = PrecacheModel("sprites/redglow3.vmt", true);
         {
-            g_nRed = PrecacheModel("sprites/redglow3.vmt", true);
+            if (g_nRed < 1)
             {
-                if (g_nRed < 1)
-                {
-                    LogError("Failed Precaching `sprites/redglow3.vmt`");
-                    {
-                        g_bLate = true;
-                    }
-                }
+                LogError("Failed Precaching `sprites/redglow3.vmt`");
             }
         }
+    }
 
-        else
+    else
+    {
+        g_nRed = PrecacheModel("sprites/purpleglow1.vmt", true);
         {
-            g_nRed = PrecacheModel("sprites/purpleglow1.vmt", true);
+            if (g_nRed < 1)
             {
-                if (g_nRed < 1)
-                {
-                    LogError("Failed Precaching `sprites/purpleglow1.vmt`");
-                    {
-                        g_bLate = true;
-                    }
-                }
+                LogError("Failed Precaching `sprites/purpleglow1.vmt`");
             }
         }
+    }
 
-        g_nBlue = PrecacheModel("sprites/blueglow1.vmt", true);
+    g_nBlue = PrecacheModel("sprites/blueglow1.vmt", true);
+    {
+        if (g_nBlue < 1)
         {
-            if (g_nBlue < 1)
-            {
-                LogError("Failed Precaching `sprites/blueglow1.vmt`");
-                {
-                    g_bLate = true;
-                }
-            }
+            LogError("Failed Precaching `sprites/blueglow1.vmt`");
         }
     }
 }
@@ -1862,7 +1812,7 @@ public void TryOnceReadOffsComplex(int nEntity, char[] szItm, int & nOffs, int &
     }
 }
 
-public void SkipMultiSpaces(char[] szItm, int nMax)
+public void SkipMultiSpaces(char[] szItm)
 {
     static int nItr = 0;
     {
@@ -1870,32 +1820,24 @@ public void SkipMultiSpaces(char[] szItm, int nMax)
         {
             static int nChr = 0;
             {
-                static int nSze = 0;
+                static char cTmp = 0;
                 {
-                    static char szTmp[256] = { 0, ... };
+                    nLen = strlen(szItm);
                     {
-                        static char cTmp = 0;
+                        if (nLen > 0)
                         {
-                            if ((nMax < 1) || ((nLen = strlen(szItm)) < 1))
+                            char[] szTmp = new char[nLen];
                             {
-                                szItm[0] = 0;
-                            }
-
-                            else
-                            {
-                                for (nItr = 0, nChr = 0, cTmp = ' ', nSze = sizeof szTmp; ((nItr < nLen) && (nChr < nSze) && (nChr < nMax)); nItr++)
+                                if (!(!szTmp))
                                 {
-                                    if (szItm[nItr] != ' ')
+                                    for (nItr = 0, nChr = 0, cTmp = ' '; nItr < nLen; nItr++)
                                     {
-                                        szTmp[nChr++] = szItm[nItr];
+                                        if (szItm[nItr] == '\t')
                                         {
-                                            cTmp = szItm[nItr];
+                                            szItm[nItr] = ' ';
                                         }
-                                    }
 
-                                    else
-                                    {
-                                        if (cTmp != ' ')
+                                        if (szItm[nItr] != ' ' || cTmp != ' ')
                                         {
                                             szTmp[nChr++] = szItm[nItr];
                                             {
@@ -1903,44 +1845,30 @@ public void SkipMultiSpaces(char[] szItm, int nMax)
                                             }
                                         }
                                     }
-                                }
 
-                                szTmp[nChr] = 0;
-
-                                if (nChr > 0)
-                                {
-                                    if (szTmp[nChr - 1] == ' ')
+                                    if (nChr > 0)
                                     {
-                                        szTmp[--nChr] = 0;
-                                    }
+                                        szTmp[nChr] = 0;
 
-                                    if (nChr < 1)
-                                    {
-                                        szItm[0] = 0;
-                                    }
-
-                                    else
-                                    {
-                                        if (nMax <= nChr)
+                                        if (szTmp[nChr - 1] == ' ')
                                         {
-                                            nChr = nMax;
-                                            {
-                                                if (szTmp[nChr - 1] == ' ')
-                                                {
-                                                    szTmp[--nChr] = 0;
-                                                }
-                                            }
+                                            szTmp[--nChr] = 0;
                                         }
 
                                         if (nChr > 0)
                                         {
-                                            strcopy(szItm, nMax, szTmp);
+                                            strcopy(szItm, nChr + 1, szTmp);
                                         }
 
                                         else
                                         {
                                             szItm[0] = 0;
                                         }
+                                    }
+
+                                    else
+                                    {
+                                        szItm[0] = 0;
                                     }
                                 }
 
@@ -1966,7 +1894,7 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
 
     if (nPlr > 0)
     {
-        if (nPlr < 65)
+        if (nPlr < 66)
         {
             if (MaxClients < 1 || nPlr <= MaxClients)
             {
@@ -1974,15 +1902,15 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                 {
                     if (IsClientInGame(nPlr))
                     {
-                        if (IsClientAuthorized(nPlr))
+                        if (!IsFakeClient(nPlr))
                         {
-                            if (IsPlayerAlive(nPlr))
+                            if (IsClientAuthorized(nPlr))
                             {
-                                if (!g_bLate)
+                                if (IsPlayerAlive(nPlr))
                                 {
-                                    if (CheckCommandAccess(nPlr, "sm_stripper_spawns", 16384, false))
+                                    if (GetUserFlagBits(nPlr) & 16384)
                                     {
-                                        if (strncmp(szArg, "/st", 3, false) == 0)
+                                        if (strncmp(szArg, "st", 2, false) == 0)
                                         {
                                             nId = -1;
                                             {
@@ -1992,7 +1920,7 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                                     {
                                                         strcopy(szTmp, sizeof szTmp, szArg);
                                                         {
-                                                            SkipMultiSpaces(szTmp, sizeof szTmp);
+                                                            SkipMultiSpaces(szTmp);
                                                             {
                                                                 nArgs = ExplodeString(szTmp, " ", szArgs, sizeof szArgs, sizeof szArgs[], false);
                                                                 {
@@ -2244,17 +2172,17 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
 
                                             else
                                             {
-                                                PrintToChat(nPlr, "Try /ST <0..98> <A..B>");
+                                                PrintToChat(nPlr, "Try ST <0..98> <A..B>");
                                             }
 
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/sxr", false) == 0)
+                                        else if (strcmp(szArg, "sxr", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2271,11 +2199,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/sxt", false) == 0)
+                                        else if (strcmp(szArg, "sxt", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2292,11 +2220,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/s1", false) == 0)
+                                        else if (strcmp(szArg, "s1", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2446,11 +2374,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/s2", false) == 0)
+                                        else if (strcmp(szArg, "s2", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2600,11 +2528,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/sr", false) == 0)
+                                        else if (strcmp(szArg, "sr", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2712,7 +2640,7 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/spawns", false) == 0)
+                                        else if (strcmp(szArg, "spawns", false) == 0)
                                         {
                                             nTime = GetTime();
                                             {
@@ -2732,7 +2660,7 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                                                         {
                                                                             CreateTimer(1.000000, TmrGlow, 0, TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
                                                                             {
-                                                                                PrintToChat(nPlr, "/S1 /S2 /SR /SS /SN /SB /ST /SXR /SXT");
+                                                                                PrintToChat(nPlr, "S1 S2 SR SS SN SB ST SXR SXT");
                                                                                 {
                                                                                     CreateTimer(0.200000, TmrAng, GetClientUserId(nPlr), TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
                                                                                 }
@@ -2762,11 +2690,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/sn", false) == 0)
+                                        else if (strcmp(szArg, "sn", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2778,11 +2706,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             }
                                         }
 
-                                        else if (strcmp(szArg, "/ss", false) == 0)
+                                        else if (strcmp(szArg, "ss", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2907,11 +2835,11 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             return Plugin_Handled;
                                         }
 
-                                        else if (strcmp(szArg, "/sb", false) == 0)
+                                        else if (strcmp(szArg, "sb", false) == 0)
                                         {
                                             if (!g_bActive)
                                             {
-                                                PrintToChat(nPlr, "Type /SPAWNS Before");
+                                                PrintToChat(nPlr, "Type SPAWNS Before");
                                                 {
                                                     return Plugin_Handled;
                                                 }
@@ -2931,23 +2859,6 @@ public Action OnClientSayCommand(int nPlr, const char[] szCmd, const char[] szAr
                                             }
 
                                             return Plugin_Handled;
-                                        }
-                                    }
-                                }
-
-                                else
-                                {
-                                    if (0 == strcmp(szArg, "/spawns", false) || 0 == strcmp(szArg, "/sn", false) || 0 == strcmp(szArg, "/s1", false) ||
-                                        0 == strcmp(szArg, "/s2", false) || 0 == strcmp(szArg, "/sr", false) || 0 == strcmp(szArg, "/ss", false) ||
-                                        0 == strncmp(szArg, "/st", 3, false) || 0 == strcmp(szArg, "/sb", false) || 0 == strcmp(szArg, "/sxr", false) ||
-                                        0 == strcmp(szArg, "/sxt", false))
-                                    {
-                                        if (CheckCommandAccess(nPlr, "sm_stripper_spawns", 16384, false))
-                                        {
-                                            PrintToChat(nPlr, "Only After Map Change");
-                                            {
-                                                return Plugin_Handled;
-                                            }
                                         }
                                     }
                                 }
@@ -2974,7 +2885,7 @@ public Action TmrAng(Handle hTmr, any nUsrId)
                 {
                     if (nPlr > 0)
                     {
-                        if (nPlr < 65)
+                        if (nPlr < 66)
                         {
                             if (MaxClients < 1 || nPlr <= MaxClients)
                             {

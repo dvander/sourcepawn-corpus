@@ -44,7 +44,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 
 	char sMap[64];
 	GetCurrentMap(sMap, sizeof(sMap));
-	if (StrEqual(sMap, "l4d_smalltown01_caves", false) || StrEqual(sMap, "l4d_vs_smalltown01_caves", false))
+	if (StrEqual(sMap, "l4d_smalltown01_caves", false) || StrEqual(sMap, "l4d_vs_smalltown01_caves", false) || StrEqual(sMap, "c10m1_caves", false))
 	{
 
  	float pos[3], ang[3], fwd[3]; 

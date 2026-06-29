@@ -1,6 +1,6 @@
 /*
 *	Weapons Movement Speed
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.7"
+#define PLUGIN_VERSION 		"2.8"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,16 @@
 
 ========================================================================================
 	Change Log:
+
+2.8 (05-Nov-2024)
+	- Added command "sm_weapon_speed_reload" to reload the data config.
+	- Added cvar "l4d_weapons_movement_speed_water" to scale a players speed who is walking through water. Requested by "Tighty Whitey".
+	- Added cvar "l4d_weapons_movement_speed_one" to scale a players speed when they are on 1 HP health. Requested by "Tighty Whitey".
+	- Fixed the "Tonfa" from "Riot" zombies, and possibly other melee weapons not being recognized when missing their script name. Thanks to "Tighty Whitey" for reporting.
+
+	- NOTE:
+	- Fixed incorrect internal Walk and Crouch speeds within the plugin. Plugin configs will have to be modified to account for the corrected values.
+	- Speed values from the data config that are not 0.0 and 5.0 or less will scale the players default speed by the value set in the config.
 
 2.7 (24-Nov-2023)
 	- Fixed movement speed bug after staggering when the stagger timer didn't reset (due to some plugins such as "Stagger Gravity").
@@ -81,20 +91,21 @@
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define CONFIG_DATA			"data/l4d_weapons_movement_speed.cfg"
 
+#define DEBUG_SPEED			0 // 1=Print speed on screen, doesn't show accurate speed, m_flMaxspeed limiting speed values -_-
 #define MAX_SPEED_RUN		220.0
-#define MAX_SPEED_WALK		150.0
-#define MAX_SPEED_CROUCH	85.0
-#define MAX_SPEED_HURT		149.9
+#define MAX_SPEED_WALK		85.0
+#define MAX_SPEED_CROUCH	75.0
+#define MAX_SPEED_HURT		150.0
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDecayRate, g_hCvarLimpHealth;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDecayRate, g_hCvarLimpHealth, g_hCvarLimpOne, g_hCvarWater;
 bool g_bCvarAllow, g_bMapStarted, g_bLaggedMovement;
 bool g_bHookedThink[MAXPLAYERS+1];
 float g_fSpeedHurt[MAXPLAYERS+1];
 float g_fSpeedRun[MAXPLAYERS+1];
 float g_fSpeedWalk[MAXPLAYERS+1];
 float g_fSpeedCrouch[MAXPLAYERS+1];
-float g_fCvarDecayRate;
+float g_fCvarDecayRate, g_fCvarLimpOne, g_fCvarWater;
 int g_iCvarLimpHealth;
 StringMap g_smSpeedHurt;
 StringMap g_smSpeedRun;
@@ -156,6 +167,8 @@ public void OnPluginStart()
 	g_hCvarModes =		CreateConVar(	"l4d_weapons_movement_speed_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff =	CreateConVar(	"l4d_weapons_movement_speed_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =	CreateConVar(	"l4d_weapons_movement_speed_modes_tog",		"0",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
+	g_hCvarLimpOne =	CreateConVar(	"l4d_weapons_movement_speed_one",			"0.5",				"Multiplier to modify players movement speed when at 1 HP.", CVAR_FLAGS );
+	g_hCvarWater =		CreateConVar(	"l4d_weapons_movement_speed_water",			"0.5",				"Multiplier to modify players movement speed when in water.", CVAR_FLAGS );
 	CreateConVar(						"l4d_weapons_movement_speed_version",		PLUGIN_VERSION,		"Weapons Movement Speed plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,				"l4d_weapons_movement_speed");
 
@@ -169,7 +182,39 @@ public void OnPluginStart()
 	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarDecayRate.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarLimpHealth.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarLimpOne.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarWater.AddChangeHook(ConVarChanged_Cvars);
+
+	RegAdminCmd("sm_weapon_speed_reload", CmdReload, ADMFLAG_ROOT, "Reload the Weapons Movement Speed data config.");
+
+	#if DEBUG_SPEED
+	CreateTimer(1.0, TimerSpeed, _, TIMER_REPEAT);
+	#endif
 }
+
+#if DEBUG_SPEED
+Action TimerSpeed(Handle timer)
+{
+	float vPos[3];
+	static float vVec[MAXPLAYERS+1][3];
+
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientInGame(i) && !IsFakeClient(i) && IsPlayerAlive(i) )
+		{
+			GetClientAbsOrigin(i, vPos);
+			float speed1 = GetVectorDistance(vPos, vVec[i]);
+			vVec[i] = vPos;
+
+			GetEntPropVector(i, Prop_Data, "m_vecVelocity", vPos);
+			float speed2 = GetVectorLength(vPos);
+			PrintHintText(i, "Speed: %0.2f %0.2f", speed1, speed2);
+		}
+	}
+
+	return Plugin_Continue;
+}
+#endif
 
 public void OnPluginEnd()
 {
@@ -199,6 +244,8 @@ void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newV
 
 void GetCvars()
 {
+	g_fCvarLimpOne = g_hCvarLimpOne.FloatValue;
+	g_fCvarWater = g_hCvarWater.FloatValue;
 	g_fCvarDecayRate = g_hCvarDecayRate.FloatValue;
 	g_iCvarLimpHealth = g_hCvarLimpHealth.IntValue;
 }
@@ -324,6 +371,13 @@ void OnGamemode(const char[] output, int caller, int activator, float delay)
 // ====================================================================================================
 // LOAD CONFIG
 // ====================================================================================================
+Action CmdReload(int client, int args)
+{
+	LoadConfig();
+	ReplyToCommand(client, "Weapons Movement Speed config reloaded!");
+	return Plugin_Handled;
+}
+
 public void OnMapEnd()
 {
 	g_bMapStarted = false;
@@ -441,6 +495,28 @@ void OnWeaponSwitch(int client, int weapon)
 		{
 			GetEntPropString(current, Prop_Data, "m_strMapSetScriptName", sClass, sizeof(sClass));
 
+			// Fix melee weapons that don't have a script name
+			if( sClass[0] == 0 )
+			{
+				GetEntPropString(current, Prop_Data, "m_ModelName", sClass, sizeof(sClass));
+
+				if( strncmp(sClass[23], "bat", 3) == 0 ) sClass = "bat";
+				else if( strncmp(sClass[23], "cri", 3) == 0 ) sClass = "cricket_bat";
+				else if( strncmp(sClass[23], "cro", 3) == 0 ) sClass = "crowbar";
+				else if( strncmp(sClass[23], "ele", 3) == 0 ) sClass = "electric_guitar";
+				else if( strncmp(sClass[23], "fir", 3) == 0 ) sClass = "fireaxe";
+				else if( strncmp(sClass[23], "fry", 3) == 0 ) sClass = "frying_pan";
+				else if( strncmp(sClass[23], "gol", 3) == 0 ) sClass = "golfclub";
+				else if( strncmp(sClass[23], "kat", 3) == 0 ) sClass = "katana";
+				else if( strncmp(sClass[23], "kni", 3) == 0 ) sClass = "knife";
+				else if( strncmp(sClass[23], "mac", 3) == 0 ) sClass = "machete";
+				else if( strncmp(sClass[23], "ton", 3) == 0 ) sClass = "tonfa";
+				else if( strncmp(sClass[23], "pit", 3) == 0 ) sClass = "pitchfork";
+				else if( strncmp(sClass[23], "sho", 3) == 0 ) sClass = "shovel";
+
+				if( sClass[0] ) SetEntPropString(weapon, Prop_Data, "m_strMapSetScriptName", sClass);
+			}
+
 			if( g_smSpeedHurt.GetValue(sClass,		g_fSpeedHurt[client]) == false )	g_fSpeedHurt[client] = 0.0;
 			if( g_smSpeedRun.GetValue(sClass,		g_fSpeedRun[client]) == false )		g_fSpeedRun[client] = 0.0;
 			if( g_smSpeedWalk.GetValue(sClass,		g_fSpeedWalk[client]) == false )	g_fSpeedWalk[client] = 0.0;
@@ -454,10 +530,10 @@ void OnWeaponSwitch(int client, int weapon)
 		}
 
 		// Work out percentage for "m_flLaggedMovementValue" value.
-		if( g_fSpeedHurt[client] )		g_fSpeedHurt[client]		= g_fSpeedHurt[client]		/ MAX_SPEED_HURT;
-		if( g_fSpeedRun[client] )		g_fSpeedRun[client]			= g_fSpeedRun[client]		/ MAX_SPEED_RUN;
-		if( g_fSpeedWalk[client] )		g_fSpeedWalk[client]		= g_fSpeedWalk[client]		/ MAX_SPEED_WALK;
-		if( g_fSpeedCrouch[client] )	g_fSpeedCrouch[client]		= g_fSpeedCrouch[client]	/ MAX_SPEED_CROUCH;
+		if( g_fSpeedHurt[client]	&& g_fSpeedHurt[client] > 5.0 )		g_fSpeedHurt[client]		= g_fSpeedHurt[client]		/ MAX_SPEED_HURT;
+		if( g_fSpeedRun[client]		&& g_fSpeedRun[client] > 5.0 )		g_fSpeedRun[client]			= g_fSpeedRun[client]		/ MAX_SPEED_RUN;
+		if( g_fSpeedWalk[client]	&& g_fSpeedWalk[client] > 5.0 )		g_fSpeedWalk[client]		= g_fSpeedWalk[client]		/ MAX_SPEED_WALK;
+		if( g_fSpeedCrouch[client]	&& g_fSpeedCrouch[client] > 5.0 )	g_fSpeedCrouch[client]		= g_fSpeedCrouch[client]	/ MAX_SPEED_CROUCH;
 
 		if( g_fSpeedHurt[client] || g_fSpeedRun[client] || g_fSpeedWalk[client] || g_fSpeedCrouch[client] )
 		{
@@ -523,9 +599,27 @@ void PreThinkPost(int client)
 	// =========================
 
 
+	// SetEntPropFloat(client, Prop_Send, "m_flMaxspeed", 550.0);
+	float speed = -1.0;
+
+	// Set speed
+	int buttons = GetClientButtons(client);
+
+	if( g_fSpeedCrouch[client] && buttons & IN_DUCK )
+	{
+		speed = g_fSpeedCrouch[client];
+	}
+	else if( g_fSpeedWalk[client] && buttons & IN_SPEED )
+	{
+		speed = g_fSpeedWalk[client];
+	}
+	else if( g_fSpeedRun[client] )
+	{
+		speed = g_fSpeedRun[client];
+	}
 
 	// Get health, check for limp speed
-	if( g_fSpeedHurt[client] )
+	if( g_fCvarLimpOne != 1.0 || g_fSpeedHurt[client] )
 	{
 		float fGameTime = GetGameTime();
 		float fHealthTime = GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
@@ -537,24 +631,23 @@ void PreThinkPost(int client)
 		fHealth += GetClientHealth(client);
 		if( fHealth > 1.0 && fHealth <= g_iCvarLimpHealth )
 		{
-			SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", g_bLaggedMovement ? L4D_LaggedMovement(client, g_fSpeedHurt[client]) : g_fSpeedHurt[client]);
-			return;
+			speed = g_fSpeedHurt[client];
+		}
+		else if( fHealth <= 1.0 )
+		{
+			speed *= g_fCvarLimpOne;
 		}
 	}
 
-	// Set speed
-	int buttons = GetClientButtons(client);
+	if( speed != -1.0 )
+	{
+		// Water slowdown
+		int water = GetEntProp(client, Prop_Send, "m_nWaterLevel");
+		if( water > 0 )
+		{
+			speed *= g_fCvarWater;
+		}
 
-	if( g_fSpeedCrouch[client] && buttons & IN_DUCK )
-	{
-		SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", g_bLaggedMovement ? L4D_LaggedMovement(client, g_fSpeedCrouch[client]) : g_fSpeedCrouch[client]);
-	}
-	else if( g_fSpeedWalk[client] && buttons & IN_SPEED )
-	{
-		SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", g_bLaggedMovement ? L4D_LaggedMovement(client, g_fSpeedWalk[client]) : g_fSpeedWalk[client]);
-	}
-	else if( g_fSpeedRun[client] )
-	{
-		SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", g_bLaggedMovement ? L4D_LaggedMovement(client, g_fSpeedRun[client]) : g_fSpeedRun[client]);
+		SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", g_bLaggedMovement ? L4D_LaggedMovement(client, speed) : speed);
 	}
 }

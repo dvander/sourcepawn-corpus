@@ -1,7 +1,7 @@
 #define PLUGIN_NAME "[CS:S ZR] Bots Don't Attack Humans"
 #define PLUGIN_AUTHOR "Shadowysn"
 #define PLUGIN_DESC "Stops bots from attacking humans."
-#define PLUGIN_VERSION "1.0.1"
+#define PLUGIN_VERSION "1.0.2"
 #define PLUGIN_URL ""
 #define PLUGIN_NAME_SHORT "Bots Don't Attack Humans"
 #define PLUGIN_NAME_TECH "bots_stop_attack_humans"
@@ -17,10 +17,6 @@
 #define TEAM_T 2
 #define TEAM_CT 3
 
-#define GAME_CSS 0
-#define GAME_CSGO 1
-static int gameVar = GAME_CSS;
-
 #define GAMEDATA "zr_stopbotsattacking_humans"
 
 Handle hConf = null;
@@ -28,60 +24,42 @@ Handle hConf = null;
 #define NAME_InSameTeam "CBaseEntity::InSameTeam"
 static Handle hDHookInSameTeam = null;
 
-#define SIG_InSameTeam_LINUX "@_ZNK11CBaseEntity10InSameTeamEPS_"
-#define SIG_InSameTeam_WINDOWS "\\x55\\x8B\\xEC\\x8B\\x45\\x08\\x57\\x8B\\xF9\\x85\\xC0\\x75\\x2A\\x32\\xC0\\x5F\\x5D\\xC2\\x04\\x00"
-
-#define SIG_CSGOInSameTeam_LINUX "\\x55\\x31\\xC0\\x89\\xE5\\x53\\x83\\xEC\\x14\\x8B\\x55\\x0C\\x85\\xD2"
-
-
-// CCSPlayer::IsOtherEnemy (CS:GO Only)
-#define NAME_IsOtherEnemy "CCSPlayer::IsOtherEnemy"
-static Handle hDHookIsOtherEnemy = null;
-
-#define SIG_CSGOIsOtherEnemy_LINUX "\\x55\\x31\\xC0\\x89\\xE5\\x56\\x53\\x83\\xEC\\x10\\x8B\\x5D\\x0C\\x8B\\x75\\x08\\x85\\xDB"
-#define SIG_CSGOIsOtherEnemy_WINDOWS "\\x55\\x8B\\xEC\\x56\\x8B\\x75\\x08\\x57\\x8B\\xF9\\x85\\xF6\\x75\\x2A\\x5F\\x32\\xC0\\x5E\\x5D\\xC2\\x04\\x00\\x8B\\x47"
-
-
 // CCSBot::OnAudibleEvent
 #define NAME_OnAudibleEvent "CCSBot::OnAudibleEvent"
 static Handle hDHookOnAudibleEvent = null;
-
-#define SIG_OnAudibleEvent_LINUX "@_ZN6CCSBot14OnAudibleEventEP10IGameEventP11CBasePlayerf12PriorityTypebbPK6Vector"
-#define SIG_OnAudibleEvent_WINDOWS "\\x55\\x8B\\xEC\\x83\\xEC\\x1C\\x56\\x8B\\x75\\x0C\\x57\\x8B\\xF9\\x85\\xF6"
-
-#define SIG_CSGOOnAudibleEvent_LINUX "\\x55\\x89\\xE5\\x57\\x56\\x53\\x81\\xEC\\xAC\\x00\\x00\\x00\\x8B\\x5D\\x10\\x8B\\x75\\x08"
-#define SIG_CSGOOnAudibleEvent_WINDOWS "\\x55\\x8B\\xEC\\x83\\xE4\\xF0\\x83\\xEC\\x2A\\x56\\x57\\x8B\\x7D\\x0C\\x8B\\xF1\\xF3\\x0F\\x11\\x5C\\x24"
-
 
 // CCSBot::OnPlayerRadio
 #define NAME_OnPlayerRadio "CCSBot::OnPlayerRadio"
 //static Handle hDHookOnPlayerRadio = null;
 
-#define SIG_OnPlayerRadio_LINUX "@_ZN6CCSBot13OnPlayerRadioEP10IGameEvent"
-#define SIG_OnPlayerRadio_WINDOWS "\\x55\\x8B\\xEC\\x83\\xEC\\x0C\\x57\\x8B\\xF9\\x8B\\x07\\x8B\\x80\\x04\\x01\\x00\\x00\\xFF\\xD0\\x84\\xC0"
-
-#define SIG_CSGOOnPlayerRadio_LINUX "\\x55\\x89\\xE5\\x83\\xEC\\x48\\x89\\x5D\\xF4\\x8B\\x5D\\x08\\x89\\x75\\xF8\\x8B\\x75\\x0C\\x89\\x7D\\xFC\\x8B\\x03\\x89\\x1C\\x24\\xFF\\x90\\x18\\x01\\x00\\x00\\x84\\xC0\\x75\\x2A\\x8B\\x5D\\xF4\\x8B\\x75\\xF8\\x8B\\x7D\\xFC\\x89\\xEC\\x5D\\xC3\\x8D\\xB4\\x26\\x00\\x00\\x00\\x00\\x8B\\x06\\xC7\\x44\\x24\\x08\\x00\\x00\\x00\\x00\\xC7\\x44\\x24\\x04\\x2A\\x2A\\x2A\\x2A\\x89\\x34\\x24\\xFF\\x50\\x1C\\x89\\x04\\x24\\xE8\\x2A\\x2A\\x2A\\x2A\\x85\\xC0"
-#define SIG_CSGOOnPlayerRadio_WINDOWS "\\x55\\x8B\\xEC\\x83\\xEC\\x0C\\x56\\x8B\\xF1\\x8B\\x06\\x8B\\x80\\x14\\x01\\x00\\x00\\xFF\\xD0\\x84\\xC0\\x0F\\x2A\\x2A\\x2A\\x2A\\x2A\\x53\\x8B\\x5D\\x08\\x8B\\xCB"
-
 // CCSBot::OnPlayerDeath
 #define NAME_OnPlayerDeath "CCSBot::OnPlayerDeath"
 //static Handle hDHookOnPlayerDeath = null;
 
-#define SIG_OnPlayerDeath_LINUX "@_ZN6CCSBot13OnPlayerDeathEP10IGameEvent"
-#define SIG_OnPlayerDeath_WINDOWS "\\x55\\x8B\\xEC\\x83\\xEC\\x28\\x57\\x8B\\xF9\\x8B\\x07\\x8B\\x80\\x04\\x01\\x00\\x00\\xFF\\xD0\\x84\\xC0"
+// CCSBot::SetBotEnemy
+#define NAME_SetBotEnemy "CCSBot::SetBotEnemy"
+//static Handle hDHookSetBotEnemy = null;
+static Handle sdkSetBotEnemy = null;
 
-#define SIG_CSGOOnPlayerDeath_LINUX "\\x55\\x89\\xE5\\x83\\xEC\\x78\\x89\\x5D\\xF4\\x8B\\x5D\\x08\\x89\\x7D\\xFC\\x8B\\x7D\\x0C"
-#define SIG_CSGOOnPlayerDeath_WINDOWS "\\x55\\x8B\\xEC\\x83\\xE4\\xF8\\x83\\xEC\\x20\\x56\\x57\\x8B\\xF9\\x8B\\x07\\x8B"
+#define SIG_InSameTeam_LINUX			"_ZNK11CBaseEntity10InSameTeamEPKS_"
+#define SIG_InSameTeam_WINDOWS			"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x57\\x8B\\xF9\\x85\\xC0\\x75\\x2A\\x32\\xC0\\x5F\\x5D\\xC2"
+#define SIG_InSameTeam_WINDOWS64		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x48\\x8B\\xF9\\x48\\x85\\xD2\\x75\\x08\\x32\\xC0\\x48\\x83"
+#define SIG_OnAudibleEvent_LINUX		"_ZN6CCSBot14OnAudibleEventEP10IGameEventP11CBasePlayerf12PriorityTypebbPK6Vector"
+#define SIG_OnAudibleEvent_WINDOWS		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x56\\x8B\\x2A\\x2A\\x57\\x8B\\xF9\\x85\\xF6\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x8B\\x06\\x8B\\xCE\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\xFF\\xD0\\x84\\xC0\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x8B\\x06\\x8B\\xCE\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\xFF\\xD0\\x84\\xC0\\x2A\\x2A\\x2A\\x2A\\x00\\x00"
+#define SIG_OnAudibleEvent_WINDOWS64	"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x56\\x57\\x41\\x56\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x49\\x8B\\x00\\x48\\x8B\\xF9"
+#define SIG_OnPlayerRadio_LINUX		"_ZN6CCSBot13OnPlayerRadioEP10IGameEvent"
+#define SIG_OnPlayerRadio_WINDOWS		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\xFF\\xD0\\x84\\xC0\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x53\\x56\\x2A\\x2A\\x8B\\x01\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x50"
+#define SIG_OnPlayerRadio_WINDOWS64		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x48\\x8B\\x01\\x4C\\x8B\\xF2\\x48\\x8B\\xF1\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x84\\xC0\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x49\\x8B\\x06"
+#define SIG_OnPlayerDeath_LINUX		"_ZN6CCSBot13OnPlayerDeathEP10IGameEvent"
+#define SIG_OnPlayerDeath_WINDOWS		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x07\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x53\\x2A\\x2A\\x2A\\x8B\\xCB\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x8B\\x03"
+#define SIG_OnPlayerDeath_WINDOWS64		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x84\\xC0\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x49\\x8B\\xCE"
+#define SIG_SetBotEnemy_LINUX			"_ZN6CCSBot11SetBotEnemyEP9CCSPlayer"
+#define SIG_SetBotEnemy_WINDOWS		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x0F\\xB7\\xCA\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x8B\\x00\\x2A\\x2A\\x33\\xC0\\x2A\\x2A\\x2A\\x3B\\xC7"
+#define SIG_SetBotEnemy_WINDOWS64		"\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x2A\\x2A\\xFA\\x2A\\x2A\\xD9\\x45\\x85\\xC0\\x2A\\x2A\\x2A\\x2A\\x2A\\x00\\x00\\x2A\\x2A\\x2A\\x2A\\x2A\\x2A\\x41\\x0F\\xB7\\xC0"
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
-	if (GetEngineVersion() == Engine_CSGO)
-	{
-		gameVar = GAME_CSGO;
-		PrintToServer("WARNING: zr_stopbotsattacking_humans.smx only properly supports Counter-Strike: Source.");
-		return APLRes_Success;
-	}
-	else if (GetEngineVersion() == Engine_CSS)
+	if (GetEngineVersion() == Engine_CSS)
 	{
 		return APLRes_Success;
 	}
@@ -113,9 +91,6 @@ public void OnPluginStart()
 	HookEvent("round_start", round_start, EventHookMode_PostNoCopy);
 	//HookEvent("round_end", round_start, EventHookMode_PostNoCopy);
 	
-	if (gameVar != GAME_CSGO)
-	{ CloseHandle(hDHookIsOtherEnemy); }
-	
 	GetGamedata();
 }
 
@@ -136,7 +111,39 @@ public int ZR_OnClientInfected(int client, int attacker, bool motherInfect, bool
 		PrintToServer("[ZR Bots Don't Attack Humans] Bots are now attacking.");
 		isDHooksToggled = false;
 		ToggleDHooks(false);
+		
+		if (sdkSetBotEnemy != null)
+		{
+			if (client != 0 && IsFakeClient(client)) SDKCall(sdkSetBotEnemy, client, GetNearestEnemy(client));
+			if (attacker != 0 && IsFakeClient(attacker)) SDKCall(sdkSetBotEnemy, attacker, GetNearestEnemy(attacker));
+		}
 	}
+}
+
+int GetNearestEnemy(int client)
+{
+	float origin[3];
+	GetClientAbsOrigin(client, origin);
+	
+	float distance = -1.0;
+	int retrievedEnemy = 0;
+	int team = GetClientTeam(client);
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsValidClient(i, true, true) || !IsPlayerAlive(i)) continue;
+		if (GetClientTeam(i) == team) continue;
+		
+		float enemyOrigin[3];
+		GetClientAbsOrigin(i, enemyOrigin);
+		
+		float newDist = GetVectorDistance(origin, enemyOrigin, true);
+		if (distance == -1.0 || newDist < distance)
+		{
+			distance = newDist;
+			retrievedEnemy = i;
+		}
+	}
+	return retrievedEnemy;
 }
 
 /*public void OnAllPluginsLoaded()
@@ -171,7 +178,7 @@ public MRESReturn IsOtherEnemy_Pre(int client, Handle hReturn, Handle hParams)
 	//return MRES_Ignored;
 }
 
-public MRESReturn OnAudibleEvent_Pre(int client, Handle hParams)
+MRESReturn OnAudibleEvent_Pre(int client, Handle hParams)
 {
 	//if (DHookGetParam(hParams, 0) < 2) return MRES_Ignored;
 	//int other_cl = DHookGetParam(hParams, 2);
@@ -213,8 +220,8 @@ stock bool IsValidClient(int client, bool replaycheck = true, bool isLoop = fals
 {
 	if ((isLoop || client > 0 && client <= MaxClients) && IsClientInGame(client))
 	{
-		if (HasEntProp(client, Prop_Send, "m_bIsCoaching")) // TF2, CSGO?
-			if (view_as<bool>(GetEntProp(client, Prop_Send, "m_bIsCoaching"))) return false;
+		//if (HasEntProp(client, Prop_Send, "m_bIsCoaching")) // TF2, CSGO?
+		//	if (view_as<bool>(GetEntProp(client, Prop_Send, "m_bIsCoaching"))) return false;
 		if (replaycheck)
 		{
 			if (IsClientSourceTV(client) || IsClientReplay(client)) return false;
@@ -240,41 +247,40 @@ void GetGamedata()
 		if (fileHandle == null)
 		{ SetFailState("[SM] Couldn't generate gamedata file!"); }
 		
-		/*for (int i = 0; i <= 2; i++)
-		{
-			WriteFileLine(fileHandle, "\"Games\"");
-			WriteFileLine(fileHandle, "{");
-			switch (i)
-			{
-				case GAME_CSS: WriteFileLine(fileHandle, "	\"cstrike\"");
-				case GAME_CSGO: WriteFileLine(fileHandle, "	\"csgo\"");
-			}
-			WriteFileLine(fileHandle, "	{");
-			WriteFileLine(fileHandle, "		\"Signatures\"");
-			WriteFileLine(fileHandle, "		{");
-			for (int j = 0; j <= 5; j++)
-			{
-				switch (j)
-				{
-					case 0: WriteFileLine(fileHandle, "			\"%s\"", NAME_InSameTeam);
-					case 1: { if (gameVar == GAME_CSGO) WriteFileLine(fileHandle, "			\"%s\"", NAME_IsOtherEnemy); }
-					case 2: WriteFileLine(fileHandle, "			\"%s\"", NAME_OnAudibleEvent);
-					case 3: WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerRadio);
-					case 4: WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerDeath);
-				}
-				WriteFileLine(fileHandle, "			{");
-				WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-				char temp_str[64];
-				switch (j)
-				{
-					temp_str
-				}
-				WriteFileLine(fileHandle, "			}");
-			}
-			WriteFileLine(fileHandle, "		}");
-			WriteFileLine(fileHandle, "	}");
-			WriteFileLine(fileHandle, "}");
-		}*/
+	//	for (int i = 0; i <= 2; i++)
+	//	{
+	//		WriteFileLine(fileHandle, "\"Games\"");
+	//		WriteFileLine(fileHandle, "{");
+	//		switch (i)
+	//		{
+	//			case GAME_CSS: WriteFileLine(fileHandle, "	\"cstrike\"");
+	//			case GAME_CSGO: WriteFileLine(fileHandle, "	\"csgo\"");
+	//		}
+	//		WriteFileLine(fileHandle, "	{");
+	//		WriteFileLine(fileHandle, "		\"Signatures\"");
+	//		WriteFileLine(fileHandle, "		{");
+	//		for (int j = 0; j <= 3; j++)
+	//		{
+	//			switch (j)
+	//			{
+	//				case 0: WriteFileLine(fileHandle, "			\"%s\"", NAME_InSameTeam);
+	//				case 1: WriteFileLine(fileHandle, "			\"%s\"", NAME_OnAudibleEvent);
+	//				case 2: WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerRadio);
+	//				case 3: WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerDeath);
+	//			}
+	//			WriteFileLine(fileHandle, "			{");
+	//			WriteFileLine(fileHandle, "				\"library\"	\"server\"");
+	//			char temp_str[64];
+	//			switch (j)
+	//			{
+	//				temp_str
+	//			}
+	//			WriteFileLine(fileHandle, "			}");
+	//		}
+	//		WriteFileLine(fileHandle, "		}");
+	//		WriteFileLine(fileHandle, "	}");
+	//		WriteFileLine(fileHandle, "}");
+	//	}
 		
 		WriteFileLine(fileHandle, "\"Games\"");
 		WriteFileLine(fileHandle, "{");
@@ -285,71 +291,42 @@ void GetGamedata()
 		WriteFileLine(fileHandle, "			\"%s\"", NAME_InSameTeam);
 		WriteFileLine(fileHandle, "			{");
 		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_InSameTeam_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_InSameTeam_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_InSameTeam_LINUX);
+		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"",		SIG_InSameTeam_LINUX);
+		WriteFileLine(fileHandle, "				\"linux64\"	\"%s\"",		SIG_InSameTeam_LINUX);
+		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"",		SIG_InSameTeam_WINDOWS);
+		WriteFileLine(fileHandle, "				\"windows64\"	\"%s\"",	SIG_InSameTeam_WINDOWS64);
 		WriteFileLine(fileHandle, "			}");
 		WriteFileLine(fileHandle, "			\"%s\"", NAME_OnAudibleEvent);
 		WriteFileLine(fileHandle, "			{");
 		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_OnAudibleEvent_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_OnAudibleEvent_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_OnAudibleEvent_LINUX);
+		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"",		SIG_OnAudibleEvent_LINUX);
+		WriteFileLine(fileHandle, "				\"linux64\"	\"%s\"",		SIG_OnAudibleEvent_LINUX);
+		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"",		SIG_OnAudibleEvent_WINDOWS);
+		WriteFileLine(fileHandle, "				\"windows64\"	\"%s\"",	SIG_OnAudibleEvent_WINDOWS64);
 		WriteFileLine(fileHandle, "			}");
 		WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerRadio);
 		WriteFileLine(fileHandle, "			{");
 		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_OnPlayerRadio_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_OnPlayerRadio_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_OnPlayerRadio_LINUX);
+		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"",		SIG_OnPlayerRadio_LINUX);
+		WriteFileLine(fileHandle, "				\"linux64\"	\"%s\"",		SIG_OnPlayerRadio_LINUX);
+		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"",		SIG_OnPlayerRadio_WINDOWS);
+		WriteFileLine(fileHandle, "				\"windows64\"	\"%s\"",	SIG_OnPlayerRadio_WINDOWS64);
 		WriteFileLine(fileHandle, "			}");
 		WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerDeath);
 		WriteFileLine(fileHandle, "			{");
 		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_OnPlayerDeath_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_OnPlayerDeath_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_OnPlayerDeath_LINUX);
+		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"",		SIG_OnPlayerDeath_LINUX);
+		WriteFileLine(fileHandle, "				\"linux64\"	\"%s\"",		SIG_OnPlayerDeath_LINUX);
+		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"",		SIG_OnPlayerDeath_WINDOWS);
+		WriteFileLine(fileHandle, "				\"windows64\"	\"%s\"",	SIG_OnPlayerDeath_WINDOWS64);
 		WriteFileLine(fileHandle, "			}");
-		WriteFileLine(fileHandle, "		}");
-		WriteFileLine(fileHandle, "	}");
-		WriteFileLine(fileHandle, "	\"csgo\"");
-		WriteFileLine(fileHandle, "	{");
-		WriteFileLine(fileHandle, "		\"Signatures\"");
-		WriteFileLine(fileHandle, "		{");
-		WriteFileLine(fileHandle, "			\"%s\"", NAME_InSameTeam);
+		WriteFileLine(fileHandle, "			\"%s\"", NAME_SetBotEnemy);
 		WriteFileLine(fileHandle, "			{");
 		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_CSGOInSameTeam_LINUX);
-	//	WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_CSGOInSameTeam_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_CSGOInSameTeam_LINUX);
-		WriteFileLine(fileHandle, "			}");
-		WriteFileLine(fileHandle, "			\"%s\"", NAME_IsOtherEnemy);
-		WriteFileLine(fileHandle, "			{");
-		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_CSGOIsOtherEnemy_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_CSGOIsOtherEnemy_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_CSGOIsOtherEnemy_LINUX);
-		WriteFileLine(fileHandle, "			}");
-		WriteFileLine(fileHandle, "			\"%s\"", NAME_OnAudibleEvent);
-		WriteFileLine(fileHandle, "			{");
-		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_CSGOOnAudibleEvent_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_CSGOOnAudibleEvent_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_CSGOOnAudibleEvent_LINUX);
-		WriteFileLine(fileHandle, "			}");
-		WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerRadio);
-		WriteFileLine(fileHandle, "			{");
-		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_CSGOOnPlayerRadio_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_CSGOOnPlayerRadio_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_CSGOOnPlayerRadio_LINUX);
-		WriteFileLine(fileHandle, "			}");
-		WriteFileLine(fileHandle, "			\"%s\"", NAME_OnPlayerDeath);
-		WriteFileLine(fileHandle, "			{");
-		WriteFileLine(fileHandle, "				\"library\"	\"server\"");
-		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"", SIG_CSGOOnPlayerDeath_LINUX);
-		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"", SIG_CSGOOnPlayerDeath_WINDOWS);
-		WriteFileLine(fileHandle, "				\"mac\"		\"%s\"", SIG_CSGOOnPlayerDeath_LINUX);
+		WriteFileLine(fileHandle, "				\"linux\"	\"%s\"",		SIG_SetBotEnemy_LINUX);
+		WriteFileLine(fileHandle, "				\"linux64\"	\"%s\"",		SIG_SetBotEnemy_LINUX);
+		WriteFileLine(fileHandle, "				\"windows\"	\"%s\"",		SIG_SetBotEnemy_WINDOWS);
+		WriteFileLine(fileHandle, "				\"windows64\"	\"%s\"",	SIG_SetBotEnemy_WINDOWS64);
 		WriteFileLine(fileHandle, "			}");
 		WriteFileLine(fileHandle, "		}");
 		WriteFileLine(fileHandle, "	}");
@@ -370,34 +347,28 @@ void ToggleDHooks(bool toggle)
 	if (toggle == true)
 	{
 		DHookEnableDetour(hDHookInSameTeam, false, InSameTeam_Pre);
-		if (gameVar == GAME_CSGO) DHookEnableDetour(hDHookIsOtherEnemy, false, IsOtherEnemy_Pre);
 		DHookEnableDetour(hDHookOnAudibleEvent, false, OnAudibleEvent_Pre);
+		//DHookEnableDetour(hDHookOnPlayerRadio, false, OnPlayerRadio_Pre);
+		//DHookEnableDetour(hDHookOnPlayerDeath, false, OnPlayerDeath_Pre);
 	}
 	else
 	{
 		DHookDisableDetour(hDHookInSameTeam, false, InSameTeam_Pre);
-		if (gameVar == GAME_CSGO) DHookDisableDetour(hDHookIsOtherEnemy, false, IsOtherEnemy_Pre);
 		DHookDisableDetour(hDHookOnAudibleEvent, false, OnAudibleEvent_Pre);
+		//DHookDisableDetour(hDHookOnPlayerRadio, false, OnPlayerRadio_Pre);
+		//DHookDisableDetour(hDHookOnPlayerDeath, false, OnPlayerDeath_Pre);
 	}
 }
 
 void PrepDHooks()
 {
+	hConf = LoadGameConfigFile(GAMEDATA);
 	if (hConf == null)
-	{
-		SetFailState("Error: Gamedata not found");
-	}
+	{ SetFailState("[SM] Failed to load gamedata file!"); }
 	
 	hDHookInSameTeam = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Bool, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hDHookInSameTeam, hConf, SDKConf_Signature, NAME_InSameTeam);
 	DHookAddParam(hDHookInSameTeam, HookParamType_CBaseEntity);
-	
-	if (gameVar == GAME_CSGO)
-	{
-		hDHookIsOtherEnemy = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Bool, ThisPointer_CBaseEntity);
-		DHookSetFromConf(hDHookIsOtherEnemy, hConf, SDKConf_Signature, NAME_IsOtherEnemy);
-		DHookAddParam(hDHookIsOtherEnemy, HookParamType_CBaseEntity);
-	}
 	
 	hDHookOnAudibleEvent = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Void, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hDHookOnAudibleEvent, hConf, SDKConf_Signature, NAME_OnAudibleEvent);
@@ -412,10 +383,18 @@ void PrepDHooks()
 	/*hDHookOnPlayerRadio = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Void, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hDHookOnPlayerRadio, hConf, SDKConf_Signature, NAME_OnPlayerRadio);
 	DHookAddParam(hDHookOnPlayerRadio, HookParamType_Int);
-	DHookEnableDetour(hDHookOnPlayerRadio, false, OnPlayerRadio_Pre);
 	
 	hDHookOnPlayerDeath = DHookCreateDetour(Address_Null, CallConv_THISCALL, ReturnType_Void, ThisPointer_CBaseEntity);
 	DHookSetFromConf(hDHookOnPlayerDeath, hConf, SDKConf_Signature, NAME_OnPlayerDeath);
-	DHookAddParam(hDHookOnPlayerDeath, HookParamType_Int);
-	DHookEnableDetour(hDHookOnPlayerDeath, false, OnPlayerDeath_Pre);*/
+	DHookAddParam(hDHookOnPlayerDeath, HookParamType_Int);*/
+	
+	StartPrepSDKCall(SDKCall_Player);
+	if (!PrepSDKCall_SetFromConf(hConf, SDKConf_Signature, NAME_SetBotEnemy))
+	{ PrintToServer("[%s] WARNING: Unable to find %s signature in gamedata file.", PLUGIN_NAME_SHORT, NAME_SetBotEnemy); }
+	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer);
+	sdkSetBotEnemy = EndPrepSDKCall();
+	if (sdkSetBotEnemy == null)
+	{ PrintToServer("[%s] WARNING: Cannot initialize %s SDKCall, signature is broken.", PLUGIN_NAME_SHORT, NAME_SetBotEnemy); }
+	
+	delete hConf;
 }

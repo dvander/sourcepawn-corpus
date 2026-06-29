@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.1 (09-February-2025)
+    - Fixed SI not being able to move and use M2 while set with shove immunity and being shoved. (thanks "HarryPotter" for reporting and fixing)
+
 1.0.0 (23-September-2021)
     - Initial release.
 
@@ -14,7 +17,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Special Infected Shove Immunity"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Turns special infected immunes to survivors shove"
-#define PLUGIN_VERSION                "1.0.0"
+#define PLUGIN_VERSION                "1.0.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=334434"
 
 // ====================================================================================================
@@ -57,6 +60,8 @@ public Plugin myinfo =
 // ====================================================================================================
 // Defines
 // ====================================================================================================
+#define TEAM_INFECTED                 3
+
 #define L4D2_ZOMBIECLASS_SMOKER       1
 #define L4D2_ZOMBIECLASS_BOOMER       2
 #define L4D2_ZOMBIECLASS_HUNTER       3
@@ -86,22 +91,64 @@ public Plugin myinfo =
 #define L4D1_FLAG_ZOMBIECLASS_TANK    8
 
 // ====================================================================================================
-// Plugin Cvars
+// enum structs - Plugin Variables
 // ====================================================================================================
-ConVar g_hCvar_Enabled;
-ConVar g_hCvar_SI;
+PluginData plugin;
 
 // ====================================================================================================
-// bool - Plugin Variables
+// enums / enum structs
 // ====================================================================================================
-bool g_bL4D2;
-bool g_bLeft4DHooks;
-bool g_bCvar_Enabled;
+enum struct PluginCvars
+{
+    ConVar l4d_si_shove_immunity_version;
+    ConVar l4d_si_shove_immunity_enable;
+    ConVar l4d_si_shove_immunity_si;
+
+    void Init()
+    {
+        this.l4d_si_shove_immunity_version = CreateConVar("l4d_si_shove_immunity_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.l4d_si_shove_immunity_enable  = CreateConVar("l4d_si_shove_immunity_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        if (plugin.isLeft4Dead2)
+            this.l4d_si_shove_immunity_si  = CreateConVar("l4d_si_shove_immunity_si", "127", "Which special infected should be immune to survivors shove.\n1 = SMOKER, 2 = BOOMER, 4 = HUNTER, 8 = SPITTER, 16 = JOCKEY, 32 = CHARGER, 64 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"127\", turns all SI immune to survivors shove.", CVAR_FLAGS, true, 0.0, true, 127.0);
+        else
+            this.l4d_si_shove_immunity_si  = CreateConVar("l4d_si_shove_immunity_si", "15", "Which special infected should be immune to survivors shove.\n1 = SMOKER, 2  = BOOMER, 4 = HUNTER, 8 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"15\", turns all SI immune to survivors shove.", CVAR_FLAGS, true, 0.0, true, 15.0);
+
+        this.l4d_si_shove_immunity_enable.AddChangeHook(Event_ConVarChanged);
+        this.l4d_si_shove_immunity_si.AddChangeHook(Event_ConVarChanged);
+
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
 
 // ====================================================================================================
-// int - Plugin Variables
+// enum structs
 // ====================================================================================================
-int g_iCvar_SI;
+enum struct PluginData
+{
+    PluginCvars cvars;
+
+    bool isLeft4Dead2;
+    bool left4dhooks;
+    bool enable;
+    int si;
+
+    void Init()
+    {
+        this.cvars.Init();
+        this.RegisterCmds();
+    }
+
+    void GetCvarValues()
+    {
+        this.enable = this.cvars.l4d_si_shove_immunity_enable.BoolValue;
+        this.si = this.cvars.l4d_si_shove_immunity_si.IntValue;
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_print_cvars_l4d_si_shove_immunity", Cmd_PrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
@@ -116,7 +163,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         return APLRes_SilentFailure;
     }
 
-    g_bL4D2 = (engine == Engine_Left4Dead2);
+    plugin.isLeft4Dead2 = (engine == Engine_Left4Dead2);
 
     return APLRes_Success;
 }
@@ -125,70 +172,68 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnLibraryAdded(const char[] name)
 {
-    if (!g_bLeft4DHooks && StrEqual(name, "left4dhooks"))
-        g_bLeft4DHooks = true;
+    if (!plugin.left4dhooks && StrEqual(name, "left4dhooks"))
+        plugin.left4dhooks = true;
 }
 
 /****************************************************************************************************/
 
 public void OnLibraryRemoved(const char[] name)
 {
-    if (g_bLeft4DHooks && StrEqual(name, "left4dhooks"))
-        g_bLeft4DHooks = false;
+    if (plugin.left4dhooks && StrEqual(name, "left4dhooks"))
+        plugin.left4dhooks = false;
 }
 
 /****************************************************************************************************/
 
 public void OnPluginStart()
 {
-    CreateConVar("l4d_si_shove_immunity_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled       = CreateConVar("l4d_si_shove_immunity_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    if (g_bL4D2)
-        g_hCvar_SI        = CreateConVar("l4d_si_shove_immunity_si", "127", "Which special infected should be immune to survivors shove.\n1 = SMOKER, 2 = BOOMER, 4 = HUNTER, 8 = SPITTER, 16 = JOCKEY, 32 = CHARGER, 64 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"127\", turns all SI immune to survivors shove.", CVAR_FLAGS, true, 0.0, true, 127.0);
-    else
-        g_hCvar_SI        = CreateConVar("l4d_si_shove_immunity_si", "8", "Which special infected should be immune to survivors shove.\n1 = SMOKER, 2  = BOOMER, 4 = HUNTER, 8 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"15\", turns all SI immune to survivors shove.", CVAR_FLAGS, true, 0.0, true, 15.0);
-
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_SI.AddChangeHook(Event_ConVarChanged);
-
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_print_cvars_l4d_si_shove_immunity", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
-}
-
-/****************************************************************************************************/
-
-public void OnConfigsExecuted()
-{
-    GetCvars();
+    plugin.Init();
 }
 
 /****************************************************************************************************/
 
 void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-    GetCvars();
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
-void GetCvars()
+public void OnConfigsExecuted()
 {
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-    g_iCvar_SI = g_hCvar_SI.IntValue;
+    plugin.GetCvarValues();
 }
 
 /****************************************************************************************************/
 
 public Action L4D_OnShovedBySurvivor(int client, int victim, const float vecDir[3])
 {
-    if (!g_bCvar_Enabled)
+    if (!plugin.enable)
         return Plugin_Continue;
 
-    if (GetZombieClassFlag(victim) & g_iCvar_SI)
+    if (GetZombieClassFlag(victim) & plugin.si)
+        return Plugin_Handled;
+
+    return Plugin_Continue;
+}
+
+/****************************************************************************************************/
+
+// Besides named as L4D2 works on L4D1 as well
+// Necessary to make SI being able to move and use M2 while set with shove immunity and being shoved
+public Action L4D2_OnEntityShoved(int client, int entity, int weapon, float vecDir[3], bool bIsHighPounce)
+{
+    if (!plugin.enable)
+        return Plugin_Continue;
+
+    if (!IsValidClient(entity))
+        return Plugin_Continue;
+
+    if (GetClientTeam(entity) != TEAM_INFECTED)
+        return Plugin_Continue;
+
+    if (GetZombieClassFlag(entity) & plugin.si)
         return Plugin_Handled;
 
     return Plugin_Continue;
@@ -197,7 +242,7 @@ public Action L4D_OnShovedBySurvivor(int client, int victim, const float vecDir[
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-Action CmdPrintCvars(int client, int args)
+Action Cmd_PrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -205,20 +250,20 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "---------------- Plugin Cvars (l4d_si_shove_immunity) ----------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_si_shove_immunity_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_si_shove_immunity_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    if (g_bL4D2)
+    PrintToConsole(client, "l4d_si_shove_immunity_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
+    if (plugin.isLeft4Dead2)
     {
-        PrintToConsole(client, "l4d_si_shove_immunity_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", g_iCvar_SI,
-        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
-        g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", g_iCvar_SI & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+        PrintToConsole(client, "l4d_si_shove_immunity_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | SPITTER = %s | JOCKEY = %s | CHARGER = %s | TANK = %s)", plugin.si,
+        plugin.si & L4D2_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", plugin.si & L4D2_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", plugin.si & L4D2_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", plugin.si & L4D2_FLAG_ZOMBIECLASS_SPITTER ? "true" : "false",
+        plugin.si & L4D2_FLAG_ZOMBIECLASS_JOCKEY ? "true" : "false", plugin.si & L4D2_FLAG_ZOMBIECLASS_CHARGER ? "true" : "false", plugin.si & L4D2_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
     }
     else
     {
-        PrintToConsole(client, "l4d_si_shove_immunity_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", g_iCvar_SI,
-        g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", g_iCvar_SI & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
+        PrintToConsole(client, "l4d_si_shove_immunity_si : %i (SMOKER = %s | BOOMER = %s | HUNTER = %s | TANK = %s)", plugin.si,
+        plugin.si & L4D1_FLAG_ZOMBIECLASS_SMOKER ? "true" : "false", plugin.si & L4D1_FLAG_ZOMBIECLASS_BOOMER ? "true" : "false", plugin.si & L4D1_FLAG_ZOMBIECLASS_HUNTER ? "true" : "false", plugin.si & L4D1_FLAG_ZOMBIECLASS_TANK ? "true" : "false");
     }
     PrintToConsole(client, "");
-    if (g_bL4D2)
+    if (plugin.isLeft4Dead2)
     {
         PrintToConsole(client, "---------------------------- Game Cvars  -----------------------------");
         PrintToConsole(client, "");
@@ -227,7 +272,7 @@ Action CmdPrintCvars(int client, int args)
     }
     PrintToConsole(client, "---------------------------- Other Infos  ----------------------------");
     PrintToConsole(client, "");
-    PrintToConsole(client, "left4dhooks : %s", g_bLeft4DHooks ? "true" : "false");
+    PrintToConsole(client, "left4dhooks : %s", plugin.left4dhooks ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");
@@ -238,6 +283,32 @@ Action CmdPrintCvars(int client, int args)
 // ====================================================================================================
 // Helpers
 // ====================================================================================================
+/**
+ * Validates if is a valid client index.
+ *
+ * @param client        Client index.
+ * @return              True if client index is valid, false otherwise.
+ */
+bool IsValidClientIndex(int client)
+{
+    return (1 <= client <= MaxClients);
+}
+
+/****************************************************************************************************/
+
+/**
+ * Validates if is a valid client.
+ *
+ * @param client        Client index.
+ * @return              True if client index is valid and client is in game, false otherwise.
+ */
+bool IsValidClient(int client)
+{
+    return (IsValidClientIndex(client) && IsClientInGame(client));
+}
+
+/****************************************************************************************************/
+
 /**
  * Gets the client L4D1/L4D2 zombie class id.
  *
@@ -262,7 +333,7 @@ int GetZombieClassFlag(int client)
 {
     int zombieClass = GetZombieClass(client);
 
-    if (g_bL4D2)
+    if (plugin.isLeft4Dead2)
     {
         switch (zombieClass)
         {

@@ -1,6 +1,6 @@
 /*
 *	UserMsg Hooks - DevTools
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.6"
+#define PLUGIN_VERSION 		"1.9"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,16 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (14-Mar-2026)
+	- Fixed Windows servers crashing in "Left 4 Dead 1" by blocking "WriteSBitLong" from being read.
+	- Not sure when or why this broke.
+
+1.8 (03-Apr-2024)
+	- Fixed potential memory leak. Thanks to "little_froy" for reporting.
+
+1.7 (28-Jan-2024)
+	- Fixed memory leak caused by clearing StringMap/ArrayList data instead of deleting.
 
 1.6 (07-Nov-2023)
 	- Fixed not deleting handles on plugin start.
@@ -83,6 +93,7 @@ KeyValues g_kvMsgStructs;
 File g_hLogFile;
 bool g_WatchDetour, g_bWatch[MAXPLAYERS+1];
 int g_iCvarLogging, g_iListening, g_iHookedUserMsg[MAX_MSGS];
+EngineVersion g_iEngine;
 
 enum
 {
@@ -117,6 +128,12 @@ public Plugin myinfo =
 	description = ".",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=319685"
+}
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	g_iEngine = GetEngineVersion();
+	return APLRes_Success;
 }
 
 public void OnPluginStart()
@@ -222,7 +239,9 @@ void HookDetours()
 				hFile.WriteLine("				{");
 				hFile.WriteLine("					\"signature\"		\"UserMsg_%d\"", i);
 				hFile.WriteLine("				}");
-			} else {
+			}
+			else
+			{
 				hFile.WriteLine("				\"windows\"");
 				hFile.WriteLine("				{");
 				hFile.WriteLine("					\"signature\"		\"UserMsg_%d\"", i);
@@ -252,7 +271,9 @@ void HookDetours()
 			if( OS )
 			{
 				hFile.WriteLine("				\"linux\"	\"%s\"", sHexAddr);
-			} else {
+			}
+			else
+			{
 				hFile.WriteLine("				\"windows\"	\"%s\"", sHexAddr);
 			}
 			hFile.WriteLine("			}");
@@ -278,6 +299,14 @@ void HookDetours()
 	{
 		patchAddr = patches[i];
 
+		if( g_iEngine == Engine_Left4Dead && i == 10 )
+		{
+			#if VERBOSE
+			PrintToServer("USERMSG: DETOUR %02d PTR %X (%s) -- IGNORING (crash prevention)", i, patchAddr, g_sTypes[i-1]);
+			#endif
+			continue; // Crashes in L4D1 on Windows at least
+		}
+
 		if( patchAddr )
 		{
 			FormatEx(temp, sizeof(temp), "UserMsg_%d", i);
@@ -298,7 +327,9 @@ void HookDetours()
 					)
 					{
 						break;
-					} else {
+					}
+					else
+					{
 						cc = x + 3;
 					}
 				}
@@ -314,7 +345,9 @@ void HookDetours()
 					DHookAddParam(hDetour, HookParamType_CharPtr);
 				}
 				else
+				{
 					hDetour = DHookCreateDetour(patchAddr, CallConv_CDECL, ReturnType_Int, ThisPointer_Ignore);
+				}
 
 				if( hDetour == INVALID_HANDLE ) SetFailState("Failed to create detour \"%s\" %d function.", i ? "MessageWrite" : "UserMessageBegin", i);
 
@@ -347,7 +380,9 @@ void HookDetours()
 				PrintToServer("USERMSG: DETOUR %02d PTR %X (%s)", i, patchAddr, i == 0 ? "UserMessageBegin" : g_sTypes[i-1]);
 				#endif
 			}
-		} else {
+		}
+		else
+		{
 			if( i == 0 ) SetFailState("Couldn't find required UserMessageBegin function.");
 		}
 	}
@@ -387,8 +422,14 @@ void GetCvars()
 	// Filters
 	int pos, last;
 	char sCvar[4096];
-	g_aFilter.Clear();
-	g_aListen.Clear();
+
+	// .Clear() is creating a memory leak
+	// g_aFilter.Clear();
+	// g_aListen.Clear();
+	delete g_aFilter;
+	delete g_aListen;
+	g_aFilter = new ArrayList(ByteCountToCells(LEN_CLASS));
+	g_aListen = new ArrayList(ByteCountToCells(LEN_CLASS));
 
 	// Filter list
 	g_hCvarFilter.GetString(sCvar, sizeof(sCvar));
@@ -438,7 +479,11 @@ Action CmdListen(int client, int args)
 
 Action CmdStop(int client, int args)
 {
-	g_aWatch.Clear();
+	// .Clear() is creating a memory leak
+	// g_aWatch.Clear();
+	delete g_aWatch;
+	g_aWatch = new ArrayList(ByteCountToCells(LEN_CLASS));
+
 	g_bWatch[client] = false;
 	g_iListening = 0;
 	if( g_hLogFile != null ) delete g_hLogFile;
@@ -459,7 +504,11 @@ Action CmdWatch(int client, int args)
 	int pos, last;
 	char sCvar[4096];
 	GetCmdArg(1, sCvar, sizeof(sCvar));
-	g_aWatch.Clear();
+
+	// .Clear() is creating a memory leak
+	// g_aWatch.Clear();
+	delete g_aWatch;
+	g_aWatch = new ArrayList(ByteCountToCells(LEN_CLASS));
 
 	if( sCvar[0] != 0 )
 	{
@@ -503,7 +552,9 @@ void ListenAll()
 			#endif
 
 			i++;
-		} else {
+		}
+		else
+		{
 			i = 0;
 		}
 	}
@@ -547,7 +598,12 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 	if( strcmp(msgname, id) )
 	{
 		LogError("Mismatch types: %s - %s", msgname, id);
-		g_aStruct.Clear();
+
+		// .Clear() is creating a memory leak
+		// g_aStruct.Clear();
+		delete g_aStruct;
+		g_aStruct = CreateArray(LEN_CLASS);
+
 		return Plugin_Continue;
 	}
 
@@ -578,7 +634,9 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 		if( g_kvMsgStructs.JumpToKey(id) == true )
 		{
 			type = 0;
-		} else {
+		}
+		else
+		{
 			type = 1;
 
 			#if VERBOSE
@@ -598,7 +656,9 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 				if( g_aStruct.Length == 1 )
 				{
 					g_kvMsgStructs.SetString("0", "<NO ARGS>");
-				} else {
+				}
+				else
+				{
 					for( int i = 1; i < g_aStruct.Length; i++ )
 					{
 						type = g_aStruct.Get(i);
@@ -623,10 +683,36 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 	{
 		if( g_iListening == 1 )
 		{
-			if( g_aFilter.Length != 0 && g_aFilter.FindString(msgname) != -1 )	{g_aStruct.Clear(); return Plugin_Continue;}
-			if( g_aListen.Length != 0 && g_aListen.FindString(msgname) == -1 )	{g_aStruct.Clear(); return Plugin_Continue;}
-		} else {
-			if( g_aWatch.FindString(msgname) == -1 )							{g_aStruct.Clear(); return Plugin_Continue;}
+			if( g_aFilter.Length != 0 && g_aFilter.FindString(msgname) != -1 )
+			{
+				// .Clear() is creating a memory leak
+				// g_aStruct.Clear();
+				delete g_aStruct;
+				g_aStruct = CreateArray(LEN_CLASS);
+
+				return Plugin_Continue;
+			}
+			if( g_aListen.Length != 0 && g_aListen.FindString(msgname) == -1 )
+			{
+				// .Clear() is creating a memory leak
+				// g_aStruct.Clear();
+				delete g_aStruct;
+				g_aStruct = CreateArray(LEN_CLASS);
+
+				return Plugin_Continue;
+			}
+		}
+		else
+		{
+			if( g_aWatch.FindString(msgname) == -1 )
+			{
+				// .Clear() is creating a memory leak
+				// g_aStruct.Clear();
+				delete g_aStruct;
+				g_aStruct = CreateArray(LEN_CLASS);
+
+				return Plugin_Continue;
+			}
 		}
 
 		buffer[0] = 0;
@@ -685,7 +771,11 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 
 		if( g_aStruct.Length > 1 )
 			buffer[strlen(buffer) - 1] = 0; // Remove last space
-		g_aStruct.Clear();
+
+		// .Clear() is creating a memory leak
+		// g_aStruct.Clear();
+		delete g_aStruct;
+		g_aStruct = CreateArray(LEN_CLASS);
  
  
  
@@ -700,7 +790,9 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 			}
 
 			if( g_iCvarLogging & (1<<1) )
+			{
 				WriteFileLine(g_hLogFile, "%s: %s", id, buffer);
+			}
 			else
 			{
 				FormatTime(temp, sizeof(temp), "%H:%M:%S", GetTime());
@@ -731,10 +823,14 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 						RequestFrame(OnNext, hPack);
 					}
 					else
+					{
 						g_bWatch[i] = false;
+					}
 				}
 				else
+				{
 					PrintToServer("UM: %s: %s", id, buffer);
+				}
 			}
 		}
 	}
@@ -745,14 +841,16 @@ Action OnMessage(UserMsg msg_id, BfRead hMsg, const int[] players, int playersNu
 void OnNext(DataPack hPack)
 {
 	hPack.Reset();
+
 	int client = hPack.ReadCell();
 	if( (client = GetClientOfUserId(client)) && IsClientInGame(client) )
 	{
 		static char temp[255];
 		hPack.ReadString(temp, sizeof(temp));
-		delete hPack;
 		PrintToChat(client, temp);
 	}
+
+	delete hPack;
 }
 
 
@@ -767,7 +865,11 @@ MRESReturn UserMessageBegin(Handle hReturn, Handle hParams)
 		static char msgname[LEN_CLASS];
 		DHookGetParamString(hParams, 2, msgname, sizeof(msgname));
 
-		g_aStruct.Clear();
+		// .Clear() is creating a memory leak
+		// g_aStruct.Clear();
+		delete g_aStruct;
+		g_aStruct = CreateArray(LEN_CLASS);
+
 		g_aStruct.PushString(msgname);
 		g_WatchDetour = true;
 	}

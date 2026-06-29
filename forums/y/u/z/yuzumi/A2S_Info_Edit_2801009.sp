@@ -18,9 +18,9 @@
 
 #define PLUGIN_NAME				"A2S_INFO Edit | A2S_INFO 信息修改"
 #define PLUGIN_AUTHOR			"yuzumi"
-#define PLUGIN_VERSION			"1.1.1"
+#define PLUGIN_VERSION			"1.1.3"
 #define PLUGIN_DESCRIPTION		"DIY Server A2S_INFO Information | 定义自己服务器的A2S_INFO信息"
-#define PLUGIN_URL				"https://github.com/joyrhyme/L4D2-Plugins/A2S_Info_Edit"
+#define PLUGIN_URL				"https://github.com/joyrhyme/L4D2-Plugins/tree/main/A2S_Info_Edit"
 #define CVAR_FLAGS				FCVAR_NOTIFY
 
 #define DEBUG					0
@@ -41,34 +41,27 @@ Localizer
 // 记录内存修补数据
 MemoryPatch
 	g_mMapNamePatch,
-	g_mGameDesPatch,
-	g_mBypassSteamPatch;
+	g_mGameDesPatch;
 
 // SDKCall地址
 Address
-	g_pBypassSteam,
+	g_pSteam3Server,
 	g_pDirector,
 	g_pMatchExtL4D;
 
 // SDKCall句柄
 Handle
+	g_hSDK_GetSteam3Server,
+	g_hSDK_SendServerInfo,
 	g_hSDK_GetAllMissions;
 
-// 记录内存补丁状态
-/*
-bool
-	g_bMapNamePatchEnable,
-	g_bGameDesPatchEnable,
-	g_bBypassSteamEnable;
-*/
 // 各初始化状态
 bool
 	g_bLocInit,
 	g_bIsFinalMap,
 	g_bMissionCached,
 	g_bFinaleStarted,
-	g_bisAllBotGame,
-	g_bisLakwshVersion = true;
+	g_bisAllBotGame;
 
 // ConVars
 ConVar
@@ -83,18 +76,18 @@ char
 	g_cMode[64],
 	g_cLanguage[5],
 	g_cGameDes[64],
-	g_cInFinale[64],
-	g_cNotInFinale[64],
-	g_cMapName[128],
-	g_cCampaignName[64],
-	g_cChapterName[64];
+	g_cInFinale[32],
+	g_cNotInFinale[32],
+	g_cMapName[32],
+	g_cCampaignName[32],
+	g_cChapterName[32];
 
 // 存放数值的变量
 int
+	g_iMapNameOS,
 	g_iGameDesOS,
 	g_iChapterNum,
 	g_iChapterMaxNum,
-	g_iBypassSteamCount,
 	g_iMapNameType;
 
 StringMap
@@ -126,9 +119,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 public void OnPluginStart() {
-	// 初始化游戏本地化文本
-	loc = new Localizer();
-	loc.Delegate_InitCompleted(OnPhrasesReady);
 	g_smMissionMap = new StringMap();
 
 	// 初始化GameData和Kv文件
@@ -151,9 +141,11 @@ public void OnPluginStart() {
 	GetCvars_Lang();
 	GetCvars();
 	
-	//g_hMapNameLang.AddChangeHook(None); //此参数不需要关注变更,因为变更后需要删除翻译文件且重启服务器重新生成.
+	g_hMapNameLang.AddChangeHook(ConVarChanged_Lang);
 	g_hMPGameMode.AddChangeHook(ConVarChanged_Mode);
 	g_hMapNameType.AddChangeHook(ConVarChanged_Cvars);
+
+	AutoExecConfig(true, "A2S_Edit");
 
 	/*	事件相关
 		地图名字只需要在地图有变更时进行变更,所以暂时绑MapStart和MapEnd
@@ -177,7 +169,9 @@ public void OnPluginStart() {
 	// 注册命令
 	RegAdminCmd("sm_a2s_edit_reload", cmdReload, ADMFLAG_ROOT, "Reload A2S_EDIT Setting");
 
-	AutoExecConfig(true, "A2S_Edit");
+	// 初始化游戏本地化文本
+	loc = new Localizer();
+	loc.Delegate_InitCompleted(OnPhrasesReady);
 }
 
 void ConVarChanged_Mode(ConVar convar, const char[] oldValue, const char[] newValue) {
@@ -186,6 +180,10 @@ void ConVarChanged_Mode(ConVar convar, const char[] oldValue, const char[] newVa
 
 void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue) {
 	GetCvars();
+}
+
+void ConVarChanged_Lang(ConVar convar, const char[] oldValue, const char[] newValue) {
+	GetCvars_Lang();
 }
 
 void GetCvars_Mode() {
@@ -381,6 +379,14 @@ void ChangeMapName() {
 		default:
 			FormatEx(g_cMapName, sizeof(g_cMapName), "%s", g_cCampaignName); // ex. 死亡中心
 	}
+
+	g_pSteam3Server = SDKCall(g_hSDK_GetSteam3Server);
+	// 执行变更设定
+	if (g_pSteam3Server && LoadFromAddress(g_pSteam3Server + view_as<Address>(4), NumberType_Int32)) {
+		SDKCall(g_hSDK_SendServerInfo, g_pSteam3Server);
+	} else {
+		LogError("[A2S_Edit] Failed to get Steam3Server, ChangeMapName Failed!");	
+	}
 	
 	// 输出DEBUG内容
 	#if DEBUG
@@ -400,7 +406,7 @@ void ChangeMapName() {
 // DEBUG用 输出Kv的全部内容
 stock void PrintAllKeyValues(SourceKeyValues root) {
 	char sName[128], sValue[256];
-	DataType type;
+	int type;
 
 	for (SourceKeyValues kv = root.GetFirstSubKey(); !kv.IsNull(); kv = kv.GetNextKey())
 	{
@@ -482,22 +488,6 @@ void InitGameData() {
 	GameData hGameData = new GameData(GAMEDATA);
 	if (!hGameData)
 		SetFailState("[A2S_EDIT] Failed to load \"%s.txt\" gamedata.", GAMEDATA);
-
-	// 检查是否已经使用了lakwsh修补过的engine文件
-	g_pBypassSteam = hGameData.GetAddress("ProcessConnectionlessPacket");
-	if (!g_pBypassSteam)
-		SetFailState("[A2S_EDIT] Failed to find address: \"ProcessConnectionlessPacket\"");
-	g_iBypassSteamCount = hGameData.GetOffset("BypassSteam_Count");
-	if (g_iBypassSteamCount == -1)
-		SetFailState("[A2S_EDIT] Failed to load offset: \"BypassSteam_Count\"");
-	
-	for (int i = 0; i < g_iBypassSteamCount; ++i) {
-		// 必须为 \x90 (10进制: 144)
-		if (LoadFromAddress(g_pBypassSteam + view_as<Address>(i), NumberType_Int8) != 144) {
-			g_bisLakwshVersion = false;
-			break;
-		}
-	}
 	
 	/* ----------------------------- SDKCall相关 ----------------------------- */
 	g_pDirector = hGameData.GetAddress("CDirector");
@@ -514,24 +504,26 @@ void InitGameData() {
 	if (!(g_hSDK_GetAllMissions = EndPrepSDKCall()))
 		SetFailState("[A2S_EDIT] Failed to create SDKCall: \"MatchExtL4D::GetAllMissions\"");
 
-	/* ----------------------------- 内存修补相关 ----------------------------- */
-	// Steam数据包
-	g_mBypassSteamPatch = MemoryPatch.CreateFromConf(hGameData, "ProcessConnectionlessPacket_BypassSteam");
-	if (!g_bisLakwshVersion && !g_mBypassSteamPatch.Validate())
-		SetFailState("[A2S_EDIT] Failed to verify patch: \"ProcessConnectionlessPacket_BypassSteam\"");
-	else if (g_bisLakwshVersion) {
-		PrintToServer("[A2S_EDIT] Engine lib is lakwsh version, Skip patch!");
-	} else if (g_mBypassSteamPatch.Enable()) {
-		PrintToServer("[A2S_EDIT] Enabled patch: \"ProcessConnectionlessPacket_BypassSteam\"");
-		//g_bBypassSteamEnable = true;
-	}
+	StartPrepSDKCall(SDKCall_Static);
+	PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "GetSteam3Server");
+	PrepSDKCall_SetReturnInfo(SDKType_PlainOldData, SDKPass_Plain);
+	if (!(g_hSDK_GetSteam3Server = EndPrepSDKCall()))
+		SetFailState("[A2S_EDIT] Failed to create SDKCall: \"GetSteamServer\"");
 
+	StartPrepSDKCall(SDKCall_Raw);
+	PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "SendUpdatedServerDetails");
+	if (!(g_hSDK_SendServerInfo = EndPrepSDKCall()))
+		SetFailState("[A2S_EDIT] Failed to create SDKCall: \"SendServerInfo\"");
+
+
+	/* ----------------------------- 内存修补相关 ----------------------------- */
 	// A2S_INFO 的地图名
+	g_iMapNameOS = hGameData.GetOffset("OS") ? 4 : 1;
 	g_mMapNamePatch = MemoryPatch.CreateFromConf(hGameData, "RebuildInfo_MapName");
 	if (!g_mMapNamePatch.Validate())
 		SetFailState("[A2S_EDIT] Failed to verify patch: \"RebuildInfo_MapName\"");
 	else if (g_mMapNamePatch.Enable()) {
-		StoreToAddress(g_mMapNamePatch.Address + view_as<Address>(1), view_as<int>(GetAddressOfString(g_cMapName)), NumberType_Int32);
+		StoreToAddress(g_mMapNamePatch.Address + view_as<Address>(g_iMapNameOS), view_as<int>(GetAddressOfString(g_cMapName)), NumberType_Int32);
 		PrintToServer("[A2S_EDIT] Enabled patch: \"RebuildInfo_MapName\"");
 		//g_bMapNamePatchEnable = true;
 	}
@@ -548,7 +540,6 @@ void InitGameData() {
 	}
 
 	delete hGameData;
-
 	/* ----------------------------- 不需要生成翻译的地图 ----------------------------- */
 	g_smExclude = new StringMap();
 	g_smExclude.SetValue("credits", 1);

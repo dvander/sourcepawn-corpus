@@ -1,10 +1,12 @@
 #pragma semicolon 1
 #pragma newdecls required
+
 #include <sourcemod>
 #include <sdktools>
 
 #define L4D2 Infected Seppuku
 #define PLUGIN_VERSION "1.0"
+#define CVAR_FLAGS FCVAR_NOTIFY|FCVAR_SPONLY
 
 #define ZOMBIECLASS_SMOKER 1
 #define ZOMBIECLASS_BOOMER 2
@@ -14,21 +16,8 @@
 #define ZOMBIECLASS_CHARGER 6
 #define ZOMBIECLASS_TANK 8
 
-ConVar cvarInfectedSeppukuSmoker;
-ConVar cvarInfectedSeppukuBoomer;
-ConVar cvarInfectedSeppukuHunter;
-ConVar cvarInfectedSeppukuSpitter;
-ConVar cvarInfectedSeppukuJockey;
-ConVar cvarInfectedSeppukuCharger;
-ConVar cvarInfectedSeppukuTank;
-
-bool isSeppukuSmoker = false;
-bool isSeppukuBoomer = false;
-bool isSeppukuHunter = false;
-bool isSeppukuSpitter = false;
-bool isSeppukuJockey = false;
-bool isSeppukuCharger = false;
-bool isSeppukuTank = false;
+ConVar cvarInfectedSeppukuEnable, cvarInfectedSeppukuSmoker, cvarInfectedSeppukuBoomer, cvarInfectedSeppukuHunter, cvarInfectedSeppukuSpitter, cvarInfectedSeppukuJockey, cvarInfectedSeppukuCharger, cvarInfectedSeppukuTank;
+bool isSeppukuEnable = false, isSeppukuSmoker = false, isSeppukuBoomer = false, isSeppukuHunter = false, isSeppukuSpitter = false, isSeppukuJockey = false, isSeppukuCharger = false, isSeppukuTank = false;
 
 public Plugin myinfo = 
 {
@@ -46,61 +35,53 @@ public Plugin myinfo =
 	
 public void OnPluginStart()
 {
-	CreateConVar("l4d_seppuku_version", PLUGIN_VERSION, "Infected Seppuku Version", FCVAR_NONE|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
-	
-	cvarInfectedSeppukuSmoker = CreateConVar("l4d_seppuku_smoker", "1", "Enables seppuku for the Smoker. (Def 1)", FCVAR_NONE, true, 0.0, false, _);
-	cvarInfectedSeppukuBoomer = CreateConVar("l4d_seppuku_boomer", "1", "Enables seppuku for the Boomer. (Def 1)", FCVAR_NONE, true, 0.0, false, _);
-	cvarInfectedSeppukuHunter = CreateConVar("l4d_seppuku_hunter", "1", "Enables seppuku for the Hunter. (Def 0)", FCVAR_NONE, true, 0.0, false, _);
-	cvarInfectedSeppukuSpitter = CreateConVar("l4d_seppuku_spitter", "1", "Enables seppuku for the Spitter. (Def 1)", FCVAR_NONE, true, 0.0, false, _);
-	cvarInfectedSeppukuJockey = CreateConVar("l4d_seppuku_jockey", "1", "Enables seppuku for the Jockey. (Def 0)", FCVAR_NONE, true, 0.0, false, _);
-	cvarInfectedSeppukuCharger = CreateConVar("l4d_seppuku_charger", "1", "Enables seppuku for the Charger. (Def 0)", FCVAR_NONE, true, 0.0, false, _);
-	cvarInfectedSeppukuTank = CreateConVar("l4d_seppuku_tank", "0", "Enables seppuku for the Tank. (Def 0)", FCVAR_NONE, true, 0.0, false, _);
-	
-	if (GetConVarInt(cvarInfectedSeppukuSmoker))
-	{
-		isSeppukuSmoker = true;
-	}
-	
-	if (GetConVarInt(cvarInfectedSeppukuBoomer))
-	{
-		isSeppukuBoomer = true;
-	}
-	
-	if (GetConVarInt(cvarInfectedSeppukuHunter))
-	{
-		isSeppukuHunter = true;
-	}
-	
-	if (GetConVarInt(cvarInfectedSeppukuSpitter))
-	{
-		isSeppukuSpitter = true;
-	}
-	
-	if (GetConVarInt(cvarInfectedSeppukuJockey))
-	{
-		isSeppukuJockey = true;
-	}
-	
-	if (GetConVarInt(cvarInfectedSeppukuCharger))
-	{
-		isSeppukuCharger = true;
-	}
-	
-	if (GetConVarInt(cvarInfectedSeppukuTank))
-	{
-		isSeppukuTank = true;
-	}
-	
+	CreateConVar("l4d_seppuku_version", PLUGIN_VERSION, "Infected Seppuku Version", CVAR_FLAGS|FCVAR_DONTRECORD);
+
+	cvarInfectedSeppukuEnable = CreateConVar("l4d_seppuku_enable", "1", "Enables/Disable plugin. (Def 1)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuSmoker = CreateConVar("l4d_seppuku_smoker", "1", "Enables seppuku for the Smoker. (Def 1)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuBoomer = CreateConVar("l4d_seppuku_boomer", "1", "Enables seppuku for the Boomer. (Def 1)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuHunter = CreateConVar("l4d_seppuku_hunter", "1", "Enables seppuku for the Hunter. (Def 0)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuSpitter = CreateConVar("l4d_seppuku_spitter", "1", "Enables seppuku for the Spitter. (Def 1)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuJockey = CreateConVar("l4d_seppuku_jockey", "1", "Enables seppuku for the Jockey. (Def 0)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuCharger = CreateConVar("l4d_seppuku_charger", "1", "Enables seppuku for the Charger. (Def 0)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	cvarInfectedSeppukuTank = CreateConVar("l4d_seppuku_tank", "0", "Enables seppuku for the Tank. (Def 0)", CVAR_FLAGS, true, 0.0, true, 1.0);
+
 	AutoExecConfig(true, "plugin.L4D2.InfectedSeppuku");
+
+	cvarInfectedSeppukuEnable.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuSmoker.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuBoomer.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuHunter.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuSpitter.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuJockey.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuCharger.AddChangeHook(OnConVarsChanged);
+	cvarInfectedSeppukuTank.AddChangeHook(OnConVarsChanged);
+}
+
+public void OnConfigsExecuted()
+{
+	OnConVarsChanged(null, "", "");
+}
+
+void OnConVarsChanged(ConVar cvar, const char[] OldValue, const char[] NewValue)
+{
+	isSeppukuEnable = cvarInfectedSeppukuEnable.BoolValue;
+	isSeppukuSmoker = cvarInfectedSeppukuSmoker.BoolValue;
+	isSeppukuBoomer = cvarInfectedSeppukuBoomer.BoolValue;
+	isSeppukuHunter = cvarInfectedSeppukuHunter.BoolValue;
+	isSeppukuSpitter = cvarInfectedSeppukuSpitter.BoolValue;
+	isSeppukuJockey = cvarInfectedSeppukuJockey.BoolValue;
+	isSeppukuCharger = cvarInfectedSeppukuCharger.BoolValue;
+	isSeppukuTank = cvarInfectedSeppukuTank.BoolValue;
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-	if(IsValidClient(client) && (buttons & IN_ZOOM))
+	if(isSeppukuEnable && IsValidClient(client) && (buttons & IN_ZOOM))
 	{
 		int class = GetEntProp(client, Prop_Send, "m_zombieClass");
 		switch (class)  
-		{	
+		{
 			case ZOMBIECLASS_BOOMER:
 			{
 				if(isSeppukuBoomer)
@@ -159,34 +140,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
-public int IsValidClient(int client)
+stock bool IsValidClient(int client)
 {
-	if (client <= 0)
-		return false;
-		
-	if (client > MaxClients)
-		return false;
-
-	if (!IsClientInGame(client))
-		return false;
-		
-	if (GetClientTeam(client) != 3)
-		return false;
-		
-	if (!IsPlayerAlive(client))
-		return false;
-		
-	if (IsPlayerAGhost(client))
-		return false;
-
-	return true;
-}
-
-public int IsPlayerAGhost(int client)
-{
-	if (GetEntProp(client, Prop_Send, "m_isGhost")) 
-		return true;
-	return false;
+	return client > 0 && client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == 3 && IsPlayerAlive(client) && !view_as<bool>(GetEntProp(client, Prop_Send, "m_isGhost"));
 }

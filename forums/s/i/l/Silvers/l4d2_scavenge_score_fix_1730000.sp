@@ -1,6 +1,6 @@
 /*
 *	Scavenge Score Fix - Gascan Pouring
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.5"
+#define PLUGIN_VERSION 		"2.6"
 
 /*=======================================================================================
 	Plugin Info:
@@ -32,7 +32,10 @@
 ========================================================================================
 	Change Log:
 
-1.5 (11-Dec-2022)
+2.6 (04-Jan-2026)
+	- Fixed errors when trying to fire the "OnUseFinished" output if the target entity is wrong.
+
+2.5 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
 
 2.4a (19-Oct-2021)
@@ -243,7 +246,15 @@ MRESReturn OnActionComplete(int pThis, Handle hReturn, Handle hParams)
 	}
 
 	// Fire output
-	FireEntityOutput(entity, "OnUseFinished", client);
+	if( IsValidEntity(entity) )
+	{
+		static char sTemp[22];
+		GetEdictClassname(entity, sTemp, sizeof(sTemp));
+		if( strcmp(sTemp, "point_prop_use_target") == 0 )
+		{
+			FireEntityOutput(entity, "OnUseFinished", client);
+		}
+	}
 
 	// Block call
 	DHookSetReturn(hReturn, 0);
@@ -339,7 +350,7 @@ Action DelayedSpawn(Handle timer, int entity)
 	return Plugin_Continue;
 }
 
-Action TimerRespawn(Handle timer, any entity)
+Action TimerRespawn(Handle timer, int entity)
 {
 	entity = EntRefToEntIndex(entity);
 

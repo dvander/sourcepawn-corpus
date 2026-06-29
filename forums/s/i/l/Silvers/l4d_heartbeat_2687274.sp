@@ -1,6 +1,6 @@
 /*
 *	Heartbeat (Revive Fix - Post Revive Options)
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2025 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.13"
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,22 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (21-May-2025)
+	- Fixed client not in game errors. Thanks to "ioioio" for reporting.
+
+1.16 (21-Apr-2024)
+	- Fixed revive count increasing by 2 instead of 1 under certain circumstances. Thanks to "S.A.S" for reporting.
+
+1.15 (16-Apr-2024)
+	- Removed gamedata method patching the game which created a health bug. Thanks to "S.A.S" for reporting.
+	- Fixed issues with "m_isGoingToDie" being set to 0 not damaging the player.
+
+1.14 (12-Mar-2024)
+	- Fixed native "Heartbeat_SetRevives" not setting the correct revive count if "reviveLogic" bool was set to false. Thanks to "little_froy" for reporting and testing.
+	- Fixed clients not receiving damage from behind when on Easy difficulty, due to "m_isGoingToDie" being set to 0. Thanks to "little_froy" for reporting and testing.
+	- Fixed client not in game error. Thanks to "HarryPotter" for reporting.
+	- New GameData file required for the plugin to operate.
 
 1.13 (10-Mar-2023)
 	- Delayed revive logic by 1 frame to fix settings sometimes not being applied due to self revive plugins. Thanks to "Shao" for reporting.
@@ -91,14 +107,20 @@
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define SOUND_HEART			"player/heartbeatloop.wav"
+#define DEBUG				0
+
+#if DEBUG
+#include <left4dhooks>
+#endif
 
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarIncap, g_hCvarRevives, g_hCvarScreen, g_hCvarSound, g_hCvarVocal, g_hCvarMaxIncap, g_hCvarDecay;
 bool g_bCvarAllow, g_bCvarIncap, g_bMapStarted, g_bLeft4Dead2;
-float g_fDecayDecay;
+float g_fDecayDecay, g_fTimeRevive;
 int g_iCvarRevives, g_iCvarScreen, g_iCvarSound, g_iCvarVocal;
 int g_iReviveCount[MAXPLAYERS+1];
 bool g_bHookedDamage[MAXPLAYERS+1];
+bool g_bIsGoingToDie[MAXPLAYERS+1];
 
 
 /**
@@ -230,6 +252,8 @@ public void OnPluginStart()
 
 	IsAllowed();
 
+
+
 	// ====================
 	// COMMANDS
 	// ====================
@@ -237,14 +261,49 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_heartbeat", CmdHeatbeat, ADMFLAG_ROOT, "Set someone as black and white health status or toggle their state. Usage: sm_heartbeat [#userid|name] [state: 0=Healed. 1=Black and white.]");
 
+	#if DEBUG
+	RegAdminCmd("sm_temphealth", CmdTempHealth, ADMFLAG_ROOT);
+	#endif
+
+
+
+	// ====================
+	// LATE LOAD
+	// ====================
 	for( int i = 1; i <= MaxClients; i++ )
 	{
 		if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
 		{
 			g_iReviveCount[i] = GetEntProp(i, Prop_Send, "m_currentReviveCount");
+
+			if( !g_bHookedDamage[i] && g_iReviveCount[i] >= g_iCvarRevives )
+			{
+				g_bHookedDamage[i] = true;
+				SDKHook(i, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
+				SDKHook(i, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
+			}
 		}
 	}
 }
+
+// DEBUG TESTING
+#if DEBUG
+Action CmdTempHealth(int client, int args)
+{
+	g_hCvarDecay.FloatValue = 0.0;
+
+	L4D_ReviveSurvivor(client);
+
+	SetTempHealth(client, 100.0);
+	return Plugin_Handled;
+}
+
+void SetTempHealth(int client, float fHealth)
+{
+	SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth < 0.0 ? 0.0 : fHealth);
+	SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", GetGameTime());
+}
+#endif
 
 Action CmdHeatbeat(int client, int args)
 {
@@ -307,7 +366,9 @@ Action CmdHeatbeat(int client, int args)
 				}
 			}
 		}
-	} else {
+	}
+	else
+	{
 		if( !client )
 		{
 			ReplyToCommand(client, "Command can only be used %s", IsDedicatedServer() ? "in game on a dedicated server." : "in chat on a Listen server.");
@@ -349,6 +410,7 @@ Action CommandListener(int client, const char[] command, int args)
 
 		if( strcmp(buffer, "health") == 0 )
 		{
+			g_fTimeRevive = GetGameTime() + 0.1;
 			ResetCount(client);
 		}
 	}
@@ -369,6 +431,10 @@ int Native_SetRevives(Handle plugin, int numParams)
 	if( numParams != 3 || GetNativeCell(3) )
 	{
 		ReviveLogic(client);
+	}
+	else
+	{
+		SetEntProp(client, Prop_Send, "m_currentReviveCount", g_iReviveCount[client]);
 	}
 
 	return 0;
@@ -401,7 +467,6 @@ void GetCvars()
 	g_iCvarScreen = g_hCvarScreen.IntValue;
 	g_iCvarSound = g_hCvarSound.IntValue;
 	g_iCvarVocal = g_hCvarVocal.IntValue;
-
 	g_fDecayDecay = g_hCvarDecay.FloatValue;
 
 	SetConVarInt(g_hCvarMaxIncap, g_iCvarRevives, true);
@@ -512,6 +577,7 @@ void OnGamemode(const char[] output, int caller, int activator, float delay)
 // ====================================================================================================
 public void OnMapStart()
 {
+	g_fTimeRevive = 0.0;
 	g_bMapStarted = true;
 	PrecacheSound(SOUND_HEART);
 }
@@ -523,13 +589,17 @@ public void OnMapEnd()
 
 void ResetCount(int client)
 {
+	g_bIsGoingToDie[client] = false;
 	g_iReviveCount[client] = 0;
 	ResetSoundObs(client);
 	ResetSound(client);
 
-	if( g_bHookedDamage[client] )	SDKUnhook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
-
-	g_bHookedDamage[client] = false;
+	if( g_bHookedDamage[client] )
+	{
+		g_bHookedDamage[client] = false;
+		SDKUnhook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
+		SDKUnhook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
+	}
 }
 
 float GetTempHealth(int client)
@@ -539,13 +609,29 @@ float GetTempHealth(int client)
 	return fHealth < 0.0 ? 0.0 : fHealth;
 }
 
-// void OnTakeDamage(int client, int attacker, int inflictor, float damage, int damagetype)
+void OnTakeDamagePost(int client, int attacker, int inflictor, float damage, int damagetype, int weapon, float damageForce[3], float damagePosition[3])
+{
+	// Prevent yelling
+	if( g_iReviveCount[client] < g_iCvarVocal )
+	{
+		g_bIsGoingToDie[client] = GetEntProp(client, Prop_Send, "m_isGoingToDie") == 1;
+
+		if( g_bIsGoingToDie[client] )
+		{
+			SetEntProp(client, Prop_Send, "m_isGoingToDie", 0);
+		}
+	}
+}
+
 Action OnTakeDamage(int client, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	// Prevent yelling
 	if( g_iReviveCount[client] < g_iCvarVocal )
 	{
-		SetEntProp(client, Prop_Send, "m_isGoingToDie", 0);
+		if( g_bIsGoingToDie[client] )
+		{
+			SetEntProp(client, Prop_Send, "m_isGoingToDie", 1);
+		}
 	}
 
 	// Allow to die
@@ -568,8 +654,9 @@ Action OnTakeDamage(int client, int &attacker, int &inflictor, float &damage, in
 			// Unhook
 			if( g_bHookedDamage[client] )
 			{
-				SDKUnhook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
 				g_bHookedDamage[client] = false;
+				SDKUnhook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
+				SDKUnhook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
 			}
 		}
 	}
@@ -638,6 +725,8 @@ void Event_Healed(Event event, const char[] name, bool dontBroadcast)
 
 void Event_Revive(Event event, const char[] name, bool dontBroadcast)
 {
+	if( g_fTimeRevive >= GetGameTime() ) return;
+
 	int userid;
 	if( (userid = event.GetInt("subject")) && event.GetInt("ledge_hang") == 0 )
 	{
@@ -664,10 +753,16 @@ void ReviveLogic(int client)
 	// PrintToServer("Revives: %N (%d)", client, g_iReviveCount[client]);
 
 	// Monitor for death
-	if( g_iReviveCount[client] >= g_iCvarRevives && !g_bHookedDamage[client] )
+	if( !g_bHookedDamage[client] && g_iReviveCount[client] >= g_iCvarRevives )
 	{
 		g_bHookedDamage[client] = true;
 		SDKHook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
+		SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
+	}
+
+	if( g_bLeft4Dead2 )
+	{
+		SetEntProp(client, Prop_Send, "m_currentReviveCount", g_iReviveCount[client]);
 	}
 
 	// Set black and white or not
@@ -677,7 +772,9 @@ void ReviveLogic(int client)
 			SetEntProp(client, Prop_Send, "m_bIsOnThirdStrike", 1);
 		else
 			SetEntProp(client, Prop_Send, "m_currentReviveCount", 2);
-	} else {
+	}
+	else
+	{
 		if( g_bLeft4Dead2 )
 			SetEntProp(client, Prop_Send, "m_bIsOnThirdStrike", 0);
 		else
@@ -691,9 +788,14 @@ void ReviveLogic(int client)
 		{
 			g_bHookedDamage[client] = true;
 			SDKHook(client, g_bLeft4Dead2 ? SDKHook_OnTakeDamageAlive : SDKHook_OnTakeDamage, OnTakeDamage);
+			SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
 		}
 
 		SetEntProp(client, Prop_Send, "m_isGoingToDie", 0);
+	}
+	else
+	{
+		SetEntProp(client, Prop_Send, "m_isGoingToDie", 1);
 	}
 
 	// Heartbeat sound, stop dupe sound bug, only way.
@@ -729,7 +831,7 @@ void ResetSoundObs(int client)
 void OnFrameSound(int client)
 {
 	client = GetClientOfUserId(client);
-	if( client )
+	if( client && IsClientInGame(client) )
 	{
 		ResetSound(client);
 	}
@@ -744,7 +846,7 @@ void ResetSound(int client)
 Action TimerSound(Handle timer, int client)
 {
 	client = GetClientOfUserId(client);
-	if( client )
+	if( client && IsClientInGame(client) )
 	{
 		EmitSoundToClient(client, SOUND_HEART, SOUND_FROM_PLAYER, SNDCHAN_STATIC);
 	}

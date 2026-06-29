@@ -1,106 +1,86 @@
 #include <sourcemod>
 
-new bool:NoSpam[MAXPLAYERS + 1];
+#pragma newdecls required
 
-public Plugin:myinfo = 
+bool g_bNoSpam[MAXPLAYERS + 1];
+
+public Plugin myinfo = 
 {
 	name = "No spawn near safe room door.",
-	author = "Eyal282 ( FuckTheSchool )",
+	author = "Eyal282",
 	description = "To prevent a player breaching safe room door with a bug, prevents him from spawning near safe room door. The minimum distance is proportionate to his speed ",
-	version = "1.3",
+	version = "1.4",
 	url = "https://forums.alliedmods.net/showthread.php?p=2520740"
 }
 
-new Handle:hAntiBreachConVar = INVALID_HANDLE;
-new AntiBreachConVar;
+ConVar g_hEnabled;
 
-public OnPluginStart()
+public void OnPluginStart()
 {
 	// The cvar to enable the plugin. 0 = Disabled. Other values = Enabled.
-	hAntiBreachConVar = CreateConVar("l4d2_anti_breach", "0");
-	
-	// To prevent waste of resources, hook the change of the console variable AntiBreach
-	HookConVarChange(hAntiBreachConVar, AntiBreachConVarChange);
-	
-	// Save the current value of l4d2_anti_breach in a variable. Main reason is to avoid wasting resources.
-	AntiBreachConVar = GetConVarInt(hAntiBreachConVar);
+	g_hEnabled = CreateConVar("l4d2_anti_breach", "1");
 }
 
-public OnClientPutInServer(client)
+public void OnClientPutInServer(int client)
 {
-	NoSpam[client] = false;
+	g_bNoSpam[client] = false;
 }
 
-public AntiBreachConVarChange(Handle:convar, const String:oldValue[], const String:newValue[])
+public Action L4D_OnMaterializeFromGhostPre(int client)
 {
-	AntiBreachConVar = GetConVarInt(convar);
-}
-
-public Action:OnPlayerRunCmd(SInfected, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon, &subtype, &cmdnum, &tickcount, &seed, mouse[2])
-{
-	// Player is not attacking.
-	if(!(buttons & IN_ATTACK))
-		return Plugin_Continue;
-	
-	// Cvar is disabled, aborting.
-	if(AntiBreachConVar == 0)
-		return Plugin_Continue;
-	
-	// Player is either a bot, not infected or not a ghost.
-	else if(GetClientTeam(SInfected) != 3 || IsFakeClient(SInfected) || GetEntProp(SInfected, Prop_Send, "m_isGhost") != 1)
+	if(!g_hEnabled.BoolValue)
 		return Plugin_Continue;
 
-	// Being a ghost, the player can not spawn ( seen / close / blocked etc... )
-	else if(GetEntProp(SInfected, Prop_Send, "m_ghostSpawnState") != 0)
+	else if(IsFakeClient(client))
 		return Plugin_Continue;
-	
-	new EntityCount = GetEntityCount();
 
-	for (new Door = MaxClients; Door < EntityCount; Door++) // https://forums.alliedmods.net/showpost.php?p=2502446&postcount=2
+	int count = GetEntityCount();
+
+	for(int entity = MaxClients; entity < count; entity++) // https://forums.alliedmods.net/showpost.php?p=2502446&postcount=2
 	{
-		if (IsValidEntity(Door) && IsValidEdict(Door))
-		{
-			new String:Classname[100];
+		if(!IsValidEntity(entity) || !IsValidEdict(entity))
+			continue;
+	
+		char sClassname[64];
+		GetEdictClassname(entity, sClassname, sizeof(sClassname));
+		
+		if(strcmp(sClassname, "prop_door_rotating_checkpoint") != 0) // Found the classname from l4d_loading: https://forums.alliedmods.net/showthread.php?p=836849
+			continue;
+			
+		float fOrigin[3], fVelocity[3], fDoorOrigin[3];
+		GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", fOrigin);
+		GetEntPropVector(client, Prop_Data, "m_vecVelocity", fVelocity);
+		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", fDoorOrigin);
 
-			GetEdictClassname(Door, Classname, sizeof(Classname));
-			
-			if(strcmp(Classname, "prop_door_rotating_checkpoint") != 0 ) // Found the classname from l4d_loading: https://forums.alliedmods.net/showthread.php?p=836849
-				continue;
-			
-			new Float:SInfectedOrigin[3], Float:DoorOrigin[3], Float:SInfectedVelocity[3];
-			GetEntPropVector(SInfected, Prop_Send, "m_vecOrigin", SInfectedOrigin);
-			GetEntPropVector(Door, Prop_Send, "m_vecOrigin", DoorOrigin);
-			GetEntPropVector(SInfected, Prop_Data, "m_vecVelocity", SInfectedVelocity);
-			new Float:Speed = GetVectorLength(SInfectedVelocity);
-			new Float:Distance = GetVectorDistance(SInfectedOrigin, DoorOrigin);
-			
-			// Player has too much speed vs distance from door.
-			
-			if(Distance < Speed / 1.5) // Tested and the 1.5 division will not assist the use of the bug.
+		float fSpeed = GetVectorLength(fVelocity);
+		float fDist = GetVectorDistance(fOrigin, fDoorOrigin);
+		
+		// Player has too much speed vs distance from door.
+		
+		if(fDist < fSpeed / 1.5) // Tested and the 1.5 division will not assist the use of the bug.
+		{
+			if(!g_bNoSpam[client])
 			{
-				if(!NoSpam[SInfected])
-				{
-					PrintToChat(SInfected, "You can't spawn near safe room doors.");
-					NoSpam[SInfected] = true;
-					CreateTimer(2.5, AllowMessageAgain, GetClientUserId(SInfected));
-				}
-				buttons &= ~IN_ATTACK;
-				return Plugin_Continue;
+				PrintToChat(client, "You can't spawn near safe room doors.");
+				g_bNoSpam[client] = true;
+				CreateTimer(2.5, AllowMessageAgain, GetClientUserId(client));
 			}
+			
+			return Plugin_Handled;
 		}
 	}
-	
+
 	return Plugin_Continue;
 }
 
-public Action: AllowMessageAgain(Handle Timer, int UserId)
+public Action AllowMessageAgain(Handle Timer, int userid)
 {
-	new SInfected = GetClientOfUserId(UserId);
+	int client = GetClientOfUserId(userid);
 	
-	if(!IsClientInGame(SInfected))
+	if(!IsClientInGame(client))
 		return Plugin_Continue;
 	
-	NoSpam[SInfected] = false;
+	g_bNoSpam[client] = false;
 	
 	return Plugin_Continue;
 }

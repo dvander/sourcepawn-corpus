@@ -2,11 +2,14 @@
 // ====================================================================================================
 Change Log:
 
+1.0.8 (09-February-2025)
+    - Added support for gas tank. (custom model - can be found on Glubtastic 5 custom map)
+
 1.0.7 (04-March-2022)
     - Fixed compability with other plugins. (thanks "ddd123" for reporting)
 
 1.0.6 (26-February-2021)
-    - Added support for explosive oil drum (custom model - can be found on GoldenEye 4 Dead custom map)
+    - Added support for explosive oil drum. (custom model - can be found on GoldenEye 4 Dead custom map)
 
 1.0.5 (04-January-2021)
     - Added support for gas pump. (found on No Mercy, 3rd map)
@@ -41,7 +44,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Explosion Announcer"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Outputs to the chat who exploded some props"
-#define PLUGIN_VERSION                "1.0.7"
+#define PLUGIN_VERSION                "1.0.8"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=328006"
 
 // ====================================================================================================
@@ -92,6 +95,7 @@ public Plugin myinfo =
 #define MODEL_GAS_PUMP                "models/props_equipment/gas_pump_nodebris.mdl"
 #define MODEL_FIREWORKS_CRATE         "models/props_junk/explosive_box001.mdl"
 #define MODEL_OILDRUM_EXPLOSIVE       "models/props_c17/oildrum001_explosive.mdl" // Custom Model - can be found on GoldenEye 4 Dead custom map
+#define MODEL_GAS_TANK                "models/props_glub_re5/gastank01.mdl" // Custom Model - can be found on Glubtastic 5 custom map
 
 #define TEAM_SPECTATOR                1
 #define TEAM_SURVIVOR                 2
@@ -113,74 +117,223 @@ public Plugin myinfo =
 #define TYPE_GAS_PUMP                 6
 #define TYPE_FIREWORKS_CRATE          7
 #define TYPE_OIL_DRUM_EXPLOSIVE       8
+#define TYPE_GAS_TANK                 9
 
-#define MAX_TYPES                     8
+#define MAX_TYPES                     9
 
 #define MAXENTITIES                   2048
 
 // ====================================================================================================
-// Plugin Cvars
-// ====================================================================================================
-ConVar g_hCvar_Enabled;
-ConVar g_hCvar_SpamProtection;
-ConVar g_hCvar_SpamTypeCheck;
-ConVar g_hCvar_Team;
-ConVar g_hCvar_Self;
-ConVar g_hCvar_Gascan;
-ConVar g_hCvar_FuelBarrel;
-ConVar g_hCvar_PropaneCanister;
-ConVar g_hCvar_OxygenTank;
-ConVar g_hCvar_BarricadeGascan;
-ConVar g_hCvar_GasPump;
-ConVar g_hCvar_FireworksCrate;
-ConVar g_hCvar_OilDrumExplosive;
-
-// ====================================================================================================
-// bool - Plugin Variables
-// ====================================================================================================
-bool g_bL4D2;
-bool g_bEventsHooked;
-bool g_bCvar_Enabled;
-bool g_bCvar_SpamProtection;
-bool g_bCvar_SpamTypeCheck;
-bool g_bCvar_Self;
-bool g_bCvar_Gascan;
-bool g_bCvar_FuelBarrel;
-bool g_bCvar_PropaneCanister;
-bool g_bCvar_OxygenTank;
-bool g_bCvar_BarricadeGascan;
-bool g_bCvar_GasPump;
-bool g_bCvar_FireworksCrate;
-bool g_bCvar_OilDrumExplosive;
-
-// ====================================================================================================
-// int - Plugin Variables
-// ====================================================================================================
-int g_iModel_Gascan = -1;
-int g_iModel_FuelBarrel = -1;
-int g_iModel_PropaneCanister = -1;
-int g_iModel_OxygenTank = -1;
-int g_iModel_BarricadeGascan = -1;
-int g_iModel_GasPump = -1;
-int g_iModel_FireworksCrate = -1;
-int g_iModel_OilDrumExplosive = -1;
-int g_iCvar_Team;
-
-// ====================================================================================================
-// float - Plugin Variables
-// ====================================================================================================
-float g_fCvar_SpamProtection;
-
-// ====================================================================================================
 // client - Plugin Variables
 // ====================================================================================================
-float gc_fLastChatOccurrence[MAXPLAYERS+1][MAX_TYPES+1];
+float lastChatOccurrence[MAXPLAYERS+1][MAX_TYPES+1];
 
 // ====================================================================================================
-// entity - Plugin Variables
+// enum structs - Plugin Variables
 // ====================================================================================================
-int ge_iType[MAXENTITIES+1];
-int ge_iLastAttacker[MAXENTITIES+1];
+PluginData plugin;
+
+// ====================================================================================================
+// enums / enum structs
+// ====================================================================================================
+enum struct PluginCvars
+{
+    ConVar l4d_explosion_announcer_version;
+    ConVar l4d_explosion_announcer_enable;
+    ConVar l4d_explosion_announcer_spam_protection;
+    ConVar l4d_explosion_announcer_spam_type_check;
+    ConVar l4d_explosion_announcer_team;
+    ConVar l4d_explosion_announcer_self;
+    ConVar l4d_explosion_announcer_gascan;
+    ConVar l4d_explosion_announcer_fuelbarrel;
+    ConVar l4d_explosion_announcer_propanecanister;
+    ConVar l4d_explosion_announcer_oxygentank;
+    ConVar l4d_explosion_announcer_barricadegascan;
+    ConVar l4d_explosion_announcer_gaspump;
+    ConVar l4d_explosion_announcer_oildrumexplosive;
+    ConVar l4d_explosion_announcer_gastank;
+    ConVar l4d_explosion_announcer_fireworkscrate;
+
+    void Init()
+    {
+        this.l4d_explosion_announcer_version            = CreateConVar("l4d_explosion_announcer_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.l4d_explosion_announcer_enable             = CreateConVar("l4d_explosion_announcer_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_spam_protection    = CreateConVar("l4d_explosion_announcer_spam_protection", "3.0", "Delay in seconds to output to the chat the message from the same client again.\n0 = OFF.", CVAR_FLAGS, true, 0.0);
+        this.l4d_explosion_announcer_spam_type_check    = CreateConVar("l4d_explosion_announcer_spam_type_check", "1", "Whether the plugin should apply chat spam protection by entity type.\nExample: \"gascans\" and \"propane canisters\" are of different types.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_team               = CreateConVar("l4d_explosion_announcer_team", "1", "Which teams should the message be transmitted to.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
+        this.l4d_explosion_announcer_self               = CreateConVar("l4d_explosion_announcer_self", "1", "Should the message be transmitted to those who exploded it.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_gascan             = CreateConVar("l4d_explosion_announcer_gascan", "1", "Output to the chat every time someone explodes (last hit) a gascan.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_fuelbarrel         = CreateConVar("l4d_explosion_announcer_fuelbarrel", "1", "Output to the chat every time someone explodes (last hit) a fuel barrel.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_propanecanister    = CreateConVar("l4d_explosion_announcer_propanecanister", "1", "Output to the chat every time someone explodes (last hit) a propane canister.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_oxygentank         = CreateConVar("l4d_explosion_announcer_oxygentank", "1", "Output to the chat every time someone explodes (last hit) a oxygen tank.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_barricadegascan    = CreateConVar("l4d_explosion_announcer_barricadegascan", "1", "Output to the chat every time someone explodes (last hit) a barricade with gascans.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_gaspump            = CreateConVar("l4d_explosion_announcer_gaspump", "1", "Output to the chat every time someone explodes (last hit) a gas pump.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_oildrumexplosive   = CreateConVar("l4d_explosion_announcer_oildrumexplosive", "1", "Output to the chat every time someone explodes (last hit) an oil drum explosive (GoldenEye 4 Dead custom map).\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        this.l4d_explosion_announcer_gastank            = CreateConVar("l4d_explosion_announcer_gastank", "1", "Output to the chat every time someone explodes (last hit) a gas tank (Glubtastic 5 custom map).\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+        if (plugin.isLeft4Dead2)
+            this.l4d_explosion_announcer_fireworkscrate = CreateConVar("l4d_explosion_announcer_fireworkscrate", "1", "Output to the chat every time someone explodes (last hit) a fireworks crate.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+
+        this.l4d_explosion_announcer_enable.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_spam_protection.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_spam_type_check.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_team.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_self.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_gascan.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_fuelbarrel.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_propanecanister.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_oxygentank.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_barricadegascan.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_gaspump.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_oildrumexplosive.AddChangeHook(Event_ConVarChanged);
+        this.l4d_explosion_announcer_gastank.AddChangeHook(Event_ConVarChanged);
+        if (plugin.isLeft4Dead2)
+            this.l4d_explosion_announcer_fireworkscrate.AddChangeHook(Event_ConVarChanged);
+
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
+
+// ====================================================================================================
+// enum structs
+// ====================================================================================================
+enum struct PluginData
+{
+    PluginCvars cvars;
+
+    int type[MAXENTITIES+1];
+    int lastAttacker[MAXENTITIES+1];
+
+    bool isLeft4Dead2;
+    bool left4dhooks;
+    bool eventsHooked;
+    int modelGascan;
+    int modelFuelBarrel;
+    int modelPropaneCanister;
+    int modelOxygenTank;
+    int modelBarricadeGascan;
+    int modelGasPump;
+    int modelFireworksCrate;
+    int modelOilDrumExplosive;
+    int modelGasTank;
+    bool enable;
+    float spamProtection;
+    bool spamTypeCheck;
+    int team;
+    bool self;
+    bool gascan;
+    bool fuelBarrel;
+    bool propaneCanister;
+    bool oxygenTank;
+    bool barricadeGascan;
+    bool gasPump;
+    bool oilDrumExplosive;
+    bool gasTank;
+    bool fireworksCrate;
+
+    void Init()
+    {
+        this.LoadPluginTranslations();
+        this.modelGascan = -1;
+        this.modelFuelBarrel = -1;
+        this.modelPropaneCanister = -1;
+        this.modelOxygenTank = -1;
+        this.modelBarricadeGascan = -1;
+        this.modelGasPump = -1;
+        this.modelFireworksCrate = -1;
+        this.modelOilDrumExplosive = -1;
+        this.modelGasTank = -1;
+        this.cvars.Init();
+        this.RegisterCmds();
+    }
+
+    void LoadPluginTranslations()
+    {
+        char path[PLATFORM_MAX_PATH];
+        BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
+        if (FileExists(path))
+            LoadTranslations(TRANSLATION_FILENAME);
+        else
+            SetFailState("Missing required translation file on \"translations/%s.txt\", please re-download.", TRANSLATION_FILENAME);
+    }
+
+    void GetCvarValues()
+    {
+        this.enable = this.cvars.l4d_explosion_announcer_enable.BoolValue;
+        this.spamProtection = this.cvars.l4d_explosion_announcer_spam_protection.FloatValue;
+        this.spamTypeCheck = this.cvars.l4d_explosion_announcer_spam_type_check.BoolValue;
+        this.team = this.cvars.l4d_explosion_announcer_team.IntValue;
+        this.self = this.cvars.l4d_explosion_announcer_self.BoolValue;
+        this.gascan = this.cvars.l4d_explosion_announcer_gascan.BoolValue;
+        this.fuelBarrel = this.cvars.l4d_explosion_announcer_fuelbarrel.BoolValue;
+        this.propaneCanister = this.cvars.l4d_explosion_announcer_propanecanister.BoolValue;
+        this.oxygenTank = this.cvars.l4d_explosion_announcer_oxygentank.BoolValue;
+        this.barricadeGascan = this.cvars.l4d_explosion_announcer_barricadegascan.BoolValue;
+        this.gasPump = this.cvars.l4d_explosion_announcer_gaspump.BoolValue;
+        this.oilDrumExplosive = this.cvars.l4d_explosion_announcer_oildrumexplosive.BoolValue;
+        this.gasTank = this.cvars.l4d_explosion_announcer_gastank.BoolValue;
+        if (plugin.isLeft4Dead2)
+            this.fireworksCrate = this.cvars.l4d_explosion_announcer_fireworkscrate.BoolValue;
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_print_cvars_l4d_explosion_announcer", Cmd_PrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+    }
+
+    void HookEvents()
+    {
+        if (this.enable && !this.eventsHooked)
+        {
+            this.eventsHooked = true;
+
+            HookEvent("break_prop", Event_BreakProp);
+
+            return;
+        }
+
+        if (!this.enable && this.eventsHooked)
+        {
+            this.eventsHooked = false;
+
+            UnhookEvent("break_prop", Event_BreakProp);
+
+            return;
+        }
+    }
+
+    void LateLoad()
+    {
+        int entity;
+
+        if (plugin.isLeft4Dead2)
+        {
+            entity = INVALID_ENT_REFERENCE;
+            while ((entity = FindEntityByClassname(entity, "weapon_gascan")) != INVALID_ENT_REFERENCE)
+            {
+                RequestFrame(OnNextFrameWeaponGascan, EntIndexToEntRef(entity));
+            }
+        }
+
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "prop_fuel_barrel")) != INVALID_ENT_REFERENCE)
+        {
+            RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
+        }
+
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "prop_physics*")) != INVALID_ENT_REFERENCE)
+        {
+            if (HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
+                RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
+        }
+
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "physics_prop")) != INVALID_ENT_REFERENCE)
+        {
+            RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
+        }
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
@@ -195,147 +348,72 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         return APLRes_SilentFailure;
     }
 
-    g_bL4D2 = (engine == Engine_Left4Dead2);
+    plugin.isLeft4Dead2 = (engine == Engine_Left4Dead2);
 
     return APLRes_Success;
 }
 
 /****************************************************************************************************/
 
-public void OnPluginStart()
+public void OnLibraryAdded(const char[] name)
 {
-    LoadPluginTranslations();
-
-    CreateConVar("l4d_explosion_announcer_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled            = CreateConVar("l4d_explosion_announcer_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_SpamProtection     = CreateConVar("l4d_explosion_announcer_spam_protection", "3.0", "Delay in seconds to output to the chat the message from the same client again.\n0 = OFF.", CVAR_FLAGS, true, 0.0);
-    g_hCvar_SpamTypeCheck      = CreateConVar("l4d_explosion_announcer_spam_type_check", "1", "Whether the plugin should apply chat spam protection by entity type.\nExample: \"gascans\" and \"propane canisters\" are of different types.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Team               = CreateConVar("l4d_explosion_announcer_team", "1", "Which teams should the message be transmitted to.\n0 = NONE, 1 = SURVIVOR, 2 = INFECTED, 4 = SPECTATOR, 8 = HOLDOUT.\nAdd numbers greater than 0 for multiple options.\nExample: \"3\", enables for SURVIVOR and INFECTED.", CVAR_FLAGS, true, 0.0, true, 15.0);
-    g_hCvar_Self               = CreateConVar("l4d_explosion_announcer_self", "1", "Should the message be transmitted to those who exploded it.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_Gascan             = CreateConVar("l4d_explosion_announcer_gascan", "1", "Output to the chat every time someone explodes (last hit) a gascan.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_FuelBarrel         = CreateConVar("l4d_explosion_announcer_fuelbarrel", "1", "Output to the chat every time someone explodes (last hit) a fuel barrel.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_PropaneCanister    = CreateConVar("l4d_explosion_announcer_propanecanister", "1", "Output to the chat every time someone explodes (last hit) a propane canister.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_OxygenTank         = CreateConVar("l4d_explosion_announcer_oxygentank", "1", "Output to the chat every time someone explodes (last hit) a oxygen tank.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_BarricadeGascan    = CreateConVar("l4d_explosion_announcer_barricadegascan", "1", "Output to the chat every time someone explodes (last hit) a barricade with gascans.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_GasPump            = CreateConVar("l4d_explosion_announcer_gaspump", "1", "Output to the chat every time someone explodes (last hit) a gas pump.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    g_hCvar_OilDrumExplosive   = CreateConVar("l4d_explosion_announcer_oildrumexplosive", "1", "Output to the chat every time someone explodes (last hit) an oil drum explosive (custom).\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-    if (g_bL4D2)
-        g_hCvar_FireworksCrate = CreateConVar("l4d_explosion_announcer_fireworkscrate", "1", "Output to the chat every time someone explodes (last hit) a fireworks crate.\nL4D2 only.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
-
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_SpamProtection.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_SpamTypeCheck.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Team.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Self.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_Gascan.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_FuelBarrel.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_PropaneCanister.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_OxygenTank.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_BarricadeGascan.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_GasPump.AddChangeHook(Event_ConVarChanged);
-    g_hCvar_OilDrumExplosive.AddChangeHook(Event_ConVarChanged);
-    if (g_bL4D2)
-        g_hCvar_FireworksCrate.AddChangeHook(Event_ConVarChanged);
-
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_print_cvars_l4d_explosion_announcer", CmdPrintCvars, ADMFLAG_ROOT, "Prints the plugin related cvars and their respective values to the console.");
+    if (!plugin.left4dhooks && StrEqual(name, "left4dhooks"))
+        plugin.left4dhooks = true;
 }
 
-void LoadPluginTranslations()
+/****************************************************************************************************/
+
+public void OnLibraryRemoved(const char[] name)
 {
-    char path[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "translations/%s.txt", TRANSLATION_FILENAME);
-    if (FileExists(path))
-        LoadTranslations(TRANSLATION_FILENAME);
-    else
-        SetFailState("Missing required translation file on \"translations/%s.txt\", please re-download.", TRANSLATION_FILENAME);
+    if (plugin.left4dhooks && StrEqual(name, "left4dhooks"))
+        plugin.left4dhooks = false;
+}
+
+/****************************************************************************************************/
+
+public void OnPluginStart()
+{
+    plugin.Init();
 }
 
 /****************************************************************************************************/
 
 public void OnMapStart()
 {
-    g_iModel_Gascan = PrecacheModel(MODEL_GASCAN, true);
-    g_iModel_FuelBarrel = PrecacheModel(MODEL_FUEL_BARREL, true);
-    g_iModel_PropaneCanister = PrecacheModel(MODEL_PROPANECANISTER, true);
-    g_iModel_OxygenTank = PrecacheModel(MODEL_OXYGENTANK, true);
-    g_iModel_BarricadeGascan = PrecacheModel(MODEL_BARRICADE_GASCAN, true);
-    g_iModel_GasPump = PrecacheModel(MODEL_GAS_PUMP, true);
-    if (g_bL4D2)
-        g_iModel_FireworksCrate = PrecacheModel(MODEL_FIREWORKS_CRATE, true);
+    plugin.modelGascan = PrecacheModel(MODEL_GASCAN, true);
+    plugin.modelFuelBarrel = PrecacheModel(MODEL_FUEL_BARREL, true);
+    plugin.modelPropaneCanister = PrecacheModel(MODEL_PROPANECANISTER, true);
+    plugin.modelOxygenTank = PrecacheModel(MODEL_OXYGENTANK, true);
+    plugin.modelBarricadeGascan = PrecacheModel(MODEL_BARRICADE_GASCAN, true);
+    plugin.modelGasPump = PrecacheModel(MODEL_GAS_PUMP, true);
+    if (plugin.isLeft4Dead2)
+        plugin.modelFireworksCrate = PrecacheModel(MODEL_FIREWORKS_CRATE, true);
 
     if (IsModelPrecached(MODEL_OILDRUM_EXPLOSIVE))
-        g_iModel_OilDrumExplosive = PrecacheModel(MODEL_OILDRUM_EXPLOSIVE, true);
+        plugin.modelOilDrumExplosive = PrecacheModel(MODEL_OILDRUM_EXPLOSIVE, true);
     else
-        g_iModel_OilDrumExplosive = -1;
-}
+        plugin.modelOilDrumExplosive = -1;
 
-/****************************************************************************************************/
-
-public void OnConfigsExecuted()
-{
-    GetCvars();
-
-    LateLoad();
-
-    HookEvents();
+    if (IsModelPrecached(MODEL_GAS_TANK))
+        plugin.modelGasTank = PrecacheModel(MODEL_GAS_TANK, true);
+    else
+        plugin.modelGasTank = -1;
 }
 
 /****************************************************************************************************/
 
 void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-    GetCvars();
-
-    HookEvents();
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
-void GetCvars()
+public void OnConfigsExecuted()
 {
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-    g_fCvar_SpamProtection = g_hCvar_SpamProtection.FloatValue;
-    g_bCvar_SpamProtection = (g_fCvar_SpamProtection > 0.0);
-    g_bCvar_SpamTypeCheck = g_hCvar_SpamTypeCheck.BoolValue;
-    g_iCvar_Team = g_hCvar_Team.IntValue;
-    g_bCvar_Self = g_hCvar_Self.BoolValue;
-    g_bCvar_Gascan = g_hCvar_Gascan.BoolValue;
-    g_bCvar_FuelBarrel = g_hCvar_FuelBarrel.BoolValue;
-    g_bCvar_PropaneCanister = g_hCvar_PropaneCanister.BoolValue;
-    g_bCvar_OxygenTank = g_hCvar_OxygenTank.BoolValue;
-    g_bCvar_BarricadeGascan = g_hCvar_BarricadeGascan.BoolValue;
-    g_bCvar_GasPump = g_hCvar_GasPump.BoolValue;
-    g_bCvar_OilDrumExplosive = g_hCvar_OilDrumExplosive.BoolValue;
-    if (g_bL4D2)
-        g_bCvar_FireworksCrate = g_hCvar_FireworksCrate.BoolValue;
-}
-
-/****************************************************************************************************/
-
-void HookEvents()
-{
-    if (g_bCvar_Enabled && !g_bEventsHooked)
-    {
-        g_bEventsHooked = true;
-
-        HookEvent("break_prop", Event_BreakProp);
-
-        return;
-    }
-
-    if (!g_bCvar_Enabled && g_bEventsHooked)
-    {
-        g_bEventsHooked = false;
-
-        UnhookEvent("break_prop", Event_BreakProp);
-
-        return;
-    }
+    plugin.GetCvarValues();
+    plugin.LateLoad();
+    plugin.HookEvents();
 }
 
 /****************************************************************************************************/
@@ -345,13 +423,13 @@ void Event_BreakProp(Event event, const char[] name, bool dontBroadcast)
     int entity = event.GetInt("entindex");
     int client = GetClientOfUserId(event.GetInt("userid"));
 
-    int type = ge_iType[entity];
+    int type = plugin.type[entity];
 
     if (type == TYPE_NONE)
         return;
 
     if (client == 0)
-        client = GetClientOfUserId(ge_iLastAttacker[entity]);
+        client = GetClientOfUserId(plugin.lastAttacker[entity]);
 
     if (client == 0)
         return;
@@ -365,42 +443,7 @@ public void OnClientDisconnect(int client)
 {
     for (int type = TYPE_NONE; type <= MAX_TYPES; type++)
     {
-        gc_fLastChatOccurrence[client][type] = 0.0;
-    }
-}
-
-/****************************************************************************************************/
-
-void LateLoad()
-{
-    int entity;
-
-    if (g_bL4D2)
-    {
-        entity = INVALID_ENT_REFERENCE;
-        while ((entity = FindEntityByClassname(entity, "weapon_gascan")) != INVALID_ENT_REFERENCE)
-        {
-            RequestFrame(OnNextFrameWeaponGascan, EntIndexToEntRef(entity));
-        }
-    }
-
-    entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, "prop_fuel_barrel")) != INVALID_ENT_REFERENCE)
-    {
-        RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
-    }
-
-    entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, "prop_physics*")) != INVALID_ENT_REFERENCE)
-    {
-        if (HasEntProp(entity, Prop_Send, "m_isCarryable")) // CPhysicsProp
-            RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
-    }
-
-    entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, "physics_prop")) != INVALID_ENT_REFERENCE)
-    {
-        RequestFrame(OnNextFrame, EntIndexToEntRef(entity));
+        lastChatOccurrence[client][type] = 0.0;
     }
 }
 
@@ -415,7 +458,7 @@ public void OnEntityCreated(int entity, const char[] classname)
     {
         case 'w':
         {
-            if (!g_bL4D2)
+            if (!plugin.isLeft4Dead2)
                 return;
 
             if (classname[1] != 'e') // weapon_*
@@ -441,8 +484,8 @@ public void OnEntityDestroyed(int entity)
     if (entity < 0)
         return;
 
-    ge_iType[entity] = TYPE_NONE;
-    ge_iLastAttacker[entity] = 0;
+    plugin.type[entity] = TYPE_NONE;
+    plugin.lastAttacker[entity] = 0;
 }
 
 /****************************************************************************************************/
@@ -455,7 +498,7 @@ void OnNextFrameWeaponGascan(int entityRef)
     if (entity == INVALID_ENT_REFERENCE)
         return;
 
-    if (ge_iType[entity] != TYPE_NONE)
+    if (plugin.type[entity] != TYPE_NONE)
         return;
 
     if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
@@ -468,7 +511,7 @@ void OnNextFrameWeaponGascan(int entityRef)
     if (rendermode == RENDER_NONE || (rendermode == RENDER_TRANSCOLOR && rgba[3] == 0)) // Other plugins support, ignore invisible entities
         return;
 
-    ge_iType[entity] = TYPE_GASCAN;
+    plugin.type[entity] = TYPE_GASCAN;
     SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
     HookSingleEntityOutput(entity, "OnKilled", OnKilled, true);
 }
@@ -483,7 +526,7 @@ void OnNextFrame(int entityRef)
     if (entity == INVALID_ENT_REFERENCE)
         return;
 
-    if (ge_iType[entity] != TYPE_NONE)
+    if (plugin.type[entity] != TYPE_NONE)
         return;
 
     if (GetEntProp(entity, Prop_Data, "m_iHammerID") == -1) // Ignore entities with hammerid -1
@@ -498,61 +541,68 @@ void OnNextFrame(int entityRef)
 
     int modelIndex = GetEntProp(entity, Prop_Send, "m_nModelIndex");
 
-    if (modelIndex == g_iModel_Gascan)
+    if (modelIndex == plugin.modelGascan)
     {
-        ge_iType[entity] = TYPE_GASCAN;
+        plugin.type[entity] = TYPE_GASCAN;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (modelIndex == g_iModel_FuelBarrel)
+    if (modelIndex == plugin.modelFuelBarrel)
     {
-        ge_iType[entity] = TYPE_FUEL_BARREL;
+        plugin.type[entity] = TYPE_FUEL_BARREL;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (modelIndex == g_iModel_PropaneCanister)
+    if (modelIndex == plugin.modelPropaneCanister)
     {
-        ge_iType[entity] = TYPE_PROPANECANISTER;
+        plugin.type[entity] = TYPE_PROPANECANISTER;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (modelIndex == g_iModel_OxygenTank)
+    if (modelIndex == plugin.modelOxygenTank)
     {
-        ge_iType[entity] = TYPE_OXYGENTANK;
+        plugin.type[entity] = TYPE_OXYGENTANK;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (modelIndex == g_iModel_BarricadeGascan)
+    if (modelIndex == plugin.modelBarricadeGascan)
     {
-        ge_iType[entity] = TYPE_BARRICADE_GASCAN;
+        plugin.type[entity] = TYPE_BARRICADE_GASCAN;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (modelIndex == g_iModel_GasPump)
+    if (modelIndex == plugin.modelGasPump)
     {
-        ge_iType[entity] = TYPE_GAS_PUMP;
+        plugin.type[entity] = TYPE_GAS_PUMP;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (modelIndex == g_iModel_OilDrumExplosive && g_iModel_OilDrumExplosive != -1)
+    if (modelIndex == plugin.modelOilDrumExplosive && plugin.modelOilDrumExplosive != -1)
     {
-        ge_iType[entity] = TYPE_OIL_DRUM_EXPLOSIVE;
+        plugin.type[entity] = TYPE_OIL_DRUM_EXPLOSIVE;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
 
-    if (!g_bL4D2)
+    if (modelIndex == plugin.modelGasTank && plugin.modelGasTank != -1)
+    {
+        plugin.type[entity] = TYPE_GAS_TANK;
+        SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
+        return;
+    }
+
+    if (!plugin.isLeft4Dead2)
         return;
 
-    if (modelIndex == g_iModel_FireworksCrate)
+    if (modelIndex == plugin.modelFireworksCrate)
     {
-        ge_iType[entity] = TYPE_FIREWORKS_CRATE;
+        plugin.type[entity] = TYPE_FIREWORKS_CRATE;
         SDKHook(entity, SDKHook_OnTakeDamage, OnTakeDamage);
         return;
     }
@@ -562,11 +612,11 @@ void OnNextFrame(int entityRef)
 
 Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
-    if (!g_bCvar_Enabled)
+    if (!plugin.enable)
         return Plugin_Continue;
 
     if (IsValidClient(attacker))
-        ge_iLastAttacker[victim] = GetClientUserId(attacker);
+        plugin.lastAttacker[victim] = GetClientUserId(attacker);
 
     return Plugin_Continue;
 }
@@ -575,21 +625,21 @@ Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, in
 
 void OnKilled(const char[] output, int caller, int activator, float delay)
 {
-    if (!g_bCvar_Enabled)
+    if (!plugin.enable)
         return;
 
-    int type = ge_iType[caller];
+    int type = plugin.type[caller];
 
     if (type == TYPE_NONE)
         return;
 
     if (IsValidClient(activator))
-        ge_iLastAttacker[caller] = GetClientUserId(activator);
+        plugin.lastAttacker[caller] = GetClientUserId(activator);
 
-    if (ge_iLastAttacker[caller] == 0)
+    if (plugin.lastAttacker[caller] == 0)
         return;
 
-    int client = GetClientOfUserId(ge_iLastAttacker[caller]);
+    int client = GetClientOfUserId(plugin.lastAttacker[caller]);
 
     if (client == 0)
         return;
@@ -601,24 +651,24 @@ void OnKilled(const char[] output, int caller, int activator, float delay)
 
 void OutputMessage(int client, int type)
 {
-    if (g_iCvar_Team == FLAG_TEAM_NONE)
+    if (plugin.team == FLAG_TEAM_NONE)
         return;
 
-    if (g_bCvar_SpamProtection)
+    if (plugin.spamProtection > 0.0)
     {
-        if (g_bCvar_SpamTypeCheck)
+        if (plugin.spamTypeCheck)
         {
-            if (gc_fLastChatOccurrence[client][type] != 0.0 && GetGameTime() - gc_fLastChatOccurrence[client][type] < g_fCvar_SpamProtection)
+            if (lastChatOccurrence[client][type] != 0.0 && GetGameTime() - lastChatOccurrence[client][type] < plugin.spamProtection)
                 return;
 
-            gc_fLastChatOccurrence[client][type] = GetGameTime();
+            lastChatOccurrence[client][type] = GetGameTime();
         }
         else
         {
-            if (gc_fLastChatOccurrence[client][TYPE_NONE] != 0.0 && GetGameTime() - gc_fLastChatOccurrence[client][TYPE_NONE] < g_fCvar_SpamProtection)
+            if (lastChatOccurrence[client][TYPE_NONE] != 0.0 && GetGameTime() - lastChatOccurrence[client][TYPE_NONE] < plugin.spamProtection)
                 return;
 
-            gc_fLastChatOccurrence[client][TYPE_NONE] = GetGameTime();
+            lastChatOccurrence[client][TYPE_NONE] = GetGameTime();
         }
     }
 
@@ -626,7 +676,7 @@ void OutputMessage(int client, int type)
     {
         case TYPE_GASCAN:
         {
-            if (!g_bCvar_Gascan)
+            if (!plugin.gascan)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -640,7 +690,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_FUEL_BARREL:
         {
-            if (!g_bCvar_FuelBarrel)
+            if (!plugin.fuelBarrel)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -654,7 +704,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_PROPANECANISTER:
         {
-            if (!g_bCvar_PropaneCanister)
+            if (!plugin.propaneCanister)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -668,7 +718,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_OXYGENTANK:
         {
-            if (!g_bCvar_OxygenTank)
+            if (!plugin.oxygenTank)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -682,7 +732,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_BARRICADE_GASCAN:
         {
-            if (!g_bCvar_BarricadeGascan)
+            if (!plugin.barricadeGascan)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -696,7 +746,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_GAS_PUMP:
         {
-            if (!g_bCvar_GasPump)
+            if (!plugin.gasPump)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -710,7 +760,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_FIREWORKS_CRATE:
         {
-            if (!g_bCvar_FireworksCrate)
+            if (!plugin.fireworksCrate)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -724,7 +774,7 @@ void OutputMessage(int client, int type)
 
         case TYPE_OIL_DRUM_EXPLOSIVE:
         {
-            if (!g_bCvar_OilDrumExplosive)
+            if (!plugin.oilDrumExplosive)
                 return;
 
             for (int target = 1; target <= MaxClients; target++)
@@ -733,6 +783,20 @@ void OutputMessage(int client, int type)
                     continue;
 
                 CPrintToChat(target, "%t", "Exploded an oil drum", client);
+            }
+        }
+
+        case TYPE_GAS_TANK:
+        {
+            if (!plugin.gasTank)
+                return;
+
+            for (int target = 1; target <= MaxClients; target++)
+            {
+                if (!IsValidPrintTarget(target, client))
+                    continue;
+
+                CPrintToChat(target, "%t", "Exploded a gas tank", client);
             }
         }
     }
@@ -748,10 +812,10 @@ bool IsValidPrintTarget(int target, int client)
     if (IsFakeClient(target))
         return false;
 
-    if (target == client && !g_bCvar_Self)
+    if (target == client && !plugin.self)
        return false;
 
-    if (!(GetTeamFlag(GetClientTeam(target)) & g_iCvar_Team))
+    if (!(GetTeamFlag(GetClientTeam(target)) & plugin.team))
         return false;
 
     return true;
@@ -760,7 +824,7 @@ bool IsValidPrintTarget(int target, int client)
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-Action CmdPrintCvars(int client, int args)
+Action Cmd_PrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -768,20 +832,23 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "--------------- Plugin Cvars (l4d_explosion_announcer) ---------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_explosion_announcer_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_explosion_announcer_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_spam_protection : %.1f", g_fCvar_SpamProtection);
-    PrintToConsole(client, "l4d_explosion_announcer_spam_type_check : %b (%s)", g_bCvar_SpamTypeCheck, g_bCvar_SpamTypeCheck ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", g_iCvar_Team,
-    g_iCvar_Team & FLAG_TEAM_SPECTATOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_SURVIVOR ? "true" : "false", g_iCvar_Team & FLAG_TEAM_INFECTED ? "true" : "false", g_iCvar_Team & FLAG_TEAM_HOLDOUT ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_self : %b (%s)", g_bCvar_Self, g_bCvar_Self ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_gascan : %b (%s)", g_bCvar_Gascan, g_bCvar_Gascan ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_fuelbarrel : %b (%s)", g_bCvar_FuelBarrel, g_bCvar_FuelBarrel ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_propanecanister : %b (%s)", g_bCvar_PropaneCanister, g_bCvar_PropaneCanister ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_oxygentank : %b (%s)", g_bCvar_OxygenTank, g_bCvar_OxygenTank ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_barricadegascan : %b (%s)", g_bCvar_BarricadeGascan, g_bCvar_BarricadeGascan ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_gaspump : %b (%s)", g_bCvar_GasPump, g_bCvar_GasPump ? "true" : "false");
-    PrintToConsole(client, "l4d_explosion_announcer_oildrumexplosive : %b (%s)", g_bCvar_OilDrumExplosive, g_bCvar_OilDrumExplosive ? "true" : "false");
-    if (g_bL4D2) PrintToConsole(client, "l4d_explosion_announcer_fireworkscrate : %b (%s)", g_bCvar_FireworksCrate, g_bCvar_FireworksCrate ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_spam_protection : %.1f", plugin.spamProtection);
+    PrintToConsole(client, "l4d_explosion_announcer_spam_type_check : %b (%s)", plugin.spamTypeCheck, plugin.spamTypeCheck ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_team : %i (SPECTATOR = %s | SURVIVOR = %s | INFECTED = %s | HOLDOUT = %s)", plugin.team,
+    plugin.team & FLAG_TEAM_SPECTATOR ? "true" : "false", plugin.team & FLAG_TEAM_SURVIVOR ? "true" : "false", plugin.team & FLAG_TEAM_INFECTED ? "true" : "false", plugin.team & FLAG_TEAM_HOLDOUT ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_self : %b (%s)", plugin.self, plugin.self ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_gascan : %b (%s)", plugin.gascan, plugin.gascan ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_fuelbarrel : %b (%s)", plugin.fuelBarrel, plugin.fuelBarrel ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_propanecanister : %b (%s)", plugin.propaneCanister, plugin.propaneCanister ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_oxygentank : %b (%s)", plugin.oxygenTank, plugin.oxygenTank ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_barricadegascan : %b (%s)", plugin.barricadeGascan, plugin.barricadeGascan ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_gaspump : %b (%s)", plugin.gasPump, plugin.gasPump ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_oildrumexplosive : %b (%s)", plugin.oilDrumExplosive, plugin.oilDrumExplosive ? "true" : "false");
+    PrintToConsole(client, "l4d_explosion_announcer_gastank : %b (%s)", plugin.gasTank, plugin.gasTank ? "true" : "false");
+    if (plugin.isLeft4Dead2) {
+        PrintToConsole(client, "l4d_explosion_announcer_fireworkscrate : %b (%s)", plugin.fireworksCrate, plugin.fireworksCrate ? "true" : "false");
+    }
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

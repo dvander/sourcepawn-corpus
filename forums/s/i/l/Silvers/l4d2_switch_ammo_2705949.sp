@@ -1,6 +1,6 @@
 /*
 *	Switch Upgrade Ammo Types
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.29"
+#define PLUGIN_VERSION 		"1.31"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.31 (04-Jan-2026)
+	- Fixed not being able to switch Grenade Launcher ammo before shooting. Thanks to "PVNDV" for reporting.
+	- Fixed cvar "l4d2_switch_ammo_guns" not blocking the Grenade Launcher or M60 from switching ammo.
+
+1.30 (04-Aug-2024)
+	- Fixed invalid entity error. Thanks to "sonic155" for reporting.
 
 1.29 (07-Nov-2023)
 	- Fixed not deleting 1 handle on plugin start.
@@ -157,8 +164,8 @@
 #define TYPE_STOCK			3
 #define MAX_TIME_KEY_HOLD	0.5
 
-// Setting to true re-creates the upgrade packs after use, for constant testing
-#define DEBUG_PLUGIN		false
+// Setting to 1 re-creates the upgrade packs after use, for constant testing
+#define DEBUG_PLUGIN		0
 
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarGuns, g_hCvarHint, g_hCvarKeys, g_hCvarReload;
@@ -489,10 +496,16 @@ void IsAllowed()
 		HookEvent("weapon_fire",			Event_WeaponFire);
 		HookEvent("receive_upgrade",		Event_GetUpgraded);
 
+		int weapon;
+
 		for( int i = 1; i <= MaxClients; i++ )
 		{
 			if( IsClientInGame(i) )
 			{
+				weapon = GetPlayerWeaponSlot(i, 0);
+				if( weapon != -1 )
+					OnWeaponEquip(i, weapon);
+
 				SDKHook(i, SDKHook_WeaponSwitch, OnWeaponSwitch);
 				SDKHook(i, SDKHook_WeaponCanSwitchTo, OnWeaponSwitch);
 				SDKHook(i, SDKHook_WeaponEquipPost, OnWeaponEquip);
@@ -781,11 +794,10 @@ void OnWeaponEquip(int client, int weapon)
 	// Block specific weapons
 	if( g_iCvarGuns != 3 && GetClientTeam(client) == 2 && GetPlayerWeaponSlot(client, 0) == weapon )
 	{
-		g_bBlockedUse[client] = false;
-
 		int ref = EntIndexToEntRef(weapon);
 		if( g_iLastWeapon[client] != ref )
 		{
+			g_bBlockedUse[client] = false;
 			g_iLastWeapon[client] = ref;
 
 			static char classname[32];
@@ -828,13 +840,13 @@ void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 		// Grenade Launcher / Rifle M60
 		case 21:
 		{
-			if( g_iCvarGuns != 3 && g_iCvarGuns != 2 ) return; // Ignore GL
+			if( g_iCvarGuns != 3 && g_iCvarGuns != 1 ) return; // Ignore GL
 
 			weaponType = TYPE_TIER3;
 		}
 		case 37:
 		{
-			if( g_iCvarGuns != 3 && g_iCvarGuns != 1 ) return; // Ignore M60
+			if( g_iCvarGuns != 3 && g_iCvarGuns != 2 ) return; // Ignore M60
 
 			weaponType = TYPE_TIER3;
 		}
@@ -1020,6 +1032,8 @@ void Event_GetUpgraded(Event event, const char[] name, bool dontBroadcast)
 void AddedUpgrade(int client)
 {
 	int weapon = GetPlayerWeaponSlot(client, 0);
+	if( weapon == -1 ) return;
+
 	int type = GetEntProp(weapon, Prop_Send, "m_upgradeBitVec");
 
 	if( type & TYPE_FIRES ) type = TYPE_FIRES;
@@ -1390,7 +1404,7 @@ Action TimerReload(Handle timer, DataPack dPack)
 void GetPlayerAmmo(int client, bool shooting = false, int weaponType = TYPE_OTHER)
 {
 	int weapon = GetPlayerWeaponSlot(client, 0);
-	if( weapon != -1 &&  HasEntProp(weapon, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded") )
+	if( weapon != -1 && HasEntProp(weapon, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded") )
 	{
 		int ammo = GetEntProp(weapon, Prop_Send, "m_nUpgradedPrimaryAmmoLoaded");
 		int type = GetEntProp(weapon, Prop_Send, "m_upgradeBitVec");

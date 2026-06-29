@@ -18,7 +18,7 @@ public void OnPluginStart()
 	HookEvent("weapon_fire", Event_WeaponFire);
 }
 
-public Action Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
+Action Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 {
 	char weapon[64];
 	int client = GetClientOfUserId(event.GetInt("userid"));
@@ -42,4 +42,5 @@ public Action Event_WeaponFire(Event event, const char[] name, bool dontBroadcas
 			SetEntProp(GetPlayerWeaponSlot(client, slot), Prop_Send, "m_iClip1", clipsize + 1);
 		}
 	}
+	return Plugin_Continue;
 }

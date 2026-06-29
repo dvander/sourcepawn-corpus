@@ -4,9 +4,9 @@
 #include <tf2_stocks>
 
 #pragma semicolon 1
-#pragma newdecls required
+// pragma newdecls required
 
-#define PLUGIN_VERSION  "1.7.4"
+#define PLUGIN_VERSION  "1.7.5"
 
 float DefaultAimSpeed = 0.065;
 
@@ -40,7 +40,7 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
- 	g_cvBVCEnable = CreateConVar("tf_bot_voice_commands", "1", "controls whenever TFbots use voice commands. Default = 1.", _, true, 0.0, true, 1.0);
+	g_cvBVCEnable = CreateConVar("tf_bot_voice_commands", "1", "controls whenever TFbots use voice commands. Default = 1.", _, true, 0.0, true, 1.0);
 	g_cvRTDEnable = CreateConVar("tf_bot_rtd_support", "0", "Enables or Disables RTD(Roll The Dice) support for TFbots. Default = 0.", _, true, 0.0, true, 1.0);
 	g_cvCombatJumpEnable = CreateConVar("tf_bot_combat_jump", "1", "controls whenever TFBots jump during gameplay. Default = 1.", _, true, 0.0, true, 1.0);
 	g_cvDoubleJumpEnable = CreateConVar("tf_bot_scout_doublejump", "0", "controls whenever a Scout double jumps when he jumps. Default = 0 since it may be buggy.", _, true, 0.0, true, 1.0);
@@ -57,8 +57,9 @@ float moveForward(float vel[3],float MaxSpeed)
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3])
 {
-	if(IsValidClient(client) && IsFakeClient(client) && IsPlayerAlive(client))
+	if (!IsValidClient(client) || !IsPlayerAlive(client) || IsFakeClient(client))
 	{
+		return Plugin_Continue;
 		float clientEyes[3];
 		float targetEyes[3];
 		float targetEyes2[3];
@@ -284,17 +285,18 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			if(class != TFClass_Sniper && class != TFClass_Medic && !IsWeaponSlotActive(client, 2))
 			{	
 				// Modification of old script where bots jump in combat. (Makes sure that bots are not using melee)
+				g_flJumpTimer[client] = GetGameTime() + GetRandomFloat(5.0, 15.0);
+				g_flDuckTimer[client] = GetGameTime() + 25.0;
+				
 				if(g_flJumpTimer[client] < GetGameTime())
 				{
 					buttons |= IN_JUMP;
 					buttons &= ~IN_DUCK;
-					g_flJumpTimer[client] = GetGameTime() + GetRandomFloat(5.0, 15.0);
 				}
 				
 				if(g_flDuckTimer[client] < GetGameTime())
 				{
-					buttons |= IN_DUCK;
-					g_flDuckTimer[client] = GetGameTime() + 25.0;		
+					buttons |= IN_DUCK;		
 				}
 			}
 		}
@@ -406,8 +408,14 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			}
 		}
 	}
-	
-	return Plugin_Continue;
+}
+
+bool IsValidClient(client)
+{
+    if (!(1 <= client <= MaxClients) || !IsClientInGame(client))
+        return false;
+
+    return true;
 }
 
 public Action BotSpawn(Handle event, const char[] name, bool dontBroadcast) // Bot uses voice commands when they spawn. (This code and below are taken from efedursun)
@@ -530,14 +538,6 @@ stock void TF2_MoveOut(int client, float flGoal[3], float fVel[3], float fAng[3]
     NormalizeVector(fVel, fVel);
     ScaleVector(fVel, 450.0);
 }
-
-stock bool IsValidClient(int client) 
-{
-	if(!(1 <= client <= MaxClients) || !IsClientInGame(client)) 
-		return false; 
-	return true; 
-}
-
 stock bool IsWeaponSlotActive(int client, int slot)
 {
     return GetPlayerWeaponSlot(client, slot) == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");

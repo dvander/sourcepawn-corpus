@@ -120,7 +120,7 @@ enum struct PluginData
 {
     PluginCvars cvars;
 
-    bool enabled;
+    bool enable;
     int puddleMax;
     bool attachParticle;
     float cleanupInterval;
@@ -137,7 +137,7 @@ enum struct PluginData
 
     void GetCvarValues()
     {
-        this.enabled = this.cvars.l4d2_vomitjar_spit_enable.BoolValue;
+        this.enable = this.cvars.l4d2_vomitjar_spit_enable.BoolValue;
         this.puddleMax = this.cvars.l4d2_vomitjar_spit_puddle_max.IntValue;
         this.attachParticle = this.cvars.l4d2_vomitjar_spit_attach_particle.BoolValue;
     }
@@ -238,7 +238,7 @@ Events order:
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     if (entity < 0)
@@ -263,7 +263,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 public void OnEntityDestroyed(int entity)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     if (entity < 0)
@@ -366,7 +366,7 @@ Action Timer_CleanupArray(Handle timer)
     if (!IsServerProcessing())
         return Plugin_Continue;
 
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return Plugin_Continue;
 
     int maxLen = g_alVomitjarProjectiles.Length;
@@ -410,7 +410,7 @@ Action Cmd_PrintCvars(int client, int args)
     PrintToConsole(client, "----------------- Plugin Cvars (l4d2_vomitjar_spit) ------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_vomitjar_spit_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d2_vomitjar_spit_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
+    PrintToConsole(client, "l4d2_vomitjar_spit_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
     PrintToConsole(client, "l4d2_vomitjar_spit_puddle_max : %i", plugin.puddleMax);
     PrintToConsole(client, "l4d2_vomitjar_spit_attach_particle : %b (%s)", plugin.attachParticle, plugin.attachParticle ? "true" : "false");
     PrintToConsole(client, "");

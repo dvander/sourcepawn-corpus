@@ -4,57 +4,90 @@
 public Plugin myinfo =
 {
 	name = "[Any] ConVar Bounds",
-	author = "Yaser2007",
-	description = "Sets a cvar bounds.",
-	version = "1.2",
-	url = "https://forums.alliedmods.net/showthread.php?p=2808631#post2808631"
+	author = "Yaser2007, Grey83",
+	description	= "Sets a cvar bounds.",
+	version = "1.3.0",
+	url = "https://forums.alliedmods.net/showthread.php?t=343628"
 };
 
-public void OnPluginStart()
+public void OnMapStart()
 {
-	char path[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, path, sizeof(path), "configs/cvar_bounds.cfg");
+	char buffer[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, buffer, sizeof(buffer), "configs/cvar_bounds.cfg");
 
-	if(!FileExists(path))
+	if(!FileExists(buffer))
 	{
-		SetFailState("KeyValues file %s is not found", path);
+		LogError("Config %s is not found", buffer);
 		return;
 	}
 
 	KeyValues kv = CreateKeyValues("CvarBounds");
-	if(!FileToKeyValues(kv, path))
+	if(!FileToKeyValues(kv, buffer))
 	{
-		SetFailState("Failed to parse keyvalues file %s", path);
+		LogError("Failed to import from config %s", buffer);
 		return;
 	}
+
+	KvRewind(kv);
 
 	if(!KvGotoFirstSubKey(kv))
 	{
-		SetFailState("Failed to parse sub key %s", path);
+		LogError("Config %s is empty!", buffer);
+		delete kv;
 		return;
 	}
 
+	ConVar cvar;
+	bool set;
+	int i;
+	float bound;
+	char val[12];
+
 	do
 	{
-		char cvarName[128];
-		char min[64];
-		char max[64];
-
-		KvGetSectionName(kv, cvarName, sizeof(cvarName));
-		KvGetString(kv, "min", min, sizeof(min));
-		KvGetString(kv, "max", max, sizeof(max));
-
-		if(FindConVar(cvarName))
+		KvGetSectionName(kv, buffer, sizeof(buffer));
+		if((cvar = FindConVar(buffer)))
 		{
-			SetConVarBounds(FindConVar(cvarName), ConVarBound_Lower, true, StringToFloat(min));
-			SetConVarBounds(FindConVar(cvarName), ConVarBound_Upper, true, StringToFloat(max));
+			KvGetString(kv, "min", val, sizeof(val));
+			if(val[0] && StringToFloatEx(val, bound))
+			{
+				SetConVarBounds(cvar, ConVarBound_Lower, true, StringToFloat(val));
+				set = true;
+			}
+
+			KvGetString(kv, "max", val, sizeof(val));
+			if(val[0] && StringToFloatEx(val, bound))
+			{
+				SetConVarBounds(cvar, ConVarBound_Upper, true, StringToFloat(val));
+				set = true;
+			}
+
+			if(set)
+			{
+				i++;
+			}
+			else
+			{
+				LogError("The config has no bounds for the variable '%s'.", buffer);
+			}
 		}
 		else
 		{
-			PrintToServer("[CvarBounds] ConVar \"%s\" was not found in this game/mod. please change or delete this section", cvarName);
+			LogError("ConVar \"%s\" was not found in this game/mod. Please change or delete this section.", buffer);
 		}
+
+		set = false;
 	}
 	while(KvGotoNextKey(kv));
 
 	delete kv;
+
+	if(i)
+	{
+		PrintToServer("Value is limited for %i console variables.", i);
+	}
+	else
+	{
+		LogError("The config does not contain existing variables.");
+	}
 }

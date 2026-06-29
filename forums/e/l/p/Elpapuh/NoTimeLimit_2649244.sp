@@ -3,16 +3,15 @@
 #include <sourcemod>
 #include <sdktools>
 #include <morecolors>
-#include <updater>
 
 
-//Don't touch tihs (Plugin information)
+
+//Don't touch this (Plugin information)
 #define PLUGIN_NAME "No timelimit for round (not server)"
-#define PLUGIN_AUTH "ElPapuh/NetWorld/JLovers"
+#define PLUGIN_AUTH "KarmaDev"
 #define PLUGIN_DESC "A plugin that removes time limit on your game, not the server, if you want to remove time limit on your server, type mp_timelimit 0"
-#define PLUGIN_VERS "2.0"
-#define PLUGIN_WURL "https://networldftp.000webhostapp.com/" //BEING BUILT
-#define PLUGIN_UPDA "https://networldftp.000webhostapp.com/sources/NoTimeLimit.txt"
+#define PLUGIN_VERS "2.1"
+#define PLUGIN_WURL "https://karmadev.es/" //BEING BUILT
 
 public Plugin myinfo =
 {
@@ -23,7 +22,7 @@ public Plugin myinfo =
 	url = PLUGIN_WURL
 };
 
-new Handle:g_DisplayAnnounce;
+//new Handle:g_DisplayAnnounce;
 new Handle:g_PublicTimer;
 
 stock CheckGameType()
@@ -38,14 +37,6 @@ stock CheckGameType()
 	}
 }
 
-public OnLibraryAdded(const String:name[])
-{
-    if (StrEqual(name, "updater"))
-    {
-        Updater_AddPlugin(PLUGIN_UPDA);
-    }
-}
-
 public OnPluginStart()
 {	
 	CreateConVar("ntm_ver", PLUGIN_VERS, _, FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_NOTIFY);
@@ -54,17 +45,12 @@ public OnPluginStart()
 	RegAdminCmd("ntm_off", NoTimeLimit_Disable, ADMFLAG_ROOT, "Enable the time limit | Admin flag: Root");
 	RegAdminCmd("ntm_set", NoTimeLimit_SetTime, ADMFLAG_ROOT, "Set the time limit for round");
 	
-	g_DisplayAnnounce = CreateConVar("ntm_announce", "1", "Sets if yes or not the plugin will announce the server is using it, to a player who changes team", _, true, 0.0, true, 1.0);
+	//g_DisplayAnnounce = CreateConVar("ntm_announce", "1", "Sets if yes or not the plugin will announce the server is using it, to a player who changes team", _, true, 0.0, true, 1.0);
 	g_PublicTimer = CreateConVar("ntm_public", "1", "Displays a public message when the plugin disables the timer or re enables it", _, true, 0.0, true, 1.0);
 	
-	HookEvent("player_team", PlayerChangeTeam);
+	//HookEvent("player_team", PlayerChangeTeam);
 	HookEvent("teamplay_round_start", OnRoundStart);
 	HookEvent("teamplay_point_captured", OnPointCaptured);
-	
-	if (LibraryExists("updater"))
-    {
-        Updater_AddPlugin(PLUGIN_UPDA);
-    }
 }
 
 public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
@@ -72,10 +58,10 @@ public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 	decl String:mapName[32];
 	GetCurrentMap(mapName, sizeof(mapName));
 
-	if (strncmp(mapName, "pl_", 3) == 0)
+	if (strncmp(mapName, "cp_", 3) == 0)
 	{
-		CreateTimer(103.0, Timer_Payload);
-		PrintToServer("Map game mode payload detected, waiting to setup end to remove time limit");
+		CreateTimer(60.0, Timer_Payload);
+		PrintToServer("Waiting for setup end to remove time limit");
 	} 
 	else
 	{
@@ -98,7 +84,7 @@ public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 		{
 			if( GetClientCount() != 0)
 			{
-				CPrintToChatAll("{cyan}[ {gray}NTM {cyan}] {red}ALERT: {orange}Round timer disabled");
+				CPrintToChatAll("{red}ALERT: {orange}Round timer disabled");
 			}
 			else
 			{
@@ -106,11 +92,14 @@ public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 			}
 		}
 	}
+
+	return Plugin_Handled;
 }
 
 public Action OnPointCaptured(Event event, const char[] name, bool dontBroadcast)
 {
 	CreateTimer(5.0, PointCaptured);
+	return Plugin_Handled;
 }
 
 public Action PointCaptured(Handle:timer)
@@ -128,6 +117,8 @@ public Action PointCaptured(Handle:timer)
 		CloseHandle(timelimit);
 	}
 	PrintToServer("[NTM] Point capture detected, disabling timer again");
+
+	return Plugin_Handled;
 }
 
 public Action Timer_Payload(Handle:timer)
@@ -150,13 +141,15 @@ public Action Timer_Payload(Handle:timer)
 	{
 		if( GetClientCount() != 0)
 		{
-			CPrintToChatAll("{cyan}[ {gray}NTM {cyan}] {red}ALERT: {orange}Round timer disabled");
+			CPrintToChatAll("{red}ALERT: {orange}Round timer disabled");
 		}
 		else
 		{
 			PrintToServer("Round timer enabled");
 		}
 	}
+
+	return Plugin_Handled;
 }
 
 public Action NoTimeLimit_ShowVersion(client, args)
@@ -168,6 +161,7 @@ public Action NoTimeLimit_ShowVersion(client, args)
 	
 	PrintToChat(client, "No timelimit plugin version is %s", PLUGIN_VERS);
 	
+	return Plugin_Handled;
 }
 
 public Action NoTimeLimit_Enable(client, args)
@@ -215,7 +209,7 @@ public Action NoTimeLimit_Enable(client, args)
 	{
 		if( GetClientCount() != 0)
 		{
-			CPrintToChatAll("{cyan}[ {gray}NTM {cyan}] {red}ALERT: {orange}Round timer disabled");
+			CPrintToChatAll("{red}ALERT: {orange}Round timer disabled");
 		}
 		else
 		{
@@ -270,7 +264,7 @@ public Action NoTimeLimit_Disable(client, args)
 	{
 		if( GetClientCount() != 0)
 		{
-			CPrintToChatAll("{cyan}[ {gray}NTM {cyan}] {red}ALERT: {orange}Round timer enabled");
+			CPrintToChatAll("{red}ALERT: {orange}Round timer enabled");
 			PrintToServer("Round timer disabled");
 		}
 		else
@@ -330,7 +324,9 @@ public Action NoTimeLimit_SetTime(client, args)
 	{
 		if( GetClientCount() != 0)
 		{
-			CPrintToChatAll("{cyan}[ {gray}NTM {cyan}] {red}ALERT: {orange}Round timer set to %s", settimeval);
+			CPrintToChatAll("{red}ALERT: {orange}Round timer set to %s", settimeval);
+			//There's probably a way of doing this without repeating that much code
+
 			PrintToServer("Round timer set to %s", settimeval);
 		}
 		else
@@ -340,6 +336,9 @@ public Action NoTimeLimit_SetTime(client, args)
 	}
 	return Plugin_Handled;
 }
+
+/*
+Why did I added this?
 
 public Action PlayerChangeTeam(Event event, const char[] name, bool dontBroadcast)
 {
@@ -366,4 +365,4 @@ public Action PlayerChangeTeam(Event event, const char[] name, bool dontBroadcas
 			}
 		}
 	return Plugin_Continue;
-}
+}*/

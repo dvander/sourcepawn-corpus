@@ -6,471 +6,442 @@
 
 Handle g_timer = INVALID_HANDLE;
 
-int ent_dynamic_block1;
-int ent_craneframe;
-int ent_crane;
-int ent_cranewindow;
-int ent_cable;
-int ent_cable2;
-int ent_cable3;
-int ent_cable4;
-int ent_cable5;
-int ent_cable6;
-int ent_cable7;
-int ent_cable8;
-int ent_cable9;
-int ent_cable10;
-int ent_cable11;
-int ent_cable12;
-int ent_cable13;
-int ent_cable14;
-int ent_cable15;
+int g_entDynamicBlock1 = INVALID_ENT_REFERENCE;
+int g_entCraneFrame    = INVALID_ENT_REFERENCE;
+int g_entCrane         = INVALID_ENT_REFERENCE;
+int g_entCraneWindow   = INVALID_ENT_REFERENCE;
 
-//int ent_dynamic_base;
-int dynamic_prop;
-int dynamic_prop_button;
-#define SOUND			"ambient/machines/wall_move4.wav"
+int g_entCable1  = INVALID_ENT_REFERENCE;
+int g_entCable2  = INVALID_ENT_REFERENCE;
+int g_entCable3  = INVALID_ENT_REFERENCE;
+int g_entCable4  = INVALID_ENT_REFERENCE;
+int g_entCable5  = INVALID_ENT_REFERENCE;
+int g_entCable6  = INVALID_ENT_REFERENCE;
+int g_entCable7  = INVALID_ENT_REFERENCE;
+int g_entCable8  = INVALID_ENT_REFERENCE;
+int g_entCable9  = INVALID_ENT_REFERENCE;
+int g_entCable10 = INVALID_ENT_REFERENCE;
+int g_entCable11 = INVALID_ENT_REFERENCE;
+int g_entCable12 = INVALID_ENT_REFERENCE;
+int g_entCable13 = INVALID_ENT_REFERENCE;
+int g_entCable14 = INVALID_ENT_REFERENCE;
+int g_entCable15 = INVALID_ENT_REFERENCE;
+int g_entCable16 = INVALID_ENT_REFERENCE;
 
+int g_entGlowModel      = INVALID_ENT_REFERENCE; // dynamic_prop
+int g_entButton         = INVALID_ENT_REFERENCE; // dynamic_prop_button
+
+#define SOUND "ambient/machines/wall_move4.wav"
 
 public void OnPluginStart()
 {
-	PrecacheModel("models/props_lab/freightelevatorbutton.mdl",true);
-	PrecacheModel("models/props_equipment/cargo_container01.mdl",true);
-	PrecacheModel("models/cranes/crane_frame.mdl",true);
-	PrecacheModel("models/props_industrial/construction_crane.mdl",true);
-	PrecacheModel("models/props_exteriors/lighthouserailing_03_break04.mdl",true);
-	PrecacheModel("models/props_industrial/construction_crane_windows.mdl",true);
+    PrecacheModel("models/props_lab/freightelevatorbutton.mdl");
+    PrecacheModel("models/props_equipment/cargo_container01.mdl");
+    PrecacheModel("models/cranes/crane_frame.mdl");
+    PrecacheModel("models/props_industrial/construction_crane.mdl");
+    PrecacheModel("models/props_exteriors/lighthouserailing_03_break04.mdl");
+    PrecacheModel("models/props_industrial/construction_crane_windows.mdl");
 
-	PrecacheSound("ambient/machines/wall_move4.wav");
+    PrecacheSound(SOUND);
 
-	HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
-	//HookEvent("round_end", Round_End_Hook);
-	HookEvent("round_end", event_round_end, EventHookMode_PostNoCopy);
+    HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
+    HookEvent("round_end",        event_round_end,       EventHookMode_PostNoCopy);
+}
+
+void KillEntRef(int &ref)
+{
+    int ent = EntRefToEntIndex(ref);
+    if (ent != INVALID_ENT_REFERENCE && IsValidEntity(ent))
+    {
+        AcceptEntityInput(ent, "Kill");
+    }
+    ref = INVALID_ENT_REFERENCE;
+}
+
+void CleanupEntities()
+{
+    KillEntRef(g_entDynamicBlock1);
+    KillEntRef(g_entCraneFrame);
+    KillEntRef(g_entCrane);
+    KillEntRef(g_entCraneWindow);
+
+    KillEntRef(g_entCable1);
+    KillEntRef(g_entCable2);
+    KillEntRef(g_entCable3);
+    KillEntRef(g_entCable4);
+    KillEntRef(g_entCable5);
+    KillEntRef(g_entCable6);
+    KillEntRef(g_entCable7);
+    KillEntRef(g_entCable8);
+    KillEntRef(g_entCable9);
+    KillEntRef(g_entCable10);
+    KillEntRef(g_entCable11);
+    KillEntRef(g_entCable12);
+    KillEntRef(g_entCable13);
+    KillEntRef(g_entCable14);
+    KillEntRef(g_entCable15);
+    KillEntRef(g_entCable16);
+
+    KillEntRef(g_entGlowModel);
+    KillEntRef(g_entButton);
 }
 
 public void OnMapEnd()
 {
-delete g_timer;
+    if (g_timer != INVALID_HANDLE)
+    {
+        CloseHandle(g_timer);
+        g_timer = INVALID_HANDLE;
+    }
+    CleanupEntities();
 }
 
 public void event_round_end(Event event, const char[] name, bool dontBroadcast)
 {
-delete g_timer;
+    if (g_timer != INVALID_HANDLE)
+    {
+        CloseHandle(g_timer);
+        g_timer = INVALID_HANDLE;
+    }
+    CleanupEntities();
 }
-
 
 public void event_round_freeze_end(Event event, const char[] name, bool dontBroadcast)
 {
-	delete g_timer;
-	char sMap[64];
-	GetCurrentMap(sMap, sizeof(sMap));
-	if (StrEqual(sMap, "l4d_river01_docks", false) || StrEqual(sMap, "c7m1_docks", false))
-	{
+    // Safety: clean up any leftovers before spawning new ones
+    if (g_timer != INVALID_HANDLE)
+    {
+        CloseHandle(g_timer);
+        g_timer = INVALID_HANDLE;
+    }
+    CleanupEntities();
 
+    char sMap[64];
+    GetCurrentMap(sMap, sizeof(sMap));
+    if (!StrEqual(sMap, "l4d_river01_docks", false) && !StrEqual(sMap, "c7m1_docks", false))
+    {
+        return;
+    }
 
- 	float pos[3], ang[3], fwd[3]; 
+    float pos[3], ang[3], fwd[3];
 
-	pos[0] = 12184.0;
-	pos[1] = 37.0;
-	pos[2] = 1.0;
+    pos[0] = 12184.0;
+    pos[1] = 37.0;
+    pos[2] = 1.0;
 
-	ang[0] = 0.0;
-	ang[1] = 0.0;
-	ang[2] = 0.0;
+    ang[0] = 0.0;
+    ang[1] = 0.0;
+    ang[2] = 0.0;
 
-	GetAngleVectors(ang, fwd, NULL_VECTOR, NULL_VECTOR); 
-	ScaleVector(fwd, 100.0); 
-	AddVectors(fwd, pos, fwd); 
+    GetAngleVectors(ang, fwd, NULL_VECTOR, NULL_VECTOR);
+    ScaleVector(fwd, 100.0);
+    AddVectors(fwd, pos, fwd);
 
-	char origin[100]; 
-	Format(origin, sizeof(origin), "%0.1f %0.1f %0.1f", fwd[0], fwd[1], fwd[2]); 
+    char origin[100];
+    Format(origin, sizeof(origin), "%0.1f %0.1f %0.1f", fwd[0], fwd[1], fwd[2]);
 
-	// Flip 180 
-	float output[3]; 
-	MakeVectorFromPoints(fwd, pos, output); 
-	GetVectorAngles(output, ang); 
-	ang[0] = 0.0; 
+    float output[3];
+    MakeVectorFromPoints(fwd, pos, output);
+    GetVectorAngles(output, ang);
+    ang[0] = 0.0;
 
-	char targetname[100]; 
-	int tick = GetGameTickCount(); 
-     
-	Format(targetname, sizeof(targetname), "@glow_%i", tick); 
+    char targetname[100];
+    int tick = GetGameTickCount();
+    Format(targetname, sizeof(targetname), "@glow_%i", tick);
 
-	CreateModel(fwd, ang, origin, targetname); 
-	CreateButton(fwd, ang, origin, targetname); 
+    CreateModel(fwd, ang, origin, targetname);
+    CreateButton(fwd, ang, origin, targetname);
 
-	// create doors and box
+    // create doors and box
+    pos[0] = 12170.0;
+    pos[1] = -80.0;
+    pos[2] = -62.0;
+    ang[0] = 0.0;
+    ang[1] = 90.0;
+    ang[2] = 0.0;
 
-	//***************
+    int ent = CreateEntityByName("prop_dynamic");
+    if (ent != -1)
+    {
+        DispatchKeyValue(ent, "model", "models/props_equipment/cargo_container01.mdl");
+        DispatchKeyValue(ent, "disableshadows", "1");
+        DispatchKeyValue(ent, "solid", "6");
+        DispatchSpawn(ent);
+        TeleportEntity(ent, pos, ang, NULL_VECTOR);
+        SDKHook(ent, SDKHook_Touch, OnTouch);
+        g_entDynamicBlock1 = EntIndexToEntRef(ent);
+    }
 
-	pos[0] = 12170.0;
-	pos[1] = -80.0;
-	pos[2] = -62.0;
-	ang[0] = 0.0;
-	ang[1] = 90.0;
-	ang[2] = 0.0;
+    // cables
+    pos[2] = 95.0;
+    ang[0] = 90.0;
 
+    int cableEnt;
 
+    cableEnt = CreateCable(pos, ang);
+    g_entCable1 = EntIndexToEntRef(cableEnt);
 
-	ent_dynamic_block1 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_dynamic_block1, "model", "models/props_equipment/cargo_container01.mdl");
-	//DispatchKeyValue(ent_dynamic_block1, "spawnflags", "264");
-	DispatchKeyValue(ent_dynamic_block1, "disableshadows", "1");
-	DispatchKeyValue(ent_dynamic_block1, "solid", "6");
-	DispatchSpawn(ent_dynamic_block1);
-	TeleportEntity(ent_dynamic_block1, pos, ang, NULL_VECTOR);
-	SDKHook(ent_dynamic_block1, SDKHook_Touch, OnTouch);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable2 = EntIndexToEntRef(cableEnt);
 
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable3 = EntIndexToEntRef(cableEnt);
 
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable4 = EntIndexToEntRef(cableEnt);
 
-	pos[2] = 95.0;
-	ang[0] = 90.0;
-	ent_cable = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable, "spawnflags", "264");
-	DispatchKeyValue(ent_cable, "disableshadows", "1");
-	DispatchSpawn(ent_cable);
-	TeleportEntity(ent_cable, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable5 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable2 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable2, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable2, "spawnflags", "264");
-	DispatchKeyValue(ent_cable2, "disableshadows", "1");
-	DispatchSpawn(ent_cable2);
-	TeleportEntity(ent_cable2, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable6 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable3 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable3, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable3, "spawnflags", "264");
-	DispatchKeyValue(ent_cable3, "disableshadows", "1");
-	DispatchSpawn(ent_cable3);
-	TeleportEntity(ent_cable3, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable7 = EntIndexToEntRef(cableEnt);
 
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable8 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable4 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable4, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable4, "spawnflags", "264");
-	DispatchKeyValue(ent_cable4, "disableshadows", "1");
-	DispatchSpawn(ent_cable4);
-	TeleportEntity(ent_cable4, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable9 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable5 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable5, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable5, "spawnflags", "264");
-	DispatchKeyValue(ent_cable5, "disableshadows", "1");
-	DispatchSpawn(ent_cable5);
-	TeleportEntity(ent_cable5, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable10 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable6 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable6, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable6, "spawnflags", "264");
-	DispatchKeyValue(ent_cable6, "disableshadows", "1");
-	DispatchSpawn(ent_cable6);
-	TeleportEntity(ent_cable6, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable11 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable7 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable7, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable7, "spawnflags", "264");
-	DispatchKeyValue(ent_cable7, "disableshadows", "1");
-	DispatchSpawn(ent_cable7);
-	TeleportEntity(ent_cable7, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable12 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable8 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable8, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable8, "spawnflags", "264");
-	DispatchKeyValue(ent_cable8, "disableshadows", "1");
-	DispatchSpawn(ent_cable8);
-	TeleportEntity(ent_cable8, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable13 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable9 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable9, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable9, "spawnflags", "264");
-	DispatchKeyValue(ent_cable9, "disableshadows", "1");
-	DispatchSpawn(ent_cable9);
-	TeleportEntity(ent_cable9, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable14 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable10 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable10, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable10, "spawnflags", "264");
-	DispatchKeyValue(ent_cable10, "disableshadows", "1");
-	DispatchSpawn(ent_cable10);
-	TeleportEntity(ent_cable10, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable15 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable11 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable11, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable11, "spawnflags", "264");
-	DispatchKeyValue(ent_cable11, "disableshadows", "1");
-	DispatchSpawn(ent_cable11);
-	TeleportEntity(ent_cable11, pos, ang, NULL_VECTOR);
+    pos[2] += 64.0;
+    cableEnt = CreateCable(pos, ang);
+    g_entCable16 = EntIndexToEntRef(cableEnt);
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable12 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable12, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable12, "spawnflags", "264");
-	DispatchKeyValue(ent_cable12, "disableshadows", "1");
-	DispatchSpawn(ent_cable12);
-	TeleportEntity(ent_cable12, pos, ang, NULL_VECTOR);
+    // crane frame
+    pos[0] = 12610.0;
+    pos[1] = -140.0;
+    pos[2] = -362.0;
+    ang[0] = 0.0;
+    ang[1] = 0.0;
+    ang[2] = 0.0;
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable13 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable13, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable13, "spawnflags", "264");
-	DispatchKeyValue(ent_cable13, "disableshadows", "1");
-	DispatchSpawn(ent_cable13);
-	TeleportEntity(ent_cable13, pos, ang, NULL_VECTOR);
+    ent = CreateEntityByName("prop_dynamic");
+    if (ent != -1)
+    {
+        DispatchKeyValue(ent, "model", "models/cranes/crane_frame.mdl");
+        DispatchKeyValue(ent, "disableshadows", "1");
+        DispatchKeyValue(ent, "solid", "6");
+        DispatchSpawn(ent);
+        TeleportEntity(ent, pos, ang, NULL_VECTOR);
+        g_entCraneFrame = EntIndexToEntRef(ent);
+    }
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable14 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable14, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable14, "spawnflags", "264");
-	DispatchKeyValue(ent_cable14, "disableshadows", "1");
-	DispatchSpawn(ent_cable14);
-	TeleportEntity(ent_cable14, pos, ang, NULL_VECTOR);
+    pos[2] = 445.0;
+    ang[1] = 172.0;
+    ent = CreateEntityByName("prop_dynamic");
+    if (ent != -1)
+    {
+        DispatchKeyValue(ent, "model", "models/props_industrial/construction_crane.mdl");
+        DispatchKeyValue(ent, "disableshadows", "1");
+        DispatchKeyValue(ent, "solid", "6");
+        DispatchSpawn(ent);
+        TeleportEntity(ent, pos, ang, NULL_VECTOR);
+        g_entCrane = EntIndexToEntRef(ent);
+    }
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable15 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable15, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable15, "spawnflags", "264");
-	DispatchKeyValue(ent_cable15, "disableshadows", "1");
-	DispatchSpawn(ent_cable15);
-	TeleportEntity(ent_cable15, pos, ang, NULL_VECTOR);
+    pos[2] = 436.0;
+    ang[1] = 172.0;
+    ent = CreateEntityByName("prop_dynamic");
+    if (ent != -1)
+    {
+        DispatchKeyValue(ent, "model", "models/props_industrial/construction_crane_windows.mdl");
+        DispatchKeyValue(ent, "spawnflags", "264");
+        DispatchKeyValue(ent, "disableshadows", "1");
+        DispatchKeyValue(ent, "solid", "6");
+        DispatchSpawn(ent);
+        TeleportEntity(ent, pos, ang, NULL_VECTOR);
+        g_entCraneWindow = EntIndexToEntRef(ent);
+    }
 
-	pos[2] += 64.0;
-	ang[0] = 90.0;
-	ent_cable15 = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_cable15, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
-	DispatchKeyValue(ent_cable15, "spawnflags", "264");
-	DispatchKeyValue(ent_cable15, "disableshadows", "1");
-	DispatchSpawn(ent_cable15);
-	TeleportEntity(ent_cable15, pos, ang, NULL_VECTOR);
-
-
-
-
-
-        pos[0] = 12610.0;
-	pos[1] = -140.0;
-	pos[2] = -362.0;
-	ang[0] = 0.0;
-	ang[1] = 0.0;
-	ang[2] = 0.0;
-
-	ent_craneframe = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_craneframe, "model", "models/cranes/crane_frame.mdl");
-	//DispatchKeyValue(ent_craneframe, "spawnflags", "264");
-	DispatchKeyValue(ent_craneframe, "disableshadows", "1");
-	DispatchKeyValue(ent_craneframe, "solid", "6");
-	DispatchSpawn(ent_craneframe);
-	TeleportEntity(ent_craneframe, pos, ang, NULL_VECTOR);
-
-	pos[2] = 445.0;
-	ang[1] = 172.0;
-	ent_crane = CreateEntityByName("prop_dynamic"); 
- 
-	DispatchKeyValue(ent_crane, "model", "models/props_industrial/construction_crane.mdl");
-	//DispatchKeyValue(ent_crane, "spawnflags", "264");
-	DispatchKeyValue(ent_crane, "disableshadows", "1");
-	DispatchKeyValue(ent_crane, "solid", "6");
-	DispatchSpawn(ent_crane);
-	TeleportEntity(ent_crane, pos, ang, NULL_VECTOR);
-
-	pos[2] = 436.0;
-	ang[1] = 172.0;
-	ent_cranewindow = CreateEntityByName("prop_dynamic"); 
-
-	DispatchKeyValue(ent_cranewindow, "model", "models/props_industrial/construction_crane_windows.mdl");
-	DispatchKeyValue(ent_cranewindow, "spawnflags", "264");
-	DispatchKeyValue(ent_cranewindow, "disableshadows", "1");
-	DispatchKeyValue(ent_cranewindow, "solid", "6");
-	DispatchSpawn(ent_cranewindow);
-	TeleportEntity(ent_cranewindow, pos, ang, NULL_VECTOR);
-	
-	//**********
-
-	HookSingleEntityOutput(dynamic_prop_button, "OnPressed", OnPressed);
-	}
+    int btn = EntRefToEntIndex(g_entButton);
+    if (btn != INVALID_ENT_REFERENCE && IsValidEntity(btn))
+    {
+        HookSingleEntityOutput(btn, "OnPressed", OnPressed);
+    }
 }
 
+int CreateCable(const float pos[3], const float ang[3])
+{
+    int ent = CreateEntityByName("prop_dynamic");
+    if (ent == -1)
+        return -1;
 
-// Create dynamic model 
-void CreateModel(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname) 
-{ 
-     
-	dynamic_prop = CreateEntityByName("prop_dynamic"); 
-     
-	if(dynamic_prop == -1) return; 
+    DispatchKeyValue(ent, "model", "models/props_exteriors/lighthouserailing_03_break04.mdl");
+    DispatchKeyValue(ent, "spawnflags", "264");
+    DispatchKeyValue(ent, "disableshadows", "1");
+    DispatchSpawn(ent);
+    TeleportEntity(ent, pos, ang, NULL_VECTOR);
+    return ent;
+}
 
-	DispatchKeyValue(dynamic_prop, "origin", origin); 
-	DispatchKeyValue(dynamic_prop, "targetname", targetname); // important for func_button glow entity 
+// Create dynamic model (glow)
+void CreateModel(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname)
+{
+    int ent = CreateEntityByName("prop_dynamic");
+    if (ent == -1)
+        return;
 
-	DispatchKeyValue(dynamic_prop, "model", "models/props_lab/freightelevatorbutton.mdl"); 
-	DispatchKeyValue(dynamic_prop, "spawnflags", "0"); 
-	/* 
-	16 = Break on Touch 
-	32 = Break on Pressure 
-	64 = Use Hitboxes for Renderbox 
-	256 = Start with collision disabled 
-	*/ 
+    DispatchKeyValue(ent, "origin", origin);
+    DispatchKeyValue(ent, "targetname", targetname);
+    DispatchKeyValue(ent, "model", "models/props_lab/freightelevatorbutton.mdl");
+    DispatchKeyValue(ent, "spawnflags", "0");
+    DispatchSpawn(ent);
+    TeleportEntity(ent, fwd, ang, NULL_VECTOR);
 
-	DispatchSpawn(dynamic_prop); 
-     
-	TeleportEntity(dynamic_prop, fwd, ang, NULL_VECTOR); 
-} 
+    g_entGlowModel = EntIndexToEntRef(ent);
+}
 
+void CreateButton(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname)
+{
+    int ent = CreateEntityByName("func_button");
+    if (ent == -1)
+        return;
 
+    DispatchKeyValue(ent, "origin", origin);
+    DispatchKeyValue(ent, "glow", targetname);
+    DispatchKeyValue(ent, "wait", "-1");
+    DispatchKeyValue(ent, "spawnflags", "1025");
 
-void CreateButton(const float fwd[3], const float ang[3], const char[] origin, const char[] targetname) 
-{ 
-	
+    DispatchSpawn(ent);
+    ActivateEntity(ent);
 
-	dynamic_prop_button = CreateEntityByName("func_button"); 
-     
-	if(dynamic_prop_button == -1) return; 
-     
-	DispatchKeyValue(dynamic_prop_button, "origin", origin); // important or button start flying to 0, 0, 0 coordinates after press 
-	DispatchKeyValue(dynamic_prop_button, "glow", targetname); 
+    TeleportEntity(ent, fwd, ang, NULL_VECTOR);
+    SetEntityModel(ent, "models/props_lab/freightelevatorbutton.mdl");
 
-	DispatchKeyValue(dynamic_prop_button, "wait", "-1");    // Default 3 sec, -1 stay. Glowing stop when button OnIn 
-	DispatchKeyValue(dynamic_prop_button, "spawnflags", "1025"); // Don't move + Use Activates 
-	/* 
-	1 = Don't move 
-	32 = Toggle 
-	256 = Touch Activates 
-	512 = Damage Activates 
-	1024 = Use Activates 
-	2048 = Starts Locked 
-	4096 = Sparks 
-	*/ 
+    float vMins[3] = { -30.0, -30.0, 0.0 }, vMaxs[3] = { 30.0, 30.0, 200.0 };
+    SetEntPropVector(ent, Prop_Send, "m_vecMins", vMins);
+    SetEntPropVector(ent, Prop_Send, "m_vecMaxs", vMaxs);
 
-	DispatchSpawn(dynamic_prop_button); 
-	ActivateEntity(dynamic_prop_button); 
-     
-	TeleportEntity(dynamic_prop_button, fwd, ang, NULL_VECTOR); 
+    int enteffects = GetEntProp(ent, Prop_Send, "m_fEffects");
+    enteffects |= 32;
+    SetEntProp(ent, Prop_Send, "m_fEffects", enteffects);
 
-	SetEntityModel(dynamic_prop_button, "models/props_lab/freightelevatorbutton.mdl"); 
-
-	float vMins[3] = {-30.0, -30.0, 0.0}, vMaxs[3] = {30.0, 30.0, 200.0}; 
-	SetEntPropVector(dynamic_prop_button, Prop_Send, "m_vecMins", vMins); 
-	SetEntPropVector(dynamic_prop_button, Prop_Send, "m_vecMaxs", vMaxs); 
-     
-
-	// This disable entity error 
-	// ERROR:  Can't draw studio model models/props_lab/freightelevatorbutton.mdl because CBaseButton is not derived from C_BaseAnimating 
-
-	int enteffects = GetEntProp(dynamic_prop_button, Prop_Send, "m_fEffects"); 
-	enteffects |= 32; 
-	SetEntProp(dynamic_prop_button, Prop_Send, "m_fEffects", enteffects); 
-}  
-
+    g_entButton = EntIndexToEntRef(ent);
+}
 
 public void OnPressed(const char[] output, int caller, int activator, float delay)
 {
-	//AcceptEntityInput(dynamic_prop_button, "Kill");
-	EmitSoundToAll(SOUND, ent_dynamic_block1);
-	char command[] = "director_force_panic_event";
-	char flags = GetCommandFlags(command);
-	SetCommandFlags(command, flags & ~FCVAR_CHEAT);
-	FakeClientCommand(activator, command);
-	SetCommandFlags(command, flags);
-	// Remove glow entity from func_button
-	SetEntProp(dynamic_prop_button, Prop_Send, "m_glowEntity", -1); 
-	g_timer = CreateTimer(0.1, gate, _, TIMER_REPEAT);
+    int btn = EntRefToEntIndex(g_entButton);
+    if (btn != INVALID_ENT_REFERENCE && IsValidEntity(btn))
+    {
+        AcceptEntityInput(btn, "Kill"); // prevent double-trigger
+        g_entButton = INVALID_ENT_REFERENCE;
+    }
 
+    int block = EntRefToEntIndex(g_entDynamicBlock1);
+    if (block != INVALID_ENT_REFERENCE && IsValidEntity(block))
+    {
+        EmitSoundToAll(SOUND, block);
+    }
+
+    char command[] = "director_force_panic_event";
+    int flags = GetCommandFlags(command);
+    SetCommandFlags(command, flags & ~FCVAR_CHEAT);
+    FakeClientCommand(activator, command);
+    SetCommandFlags(command, flags);
+
+    int glow = EntRefToEntIndex(g_entGlowModel);
+    if (glow != INVALID_ENT_REFERENCE && IsValidEntity(glow))
+    {
+        // Remove glow entity from func_button
+        SetEntProp(btn, Prop_Send, "m_glowEntity", -1);
+    }
+
+    if (g_timer != INVALID_HANDLE)
+    {
+        CloseHandle(g_timer);
+        g_timer = INVALID_HANDLE;
+    }
+    g_timer = CreateTimer(0.1, gate, _, TIMER_REPEAT);
 }
 
 public Action gate(Handle timer)
 {
-	// Create a global variable visible only in the local scope (this function).
-	static int numlift = 0;
-	static int numsound = 0;
-	float pos[3], ang[3], dir[3];
-	GetEntPropVector(ent_dynamic_block1, Prop_Data, "m_vecAbsOrigin", pos);
-	GetEntPropVector(ent_dynamic_block1, Prop_Send, "m_angRotation", ang);
-	pos[2] += 0.3;
-	dir[0] = 0.0;
-	dir[1] = 0.0;
-	dir[2] = 0.0;
+    static int numlift = 0;
+    static int numsound = 0;
 
-	if (numlift >= 340) 
-	{
-		numlift = 0;
-		SetConVarInt(FindConVar("sb_unstick"), 1);
-		g_timer = null;
-		return Plugin_Stop;
-	}
- 
-    	TeleportEntity(ent_dynamic_block1, pos, ang, dir);
+    int block = EntRefToEntIndex(g_entDynamicBlock1);
+    if (block == INVALID_ENT_REFERENCE || !IsValidEntity(block))
+    {
+        numlift = 0;
+        numsound = 0;
+        g_timer = INVALID_HANDLE;
+        return Plugin_Stop;
+    }
 
+    float pos[3], ang[3], dir[3];
+    GetEntPropVector(block, Prop_Data, "m_vecAbsOrigin", pos);
+    GetEntPropVector(block, Prop_Send, "m_angRotation", ang);
+    pos[2] += 0.3;
+    dir[0] = dir[1] = dir[2] = 0.0;
 
-	numlift++;
-	numsound++;
+    if (numlift >= 340)
+    {
+        numlift = 0;
+        SetConVarInt(FindConVar("sb_unstick"), 1);
+        g_timer = INVALID_HANDLE;
+        return Plugin_Stop;
+    }
 
-	if((numsound==23))
-	{
-		EmitSoundToAll(SOUND, ent_dynamic_block1);
-		numsound = 0;
-	}
-	return Plugin_Continue;
+    TeleportEntity(block, pos, ang, dir);
 
+    numlift++;
+    numsound++;
+
+    if (numsound == 23)
+    {
+        EmitSoundToAll(SOUND, block);
+        numsound = 0;
+    }
+    return Plugin_Continue;
 }
 
-
-
-
-
-public void OnTouch(int client, int other)
+public void OnTouch(int entity, int other)
 {
-//PrintToChatAll("%i", other);
-
-if(other > 0 && other <= MaxClients){
-if(IsClientInGame(other) && IsFakeClient(other) && GetClientTeam(other) == 2)
-{
-SetConVarInt(FindConVar("sb_unstick"), 0);
-//PrintToChatAll ("touched");
-SDKUnhook(ent_dynamic_block1, SDKHook_Touch, OnTouch);
-}
-
-}
+    if (other > 0 && other <= MaxClients)
+    {
+        if (IsClientInGame(other) && IsFakeClient(other) && GetClientTeam(other) == 2)
+        {
+            SetConVarInt(FindConVar("sb_unstick"), 0);
+            int block = EntRefToEntIndex(g_entDynamicBlock1);
+            if (block != INVALID_ENT_REFERENCE && IsValidEntity(block))
+            {
+                SDKUnhook(block, SDKHook_Touch, OnTouch);
+            }
+        }
+    }
 }

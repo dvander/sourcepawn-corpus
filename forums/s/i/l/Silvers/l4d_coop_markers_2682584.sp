@@ -1,6 +1,6 @@
 /*
 *	Coop Markers - Flow Distance
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.11"
+#define PLUGIN_VERSION 		"1.14"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,15 @@
 
 ========================================================================================
 	Change Log:
+
+1.14 (04-Jan-2026)
+	- Added commands "sm_prog" and "sm_progress" to show current progress. Requested by "Nevve9".
+
+1.13 (01-Jul-2025)
+	- Changed cvar "l4d_coop_markers_panel" to also allow showing hint and center messages.
+
+1.12 (22-Sep-2024)
+	- Changed cvar "l4d_coop_markers_panel" to show both chat and panel messages.
 
 1.11 (01-Dec-2021)
 	- Changes to fix warnings when compiling on SourceMod 1.11.
@@ -216,7 +225,7 @@ public void OnPluginStart()
 	g_hCvarAllow =		CreateConVar(	"l4d_coop_markers_allow",			"1",					"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
 	if( !g_bLeft4Dead2 )
 		g_hCvarModes =	CreateConVar(	"l4d_coop_markers_modes",			"5",					"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus. Add numbers together.", CVAR_FLAGS );
-	g_hCvarPanel =		CreateConVar(	"l4d_coop_markers_panel",			"1",					"0=Print to chat. 1=Display panel.", CVAR_FLAGS );
+	g_hCvarPanel =		CreateConVar(	"l4d_coop_markers_panel",			"1",					"0=Print to chat. 1=Display panel. 2=Both. 3=Display as center text. 4=Display as hint text.", CVAR_FLAGS );
 	g_hCvarPercent =	CreateConVar(	"l4d_coop_markers_percent",			"25",					"After what percentage of progress to display the marker.", CVAR_FLAGS );
 	g_hCvarTimer =		CreateConVar(	"l4d_coop_markers_timer",			"2.0",					"How often the timer fires to check progress.", CVAR_FLAGS );
 	CreateConVar(						"l4d_coop_markers_version",			PLUGIN_VERSION,			"Coop Markers plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -230,6 +239,46 @@ public void OnPluginStart()
 	g_hCvarPanel.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarPercent.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarTimer.AddChangeHook(ConVarChanged_Cvars);
+
+
+
+	// ====================================================================================================
+	// COMMANDS
+	// ====================================================================================================
+	RegConsoleCmd("sm_prog", CmdProgress, "Displays the current flow distance progress of the Survivors.");
+	RegConsoleCmd("sm_progress", CmdProgress, "Displays the current flow distance progress of the Survivors.");
+}
+
+
+
+// ====================================================================================================
+//					COMMANDS
+// ====================================================================================================
+Action CmdProgress(int client, int args)
+{
+	float dist;
+	int total;
+	int area;
+
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i) )
+		{
+			area = SDKCall(g_hPlayerGetLastKnownArea, i);
+
+			if( area )
+			{
+				dist += view_as<float>(LoadFromAddress(view_as<Address>(area + m_flow), NumberType_Int32));
+				total++;
+			}
+		}
+	}
+
+	dist /= total;
+	int range = RoundToNearest(dist / g_fDistance * 100);
+
+	ReplyToCommand(client, "\x04Survivor Progress: \x01%d%%", range);
+	return Plugin_Handled;
 }
 
 
@@ -237,12 +286,12 @@ public void OnPluginStart()
 // ====================================================================================================
 //					CVARS
 // ====================================================================================================
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -327,7 +376,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -344,7 +393,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	g_fDistance = GetMapMaxFlowDistance();
 
@@ -354,7 +403,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 		g_hTimer = CreateTimer(g_fCvarTimer, TimerUpdate, _, TIMER_REPEAT);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 }
@@ -382,7 +431,7 @@ void ResetPlugin()
 	delete g_hTimer;
 }
 
-public Action TimerDelayCheck(Handle timer)
+Action TimerDelayCheck(Handle timer)
 {
 	g_bIsFinale = FindEntityByClassname(-1, "trigger_finale") != INVALID_ENT_REFERENCE;
 
@@ -401,7 +450,7 @@ public Action TimerDelayCheck(Handle timer)
 // ====================================================================================================
 //					UPDATE
 // ====================================================================================================
-public Action TimerUpdate(Handle timer)
+Action TimerUpdate(Handle timer)
 {
 	if( g_bMapStarted )
 	{
@@ -449,7 +498,8 @@ public Action TimerUpdate(Handle timer)
 // ====================================================================================================
 void FireMarker(int value)
 {
-	if( !g_iCvarPanel )
+	// if( !g_iCvarPanel || g_iCvarPanel & (1<<1) )
+	if( g_iCvarPanel == 0 || g_iCvarPanel == 2 )
 	{
 		for( int i = 1; i <= MaxClients; i++ )
 		{
@@ -460,7 +510,36 @@ void FireMarker(int value)
 		}
 
 		PlaySound();
-	} else {
+	}
+
+	else if( g_iCvarPanel == 3 )
+	{
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) )
+			{
+				PrintCenterText(i, "\x04%T", "Coop_Marker", i, value); // L4D_VS_REACHED_MARKER
+			}
+		}
+
+		PlaySound();
+	}
+
+	else if( g_iCvarPanel == 4 )
+	{
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) )
+			{
+				PrintHintText(i, "\x04%T", "Coop_Marker", i, value); // L4D_VS_REACHED_MARKER
+			}
+		}
+
+		PlaySound();
+	}
+
+	if( g_iCvarPanel == 1 || g_iCvarPanel == 2 )
+	{
 		if( !g_bLeft4Dead2 )
 		{
 			Panel hPanel = new Panel();
@@ -470,7 +549,7 @@ void FireMarker(int value)
 			{
 				if( IsClientInGame(i) )
 				{
-					Format(sBuffer, sizeof(sBuffer), "%T", "Coop_Marker", i, value);
+					FormatEx(sBuffer, sizeof(sBuffer), "%T", "Coop_Marker", i, value);
 					hPanel.DrawText(sBuffer);
 					hPanel.Send(i, MarkerPanel, 5);
 				}
@@ -493,7 +572,7 @@ void FireMarker(int value)
 
 			if( count )
 			{
-				char mode[64];
+				static char mode[64];
 				g_hCvarMPGameMode.GetString(mode, sizeof(mode));
 
 				// Clients only display the value when they think it's Versus.
@@ -518,7 +597,7 @@ void FireMarker(int value)
 	}
 }
 
-public int MarkerPanel(Handle menu, MenuAction action, int param1, int param2) 
+int MarkerPanel(Handle menu, MenuAction action, int param1, int param2) 
 {
 	return 0;
 }

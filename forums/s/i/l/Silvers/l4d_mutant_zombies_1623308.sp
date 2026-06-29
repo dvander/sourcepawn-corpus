@@ -1,6 +1,6 @@
 /*
 *	Mutant Zombies
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.27"
+#define PLUGIN_VERSION		"1.29"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.29 (14-Mar-2026)
+	- Another attempt to fix Fire Mutants becoming invincible. Thanks to "replay_84" for reporting.
+
+1.28 (04-Aug-2024)
+	- Fixed "Fire" mutants dying straight away when "check" setting in the data config was set to "1". Thanks to "sonic155" for reporting.
+	- Delayed spawning by 1 frame to fix issues with Common Limiter plugins that delete the common on spawn, causing Mutant Zombie effects to stay stuck in the air. Thanks to "Automage" for reporting.
 
 1.27 (19-Feb-2023)
 	- Fixed Fire Mutants taking fire damage from other sources. Thanks to "BystanderZK" for reporting.
@@ -236,7 +243,7 @@ int g_iInfectedMind[MAX_ENTS][5];
 int g_iInfectedSmoke[MAX_ENTS][3];
 int g_iInfectedSpit[MAX_ENTS][3]; // [0] = Common infected, [1] = ParticleA, [2] = ParticleB
 int g_iInfectedTesla[MAX_ENTS][2];
-int g_iFireHealth[2048];
+int g_iFireHealth[2048 + 1];
 
 // Global variables
 int g_iCheckInferno, g_iLoadStatus, g_iPlayerSpawn, g_iRoundStart;
@@ -1455,7 +1462,6 @@ public void OnEntityCreated(int entity, const char[] classname)
 		if( g_bHookCommonSpawn
 		|| (g_iConfRandom		&& g_iSpawnAmount	>= g_iConfRandom)
 		|| (g_iConfBombRandom	&& g_iSpawnBomb		>= g_iConfBombRandom)
-		|| (g_iConfFireRandom	&& g_iSpawnFire		>= g_iConfFireRandom)
 		|| (g_iConfGhostRandom	&& g_iSpawnGhost	>= g_iConfGhostRandom)
 		|| (g_iConfMindRandom	&& g_iSpawnMind		>= g_iConfMindRandom)
 		|| (g_iConfSmokeRandom	&& g_iSpawnSmoke	>= g_iConfSmokeRandom)
@@ -1463,10 +1469,19 @@ public void OnEntityCreated(int entity, const char[] classname)
 		|| (g_iConfTeslaRandom	&& g_iSpawnTesla	>= g_iConfTeslaRandom ))
 		{
 			if( g_iConfCheck )
+			{
 				CreateTimer(0.2, TimerSpawnCommon, EntIndexToEntRef(entity));
+			}
 			else
+			{
 				SDKHook(entity, SDKHook_SpawnPost, OnSpawnCommon);
+			}
 		}
+		else if( g_iConfFireRandom && g_iSpawnFire >= g_iConfFireRandom )
+		{
+			SDKHook(entity, SDKHook_SpawnPost, OnSpawnCommon);
+		}
+
 
 		// Increment random counters if allowed.
 		else
@@ -1616,6 +1631,14 @@ void OnSpawnCommon(int common)
 	SDKUnhook(common, SDKHook_SpawnPost, OnSpawnCommon);
 
 	if( IsValidEntity(common) )
+		RequestFrame(OnFrameSpawn, EntIndexToEntRef(common));
+}
+
+void OnFrameSpawn(int common)
+{
+	common = EntRefToEntIndex(common);
+
+	if( common != INVALID_ENT_REFERENCE )
 		SpawnCommon(common);
 }
 
@@ -2013,11 +2036,40 @@ Action OnCommonFireDamage(int victim, int &attacker, int &inflictor, float &dama
 	return Plugin_Continue;
 }
 
+Action TimerDelete(Handle timer, int entity)
+{
+	if( EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
+	{
+		RemoveEntity(entity);
+	}
+
+	return Plugin_Continue;
+}
+
 Action OnTakeDamageFire(int victim, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
+	// Fix invincible bug
+	if( GetEntProp(victim, Prop_Data, "m_lifeState") != 0 )
+	{
+		SetEntProp(victim, Prop_Data, "m_lifeState", 0);
+	}
+
+	// Infected is broken and would render invisible, so don't fix them from death
+	if( GetEntProp(victim, Prop_Send, "m_bClientSideRagdoll") != 0 )
+	{
+		SDKUnhook(victim, SDKHook_OnTakeDamage, OnTakeDamageFire);
+
+		damage = 10000.0;
+
+		// Delete in 3 seconds if still alive
+		CreateTimer(3.0, TimerDelete, EntIndexToEntRef(victim));
+
+		return Plugin_Changed;
+	}
+
 	// Fix health bug where the game tries to kill common with a huge amount of damage, usually 10000.0 or the commons health + 1
 	int health = GetEntProp(victim, Prop_Data, "m_iHealth") - RoundFloat(damage);
-	if( health < 0 )
+	if( health <= 0 )
 	{
 		if( g_iFireHealth[victim] - damage > 0.0 )
 		{
@@ -2032,21 +2084,6 @@ Action OnTakeDamageFire(int victim, int &attacker, int &inflictor, float &damage
 		SDKUnhook(victim, SDKHook_OnTakeDamage, OnTakeDamageFire);
 
 		return Plugin_Continue;
-	}
-
-	// Infected is broken and would render invisible, so don't fix them from death
-	if( GetEntProp(victim, Prop_Send, "m_bClientSideRagdoll") != 0 )
-	{
-		SDKUnhook(victim, SDKHook_OnTakeDamage, OnTakeDamageFire);
-
-		damage = 10000.0;
-		return Plugin_Changed;
-	}
-
-	// Fix invincible bug
-	if( GetEntProp(victim, Prop_Data, "m_lifeState") != 0 )
-	{
-		SetEntProp(victim, Prop_Data, "m_lifeState", 0);
 	}
 
 	// DMG_BURN or (DMG_BURN | DMG_PREVENT_PHYSICS_FORCE) or (DMG_BURN | DMG_DIRECT)

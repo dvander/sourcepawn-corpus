@@ -32,9 +32,9 @@ public void OnPluginStart()
 {
 	CreateConVar("sm_status_version", PLUGIN_VERSION, "Status Protect version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
-	g_hCvarCmdSpam = CreateConVar("sm_antispam_statusping", "3", "How many times to allow players to enter status/ping in 1 second.", CVAR_FLAGS, true, 2.0, true, 10.0);
+	g_hCvarCmdSpam = CreateConVar("sm_antispam_status", "3", "How many times allowed to type the status command.", CVAR_FLAGS, true, 2.0, true, 10.0);
 	g_hCvarShowStatus = CreateConVar("sm_show_status", "2", "Show Status (0: to all, 1: admins, 2: only your status).", CVAR_FLAGS, true, 0.0, true, 2.0);
-	g_hCvarShowPing = CreateConVar("sm_show_ping", "1", "Ping (0: don't show, 1: show).", CVAR_FLAGS, true, 0.0, true, 1.0);
+	g_hCvarShowPing = CreateConVar("sm_show_ping", "1", "Ping (0: off, 1: on).", CVAR_FLAGS, true, 0.0, true, 1.0);
 
 	GetCvars();
 	
@@ -42,19 +42,19 @@ public void OnPluginStart()
 	g_hCvarShowStatus.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarShowPing.AddChangeHook(ConVarChanged_Cvars);	
 	
-	AutoExecConfig(true, "status_protect");
-
-	RegConsoleCmd("status", StatusCmd);
-	RegConsoleCmd("ping", PingCmd);
-	
 	g_hCmds = CreateTrie();
 	SetTrieValue(g_hCmds, "status", true);
 	SetTrieValue(g_hCmds, "ping", true);
 	
-	AddCommandListener(Commands_CommandListener);
-	LoadTranslations("common.phrases");
-
 	CreateTimer(1.0, Timer_CountReset, _, TIMER_REPEAT);
+	
+	AddCommandListener(Commands_CommandListener);
+
+	RegConsoleCmd("status", StatusCmd);
+	RegConsoleCmd("ping", PingCmd);
+	
+	LoadTranslations("common.phrases");
+	AutoExecConfig(true, "status_protect");
 }
 
 public void ConVarChanged_Cvars(ConVar convar, char[] oldValue, char[] newValue)
@@ -87,12 +87,10 @@ public Action StatusCmd(int client, int args)
 		{
 			if (CheckCommandAccess(client, "sm_admin", ADMFLAG_GENERIC, false))
 			{
-				
 				if (GetCmdReplySource() == SM_REPLY_TO_CHAT)
 				{
 					ReplyToCommand(client, "[SM] %t", "See console for output");
 				}
-				
 				DisplayStatus(client);
 				ForStatusCmd(client);
 			}
@@ -103,7 +101,6 @@ public Action StatusCmd(int client, int args)
 			{
 				ReplyToCommand(client, "[SM] %t", "See console for output");
 			}
-			
 			DisplayStatus(client);
 			if (CheckCommandAccess(client, "sm_admin", ADMFLAG_GENERIC, false))
 			{
@@ -122,7 +119,7 @@ public Action StatusCmd(int client, int args)
 void ForStatusCmd(int client)
 {
 	PrintToConsole(client, "# userid name                             uniqueid               ip-address                   ping");
-	for(int i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
@@ -153,9 +150,9 @@ public void DisplayStatus(int client)
 	GetCurrentMap(g_sCurrentMap, sizeof(g_sCurrentMap));
 	g_hNextMap = FindConVar("sm_nextmap");
 	GetConVarString(g_hNextMap, g_sNextmap, sizeof(g_sNextmap));
-	for(int i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i))
+		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
 			g_iClientInServer++;
 		}
@@ -200,7 +197,7 @@ public void DisplayStatusInfo(int client, int i)
 
 public Action Commands_CommandListener(int client, char[] command, int argc)
 {
-	if (!IS_CLIENT(client) || (IsClientConnected(client) && IsFakeClient(client)))
+	if (!IS_CLIENT(client) || IsClientConnected(client) && IsFakeClient(client))
 	{	
 		return Plugin_Continue;
 	}
@@ -216,7 +213,7 @@ public Action Commands_CommandListener(int client, char[] command, int argc)
 	{
 		if (!IsClientInKickQueue(client))
 		{
-			KickClient(client, "Spam by status/ping commands is prohibited!");
+			KickClient(client, "Spam by status command is prohibited!");
 		}
 		return Plugin_Stop;
 	}
@@ -232,7 +229,7 @@ public Action PingCmd(int client, int args)
 			ReplyToCommand(client, "[SM] %t", "See console for output");
 		}
 		PrintToConsole(client, "Client ping times:");
-		for(int i = 1; i <= MaxClients; i++)
+		for (int i = 1; i <= MaxClients; i++)
 		{
 			if (IsClientInGame(i) && !IsFakeClient(i))
 			{
@@ -249,7 +246,7 @@ public Action PingCmd(int client, int args)
 
 public Action Timer_CountReset(Handle timer, any args)
 {
-	for(int i = 1; i <= MaxClients; i++)
+	for (int i = 1; i <= MaxClients; i++)
 	{
 		g_iCmdCount[i] = 0;
 	}
@@ -265,7 +262,7 @@ stock int GetLatency(int client)
 stock void StringToLower(char[] f_sInput)
 {
 	int f_iSize = strlen(f_sInput);
-	for(int i = 0; i <= f_iSize; ++i)
+	for (int i = 0; i <= f_iSize; ++i)
 	{
 		f_sInput[i] = CharToLower(f_sInput[i]);
 	}

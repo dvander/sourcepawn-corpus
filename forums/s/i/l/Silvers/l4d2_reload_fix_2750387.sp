@@ -1,6 +1,6 @@
 /*
 *	No Reload Animation Fix - Picking Up Same Weapon
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -16,9 +16,19 @@
 *	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#define PLUGIN_VERSION 		"1.8"
 
 
-#define PLUGIN_VERSION 		"1.6"
+
+/**
+ * No conflict with the following plugins:
+ * Reserve (Ammo) Control: https://forums.alliedmods.net/showthread.php?t=334274
+ * Weapons Skins RNG: https://forums.alliedmods.net/showthread.php?t=327609
+ * Reload Fix - Max Clip Size: https://forums.alliedmods.net/showthread.php?t=327105
+ * l4d2_weapon_csgo_reload: https://github.com/fbef0102/L4D2-Plugins/tree/master/l4d2_weapon_csgo_reload
+*/
+
+
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +41,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (03-Apr-2024)
+	- Fixed wrong weapons ammo when switch weapons. Thanks to "HarryPotter" for the update.
+
+1.7 (12-Mar-2024)
+	- Save all clients weapons ammo, useful if weapon ammo exceeded the official ammo cvar. Thanks to "HarryPotter" for the update.
 
 1.6 (25-May-2023)
 	- Added cvar "l4d2_reload_fix_give" to optionally prevent "give" command with same type of weapon setting to the previous weapons ammo.
@@ -63,7 +79,7 @@
 #include <sdkhooks>
 
 #define CVAR_FLAGS		FCVAR_NOTIFY
-#define MAX_SKIN 		4
+#define MAX_SKIN 		5
 
 enum WeaponID
 {
@@ -91,7 +107,8 @@ enum WeaponID
 	ID_WEAPON_MAX
 }
 
-int g_iClipAmmo[MAXPLAYERS + 1][view_as<int>(ID_WEAPON_MAX)][MAX_SKIN];
+int g_iClip[MAXPLAYERS + 1][view_as<int>(ID_WEAPON_MAX)][MAX_SKIN];
+int g_iAmmo[MAXPLAYERS + 1][view_as<int>(ID_WEAPON_MAX)][MAX_SKIN];
 bool g_bIgnored[MAXPLAYERS + 1];
 StringMap g_hWeaponName;
 int g_iOffsetAmmo;
@@ -157,6 +174,7 @@ public void OnPluginStart()
 	SetWeaponClassName();
 
 	HookEvent("player_spawn", Event_PlayerSpawn);
+	HookEvent("player_death", Event_PlayerDeath);
 	HookEvent("round_start", Event_RoundStart);
 	HookEvent("weapon_drop", Event_Weapon_Drop);
 }
@@ -203,6 +221,7 @@ void OnFrameIgnore(int client)
 
 public void OnClientPutInServer(int client)
 {
+	ClearClientAmmo(client);
 	g_bIgnored[client] = false;
 	SDKHook(client, SDKHook_WeaponCanUsePost, WeaponCanUse);
 }
@@ -212,6 +231,8 @@ void WeaponCanUse(int client, int weapon)
 {
 	if( weapon == -1 ) return;
 	if( g_bIgnored[client] ) return;
+
+	//PrintToChatAll("%N WeaponCanUse", client);
 
 	// Validate team
 	if( GetClientTeam(client) == 2 )
@@ -228,9 +249,10 @@ void WeaponCanUse(int client, int weapon)
 			int current_skin = GetEntProp(current, Prop_Send, "m_nSkin");
 
 			// Store clip size
-			g_iClipAmmo[client][current_weaponid][current_skin] = GetEntProp(current, Prop_Send, "m_iClip1");
+			g_iClip[client][current_weaponid][current_skin] = GetEntProp(current, Prop_Send, "m_iClip1");
+			g_iAmmo[client][current_weaponid][current_skin] = GetOrSetPlayerAmmo(client, current);
 
-			// PrintToChatAll("%N WeaponCanUse Old Weapon %s (skin:%d), clip: %d", client, sCurrent_ClassName, current_skin, GetEntProp(current, Prop_Send, "m_iClip1"));
+			//PrintToChatAll("%N WeaponCanUse Old Weapon %s (skin:%d), clip: %d, ammo: %d", client, sCurrent_ClassName, current_skin, g_iClip[client][current_weaponid][current_skin], g_iAmmo[client][current_weaponid][current_skin]);
 		}
 
 		static char sWeapon_ClassName[32];
@@ -274,7 +296,7 @@ void OnFrame(DataPack dPack)
 	// GetEntityClassname(weapon, sWeapon_ClassName, sizeof(sWeapon_ClassName));
 	// PrintToChatAll("%N WeaponCanUse New Weapon %s (skin:%d)", client, sWeapon_ClassName, weapon_skin);
 
-	if( g_iClipAmmo[client][weapon_weaponid][weapon_skin] == -1 )
+	if( g_iClip[client][weapon_weaponid][weapon_skin] == -1 || g_iAmmo[client][weapon_weaponid][weapon_skin] == -1)
 	{
 		delete dPack;
 		return;
@@ -288,16 +310,43 @@ void OnFrame(DataPack dPack)
 		int clip = GetEntProp(weapon, Prop_Send, "m_iClip1");
 
 		// Restore clip size to previous
-		SetEntProp(weapon, Prop_Send, "m_iClip1", g_iClipAmmo[client][weapon_weaponid][weapon_skin]);
+		SetEntProp(weapon, Prop_Send, "m_iClip1", g_iClip[client][weapon_weaponid][weapon_skin]);
 
 		// Add new ammo received to reserve ammo
-		int ammo = GetOrSetPlayerAmmo(client, weapon);
-		GetOrSetPlayerAmmo(client, weapon, ammo + clip - g_iClipAmmo[client][weapon_weaponid][weapon_skin]);
+		int cur_ammo = GetOrSetPlayerAmmo(client, weapon) + clip - g_iClip[client][weapon_weaponid][weapon_skin];
+		int old_ammo = g_iAmmo[client][weapon_weaponid][weapon_skin];
+		if( old_ammo <= cur_ammo )
+		{
+			GetOrSetPlayerAmmo(client, weapon, GetMin(cur_ammo, 999));
+		}
+		else
+		{
+			GetOrSetPlayerAmmo(client, weapon, old_ammo);
+		}
 	}
 }
 
-// Reset arrays
+int GetMin(int a, int b)
+{
+	return a < b ? a : b;
+}
+
 void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+{
+	CreateTimer(0.1, Timer_Event_PlayerSpawn, event.GetInt("userid"), TIMER_FLAG_NO_MAPCHANGE);
+}
+
+Action Timer_Event_PlayerSpawn(Handle timer, int client)
+{
+	client = GetClientOfUserId(client);
+	if( !client || !IsClientInGame(client) || !IsPlayerAlive(client) ) return Plugin_Continue;
+
+	ClearClientAmmo(client);
+
+	return Plugin_Continue;
+}
+
+void Event_PlayerDeath( Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( !client || !IsClientInGame(client) ) return;
@@ -329,7 +378,9 @@ void Event_Weapon_Drop(Event event, const char[] name, bool dontBroadcast)
 
 	int weapon_skin = GetEntProp(weapon, Prop_Send, "m_nSkin");
 
-	g_iClipAmmo[client][weapon_weaponid][weapon_skin] = GetEntProp(weapon, Prop_Send, "m_iClip1");
+	g_iClip[client][weapon_weaponid][weapon_skin] = GetEntProp(weapon, Prop_Send, "m_iClip1");
+	g_iAmmo[client][weapon_weaponid][weapon_skin] = GetOrSetPlayerAmmo(client, weapon);
+
 
 	// PrintToChatAll("%N Drop weapon %s (skin:%d), clip: %d", client, sWeapon_ClassName, weapon_skin, GetEntProp(weapon, Prop_Send, "m_iClip1"));
 }
@@ -342,7 +393,11 @@ int GetOrSetPlayerAmmo(int client, int iWeapon, int iAmmo = -1)
 	if( offset )
 	{
 		if( iAmmo != -1 ) SetEntData(client, g_iOffsetAmmo + offset, iAmmo);
-		else return GetEntData(client, g_iOffsetAmmo + offset);
+		else
+		{
+			int ammo = GetEntData(client, g_iOffsetAmmo + offset);
+			return ammo >= 999 ? 999 : ammo;
+		}
 	}
 
 	return 0;
@@ -382,7 +437,8 @@ void ClearClientAmmo(int client)
 	{
 		for( int skin = 0; skin < MAX_SKIN; skin++ )
 		{
-			g_iClipAmmo[client][weapon][skin] = -1;
+			g_iClip[client][weapon][skin] = -1;
+			g_iAmmo[client][weapon][skin] = -1;
 		}
 	}
 }

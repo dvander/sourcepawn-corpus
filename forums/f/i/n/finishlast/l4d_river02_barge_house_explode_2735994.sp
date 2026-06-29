@@ -23,7 +23,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 {
 	char sMap[64];
 	GetCurrentMap(sMap, sizeof(sMap));
-	if (StrEqual(sMap, "l4d_river02_barge", false))
+	if (StrEqual(sMap, "l4d_river02_barge", false) || StrEqual(sMap, "c7m2_barge", false))
 	{
 
 	float pos[3], ang[3];

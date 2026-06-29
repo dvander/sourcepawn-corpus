@@ -3,15 +3,15 @@
 #include <sourcemod>
 #include <json>
 #include <menus>
-#define PLUGIN_VERSION "0.1"
-#define MAX_READ_BYTE 8192
-Handle g_hConfigFile;
+#define PLUGIN_VERSION "0.3"
+#define MAX_READ_BYTE 65536
+#define MENU_LENGTH 40
 Handle g_cConfigFilePath;
-Handle g_hMenuLists[20];
-int g_hParent[20];
-char shortcuts[20][10][10];
+Handle g_hMenuLists[MENU_LENGTH];
+int g_hParent[MENU_LENGTH];
+char shortcuts[MENU_LENGTH][10][10];
 Handle g_hMapList;
-int g_iAdminFlags[20];
+int g_iAdminFlags[MENU_LENGTH];
 char g_sMaplistName[32];
 public Plugin infos =
 {
@@ -60,9 +60,9 @@ void SetupMaplist(){
 		SetMenuTitle(g_hMapList, g_sMaplistName);
 	else
 		SetMenuTitle(g_hMapList, "maplist");
-	
+
 	SetMenuExitButton(g_hMapList, true);
-	if (mapArray != INVALID_HANDLE){		
+	if (mapArray != INVALID_HANDLE){
 		char mapname[64];
 		for (new i = 0; i < GetArraySize(mapArray); ++i) {
 			GetArrayString(mapArray, i, mapname, sizeof(mapname));
@@ -70,7 +70,7 @@ void SetupMaplist(){
 			Format(buffer, sizeof(buffer), "say %s", mapname);
 			AddMenuItem(g_hMapList, buffer, mapname);
 		}
-		
+
 	}
 	else{
 		AddMenuItem(g_hMapList, "", "Error on getting maplist", ITEMDRAW_DISABLED);
@@ -79,7 +79,7 @@ void SetupMaplist(){
 }
 public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
 {
-	for (int i = 0; i < 10; i++){
+	for (int i = 0; i < MENU_LENGTH; i++){
 		if(shortcuts[i][0][0] == '\0'){
 			continue;
 		}
@@ -128,7 +128,7 @@ public Menu_Handle(Handle:main, MenuAction:action, client, param2) {
 				ReplaceString(info, 32, "menuopen", "");
 				MenuShow(client, StringToInt(info));
 			}
-			else if(strstarts(info, "maplistopen")){ 
+			else if(strstarts(info, "maplistopen")){
 				DisplayMenu(g_hMapList, client, MENU_TIME_FOREVER);
 			}
 			else if(strstarts(info, "motdopen")){
@@ -138,7 +138,7 @@ public Menu_Handle(Handle:main, MenuAction:action, client, param2) {
 				KvSetNum(setup, "type", MOTDPANEL_TYPE_URL);
 				KvSetNum(setup, "customsvr", 1);
 				KvSetString(setup, "msg", info);
-	
+
 				ShowVGUIPanel(client, "info", setup, true);
 				CloseHandle(setup);
 
@@ -152,7 +152,7 @@ public Menu_Handle(Handle:main, MenuAction:action, client, param2) {
             {
                 case MenuCancel_ExitBack:
                 {
-                	for(int i = 0; i < 20; i++){
+                	for(int i = 0; i < MENU_LENGTH; i++){
                 		if (g_hMenuLists[i] == main && i > 0){
                 			if (g_hParent[i] != -1){
                 			}
@@ -167,7 +167,7 @@ public Menu_Handle(Handle:main, MenuAction:action, client, param2) {
 	return;
 
 }
-void GetSection(JSON_Object obj, const char name[64] = {'\0'}, int indexs = 0, int parent = -1){
+void GetSection(JSON_Object obj, const char name[512] = {'\0'}, int indexs = 0, int parent = -1){
 	PrintToServer("Parse %s", name, indexs, parent);
 	int k = 0;
 	g_hMenuLists[indexs] = CreateMenu(Menu_Handle, MENU_ACTIONS_DEFAULT);
@@ -176,7 +176,7 @@ void GetSection(JSON_Object obj, const char name[64] = {'\0'}, int indexs = 0, i
 		g_hParent[indexs] = parent;
 		SetMenuExitBackButton(g_hMenuLists[indexs], true);
 	}
-	
+
 	char buffer[5];
 	obj.GetString("exit", buffer, sizeof(buffer));
 	if (!StringToBool(buffer)){
@@ -199,12 +199,12 @@ void GetSection(JSON_Object obj, const char name[64] = {'\0'}, int indexs = 0, i
 	int len = data.Length;
 	for (int i = 0; i < len; i++){
 		JSON_Object tmp = data.GetObject(i);
-		char keyName[64];
+		char keyName[512];
 		tmp.Iterate();
-		tmp.GetKey(0, keyName, 64);
+		tmp.GetKey(0, keyName, 512);
 		JSON_Object subObj = tmp.GetObject(keyName);
-		
-		
+
+
 		if (subObj == null){
 			continue;
 		}
@@ -217,7 +217,7 @@ void GetSection(JSON_Object obj, const char name[64] = {'\0'}, int indexs = 0, i
 					k++;
 				}
 				GetSection(subObj, keyName, indexs + k, indexs);
-				char buffer4[64];
+				char buffer4[128];
 				Format(buffer4, sizeof(buffer4), "menuopen%i", indexs + k);
 				AddMenuItem(g_hMenuLists[indexs], buffer4, keyName);
 				k++;
@@ -229,7 +229,7 @@ void GetSection(JSON_Object obj, const char name[64] = {'\0'}, int indexs = 0, i
 			case Type_Text:
 			{
 				if (subObj.HasKey("cmd")){
-					char buffer3[64];
+					char buffer3[512];
 					subObj.GetString("cmd", buffer3, sizeof(buffer3));
 					AddMenuItem(g_hMenuLists[indexs], buffer3, keyName);
 				}
@@ -266,27 +266,27 @@ public void SetupConfig(){
 	char buffer2[100];
 	GetConVarString(g_cConfigFilePath, buffer2, 100);
 	BuildPath(Path_SM, path, PLATFORM_MAX_PATH, buffer2);
-	g_hConfigFile = OpenFile(path, "r");
+	Handle g_hConfigFile = OpenFile(path, "r");
 	char text[MAX_READ_BYTE];
 	ReadFileString(g_hConfigFile, text, sizeof(text));
 	JSON_Object obj = view_as<JSON_Object>(json_decode(text));
 	int k = 0;
 	JSON_Array arr = view_as<JSON_Array>(obj.GetObject("advhelpmenu"));
 	int len = arr.Length;
-	
+
 	if (obj.HasKey("maplist_name")){
 		char buffer[32];
 		obj.GetString("maplist_name", buffer, sizeof(buffer));
 		strcopy(g_sMaplistName, sizeof(g_sMaplistName), buffer);
 	}
-	
+
 	for (int i = 0; i < len; i++){
-		
+
 		JSON_Object subObj = arr.GetObject(i);
-		char keyName[64];
-		
+		char keyName[512];
+
 		subObj.Iterate();
-		subObj.GetKey(0, keyName, 64);
+		subObj.GetKey(0, keyName, 512);
 		JSON_Object menu = subObj.GetObject(keyName);
 		if (GetMenuType(menu) == Type_Menu){
 			while (g_hMenuLists[k] != INVALID_HANDLE)
@@ -297,16 +297,18 @@ public void SetupConfig(){
 		}
 	}
 	json_cleanup_and_delete(obj);
-	
+
 
 
 	SetupMaplist();
 
 }
 public Action ReloadMenu(int client, int args){
-	ServerCommand("sm plugins reload advhelpmenu");
+	for (int i = 0; i < MENU_LENGTH; i++){
+		g_hMenuLists[i] = INVALID_HANDLE;
+	}
+	SetupConfig();
 	return Plugin_Handled;
-	// TODO:put real reload stuff
 }
 public void OnPluginStart(){
 	g_cConfigFilePath = CreateConVar("advh_config", "configs/advhelpmenu.json", "config file path");

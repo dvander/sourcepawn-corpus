@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION		"1.12 beta"
+#define PLUGIN_VERSION		"1.14 beta"
 
 /*=======================================================================================
 	Plugin Info:
@@ -10,6 +10,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.14 beta (21-Aug-2025)
+    - Fixed compilation error in SM 1.13.
+
+1.13 beta (10-Feb-2025)
+	- Fixed compilation error in SM 1.12.
 
 1.12 beta (08-Jul-2022)
 	- Fixed compilation warnings on SM 1.11.
@@ -199,7 +205,7 @@ File g_hLog;
 
 char g_sLogPath[PLATFORM_MAX_PATH], g_sServerCfg[PLATFORM_MAX_PATH];
 
-#pragma unused IsSingedInt, g_hCvarCfgsExcludeDir, g_hArrayCvarConfig
+#pragma unused g_hCvarCfgsExcludeDir, g_hArrayCvarConfig
 
 /* ====================================================================================================
 					PLUGIN INFO / START / END
@@ -773,7 +779,7 @@ char[] EscapeString(char[] Str)
 	1: num > MAX signed int
 	-1: num < MIN signed int 
 */
-int IsSingedInt(char[] num)
+stock int IsSingedInt(char[] num)
 {
 	const int LEN_MAX = 10;
 	

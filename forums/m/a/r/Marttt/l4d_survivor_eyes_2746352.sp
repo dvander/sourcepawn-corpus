@@ -2,6 +2,10 @@
 // ====================================================================================================
 Change Log:
 
+1.0.6.2 Voevoda fix
+1.0.6.1 Fix By HarryPotter
+
+
 1.0.6 (10-July-2021)
     - Fixed particles displaying to observer while on First Person mode. (thanks "Voevoda" for reporting)
     - Added cvar to control how often should refire the particle.
@@ -110,8 +114,6 @@ public Plugin myinfo =
 #define CHAR_TANK                     15
 #define CHAR_BOOMETTE                 16
 #define CHAR_BOOMER_L4D1              17
-
-#define MAXENTITIES                   2048
 
 #define PARTICLE1                     "witch_eye_glow"
 #define PARTICLE2                     "weapon_pipebomb_fuse"
@@ -304,7 +306,7 @@ public void OnPluginStart()
     g_hCvar_SmokerLeftParticle       = CreateConVar("l4d_survivor_eyes_smoker_left_particle", "1", "Apply a default particle to the Smoker's left eye.\n0 = OFF, 1 = WITCH, 2 = PIPEBOMB, 3 = FIRE.", CVAR_FLAGS, true, 0.0, true, 3.0);
     g_hCvar_SmokerRightParticle      = CreateConVar("l4d_survivor_eyes_smoker_right_particle", "1", "Apply a default particle to the Smoker's right eye.\n0 = OFF, 1 = WITCH, 2 = PIPEBOMB, 3 = FIRE.", CVAR_FLAGS, true, 0.0, true, 3.0);
     g_hCvar_BoomerLeftParticle       = CreateConVar("l4d_survivor_eyes_boomer_left_particle", "1", "Apply a default particle to the Boomer's left eye.\n0 = OFF, 1 = WITCH, 2 = PIPEBOMB, 3 = FIRE.", CVAR_FLAGS, true, 0.0, true, 3.0);
-    g_hCvar_BoomerRightParticle      = CreateConVar("l4d_survivor_eyes_smoker_right_particle", "1", "Apply a default particle to the Boomer's right eye.\n0 = OFF, 1 = WITCH, 2 = PIPEBOMB, 3 = FIRE.", CVAR_FLAGS, true, 0.0, true, 3.0);
+    g_hCvar_BoomerRightParticle      = CreateConVar("l4d_survivor_eyes_boomer_right_particle", "1", "Apply a default particle to the Boomer's right eye.\n0 = OFF, 1 = WITCH, 2 = PIPEBOMB, 3 = FIRE.", CVAR_FLAGS, true, 0.0, true, 3.0);
     if (g_bL4D2)
     {
         g_hCvar_HunterLeftParticle   = CreateConVar("l4d_survivor_eyes_hunter_left_particle", "1", "(L4D2 only) Apply a default particle to the Hunter's left eye.\n0 = OFF, 1 = WITCH, 2 = PIPEBOMB, 3 = FIRE.", CVAR_FLAGS, true, 0.0, true, 3.0);
@@ -1039,6 +1041,7 @@ int CreateParticle(char[] particle, float vPos[3], float vAng[3], int target, co
     DispatchKeyValue(entity, "effect_name", particle);
     DispatchKeyValue(entity, "start_active", "1");
     DispatchSpawn(entity);
+    ActivateEntity(entity); // Don't work without it
 
     SetVariantString("!activator");
     AcceptEntityInput(entity, "SetParent", target);
@@ -1266,15 +1269,16 @@ void CreateCamera(int client)
     }
     else
     {
-        float vAng[3];
-        GetClientEyeAngles(client, vAng);
-        vAng[0] = 0.0;
-        vAng[2] = 0.0;
+        float vEyeAng[3];
+        GetClientEyeAngles(client, vEyeAng);
+        vEyeAng[0] = 0.0;
+        vEyeAng[2] = 0.0;
 
-        TeleportEntity(client, NULL_VECTOR, vAng, NULL_VECTOR);
+        TeleportEntity(client, NULL_VECTOR, vEyeAng, NULL_VECTOR);
     }
 
-    entity = CreateEntityByName("point_viewcontrol");
+    //NOTE: point_viewcontrol makes the player invunerable while enabled on camera, point_viewcontrol_survivor/point_viewcontrol_multiplayer don't.
+    entity = CreateEntityByName("point_viewcontrol_survivor");
     gc_iCameraEntRef[client] = EntIndexToEntRef(entity);
     DispatchKeyValue(entity, "targetname", "l4d_survivor_eyes");
     DispatchSpawn(entity);

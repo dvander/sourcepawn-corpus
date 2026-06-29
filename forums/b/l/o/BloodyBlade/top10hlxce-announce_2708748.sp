@@ -13,12 +13,13 @@ Plays a announcement when a top10 ranked player of hlstats ce comes into your se
 #define MAX_SOUNDS 64
 
 int g_Rank[MAXPLAYERS + 1] = { -1, ... };
-
 ConVar g_hCvEnabled, g_hCvGameType, g_hCvTextType, g_hCvSoundsFile;
 bool g_CvEnabled, g_Connecting = false, g_IsLeft4Dead = false;
 char g_CvGameType[32];
 int g_CvTextType, g_iTotalSounds, g_MessageType[MAXPLAYERS+1] = { -1, ... };
-Handle g_kvSoundsFile, g_hEnableAnnouncementCookie, g_hPlaySoundCookie, g_hAnnounceMeCookie, g_hMessageTypeCookie, g_hDatabase;
+KeyValues g_kvSoundsFile;
+Cookie g_hEnableAnnouncementCookie, g_hPlaySoundCookie, g_hAnnounceMeCookie, g_hMessageTypeCookie;
+Database g_hDatabase;
 
 #define PLUGIN_NAME "Top 10 hlstats ce announcer"
 #define PLUGIN_AUTHOR "Snelvuur"
@@ -74,14 +75,15 @@ public void OnPluginStart()
 	g_hCvSoundsFile = CreateConVar("sm_top10_hlstatsce_sounds", "addons/sourcemod/configs/top10_sounds.kv", "The config file containing the paths of sounds to play when a top10 hlstats player joins the game", FCVAR_DONTRECORD);
 
 	g_Connecting = true;
-	SQL_TConnect(T_Connect, "top10");
+	if(SQL_CheckConfig("top10")) Database.Connect(T_Connect, "top10");
+	else LogError("Config \"top10\" is not present in the databases.cfg!");
 
 	SetCookieMenuItem(CookieMenuHandler_Top10, 0, "Top10 Player Announcement");
 
-	g_hEnableAnnouncementCookie = RegClientCookie("hlstatsx_top10_joinmsg_enable", "Whether to print a chag message whenever a top10 player enters the server.", CookieAccess_Public);
-	g_hPlaySoundCookie = RegClientCookie("hlstatsx_top10_joinmsg_sound", "Whether to play a sound whenever a top10 player enters the server.", CookieAccess_Public);
-	g_hAnnounceMeCookie = RegClientCookie("hlstatsx_top10_announceme", "Whether the player's top10 rank should be announced when he enters the server.", CookieAccess_Public);
-	g_hMessageTypeCookie = RegClientCookie("hlstatsx_top10_joinmsg_type", "Top10 join message type. 1 = Center, 2 = Hint text, 3 = Regular text. Leave empty for center.", CookieAccess_Public);
+	g_hEnableAnnouncementCookie = new Cookie("hlstatsx_top10_joinmsg_enable", "Whether to print a chag message whenever a top10 player enters the server.", CookieAccess_Public);
+	g_hPlaySoundCookie = new Cookie("hlstatsx_top10_joinmsg_sound", "Whether to play a sound whenever a top10 player enters the server.", CookieAccess_Public);
+	g_hAnnounceMeCookie = new Cookie("hlstatsx_top10_announceme", "Whether the player's top10 rank should be announced when he enters the server.", CookieAccess_Public);
+	g_hMessageTypeCookie = new Cookie("hlstatsx_top10_joinmsg_type", "Top10 join message type. 1 = Center, 2 = Hint text, 3 = Regular text. Leave empty for center.", CookieAccess_Public);
 
 	RegConsoleCmd("sm_t14", t14);
 }
@@ -98,13 +100,13 @@ public void OnMapStart()
 	if (!g_Connecting && g_hDatabase == null)
 	{
 		g_Connecting = true;
-		SQL_TConnect(T_Connect, "top10");
+		Database.Connect(T_Connect, "top10");
 	}
 
 	if(!g_IsLeft4Dead && (g_hCvSoundsFile != null))
 	{
 		char path[PLATFORM_MAX_PATH];
-		GetConVarString(g_hCvSoundsFile, path, sizeof(path));
+		g_hCvSoundsFile.GetString(path, sizeof(path));
 
 		if ((strlen(path) == 0) || !FileExists(path))
 		{
@@ -115,8 +117,8 @@ public void OnMapStart()
 		{
 			delete g_kvSoundsFile;
 		}
-		g_kvSoundsFile = CreateKeyValues("");
-		FileToKeyValues(g_kvSoundsFile, path);
+		g_kvSoundsFile = new KeyValues("");
+		g_kvSoundsFile.ImportFromFile(path);
 
 		g_iTotalSounds = 0;
 		char KvStr[4], SndBuffer[PLATFORM_MAX_PATH];
@@ -124,7 +126,7 @@ public void OnMapStart()
 		for(int i = 0; i < MAX_SOUNDS; i++)
 		{
 			Format(KvStr, sizeof(KvStr), "%i", i);
-			KvGetString(g_kvSoundsFile, KvStr, SndBuffer, PLATFORM_MAX_PATH, "\0");
+			g_kvSoundsFile.GetString(KvStr, SndBuffer, PLATFORM_MAX_PATH, "\0");
 			if(!SndBuffer[0])
 			{
 				break;
@@ -160,7 +162,7 @@ public void OnClientCookiesCached(int client)
 	char buffer[4];
 	if (g_Rank[client] > 0 && g_Rank[client] <= 10)
 	{
-		GetClientCookie(client, g_hAnnounceMeCookie, buffer, sizeof(buffer));
+		g_hAnnounceMeCookie.Get(client, buffer, sizeof(buffer));
 
 		if (StrEqual(buffer, "") || StringToInt(buffer))
 		{
@@ -174,7 +176,7 @@ public void OnClientCookiesCached(int client)
 					continue;
 				}
 
-				GetClientCookie(i, g_hEnableAnnouncementCookie, buffer, sizeof(buffer));
+				g_hEnableAnnouncementCookie.Get(i, buffer, sizeof(buffer));
 
 				if (StrEqual(buffer, "") || StringToInt(buffer))
 				{
@@ -190,7 +192,7 @@ public void OnClientCookiesCached(int client)
 					int SndNum = GetRandomInt(0, g_iTotalSounds - 1);
 
 					Format(KvStr, sizeof(KvStr), "%i", SndNum);
-					KvGetString(g_kvSoundsFile, KvStr, sound, PLATFORM_MAX_PATH, "\0");
+					g_kvSoundsFile.GetString(KvStr, sound, PLATFORM_MAX_PATH, "\0");
 
 					for (int i = 1; i <= MaxClients; i++)
 					{
@@ -199,7 +201,7 @@ public void OnClientCookiesCached(int client)
 							continue;
 						}
 
-						GetClientCookie(i, g_hPlaySoundCookie, buffer, sizeof(buffer));
+						g_hPlaySoundCookie.Get(i, buffer, sizeof(buffer));
 
 						if (StrEqual(buffer, "") || StringToInt(buffer))
 						{
@@ -261,21 +263,21 @@ void CheckTop10(int userid, const char[] auth)
 			)\
 		;", g_CvGameType, auth, g_CvGameType
 	);
-	SQL_TQuery(g_hDatabase, T_CheckTop10, query, userid);
+	g_hDatabase.Query(T_CheckTop10, query, userid);
 }
 
-public void T_Connect(Handle owner, Handle hndl, const char[] error, any data)
+void T_Connect(Database DataBase, const char[] error, any data)
 {
-	g_Connecting = false;
-
-	if ((g_hDatabase = hndl) == null)
-	{
-		LogError("Database failure: \"%s\"", error);
-		return;
+    g_Connecting = false;
+    g_hDatabase = DataBase;
+    if (g_hDatabase == null)
+    {
+        LogError("Database failure: \"%s\"", error);
+        return;
     }
 }
 
-public void T_CheckTop10(Handle owner, Handle hndl, const char[] error, any client)
+void T_CheckTop10(Database hndl, DBResultSet results, const char[] error, any client)
 {
  	if (!IsClientValid(client))
 	{
@@ -288,9 +290,9 @@ public void T_CheckTop10(Handle owner, Handle hndl, const char[] error, any clie
 	}
 	else
 	{
-		if (SQL_FetchRow(hndl))
+		if (results.FetchRow())
 		{
-			g_Rank[client] = SQL_FetchInt(hndl, 0);
+			g_Rank[client] = results.FetchInt(0);
 			if (AreClientCookiesCached(client))
 			{
 				OnClientCookiesCached(client);
@@ -299,7 +301,7 @@ public void T_CheckTop10(Handle owner, Handle hndl, const char[] error, any clie
 	}
 }
 
-public void CookieMenuHandler_Top10(int client, CookieMenuAction action, any info, char[] buffer, int maxlen)
+void CookieMenuHandler_Top10(int client, CookieMenuAction action, any info, char[] buffer, int maxlen)
 {
 	if (action == CookieMenuAction_SelectOption)
 	{
@@ -312,40 +314,40 @@ void ShowPrefMenu(int client)
 	char display[128], cookie[4];
 	bool enable;
 
-	Menu menu = CreateMenu(MenuHandler_Top10);
+	Menu menu = new Menu(MenuHandler_Top10);
 
-	GetClientCookie(client, g_hEnableAnnouncementCookie, cookie, sizeof(cookie));
+	g_hEnableAnnouncementCookie.Get(client, cookie, sizeof(cookie));
 	enable = !StrEqual(cookie, "") && !StringToInt(cookie);
 	Format(display, sizeof(display), "%sable top10 player join messages", enable ? "En" : "Dis");
-	AddMenuItem(menu, enable ? "1" : "0", display);
+	menu.AddItem(enable ? "1" : "0", display);
 
-	GetClientCookie(client, g_hPlaySoundCookie, cookie, sizeof(cookie));
+	g_hPlaySoundCookie.Get(client, cookie, sizeof(cookie));
 	enable = !StrEqual(cookie, "") && !StringToInt(cookie);
 	Format(display, sizeof(display), "%sable playing a sound whenever a top10 player enters the server", enable ? "En" : "Dis");
-	AddMenuItem(menu, enable ? "1" : "0", display);
+	menu.AddItem(enable ? "1" : "0", display);
 
-	GetClientCookie(client, g_hAnnounceMeCookie, cookie, sizeof(cookie));
+	g_hAnnounceMeCookie.Get(client, cookie, sizeof(cookie));
 	enable = !StrEqual(cookie, "") && !StringToInt(cookie);
 	Format(display, sizeof(display), "%sable broadcasting my top10 join message", enable ? "En" : "Dis");
-	AddMenuItem(menu, enable ? "1" : "0", display);
+	menu.AddItem(enable ? "1" : "0", display);
 
-	GetClientCookie(client, g_hMessageTypeCookie, cookie, sizeof(cookie));
+	g_hMessageTypeCookie.Get(client, cookie, sizeof(cookie));
 	Format(display, sizeof(display), "Alter Top10 join message type (%s)", StrEqual(cookie, "") ? "1" : cookie);
-	AddMenuItem(menu, "", display);
+	menu.AddItem("", display);
 
-	SetMenuExitButton(menu, true);
-	DisplayMenu(menu, client, MENU_TIME_FOREVER);
+	menu.ExitButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int MenuHandler_Top10(Menu menu, MenuAction action, int param1, int param2)
+int MenuHandler_Top10(Menu menu, MenuAction action, int param1, int param2)
 {
 	if (action == MenuAction_Select)
 	{
 		char buffer[4];
 
-		GetMenuItem(menu, param2, buffer, sizeof(buffer));
+		menu.GetItem(param2, buffer, sizeof(buffer));
 
-		Handle cookie;
+		Cookie cookie;
 		switch (param2)
 		{
 			case 0:
@@ -363,16 +365,16 @@ public int MenuHandler_Top10(Menu menu, MenuAction action, int param1, int param
 			case 3:
 			{
 				ShowMsgTypePrefMenu(param1);
-				return;
+				return 0;
 			}
 			default:
 			{
 				ShowPrefMenu(param1);
-				return;
+				return 0;
 			}
 		}
 
-		SetClientCookie(param1, cookie, buffer);
+		cookie.Set(param1, buffer);
 		ShowPrefMenu(param1);
 	}
 	else if (action == MenuAction_Cancel)
@@ -383,27 +385,27 @@ public int MenuHandler_Top10(Menu menu, MenuAction action, int param1, int param
 	{
 		delete menu;
 	}
+	return 0;
 }
 
 void ShowMsgTypePrefMenu(int client)
 {
-	Menu menu = CreateMenu(MenuHandler_MessageType);
-	SetMenuTitle(menu, "Choose an option:");
-	AddMenuItem(menu, "1", "Center text");
-	AddMenuItem(menu, "2", "Hint text");
-	AddMenuItem(menu, "3", "Regular text");
-	SetMenuExitButton(menu, true);
-	DisplayMenu(menu, client, MENU_TIME_FOREVER);
+	Menu menu = new Menu(MenuHandler_MessageType);
+	menu.SetTitle("Choose an option:");
+	menu.AddItem("1", "Center text");
+	menu.AddItem("2", "Hint text");
+	menu.AddItem("3", "Regular text");
+	menu.ExitButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
 }
 	
-public int MenuHandler_MessageType(Menu menu, MenuAction action, int param1, int param2)
+int MenuHandler_MessageType(Menu menu, MenuAction action, int param1, int param2)
 {
 	if (action == MenuAction_Select)
 	{
 		char buffer[4];
-
-		GetMenuItem(menu, param2, buffer, sizeof(buffer));
-		SetClientCookie(param1, g_hMessageTypeCookie, buffer);
+		menu.GetItem(param2, buffer, sizeof(buffer));
+		g_hMessageTypeCookie.Set(param1, buffer);
 		g_MessageType[param1] = StringToInt(buffer);
 		ShowPrefMenu(param1);
 	}
@@ -415,9 +417,10 @@ public int MenuHandler_MessageType(Menu menu, MenuAction action, int param1, int
 	{
 		delete menu;
 	}
+	return 0;
 }
 
-public void OnConVarChanged(ConVar cvar, const char[] oldVal, const char[] newVal)
+void OnConVarChanged(ConVar cvar, const char[] oldVal, const char[] newVal)
 {
 	if (cvar == g_hCvEnabled)
 	{
@@ -439,7 +442,7 @@ public void OnConVarChanged(ConVar cvar, const char[] oldVal, const char[] newVa
  * \return									Whether creating the console variable was successful
  * \error									Convar name is blank or is the same as an existing console command
  */
-stock int InitVersionCvar(
+stock bool InitVersionCvar(
 						  char[] cvar_name,			///<! [in] The console variable's name (sm_<name>_version)
 	                      char[] plugin_name,		///<! [in] The plugin's name
 	                      char[] plugin_version,	///<! [in] The plugin's version
@@ -463,8 +466,8 @@ stock int InitVersionCvar(
 
 	if (cvar != null)
 	{
-		SetConVarString(cvar, plugin_version);
-		SetConVarFlags(cvar, flags);
+		cvar.SetString(plugin_version);
+		cvar.Flags |= flags;
 	}
 	else
 	{
@@ -510,7 +513,7 @@ stock any InitCvar(
 	cvar = CreateConVar(name, defaultValue, description, flags, hasMin, min, hasMax, max);
 	if (cvar != null)
 	{
-		HookConVarChange(cvar, callback);
+		cvar.AddChangeHook(callback);
 	}
 	else
 	{
@@ -541,11 +544,11 @@ stock any InitCvar(
 
 	if (type == 1)
 	{
-		return cvar != null ? GetConVarInt(cvar) : StringToInt(defaultValue);
+		return cvar != null ? cvar.IntValue : StringToInt(defaultValue);
 	}
 	else if (type == 2)
 	{
-		return cvar != null ? GetConVarFloat(cvar) : StringToFloat(defaultValue);
+		return cvar != null ? cvar.FloatValue : StringToFloat(defaultValue);
 	}
 	else if (cvar != null && type == 3)
 	{
@@ -568,7 +571,7 @@ stock any InitCvar(
  *
  * \return									Whether the client is valid
  */
-stock int IsClientValid(
+stock bool IsClientValid(
 						int &client,							///<! [in, out] The client's index
 						bool in_game = true,					///<! [in] Whether the client has to be ingame
 						bool in_kick_queue = false				///<! [in] Whether the client can be in the kick queue

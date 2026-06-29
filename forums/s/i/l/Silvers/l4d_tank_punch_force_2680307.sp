@@ -1,6 +1,6 @@
 /*
 *	Tank Punch Force
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.0"
+#define PLUGIN_VERSION 		"2.1"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+2.1 (10-Jan-2024)
+	- Changed the plugins on/off/mode cvars to use the "Left 4 DHooks" method instead of creating an entity.
 
 2.0 (12-Nov-2022)
 	- Added cvars "l4d_tank_punch_force_forcez" and "l4d_tank_punch_force_fling" to control the z velocity and type of fling.
@@ -65,7 +68,7 @@
 
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarFling, g_hCvarForceZ, g_hCvarForce, g_hCvarIncap;
-bool g_bCvarAllow, g_bMapStarted, g_bLeft4Dead2;
+bool g_bCvarAllow, g_bLeft4Dead2;
 float g_fCvarForce, g_fCvarForceZ, g_fCvarIncap;
 int g_iCvarFling;
 
@@ -98,9 +101,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-	// ====================================================================================================
+	// =========================
 	// CVARS
-	// ====================================================================================================
+	// =========================
 	g_hCvarAllow =			CreateConVar(	"l4d_tank_punch_force_allow",			"1",				"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
 	g_hCvarModes =			CreateConVar(	"l4d_tank_punch_force_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff =		CreateConVar(	"l4d_tank_punch_force_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
@@ -130,16 +133,6 @@ public void OnPluginStart()
 // ====================================================================================================
 //					CVARS
 // ====================================================================================================
-public void OnMapStart()
-{
-	g_bMapStarted = true;
-}
-
-public void OnMapEnd()
-{
-	g_bMapStarted = false;
-}
-
 public void OnConfigsExecuted()
 {
 	IsAllowed();
@@ -181,6 +174,11 @@ void IsAllowed()
 }
 
 int g_iCurrentMode;
+public void L4D_OnGameModeChange(int gamemode)
+{
+	g_iCurrentMode = gamemode;
+}
+
 bool IsAllowedGameMode()
 {
 	if( g_hCvarMPGameMode == null )
@@ -189,27 +187,17 @@ bool IsAllowedGameMode()
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
 	if( iCvarModesTog != 0 )
 	{
-		if( g_bMapStarted == false )
-			return false;
-
-		g_iCurrentMode = 0;
-
-		int entity = CreateEntityByName("info_gamemode");
-		if( IsValidEntity(entity) )
-		{
-			DispatchSpawn(entity);
-			HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
-			ActivateEntity(entity);
-			AcceptEntityInput(entity, "PostSpawnActivate");
-			if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
-				RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
-		}
+		if( g_iCurrentMode == 0 )
+			g_iCurrentMode = L4D_GetGameModeType();
 
 		if( g_iCurrentMode == 0 )
 			return false;
+
+		switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+		{
+			case 2:		g_iCurrentMode = 4;
+			case 4:		g_iCurrentMode = 2;
+		}
 
 		if( !(iCvarModesTog & g_iCurrentMode) )
 			return false;
@@ -236,18 +224,6 @@ bool IsAllowedGameMode()
 	}
 
 	return true;
-}
-
-void OnGamemode(const char[] output, int caller, int activator, float delay)
-{
-	if( strcmp(output, "OnCoop") == 0 )
-		g_iCurrentMode = 1;
-	else if( strcmp(output, "OnSurvival") == 0 )
-		g_iCurrentMode = 2;
-	else if( strcmp(output, "OnVersus") == 0 )
-		g_iCurrentMode = 4;
-	else if( strcmp(output, "OnScavenge") == 0 )
-		g_iCurrentMode = 8;
 }
 
 
@@ -287,14 +263,13 @@ void OnTankClawHit(int tank, int player, bool handled)
 		if( GetEntProp(player, Prop_Send, "m_isIncapacitated", 1) )
 		{
 			ScaleVector(vEnd, g_fCvarIncap);
-			if( g_fCvarIncap )
-				vEnd[2] = g_fCvarForceZ;
 		}
 		else
 		{
 			ScaleVector(vEnd, g_fCvarForce);
-			vEnd[2] = g_fCvarForceZ;
 		}
+
+		vEnd[2] = g_fCvarForceZ;
 
 		if( g_bLeft4Dead2 && g_iCvarFling == 1 && GetEntProp(player, Prop_Send, "m_isIncapacitated") == 0 )
 			L4D2_CTerrorPlayer_Fling(player, tank, vEnd);

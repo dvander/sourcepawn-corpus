@@ -6,6 +6,8 @@
 #include <morecolors>
 //#define DEBUG
 
+// FIXME = Implementar forma correta de implementar tradução pra essas mensagens.
+
 #pragma semicolon 1
 #pragma newdecls optional
 
@@ -45,6 +47,7 @@ public void OnPluginStart()
 	HookEvent("post_inventory_application", Event_InventoryApplication);
 	ObjReplacer_cookie = RegClientCookie("ObjReplacer_cookie", "Should the Plugin Replace objector? 1=yes 0=no", CookieAccess_Protected);
 	LoadTranslations("common.phrases");
+	LoadTranslations("conobjrep.phrases");
 	
 	for (int client = 1; client <= MaxClients; client++)
 	{
@@ -72,7 +75,7 @@ public Action Command_replacenow(int client, int args)
 {
 	if(args == 0)
 	{
-		CReplyToCommand(client, "{unique}[O{darkblue}R]{default} Este comando requer um alvo válido");
+		CReplyToCommand(client, "{unique}[O{darkblue}R]{default} %t", "NoTarget");
 		return Plugin_Handled;
 	}
 	char targetArg[MAX_TARGET_LENGTH]; // codigo de adicionar players a uma array
@@ -104,11 +107,11 @@ public Action Command_replacenow(int client, int args)
 	}
 	if(tnIsMl) //texto que será exibido no chat
 	{
-		CPrintToChatAll("{unique}[O{darkblue}R]{default} Arma de %t substituida", targetName);
+		CPrintToChatAll("{unique}[O{darkblue}R]{default} Arma de %t substituida", targetName); // FIXME
 	} 
 	else 
 	{
-		CPrintToChatAll("{unique}[O{darkblue}R]{default} Arma de %s substituida", targetName);    
+		CPrintToChatAll("{unique}[O{darkblue}R]{default} Arma de %s substituida", targetName); // FIXME
 	}
 	return Plugin_Handled;
 }
@@ -165,7 +168,7 @@ public Action Command_ObjectorBan(int client, int args)
 {
 	if(args == 0)
 	{
-		CReplyToCommand(client, "{unique}[O{darkblue}R]{default}  Este comando requer um alvo válido");
+		CReplyToCommand(client, "{unique}[O{darkblue}R]{default} %t", "InvalidTarget");
 		return Plugin_Handled;
 	}
 	char targetArg[MAX_TARGET_LENGTH];
@@ -197,28 +200,13 @@ public Action Command_ObjectorBan(int client, int args)
 			SetClientCookie(targetClient, ObjReplacer_cookie, "0");
 		}
 		
-
-		if(g_bReplaceObj[targetClient])
+		if(tnIsMl)
 		{
-			if(tnIsMl) 
-			{
-				CPrintToChatAll("{unique}[O{darkblue}R]{default} Banimento de Placa para %t ativado", targetName);
-			} 
-			else 
-			{
-				CPrintToChatAll("{unique}[O{darkblue}R]{default} Banimento de Placa para %s ativado", targetName);
-			}
-		}
-		if(!g_bReplaceObj[targetClient])
+			CPrintToChatAll("{unique}[O{darkblue}R]{default} Banimento de placa alterada para %t", targetName); // FIXME?
+		} 
+		else 
 		{
-			if(tnIsMl) 
-			{
-				CPrintToChatAll("{unique}[O{darkblue}R]{default} Banimento de Placa para %t desativado", targetName);
-			} 
-			else 
-			{
-				CPrintToChatAll("{unique}[O{darkblue}R]{default} Banimento de Placa para %s desativado", targetName);    
-			}
+			CPrintToChatAll("{unique}[O{darkblue}R]{default} Banimento de placa alterada para %s", targetName); // FIXME?
 		}
 	}
 	return Plugin_Handled;
@@ -228,7 +216,7 @@ public Action Command_replacealways(int client, int args)
 {
 	if(args == 0)
 	{
-		CReplyToCommand(client, "{unique}[O{darkblue}R]{default}  Este comando requer um alvo válido");
+		CReplyToCommand(client, "{unique}[O{darkblue}R]{default} %t", "InvalidTarget");
 		return Plugin_Handled;
 	}
 	char targetArg[MAX_TARGET_LENGTH]; // codigo de adicionar players a uma array	
@@ -273,11 +261,11 @@ public Action Command_replacealways(int client, int args)
 	}
 	if(tnIsMl) //texto que será exibido no chat
 		{
-			CPrintToChatAll("{unique}[O{darkblue}R]{default} Substituição de placa alterada para %t", targetName);
+			CPrintToChatAll("{unique}[O{darkblue}R]{default} Substituição de placa alterada para %t", targetName); // FIXME
 		} 
 		else 
 		{
-			CPrintToChatAll("{unique}[O{darkblue}R]{default} Substituição de placa alterada para %s", targetName);    
+			CPrintToChatAll("{unique}[O{darkblue}R]{default} Substituição de placa alterada para %s", targetName); // FIXME
 		}
 	return Plugin_Handled;
 }
@@ -288,7 +276,7 @@ public void Event_InventoryApplication(Event event, const char[] name, bool dont
 	if (g_bReplaceObj[client])
     {	
 		#if defined DEBUG
-		PrintToChatAll("arma deveria ter sido substituida agora");
+		PrintToChatAll("[DEBUG]: Arma deveria ter sido substituida agora");
 		#endif
 		int weapon = GetPlayerWeaponSlot(client, 2);
 		if(IsValidEntity(weapon))	{

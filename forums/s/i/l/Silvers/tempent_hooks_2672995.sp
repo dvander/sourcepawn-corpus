@@ -1,6 +1,6 @@
 /*
 *	TempEnt Hooks - DevTools
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.3"
+#define PLUGIN_VERSION 		"1.5"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.5 (05-Nov-2024)
+	- Increased string lengths to prevent truncating data being logged. Thanks to "Alienmario" for reporting.
+
+1.4 (28-Jan-2024)
+	- Fixed memory leak caused by clearing StringMap/ArrayList data instead of deleting.
 
 1.3 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
@@ -57,7 +63,7 @@
 #define CONFIG_TE_LIST		"data/tempent_hooks.cfg"
 #define CONFIG_DUMP			"logs/tempent_hooks.log"
 
-#define LEN_CLASS			32 // Max TempEnt name string length
+#define LEN_CLASS			64 // Max TempEnt name string length - Seems to be 32 in some games and 64 in others maybe.
 
 
 ConVar g_hCvarFilter, g_hCvarListen, g_hCvarLogging;
@@ -167,8 +173,14 @@ void GetCvars()
 	// Filters
 	int pos, last;
 	char sCvar[2048];
-	g_aFilter.Clear();
-	g_aListen.Clear();
+
+	// .Clear() is creating a memory leak
+	// g_aFilter.Clear();
+	// g_aListen.Clear();
+	delete g_aFilter;
+	delete g_aListen;
+	g_aFilter = new ArrayList(ByteCountToCells(LEN_CLASS));
+	g_aListen = new ArrayList(ByteCountToCells(LEN_CLASS));
 
 	// Filter list
 	g_hCvarFilter.GetString(sCvar, sizeof(sCvar));
@@ -232,7 +244,11 @@ Action CmdStop(int client, int args)
 		return Plugin_Handled;
 	}
 
-	g_aWatch.Clear();
+	// .Clear() is creating a memory leak
+	// g_aWatch.Clear();
+	delete g_aWatch;
+	g_aWatch = new ArrayList(ByteCountToCells(LEN_CLASS));
+
 	g_bWatch[client] = false;
 	g_iListening = 0;
 	delete g_hLogFile;
@@ -259,7 +275,11 @@ Action CmdWatch(int client, int args)
 	int pos, last;
 	char sCvar[2048];
 	GetCmdArg(1, sCvar, sizeof(sCvar));
-	g_aWatch.Clear();
+
+	// .Clear() is creating a memory leak
+	// g_aWatch.Clear();
+	delete g_aWatch;
+	g_aWatch = new ArrayList(ByteCountToCells(LEN_CLASS));
 
 	if( sCvar[0] != 0 )
 	{
@@ -318,7 +338,10 @@ void UnhookAll()
 		}
 	}
 
-	g_aHookedTempEnt.Clear();
+	// .Clear() is creating a memory leak
+	// g_aHookedTempEnt.Clear();
+	delete g_aHookedTempEnt;
+	g_aHookedTempEnt = CreateArray();
 }
 
 Action Hooked_TempEnts(const char[] te_name, const int[] Players, int numClients, float delay)
@@ -332,7 +355,7 @@ Action Hooked_TempEnts(const char[] te_name, const int[] Players, int numClients
 		int type;
 		static float vVec[3];
 		static char temp[LEN_CLASS];
-		static char msg[512];
+		static char msg[1024];
 		msg[0] = 0;
 
 		for( int i = 0; i < aHand.Length; i += 2 )

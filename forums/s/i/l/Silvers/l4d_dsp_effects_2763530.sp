@@ -1,6 +1,6 @@
 /*
 *	DSP Effects
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.9"
+#define PLUGIN_VERSION 		"1.14"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,21 @@
 
 ========================================================================================
 	Change Log:
+
+1.14 (04-Aug-2024)
+	- Added support for the "Emergency Treatment With First Aid Kit And CPR" plugin. Thanks to "sonic155" for reporting.
+
+1.13 (18-Jun-2024)
+	- Fixed errors in L4D1 due to the last updates.
+
+1.12 (17-Jun-2024)
+	- Added support for the "sm_adren" command, which does not fire the "adrenaline_used" event. Thanks to "1337joshi" for reporting.
+
+1.11 (31-May-2024)
+	- Added cvar "l4d_dsp_effects_remove" to remove the DSP effect when using Adrenaline. Requested by "1337joshi".
+
+1.10 (10-Jan-2024)
+	- Fixed the "l4d_dsp_effects_modes_tog" cvar detecting Versus and Survival modes incorrectly.
 
 1.9 (25-Sep-2023)
 	- Fixed resetting the sound when incapacitated and special infected stop pinning.
@@ -79,9 +94,9 @@
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarAdren, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarIncap, g_hCvarSpecial, g_hCvarStrike;
-int g_iCvarIncap, g_iCvarSpecial, g_iCvarStrike;
-bool g_bCvarAllow, g_bLeft4Dead2;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarAdren, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarIncap, g_hCvarRemove, g_hCvarSpecial, g_hCvarStrike, g_hCvarMaxIncap;
+int g_iCvarIncap, g_iCvarSpecial, g_iCvarStrike, g_iCvarMaxIncap;
+bool g_bCvarAllow, g_bCvarRemove, g_bLeft4Dead2;
 float g_fCvarAdren;
 bool g_bSetDSP[MAXPLAYERS+1];
 int g_iLevelDSP[MAXPLAYERS+1];
@@ -121,6 +136,8 @@ public void OnPluginStart()
 	g_hCvarModesOff =	CreateConVar(	"l4d_dsp_effects_modes_off",	"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =	CreateConVar(	"l4d_dsp_effects_modes_tog",	"0",			"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarIncap =		CreateConVar(	"l4d_dsp_effects_incap",		"1",			"0=Off. 1=Apply muffle effect when incapacitated.", CVAR_FLAGS );
+	if( g_bLeft4Dead2 )
+		g_hCvarRemove =	CreateConVar(	"l4d_dsp_effects_remove",		"1",			"0=Off. 1=Allow DSP effect when using Adrenaline.", CVAR_FLAGS );
 	g_hCvarSpecial =	CreateConVar(	"l4d_dsp_effects_special",		"1",			"0=Off. 1=Apply muffle effect when pinned by a Special Infected.", CVAR_FLAGS );
 	g_hCvarStrike =		CreateConVar(	"l4d_dsp_effects_strike",		"1",			"0=Off. 1=Apply muffle effect when black and white.", CVAR_FLAGS );
 	CreateConVar(						"l4d_dsp_effects_version",		PLUGIN_VERSION, "DSP Effects plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -139,9 +156,50 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarIncap.AddChangeHook(ConVarChanged_Cvars);
+	if( g_bLeft4Dead2 )
+		g_hCvarRemove.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSpecial.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarStrike.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarMaxIncap = FindConVar("survivor_max_incapacitated_count");
 	AddCommandListener(CommandListener, "give");
+
+	if( g_bLeft4Dead2 )
+		AddCommandListener(CommandAdrenaline, "sm_adren");
+}
+
+Action CommandAdrenaline(int client, const char[] command, int args)
+{
+	if( !g_bCvarRemove ) return Plugin_Continue;
+
+	char arg1[32];
+	GetCmdArg(1, arg1, sizeof(arg1));
+
+	char target_name[MAX_TARGET_LENGTH];
+	int target_list[MAXPLAYERS], target_count;
+	bool tn_is_ml;
+
+	if( (target_count = ProcessTargetString(
+		arg1,
+		client,
+		target_list,
+		MAXPLAYERS,
+		0,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml)) <= 0)
+	{
+		ReplyToTargetError(client, target_count);
+		return Plugin_Handled;
+	}
+
+	int target;
+	for( int i = 0; i < target_count; i++ )
+	{
+		target = target_list[i];
+		RequestFrame(OnFrameAdren, GetClientUserId(target));
+	}
+
+	return Plugin_Continue;
 }
 
 Action CommandListener(int client, const char[] command, int args)
@@ -212,8 +270,11 @@ void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newV
 void GetCvars()
 {
 	g_iCvarIncap = g_hCvarIncap.IntValue;
+	if( g_bLeft4Dead2 )
+		g_bCvarRemove = g_hCvarRemove.BoolValue;
 	g_iCvarSpecial = g_hCvarSpecial.IntValue;
 	g_iCvarStrike = g_hCvarStrike.IntValue;
+	g_iCvarMaxIncap = g_hCvarMaxIncap.IntValue;
 
 	if( g_bLeft4Dead2 )
 	{
@@ -235,7 +296,6 @@ void IsAllowed()
 		HookEvent("bot_player_replace",				Event_Swap_User);
 		HookEvent("player_spawn",					Event_PlayerSpawn);
 		HookEvent("player_death",					Event_PlayerDeath);
-		HookEvent("defibrillator_used",             Event_PlayerDefib);
 		HookEvent("player_incapacitated",			Event_Incapped);
 		HookEvent("revive_success",					Event_Revived);
 		HookEvent("heal_success",					Event_Healed);
@@ -246,6 +306,7 @@ void IsAllowed()
 
 		if( g_bLeft4Dead2 )
 		{
+			HookEvent("defibrillator_used",			Event_PlayerDefib);
 			HookEvent("charger_carry_start",		Event_Start);
 			HookEvent("charger_carry_end",			Event_Stop);
 			HookEvent("charger_pummel_start",		Event_Start);
@@ -265,7 +326,6 @@ void IsAllowed()
 		UnhookEvent("bot_player_replace",			Event_Swap_User);
 		UnhookEvent("player_spawn",					Event_PlayerSpawn);
 		UnhookEvent("player_death",					Event_PlayerDeath);
-		UnhookEvent("defibrillator_used",           Event_PlayerDefib);
 		UnhookEvent("player_incapacitated",			Event_Incapped);
 		UnhookEvent("revive_success",				Event_Revived);
 		UnhookEvent("heal_success",					Event_Healed);
@@ -276,6 +336,7 @@ void IsAllowed()
 
 		if( g_bLeft4Dead2 )
 		{
+			UnhookEvent("defibrillator_used",		Event_PlayerDefib);
 			UnhookEvent("charger_carry_start",		Event_Start);
 			UnhookEvent("charger_carry_end",		Event_Stop);
 			UnhookEvent("charger_pummel_start",		Event_Start);
@@ -298,12 +359,24 @@ bool IsAllowedGameMode()
 	if( g_hCvarMPGameMode == null )
 		return false;
 
-	if( g_iCurrentMode == 0 ) g_iCurrentMode = L4D_GetGameModeType();
-
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
+	if( iCvarModesTog != 0 )
+	{
+		if( g_iCurrentMode == 0 )
+			g_iCurrentMode = L4D_GetGameModeType();
 
-	if( iCvarModesTog && !(iCvarModesTog & g_iCurrentMode) )
-		return false;
+		if( g_iCurrentMode == 0 )
+			return false;
+
+		switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+		{
+			case 2:		g_iCurrentMode = 4;
+			case 4:		g_iCurrentMode = 2;
+		}
+
+		if( !(iCvarModesTog & g_iCurrentMode) )
+			return false;
+	}
 
 	char sGameModes[64], sGameMode[64];
 	g_hCvarMPGameMode.GetString(sGameMode, sizeof(sGameMode));
@@ -326,6 +399,22 @@ bool IsAllowedGameMode()
 	}
 
 	return true;
+}
+
+
+
+// ====================================================================================================
+//					FORWARD - from "Emergency Treatment With First Aid Kit And CPR" plugin by "Dragokas"
+// ====================================================================================================
+public void OnClientCPR(int client, int subject, bool bUseMedkit)
+{
+	if( g_iCvarIncap || g_iCvarStrike )
+	{
+		if( GetEntProp(subject, Prop_Send, "m_currentReviveCount") >= g_iCvarMaxIncap )
+		{
+			RequestFrame(OnFrameRevive, GetClientUserId(subject));
+		}
+	}
 }
 
 
@@ -434,8 +523,25 @@ void Event_Adren(Event event, const char[] name, bool dontBroadcast)
 	int userid = event.GetInt("userid");
 	int client = GetClientOfUserId(userid);
 
-	delete g_gTimerAdren[client];
-	g_gTimerAdren[client] = CreateTimer(g_fCvarAdren, TimerAdren, userid);
+	if( g_bCvarRemove )
+	{
+		RequestFrame(OnFrameAdren, userid);
+	}
+	else
+	{
+		delete g_gTimerAdren[client];
+		g_gTimerAdren[client] = CreateTimer(g_fCvarAdren, TimerAdren, userid);
+	}
+}
+
+void OnFrameAdren(int client)
+{
+	client = GetClientOfUserId(client);
+	if( client && IsClientInGame(client) )
+	{
+		g_bSetDSP[client] = false;
+		SetEffects(client, 1);
+	}
 }
 
 Action TimerAdren(Handle timer, int client)

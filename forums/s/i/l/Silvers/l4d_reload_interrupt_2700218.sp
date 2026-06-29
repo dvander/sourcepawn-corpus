@@ -1,6 +1,6 @@
 /*
 *	Reload Interrupt
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.12"
+#define PLUGIN_VERSION 		"1.15"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,15 @@
 
 ========================================================================================
 	Change Log:
+
+1.15 (14-Mar-2026)
+	- Changed cvar "l4d_reload_interrupt_weapons" to control if the M60 and Grenade Launcher should be included. Requested by "DosonShiro".
+
+1.14 (05-Nov-2024)
+	- Fixed the plugin not working in Left 4 Dead 1. Thanks to "ZBzibing" for reporting.
+
+1.13 (17-Jun-2024)
+	- Fixed shotguns losing ammo in L4D1 or clip size increasing.
 
 1.12 (03-Dec-2022)
 	- Fixed unknown sound errors in console. Thanks to "TBK Duy" for reporting.
@@ -95,6 +104,7 @@ int g_iLastClip[MAXPLAYERS+1];
 int g_iLastHook[MAXPLAYERS+1];
 int g_iWasShoot[MAXPLAYERS+1];
 int g_iAutoReload[MAXPLAYERS+1];
+float g_fFrames[MAXPLAYERS+1];
 
 StringMap g_hWeaponClasses;
 StringMap g_hWeaponAllowed;
@@ -195,7 +205,7 @@ public void OnPluginStart()
 	g_hCvarModesOff =	CreateConVar(	"l4d_reload_interrupt_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
 	g_hCvarModesTog =	CreateConVar(	"l4d_reload_interrupt_modes_tog",		"0",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
 	g_hCvarRestart =	CreateConVar(	"l4d_reload_interrupt_restart",			"1",				"0=Off. 1=Restart reloading when reloading was interrupted by shooting. 2=Auto reload anytime shooting stops.", CVAR_FLAGS );
-	g_hCvarWeapons =	CreateConVar(	"l4d_reload_interrupt_weapons",			"131071",			"Allowed weapons (add numbers together). See plugin thread for details (values and classnames are too long to display in cvar description). 131071=All.", CVAR_FLAGS );
+	g_hCvarWeapons =	CreateConVar(	"l4d_reload_interrupt_weapons",			"524287",			"Allowed weapons (add numbers together). See plugin thread for details (values and classnames are too long to display in cvar description). 524287=All.", CVAR_FLAGS );
 	CreateConVar(						"l4d_reload_interrupt_version",			PLUGIN_VERSION,		"Reload Interrupt plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,				"l4d_reload_interrupt");
 
@@ -260,6 +270,8 @@ public void OnPluginStart()
 	g_hWeaponAllowed.SetValue("weapon_sniper_awp", 16384);
 	g_hWeaponAllowed.SetValue("weapon_sniper_military", 32768);
 	g_hWeaponAllowed.SetValue("weapon_sniper_scout", 65536);
+	g_hWeaponAllowed.SetValue("weapon_grenade_launcher", 131072);
+	g_hWeaponAllowed.SetValue("weapon_rifle_m60", 262144);
 
 	// L4D1 fix:
 	if( !g_bLeft4Dead2 )
@@ -635,6 +647,7 @@ void OnSwitchWeapon(int client, int weapon)
 	// Allowed weapons
 	int offset;
 	g_hWeaponAllowed.GetValue(sWeapon, offset);
+
 	if( offset == 0 || !(g_iCvarWeapons & offset) )
 		return;
 
@@ -658,9 +671,15 @@ void OnSwitchWeapon(int client, int weapon)
 	else
 	{
 		offset = GetEntData(weapon, g_iPrimaryAmmoType) * 4; // Thanks to "Root" or whoever for this method of not hard-coding offsets: https://github.com/zadroot/AmmoManager/blob/master/scripting/ammo_manager.sp
-		if( offset && (!g_bLeft4Dead2 || offset != 68) )
+
+		if( offset )
 		{
-			g_iAutoReload[client] = (offset == 28 || offset == 32) ? 3 : 1;
+			switch( g_bLeft4Dead2 )
+			{
+				case true: g_iAutoReload[client] = (offset == 28 || offset == 32) ? 3 : 1;
+				case false: g_iAutoReload[client] = offset == 24 ? 3 : 1;
+			}
+
 			g_iLastHook[client] = EntIndexToEntRef(weapon);
 			if( g_bLeft4Dead2 )
 				SDKHook(weapon, SDKHook_Reload, OnReload);
@@ -678,6 +697,10 @@ void OnSwitchWeapon(int client, int weapon)
 void OnReload(int weapon)
 {
 	int client = GetEntPropEnt(weapon, Prop_Send, "m_hOwner");
+	if( g_fFrames[client] == GetGameTime() )
+		return;
+	else
+		g_fFrames[client] = GetGameTime();
 
 	if( g_iAutoReload[client] == 3 ) // Shotguns don't store clip size, they don't reset to 0 on reload
 	{

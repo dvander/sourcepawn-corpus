@@ -1,6 +1,6 @@
 /*
 *	Charger Steering
-*	Copyright (C) 2020 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.9"
+#define PLUGIN_VERSION 		"1.10"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.10 (03-Apr-2024)
+	- Added cvar "l4d2_charger_steering_flags" to control who is allowed to use steering. Requested by "caphao1101".
 
 1.9 (09-Oct-2020)
 	- Changed "OnClientPostAdminCheck" to "OnClientPutInServer" - to fix any issues if Steam service is down.
@@ -85,8 +88,8 @@
 #define CHAT_TAG			"\x05[Charger Steering] \x01"
 
 
-ConVar g_hCvarAllow, g_hCvarBots, g_hCvarHint, g_hCvarHints, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarStrafe;
-int g_iCvarAllow, g_iCvarBots, g_iCvarHint, g_iCvarHints, g_iDisplayed[MAXPLAYERS+1];
+ConVar g_hCvarAllow, g_hCvarBots, g_hCvarFlags, g_hCvarHint, g_hCvarHints, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarStrafe;
+int g_iCvarAllow, g_iCvarBots, g_iCvarFlags, g_iCvarHint, g_iCvarHints, g_iDisplayed[MAXPLAYERS+1];
 bool g_bCvarAllow, g_bMapStarted, g_bIsCharging[MAXPLAYERS+1];
 float g_fCvarStrafe;
 
@@ -121,6 +124,7 @@ public void OnPluginStart()
 
 	g_hCvarAllow =		CreateConVar(	"l4d2_charger_steering_allow",		"3",			"0=Plugin off, 1=Allow steering with mouse, 2=Allow strafing, 3=Both.", CVAR_FLAGS );
 	g_hCvarBots =		CreateConVar(	"l4d2_charger_steering_bots",		"2",			"Who can steer with the mouse. 0=Humans Only, 1=AI only, 2=Humans and AI.", CVAR_FLAGS );
+	g_hCvarFlags =		CreateConVar(	"l4d2_charger_steering_flags",		"",				"Users with these flags can use the steering. Empty string = anyone.", CVAR_FLAGS);
 	g_hCvarHint =		CreateConVar(	"l4d2_charger_steering_hint",		"2",			"Display hint when charging? 0=Off, 1=Chat text, 2=Hint box.", CVAR_FLAGS);
 	g_hCvarHints =		CreateConVar(	"l4d2_charger_steering_hints",		"2",			"How many times to display hints, count is reset each map/chapter.", CVAR_FLAGS);
 	g_hCvarStrafe =		CreateConVar(	"l4d2_charger_steering_strafe",		"50.0",			"0.0=Off. Other value sets the amount humans strafe to the side.", CVAR_FLAGS );
@@ -137,6 +141,7 @@ public void OnPluginStart()
 	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
 	g_hCvarBots.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarFlags.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarHint.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarHints.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarStrafe.AddChangeHook(ConVarChanged_Cvars);
@@ -167,18 +172,22 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
 void GetCvars()
 {
+	char sTemp[32];
+	g_hCvarFlags.GetString(sTemp, sizeof(sTemp));
+	g_iCvarFlags = ReadFlagString(sTemp);
+
 	g_iCvarBots = g_hCvarBots.IntValue;
 	g_iCvarHint = g_hCvarHint.IntValue;
 	g_iCvarHints = g_hCvarHints.IntValue;
@@ -268,7 +277,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -285,22 +294,24 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_bIsCharging[client] = false;
 }
 
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_bIsCharging[client] = false;
 }
 
-public void Event_ChargeStart(Event event, const char[] name, bool dontBroadcast)
+void Event_ChargeStart(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_bIsCharging[client] = false;
+
+	if( g_iCvarFlags && CheckCommandAccess(client, "", g_iCvarFlags, true) == false ) return;
 
 	if( g_iCvarAllow >= 2 )
 		g_bIsCharging[client] = true;
@@ -349,7 +360,7 @@ public void Event_ChargeStart(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void Event_ChargeEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_ChargeEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )

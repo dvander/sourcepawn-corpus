@@ -191,14 +191,6 @@ public void OnPluginEnd()
 
 /****************************************************************************************************/
 
-public void OnMapStart()
-{
-    // Fix for when OnConfigsExecuted is not executed by SM in some games
-    RequestFrame(OnConfigsExecuted);
-}
-
-/****************************************************************************************************/
-
 public void OnConfigsExecuted()
 {
     GetCvars();
@@ -481,7 +473,7 @@ void CreateParticle(int target, int owner, int team, char[] particle)
     DispatchKeyValue(entity, "TeamNum", teamNum);
     DispatchKeyValueVector(entity, "origin", origin);
     DispatchSpawn(entity);
-    ActivateEntity(entity); // Don't work without it
+    ActivateEntity(entity);
 
     SetVariantString("!activator");
     AcceptEntityInput(entity, "SetParent", target);

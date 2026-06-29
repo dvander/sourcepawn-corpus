@@ -3,1016 +3,3194 @@
 #include <sdktools>
 #include <sourcemod>
 #include <sdkhooks>
+#include <cstrike>
+#include <sorting>
 
+#define EF_NODRAW 32
 
 new Handle:cvarEnable;
 new Handle:cvarAllowBuyTime;
-new Handle:cvarNewWalkSpeed;
-new bool:isEnabled;    //启动或禁用插件变量
+new Handle:cvarExceptionalShotguns;
+static bool:isEnabled;    //启动或禁用插件变量
 static int allowBuyTime = 0;    //购买时间上限变量
-static float newWalkSpeed = 1.0;    //获取新武器之后的玩家行走速度（用于提升因客户端预测关闭而变慢的行走速度）
+static char ExceptionalShotgunsText[512];    // 对换弹动作不作特殊处理的新霰弹枪名称字符串（支持加枪插件的新刀）
+static char ExceptionalShotguns[16][32];     // 对换弹动作不作特殊处理的新霰弹枪名称
+static int ShotgunsNum = 0;
 
 //定义新武器索引数组
 static int iEntNewWeaponList[256] = {0};
 
 static char NewWeaponNames[256][30];    //新武器名字数组
-static char NewWeaponFatherNames[256][10];    //新武器的父类武器名字数组
+static char NewWeaponFatherNames[256][20];    //新武器的父类武器名字数组
 static int IsNewWeaponUseShootSound[256] = {0};    //新武器由插件播放射击声开关数组
 static char NewWeaponShootSound[256][50];    //新武器射击声文件路径数组
 static int NewWeaponAmmo[256] = {0};    //新武器备弹量数组
-static float NewWeaponDamage[256] = {0};    //新武器伤害值倍数数组
-static float NewWeaponAccuracy[256] = {0};    //新武器精度差数组
+static float NewWeaponDamage[256] = {0.0};    //新武器伤害值倍数数组
+static float NewWeaponAccuracy[256] = {0.0};    //新武器精度差数组
 static int NewWeaponPrice[256] = {0};    //新武器购买价格数组
-static float GetNewWeaponTime[256] = {0};    //记录新武器购买时间数组
+static float GetNewWeaponTime[256] = {0.0};    //记录新武器购买时间数组
+static int NewWeaponFullAuto[256] = {1};    //新武器是否全自动武器
+static float NewWeaponCycleTime[256] = {0.1};    //存储新武器的CycleTime
+static int NewWeaponBullets[256] = {0};    //存储新武器的Bullets值，值大于1的一般是霰弹
+static int NewShotgunClip[256] = {0};    // 记录父类武器为霰弹枪的新武器弹匣容量
+static int NewShotgunAfterReloadIndex[256] = {0};    // 记录父类武器为霰弹枪的新武器的after_reload动作的序号
 
 static float RoundStartTime = 0.0;    //每回合开始时间
-int ClientPredict[128] = 1;    //客户端预测状态，0为已禁用，1为启用
+bool UseNewWeapon[MAXPLAYERS+1] = {false};    // 是否装备新武器
+
+// int g_decal1 = -1, g_decal2 = -1, g_decal3 = -1;
+static int NewWeaponsModelIndex[256] = {0};    //新武器普通V模型缓存索引数组
+float g_fOriginalNextAttack[MAXPLAYERS+1];    // 存储新武器的射击延迟数据（用于处理枪声）
+bool IsADS[MAXPLAYERS+1] = {false};    // 新武器机瞄状态数组
+int BlockTime[MAXPLAYERS+1] = {0};    // 动画同步间隔标志
+int BlockTime2[MAXPLAYERS+1] = {0};
+bool IsReloading[2048] = {false};    // 父类为霰弹枪的新武器换弹状态数组
+
+// 消除闪烁专用
+new bool:SpawnCheck[MAXPLAYERS+1];
+new ClientVM[MAXPLAYERS+1][2];
+new bool:IsCustom[MAXPLAYERS+1];
+
+bool g_bADSPluginRunning = false;    // 机瞄插件是否存在
+bool g_bSideADSPluginRunning = false;    // 侧瞄插件是否存在
+static char ADSNewWeaponNames[256][30];    //机瞄武器名字数组
+static char SideADSNewWeaponNames[256][30];    //侧瞄武器名字数组
+static char ADSNewWeaponsZoomModel[256][30];    //使用机瞄功能的武器机瞄模型名字数组
+static char SideADSNewWeaponsZoomModel[256][30];    //使用侧瞄功能的武器侧瞄模型名字数组
+static int ADSAnim_Move[256] = {-1};    // 机瞄衔接动作序号
+static int SideADSAnim_Move[256] = {-1};    // 侧瞄衔接动作序号
+static int SideADSAnim_Move2[256] = {-1};    // 机瞄与侧瞄之间的衔接动作序号
+static int SideADSAnim_Move_ads[256] = {-1};    // 机瞄动作序号（侧瞄插件）
+static float ADSAnim_Move_Time[256] = {0.0};    // 机瞄衔接动作时长数组
+static float SideADSAnim_Move_Time[256] = {0.0};    // 侧瞄衔接动作时长数组
+static int WeaponsCount2 = 0;    // 使用机瞄功能的武器数量
+static int WeaponsCount3 = 0;    // 使用侧瞄功能的武器数量
+
+// 修复全自动武器机瞄射击动作丢失专用
+StringMap g_hWeaponShootSeqs;    // 存储武器类名 -> 射击动画序号列表
+int g_iLastShootSeq[2048] = {-1};    // 存储每种新武器上一次的射击动画序号
+int g_iShootCount[2048] = {-1};    // 存储每种新武器从首次被使用起开枪的次数
+int g_iShootCount2[2048] = {-1};    // 存储每种新武器从首次被使用起开枪的次数（为父类为m4a1或usp的新武器在消音状态下开火专用）
+
+// 全局变量，用于存储每个武器实体的Draw序列号列表
+int g_iDrawSequence[256][4];
+int g_iDrawCount[256];
 
 
 public Plugin:myinfo = {
-	name = "New Weapons Without Bot",
-	author = "cjsrk",
-	description = "<- Add New Weapons ->",
-	version = "1.1",
-	url = "<- URL ->"
+    name = "New Weapons Without Bot",
+    author = "cjsrk, Ducheese, Khebre, H-AN",
+    description = "<- Add New Weapons ->",
+    version = "1.2",
+    url = "<- URL ->"
 }
 
 
 public OnPluginStart(){
-	//设置配置文件
-	CreateConVar("sm_new_weapons_version", "1.1.0", "Plugin Version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
-	cvarEnable = CreateConVar("sm_new_weapons_enable", "1", "Whether to enable the plugin (1: Enable the plugin. 0: disabled)", _, true, 0.0, true, 1.0);
-	cvarAllowBuyTime = CreateConVar("sm_allow_buytime", "90", "Sets the maximum time to acquire new weapons after the start of a turn, in seconds (range: 5-300 seconds)", _, true, 5.0, true, 300.0);
-	cvarNewWalkSpeed = CreateConVar("sm_new_walkspeed", "1.1", "The player's walk speed after acquiring new weapons ranges from 1.0 (the default speed) to 1.5.", _, true, 1.0, true, 1.5);
-	AutoExecConfig(true, "plugin.new_weapons");
-	HookConVarChange(cvarEnable, CvarChange);
-	HookConVarChange(cvarAllowBuyTime, CvarChange);
-	HookConVarChange(cvarNewWalkSpeed, CvarChange);
-	
-	HookEvent("round_start", RoundStart, EventHookMode_Post);
-	HookEvent("weapon_fire", WeaponOldSound, EventHookMode_Pre);
-	AddNormalSoundHook(SHook2);
-	AddTempEntHook("Shotgun Shot", Hook_FireTE);
+    //设置配置文件
+    CreateConVar("sm_new_weapons_version", "1.3.0", "Plugin Version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
+    cvarEnable = CreateConVar("sm_new_weapons_enable", "1", "Whether to enable the plugin (1: Enable the plugin. 0: disabled)", _, true, 0.0, true, 1.0);
+    cvarAllowBuyTime = CreateConVar("sm_new_weapons_allow_buytime", "90", "Sets the maximum time to acquire new weapons after the start of a turn, in seconds (range: 5-3600 seconds)", _, true, 5.0, true, 3600.0);
+    cvarExceptionalShotguns = CreateConVar("sm_new_weapons_exceptional_shotguns", "", "The names of new shotguns that do not require special handling for reloading (with the parent weapon being M3 or XM1014) are, for example, weapon_gen12. These are for special shotguns with detachable magazines or with tactical reloading adapters to avoid conflicts. Multiple names (up to 16) can be filled in, separated by commas.", _);
+    AutoExecConfig(true, "plugin.new_weapons");
+    HookConVarChange(cvarEnable, CvarChange);
+    HookConVarChange(cvarAllowBuyTime, CvarChange);
+    HookConVarChange(cvarExceptionalShotguns, CvarChange);
+    
+    HookEvent("round_start", RoundStart, EventHookMode_Post);
+    HookEvent("weapon_fire", WeaponOldSound, EventHookMode_Pre);
+    HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
+    HookEvent("player_spawn", Event_PlayerSpawn);
+    AddTempEntHook("Shotgun Shot", Hook_FireTE);
+    AddCommandListener(Command_SideADS, "sm_ads");    // 监听侧瞄插件
+    AddCommandListener(Command_QuickMelee, "sm_quickmelee");    // 监听快速近战插件
+    AddCommandListener(Command_ThrowKnives, "sm_throwknives");    // 监听飞刀插件
+    
+    // 消除闪烁专用
+    for (new client = 1; client <= MaxClients; client++) 
+    { 
+        if (IsClientInGame(client)) 
+            {
+                    SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost);
+            
+                    //find both of the clients viewmodels
+                    ClientVM[client][0] = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
+            
+                    new PVM = -1;
+                    while ((PVM = FindEntityByClassname(PVM, "predicted_viewmodel")) != -1)
+                    {
+                        if (GetEntPropEnt(PVM, Prop_Send, "m_hOwner") == client)
+                        {
+                                if (GetEntProp(PVM, Prop_Send, "m_nViewModelIndex") == 1)
+                                {
+                                    ClientVM[client][1] = PVM;
+                                    break;
+                                }
+                        }
+                    }
+            } 
+    }
+    
+    Handle hCvar = FindConVar("sm_iron_sight_enable");
+    g_bADSPluginRunning = (hCvar != null);
+    Handle hCvar2 = FindConVar("sm_iron_sight_sniperRifle_enable");
+    g_bSideADSPluginRunning = (hCvar2 != null);
+    
+    g_hWeaponShootSeqs = new StringMap();    // 字符串映射表初始化
 }
 
 
 public OnMapStart(){
-    //读取新武器信息文件	
-	new String:filepath[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, filepath, PLATFORM_MAX_PATH, "configs/NewWeaponsInfo.txt");
-	new Handle:file = OpenFile(filepath, "r"); 
-	if(file != INVALID_HANDLE){
-		
-		decl String:fileline[256];
-		decl String:data[8][256];
-		static int num = 0;
-		
-		while(ReadFileLine(file, fileline, 256))
-		{		
-			if(ExplodeString(fileline, "><", data, 8, 256) == 8)
-			{
-				if(strlen(data[0]) > 0 && strlen(data[1]) > 0)
-				{
-					//将新武器信息文件的数据载入各个新武器信息数组
-					TrimString(data[0]);
-					TrimString(data[1]);
-					TrimString(data[2]);
-					TrimString(data[3]);
-					TrimString(data[4]);
-					TrimString(data[5]);
-					TrimString(data[6]);
-					TrimString(data[7]);
-					if(strlen(data[0]) > 0)
-					    ReplaceString(data[0], strlen(data[0]), "<", "");
-					if(strlen(data[7]) > 0)
-					    ReplaceString(data[7], strlen(data[7]), ">", "");
-					
-					strcopy(NewWeaponNames[num], strlen(data[0]) + 1, data[0]);
-					strcopy(NewWeaponFatherNames[num], strlen(data[1]) + 1, data[1]);
-					
-					new isUseShootSound = 0;
-					if(strlen(data[2]) > 0)
-						isUseShootSound = StringToInt(data[2]);
-				    IsNewWeaponUseShootSound[num] = isUseShootSound;
-					
-					if(strlen(data[3]) > 0)
-					    strcopy(NewWeaponShootSound[num], strlen(data[3]) + 1, data[3]);
-					
-					new ammo = 0;
-					if(strlen(data[4]) > 0)
-						ammo = StringToInt(data[4]);
-					if(ammo < 0)
-						ammo = 0;
-				    NewWeaponAmmo[num] = ammo;
-					
-					new damage = 0.0;
-					if(strlen(data[5]) > 0)
-						damage = StringToFloat(data[5]);
-				    NewWeaponDamage[num] = damage;
-					
-					new accuracy = 0.0;
-					if(strlen(data[6]) > 0)
-						accuracy = StringToFloat(data[6]);
-				    NewWeaponAccuracy[num] = accuracy;
-					
-					new price = 0;
-					if(strlen(data[7]) > 0)
-						price = StringToInt(data[7]);
-					if(price < 0)
-						price = 0;
-				    NewWeaponPrice[num] = price;
-					num++;
-				}
-			    				
-			}
-			
-		}	
-		
-		CloseHandle(file);		
-	}
-	
-	//遍历各新武器信息数组，预载新武器模型文件和射击声音文件
-	for(int i = 0; i <= 255; i++) {
-		if(strlen(NewWeaponNames[i]) > 0 && strlen(NewWeaponFatherNames[i]) > 0)
-		{
-			decl String:PreStr0[] = "sm_";
-			decl String:PreStr1[] = "models/weapons/v_";
-			decl String:PreStr2[] = "models/weapons/w_";
-			decl String:PreStr3[] = ".mdl";
-			decl String:PreStr4[] = "_silencer.mdl";
-			decl String:PreStr5[] = "_dropped.mdl";
-			decl String:PreStr6[] = "_thrown.mdl";
-			
-			decl String:MyConsole[32];
-			Format(MyConsole, sizeof(MyConsole), "%s%s", PreStr0, NewWeaponNames[i]);
-			TrimString(MyConsole);
-			RegConsoleCmd(MyConsole,Cmd_CreateAnaconda);    //注册获取新武器的控制台命令
-			
-			decl String:Path1[64];
-			Format(Path1, sizeof(Path1), "%s%s%s", PreStr1, NewWeaponNames[i], PreStr3);
-			TrimString(Path1);
-			PrecacheModel(Path1);
-			
-			decl String:Path2[64];
-			Format(Path2, sizeof(Path2), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr3);
-			TrimString(Path2);
-			PrecacheModel(Path2);
-			
-			if(StrEqual(NewWeaponFatherNames[i], "usp") || StrEqual(NewWeaponFatherNames[i], "m4a1"))
-			{
-				decl String:Path3[64];
-			    Format(Path3, sizeof(Path3), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr4);
-			    TrimString(Path3);
-				PrecacheModel(Path3);
-			}
-			if(StrEqual(NewWeaponFatherNames[i], "elite"))
-			{
-				decl String:Path4[64];
-			    Format(Path4, sizeof(Path4), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr5);
-			    TrimString(Path4);
-				PrecacheModel(Path4);
-			}			
-			if(StrEqual(NewWeaponFatherNames[i], "hegrenade"))
-			{
-				decl String:Path5[64];
-			    Format(Path5, sizeof(Path5), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr6);
-			    TrimString(Path5);
-				PrecacheModel(Path5);
-			}
-			
-			//如果新武器由插件播放射击声开关的值为1或2，则预载射击声音文件
-			if(IsNewWeaponUseShootSound[i] > 0 && strlen(NewWeaponShootSound[i]) > 0)
-		    {
-				if(IsNewWeaponUseShootSound[i] == 1 || IsNewWeaponUseShootSound[i] == 2)
-				{
-					PrecacheSound(NewWeaponShootSound[i]);
-				}			    
-		    }			
-		}
-	}
-	
-	for(int i = 0; i <= (sizeof(ClientPredict) - 1); i++) {
-		ClientPredict[i] = 1;
-	}
+    //读取新武器信息文件 
+    new String:filepath[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, filepath, PLATFORM_MAX_PATH, "configs/NewWeaponsInfo.txt");
+    new Handle:file = OpenFile(filepath, "r"); 
+    if(file != INVALID_HANDLE){
+        
+        decl String:fileline[256];
+        decl String:data[8][256];
+        static int num = 0;
+        
+        while(ReadFileLine(file, fileline, 256))
+        {       
+            if(ExplodeString(fileline, "><", data, 8, 256) == 8)
+            {
+                if(strlen(data[0]) > 0 && strlen(data[1]) > 0)
+                {
+                    //将新武器信息文件的数据载入各个新武器信息数组
+                    TrimString(data[0]);
+                    TrimString(data[1]);
+                    TrimString(data[2]);
+                    TrimString(data[3]);
+                    TrimString(data[4]);
+                    TrimString(data[5]);
+                    TrimString(data[6]);
+                    TrimString(data[7]);
+                    if(strlen(data[0]) > 0)
+                        ReplaceString(data[0], strlen(data[0]), "<", "");
+                    if(strlen(data[7]) > 0)
+                        ReplaceString(data[7], strlen(data[7]), ">", "");
+                    
+                    strcopy(NewWeaponNames[num], strlen(data[0]) + 1, data[0]);
+                    strcopy(NewWeaponFatherNames[num], strlen(data[1]) + 1, data[1]);
+                    
+                    int isUseShootSound = 0;
+                    if(strlen(data[2]) > 0)
+                        isUseShootSound = StringToInt(data[2]);
+                    IsNewWeaponUseShootSound[num] = isUseShootSound;
+                    
+                    if(strlen(data[3]) > 0)
+                        strcopy(NewWeaponShootSound[num], strlen(data[3]) + 1, data[3]);
+                    
+                    int ammo = 0;
+                    if(strlen(data[4]) > 0)
+                        ammo = StringToInt(data[4]);
+                    if(ammo < 0)
+                        ammo = 0;
+                    NewWeaponAmmo[num] = ammo;
+                    
+                    float damage = 0.0;
+                    if(strlen(data[5]) > 0)
+                        damage = StringToFloat(data[5]);
+                    NewWeaponDamage[num] = damage;
+                    
+                    float accuracy = 0.0;
+                    if(strlen(data[6]) > 0)
+                        accuracy = StringToFloat(data[6]);
+                    NewWeaponAccuracy[num] = accuracy;
+                    
+                    int price = 0;
+                    if(strlen(data[7]) > 0)
+                        price = StringToInt(data[7]);
+                    if(price < 0)
+                        price = 0;
+                    NewWeaponPrice[num] = price;
+                    num++;
+                }
+                                
+            }
+            
+        }   
+        
+        CloseHandle(file);      
+    }
+    
+    //遍历各新武器信息数组，预载新武器模型文件和射击声音文件
+    for(int i = 0; i <= 255; i++) {
+        if(strlen(NewWeaponNames[i]) > 0 && strlen(NewWeaponFatherNames[i]) > 0)
+        {
+            decl String:PreStr0[] = "sm_";
+            decl String:PreStr1[] = "models/weapons/v_";
+            decl String:PreStr2[] = "models/weapons/w_";
+            decl String:PreStr3[] = ".mdl";
+            decl String:PreStr4[] = "_silencer.mdl";
+            decl String:PreStr5[] = "_dropped.mdl";
+            decl String:PreStr6[] = "_thrown.mdl";
+            
+            decl String:MyConsole[32];
+            Format(MyConsole, sizeof(MyConsole), "%s%s", PreStr0, NewWeaponNames[i]);
+            TrimString(MyConsole);
+            RegConsoleCmd(MyConsole,Cmd_CreateAnaconda);    //注册获取新武器的控制台命令
+            
+            decl String:Path1[64];
+            Format(Path1, sizeof(Path1), "%s%s%s", PreStr1, NewWeaponNames[i], PreStr3);
+            TrimString(Path1);
+            NewWeaponsModelIndex[i] = PrecacheModel(Path1);
+            
+            decl String:Path2[64];
+            Format(Path2, sizeof(Path2), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr3);
+            TrimString(Path2);
+            PrecacheModel(Path2);
+            
+            if(StrEqual(NewWeaponFatherNames[i], "usp") || StrEqual(NewWeaponFatherNames[i], "m4a1"))
+            {
+                decl String:Path3[64];
+                Format(Path3, sizeof(Path3), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr4);
+                TrimString(Path3);
+                PrecacheModel(Path3, true);
+            }
+            if(StrEqual(NewWeaponFatherNames[i], "elite"))
+            {
+                decl String:Path4[64];
+                Format(Path4, sizeof(Path4), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr5);
+                TrimString(Path4);
+                PrecacheModel(Path4, true);
+            }           
+            if(StrEqual(NewWeaponFatherNames[i], "hegrenade") || StrEqual(NewWeaponFatherNames[i], "smokegrenade") || StrEqual(NewWeaponFatherNames[i], "flashbang"))
+            {
+                decl String:Path5[64];
+                Format(Path5, sizeof(Path5), "%s%s%s", PreStr2, NewWeaponNames[i], PreStr6);
+                TrimString(Path5);
+                PrecacheModel(Path5, true);
+            }
+            
+            //如果新武器由插件播放射击声开关的值为1或2，则预载射击声音文件
+            if(IsNewWeaponUseShootSound[i] > 0 && strlen(NewWeaponShootSound[i]) > 0)
+            {
+                if(IsNewWeaponUseShootSound[i] == 1 || IsNewWeaponUseShootSound[i] == 2)
+                {
+                    PrecacheSound(NewWeaponShootSound[i]);
+                    
+                    //如果父类为m4或者usp，则检查其是否存在原射击声音文件名字 + _silenced的消音状态射击声音文件，如存在则预载
+                    if(StrEqual(NewWeaponFatherNames[i], "m4a1") || StrEqual(NewWeaponFatherNames[i], "usp"))
+                    {
+                        decl String:Path6[64];
+                        strcopy(Path6, strlen(NewWeaponShootSound[i]) + 1, NewWeaponShootSound[i]);
+                        ReplaceStringEx(Path6, sizeof(Path6), ".wav", "", -1, -1, false);
+                        decl String:PreStr7[] = "_silenced.wav";
+                        
+                        Format(Path6, sizeof(Path6), "%s%s", Path6, PreStr7);
+                        TrimString(Path6);
+                        
+                        decl String:Path7[64];
+                        decl String:PreStr8[] = "sound/";
+                        Format(Path7, sizeof(Path7), "%s%s", PreStr8, Path6);
+                        TrimString(Path7);
+                        if(FileExists(Path7, true))
+                        {
+                            // PrintToServer("存在此文件！");
+                            PrecacheSound(Path6);
+                        }
+                    }
+                }               
+            }
+
+            // 检测自定义武器是否支持全自动
+            char sPath[PLATFORM_MAX_PATH];
+            Format(sPath, sizeof(sPath), "scripts/weapon_%s.txt", NewWeaponNames[i]);
+            TrimString(sPath);
+            if (FileExists(sPath, true))
+            {
+                // 使用 KeyValues 解析文件
+                // 注意：脚本的根键是 "WeaponData"，而不是武器类名
+                KeyValues kv = new KeyValues("WeaponData");
+                if (kv.ImportFromFile(sPath))
+                {
+                    // 读取 FullAuto 键值，默认为 0（半自动）
+                    NewWeaponFullAuto[i] = kv.GetNum("FullAuto", 0);
+                    // 读取 CycleTime 键值，默认为 0.1
+                    NewWeaponCycleTime[i] = kv.GetFloat("CycleTime", 0.1);
+                    // 读取 Bullets 键值，默认为 1
+                    NewWeaponBullets[i] = kv.GetNum("Bullets", 1);
+                    // 读取 clip_size 键值，默认为 0
+                    if(StrEqual(NewWeaponFatherNames[i], "m3") || StrEqual(NewWeaponFatherNames[i], "xm1014"))
+                        NewShotgunClip[i] = kv.GetNum("clip_size", 0);
+                    if(StrEqual(NewWeaponFatherNames[i], "m3"))
+                        NewWeaponFullAuto[i] = 0;
+                    if(StrEqual(NewWeaponFatherNames[i], "xm1014")|| StrEqual(NewWeaponFatherNames[i], "sg550") || StrEqual(NewWeaponFatherNames[i], "g3sg1"))
+                    {   
+                        if(NewWeaponCycleTime[i] >= 0.2)
+                            NewWeaponFullAuto[i] = 0;
+                        // PrintToServer("%s是否全自动：%d", NewWeaponNames[i], NewWeaponFullAuto[i]);
+                    }
+                    if(StrEqual(NewWeaponFatherNames[i], "hegrenade") || StrEqual(NewWeaponFatherNames[i], "smokegrenade") || StrEqual(NewWeaponFatherNames[i], "flashbang") || StrEqual(NewWeaponFatherNames[i], "knife"))
+                        NewWeaponFullAuto[i] = 0;
+                }
+                delete kv;
+            }
+        }
+    }
+    
+    // g_decal1 = PrecacheDecal("decals/manhackcut_subrect", true);
+    // g_decal2 = PrecacheDecal("decals/manhackcut2_subrect", true);
+    // g_decal3 = PrecacheDecal("decals/manhackcut3_subrect", true);
+    
+    
+    //读取机瞄插件武器信息文件 
+    WeaponsCount2 = 0;   
+    new String:filepath2[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, filepath2, PLATFORM_MAX_PATH, "configs/IronSight.txt");
+    TrimString(filepath2);
+    if (FileExists(filepath2, true))
+    {
+        new Handle:file2 = OpenFile(filepath2, "r"); 
+        if(file2 != INVALID_HANDLE){
+            decl String:fileline[256];
+            decl String:data[11][256];
+            
+            while(ReadFileLine(file2, fileline, 256))
+            {       
+                if(ExplodeString(fileline, "><", data, 11, 256) == 11)
+                {
+                    if(strlen(data[0]) > 0 && strlen(data[1]) > 0)
+                    {
+                        //将机瞄武器信息文件的数据载入各个机瞄武器信息数组
+                        TrimString(data[0]);
+                        TrimString(data[10]);
+                        
+                        if(strlen(data[0]) > 0)
+                            ReplaceString(data[0], strlen(data[0]), "<", "");
+                        if(strlen(data[10]) > 0)
+                            ReplaceString(data[10], strlen(data[10]), ">", "");
+                        
+                        strcopy(ADSNewWeaponNames[WeaponsCount2], strlen(data[0]) + 1, data[0]);
+                        strcopy(ADSNewWeaponsZoomModel[WeaponsCount2], strlen(data[2]) + 1, data[2]);
+                        
+                        int My_Anim_Move = -1;
+                        if(strlen(data[3]) > 0)
+                            My_Anim_Move = StringToInt(data[3]);
+                        if(My_Anim_Move > 0 && My_Anim_Move < 20)
+                            ADSAnim_Move[WeaponsCount2] = My_Anim_Move;
+                        else
+                            ADSAnim_Move[WeaponsCount2] = -1;
+                        
+                        float My_Anim_Move_Time = 0.0;
+                        if(strlen(data[4]) > 0)
+                            My_Anim_Move_Time = StringToFloat(data[4]);
+                        if(My_Anim_Move_Time > 0)
+                            ADSAnim_Move_Time[WeaponsCount2] = My_Anim_Move_Time;
+                        
+                        WeaponsCount2++;
+                    }
+                }
+            }
+            CloseHandle(file2);
+        }
+    }
+    
+    //读取侧瞄插件武器信息文件 
+    WeaponsCount3 = 0;   
+    new String:filepath3[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, filepath3, PLATFORM_MAX_PATH, "configs/IronSight2.txt");
+    TrimString(filepath3);
+    if (FileExists(filepath3, true))
+    {
+        new Handle:file3 = OpenFile(filepath3, "r"); 
+        if(file3 != INVALID_HANDLE){
+            decl String:fileline[256];
+            decl String:data[17][256];
+            
+            while(ReadFileLine(file3, fileline, 256))
+            {       
+                if(ExplodeString(fileline, "><", data, 17, 256) == 17)
+                {
+                    if(strlen(data[0]) > 0 && strlen(data[1]) > 0)
+                    {
+                        //将侧瞄武器信息文件的数据载入各个侧瞄武器信息数组
+                        TrimString(data[0]);
+                        TrimString(data[16]);
+                        if(strlen(data[0]) > 0)
+                            ReplaceString(data[0], strlen(data[0]), "<", "");
+                        if(strlen(data[13]) > 0)
+                            ReplaceString(data[13], strlen(data[13]), ">", "");
+                        
+                        strcopy(SideADSNewWeaponNames[WeaponsCount3], strlen(data[0]) + 1, data[0]);
+                        strcopy(SideADSNewWeaponsZoomModel[WeaponsCount3], strlen(data[2]) + 1, data[2]);
+                        
+                        int My_Anim_Move = -1;
+                        if(strlen(data[3]) > 0)
+                            My_Anim_Move = StringToInt(data[3]);
+                        if(My_Anim_Move > 0 && My_Anim_Move < 20)
+                            SideADSAnim_Move[WeaponsCount3] = My_Anim_Move;
+                        else
+                            SideADSAnim_Move[WeaponsCount3] = -1;
+                        
+                        float My_Anim_Move_Time = 0.0;
+                        if(strlen(data[4]) > 0)
+                            My_Anim_Move_Time = StringToFloat(data[4]);
+                        if(My_Anim_Move_Time > 0)
+                            SideADSAnim_Move_Time[WeaponsCount3] = My_Anim_Move_Time;
+                        
+                        int My_adsAnim_Move = -1;
+                        if(strlen(data[13]) > 0)
+                            My_adsAnim_Move = StringToInt(data[13]);
+                        if(My_adsAnim_Move > 0 && My_adsAnim_Move < 20)
+                            SideADSAnim_Move_ads[WeaponsCount3] = My_adsAnim_Move;
+                        else
+                            SideADSAnim_Move_ads[WeaponsCount3] = -1;
+                        
+                        int My_Anim_Move2 = -1;
+                        if(strlen(data[15]) > 0)
+                            My_Anim_Move2 = StringToInt(data[15]);
+                        if(My_Anim_Move2 > 0 && My_Anim_Move2 < 20)
+                            SideADSAnim_Move2[WeaponsCount3] = My_Anim_Move2;
+                        else
+                            SideADSAnim_Move2[WeaponsCount3] = -1;
+                        
+                        WeaponsCount3++;
+                    }
+                }
+            }
+            CloseHandle(file3);
+        }
+    }
+    CreateTimer(1.0, Timer_LoadInfo, _);
 }
+
+
+public Action:Timer_LoadInfo(Handle timer, any:temp)
+{
+    // 读取信息字符串的值，载入武器信息
+    
+    if(ShotgunsNum > 0)
+        return Plugin_Continue;
+    
+    TrimString(ExceptionalShotgunsText);
+    decl String:data2[16][32];
+    int NewCount = ExplodeString(ExceptionalShotgunsText, ",", data2, 16, 32);
+    int idx = 0;
+    for(int i = 0; i < NewCount && idx < 16; i++) 
+    {
+        TrimString(data2[i]);
+        if(strlen(data2[i]) > 7)
+        {
+            strcopy(ExceptionalShotguns[i], strlen(data2[i]) + 1, data2[i]);
+            idx++;
+        }
+    }
+    
+    ShotgunsNum++;
+    
+    return Plugin_Continue;
+}
+
 
 //读取配置文件的cvar的值
 public OnConfigsExecuted()
 {
-	isEnabled = GetConVarBool(cvarEnable);
-	allowBuyTime = GetConVarInt(cvarAllowBuyTime);
-	newWalkSpeed = GetConVarFloat(cvarNewWalkSpeed);
+    isEnabled = GetConVarBool(cvarEnable);
+    allowBuyTime = GetConVarInt(cvarAllowBuyTime);
+    GetConVarString(cvarExceptionalShotguns, ExceptionalShotgunsText, sizeof(ExceptionalShotgunsText));
 }
 
 //cvar值变化时的响应数组
 public CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
     if(convar == cvarEnable)
-	{
-		if(StringToInt(newValue) == 1)
-		{
-			isEnabled = true;
-		}
-		else
-		{
-			isEnabled = false;
-		}
-	}
-	if(convar == cvarAllowBuyTime)
-	{
-		if(StringToInt(newValue) < 5)
-			allowBuyTime = 5;
-		else if(StringToInt(newValue) > 300)
-			allowBuyTime = 300;
-		else
-		    allowBuyTime = StringToInt(newValue);
-	}
-	if(convar == cvarNewWalkSpeed)
-	{
-		if(StringToFloat(newValue) < 1.0)
-			newWalkSpeed = 1.0;
-		else if(StringToFloat(newValue) > 1.5)
-			newWalkSpeed = 1.5;
-		else
-		    newWalkSpeed = StringToFloat(newValue);
-	}
+    {
+        if(StringToInt(newValue) == 1)
+        {
+            isEnabled = true;
+        }
+        else
+        {
+            isEnabled = false;
+        }
+    }
+    if(convar == cvarAllowBuyTime)
+    {
+        if(StringToInt(newValue) < 5)
+            allowBuyTime = 5;
+        else if(StringToInt(newValue) > 3600)
+            allowBuyTime = 3600;
+        else
+            allowBuyTime = StringToInt(newValue);
+    }
+    if(convar == cvarExceptionalShotguns)
+    {
+        if(strlen(newValue) > 0 && !StrEqual("", newValue))
+        {
+            strcopy(ExceptionalShotgunsText, strlen(newValue) + 1, newValue);               
+        }
+    }
 }
 
 
 public OnClientPutInServer(client)
 {
-	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);  
+    SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);  
     SDKHook(client, SDKHook_PostThink, OnPostThink);
     SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquip3);
+    SDKHook(client, SDKHook_WeaponSwitchPost, OnWeaponSwitch3);
+    SDKHook(client, SDKHook_WeaponDrop, OnWeaponDrop);
+    SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost);
+    SDKHook(client, SDKHook_PreThink, OnPreThink);
 }
+
 
 //获取新武器的控制台命令响应函数
 public Action:Cmd_CreateAnaconda(Client,Args){
-	if(!Client)Client=1;
-	new TimeLeft = GetTickedTime() - RoundStartTime;    //获取离本回合开始已经过去了多少时间
-	
-	decl String:sText[256]; 
-	GetCmdArg(0, sText, sizeof(sText));    //获取输入的控制台命令内容
-	StripQuotes(sText);
-	TrimString(sText);
-	ReplaceStringEx(sText, strlen(sText), "_", ";");
-	decl String:ArgumentStr[2][30];
-	ExplodeString(sText, ";", ArgumentStr, 2, 30);
-	
-	if(isEnabled == false)
-	{
-		PrintToChat(Client, "Warning: The plugin is disabled, you cannot get new weapons!");
-		return;
-	}
-	
-	if(!IsPlayerAlive(Client))
-		return;
-	
-	if(RoundFloat(TimeLeft) >= allowBuyTime)
-	{
-		PrintToChat(Client, "Tip: The countdown has ended, you can no longer get new weapons!");
-		return;
-	}
-	
-	//找到和用户输入获取新武器的控制台命令相匹配的新武器
-	int num = -1;
-	for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
-		if(StrEqual(NewWeaponNames[i], ArgumentStr[1]))
-		{
-			num = i;
-			break;
-		}
-	}
-	
-	if(num > -1)
-	{
+    if(!Client)Client=1;
+    float TimeLeft = GetTickedTime() - RoundStartTime;    //获取离本回合开始已经过去了多少时间
+    
+    decl String:sText[256]; 
+    GetCmdArg(0, sText, sizeof(sText));    //获取输入的控制台命令内容
+    StripQuotes(sText);
+    TrimString(sText);
+    ReplaceStringEx(sText, strlen(sText), "_", ";");
+    decl String:ArgumentStr[2][30];
+    ExplodeString(sText, ";", ArgumentStr, 2, 30);
+    
+    if(isEnabled == false)
+    {
+        PrintToChat(Client, "Warning: The plugin is disabled, you cannot get new weapons!");
+        return;
+    }
+    
+    if(!IsPlayerAlive(Client))
+        return;
+    
+    if(RoundFloat(TimeLeft) >= allowBuyTime)
+    {
+        PrintToChat(Client, "Tip: The countdown has ended, you can no longer get new weapons!");
+        return;
+    }
+    
+    //找到和用户输入获取新武器的控制台命令相匹配的新武器
+    int num = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], ArgumentStr[1]))
+        {
+            num = i;
+            break;
+        }
+    }
+    
+    if(num > -1)
+    {
         if(GetNewWeaponTime[num] > 0)
-		{
-			new TempTime = GetTickedTime() - GetNewWeaponTime[num];			
-			if(TempTime < 0.01)
-				return;
-		}
-		
-		new myMoney = GetEntProp(Client, Prop_Send, "m_iAccount");
-		if(NewWeaponPrice[num] > 0)
-		{
-			if(myMoney <= 0 || myMoney < NewWeaponPrice[num])
+        {
+            float TempTime = GetTickedTime() - GetNewWeaponTime[num];         
+            if(TempTime < 0.01)
+                return;
+        }
+        
+        new myMoney = GetEntProp(Client, Prop_Send, "m_iAccount");
+        if(NewWeaponPrice[num] > 0)
+        {
+            if(myMoney <= 0 || myMoney < NewWeaponPrice[num])
             {
                 PrintToChat(Client, "Tip: Weapons cost $ %d, you don't have enough funds to get new weapons!", NewWeaponPrice[num]);
                 return;
             }
             SetEntProp(Client, Prop_Send, "m_iAccount", myMoney - NewWeaponPrice[num]);
-		}
-		
-		//如果是获取新刀，则先要丢弃原来的匕首
-		if(StrEqual(NewWeaponFatherNames[num], "knife"))
-		{
-			new knife = GetPlayerWeaponSlot(Client, 2);
-			SDKHooks_DropWeapon(Client, knife);
-		}
-		
-		decl String:PreStr[] = "weapon_";
-		decl String:str1[32];
-		Format(str1, sizeof(str1), "%s%s", PreStr, NewWeaponFatherNames[num]);
-		TrimString(str1);
-		iEntNewWeaponList[num] = CreateEntityByName(str1);    //设置新武器的父类武器
-		
-		decl String:str2[32];
-		Format(str2, sizeof(str2), "%s%s", PreStr, NewWeaponNames[num]);
-		TrimString(str2);
-	    DispatchKeyValue(iEntNewWeaponList[num],"classname",str2);    //设置新武器类名
-		
-		//如果新武器不是刀或者手雷，则设置备弹量
-		if(!StrEqual(NewWeaponFatherNames[num], "knife") && !StrEqual(NewWeaponFatherNames[num], "hegrenade"))
-		{
-			static String:MyWeaponAmmo[10]; 
-		    IntToString(NewWeaponAmmo[num], MyWeaponAmmo, 10);
-			DispatchKeyValue(iEntNewWeaponList[num],"ammo",MyWeaponAmmo);
-		}
-		
-		DispatchSpawn(iEntNewWeaponList[num]);
-	    ActivateEntity(iEntNewWeaponList[num]);
-        EquipPlayerWeapon(Client,iEntNewWeaponList[num]);    //为用户装备新武器
-		GetNewWeaponTime[num] = GetTickedTime();
+        }
         
-		//如果新武器不是刀或者手雷，则再次设置备弹量
-		if(!StrEqual(NewWeaponFatherNames[num], "knife") && !StrEqual(NewWeaponFatherNames[num], "hegrenade"))
-		{
-			new MyWeaponType = GetEntProp(iEntNewWeaponList[num], Prop_Data, "m_iPrimaryAmmoType")
+        //如果是获取新刀，则先要丢弃原来的匕首
+        if(StrEqual(NewWeaponFatherNames[num], "knife"))
+        {
+            new knife = GetPlayerWeaponSlot(Client, 2);
+            SDKHooks_DropWeapon(Client, knife);
+        }
+        
+        decl String:PreStr[] = "weapon_";
+        decl String:str1[32];
+        Format(str1, sizeof(str1), "%s%s", PreStr, NewWeaponFatherNames[num]);
+        TrimString(str1);
+        iEntNewWeaponList[num] = CreateEntityByName(str1);    //设置新武器的父类武器
+        
+        decl String:str2[32];
+        Format(str2, sizeof(str2), "%s%s", PreStr, NewWeaponNames[num]);
+        TrimString(str2);
+        DispatchKeyValue(iEntNewWeaponList[num],"classname",str2);    //设置新武器类名
+        
+        //如果新武器不是刀或者手雷，则设置备弹量
+        if(!StrEqual(NewWeaponFatherNames[num], "knife") && !StrEqual(NewWeaponFatherNames[num], "hegrenade") && !StrEqual(NewWeaponFatherNames[num], "smokegrenade") && !StrEqual(NewWeaponFatherNames[num], "flashbang"))
+        {
+            static String:MyWeaponAmmo[10]; 
+            IntToString(NewWeaponAmmo[num], MyWeaponAmmo, 10);
+            DispatchKeyValue(iEntNewWeaponList[num],"ammo",MyWeaponAmmo);
+        }
+        
+        DispatchSpawn(iEntNewWeaponList[num]);
+        ActivateEntity(iEntNewWeaponList[num]);
+        EquipPlayerWeapon(Client,iEntNewWeaponList[num]);    //为用户装备新武器
+        GetNewWeaponTime[num] = GetTickedTime();
+        
+        //如果新武器不是刀或者手雷，则再次设置备弹量
+        if(!StrEqual(NewWeaponFatherNames[num], "knife") && !StrEqual(NewWeaponFatherNames[num], "hegrenade") && !StrEqual(NewWeaponFatherNames[num], "smokegrenade") && !StrEqual(NewWeaponFatherNames[num], "flashbang"))
+        {
+            new MyWeaponType = GetEntProp(iEntNewWeaponList[num], Prop_Data, "m_iPrimaryAmmoType")
             if(GetEntProp(Client, Prop_Data, "m_iAmmo", 4, MyWeaponType) <= 0)
-	        {
-		        SetEntProp(Client, Prop_Data, "m_iAmmo", NewWeaponAmmo[num], 4, MyWeaponType);
-	        }
-		}		
-	}
+            {
+                SetEntProp(Client, Prop_Data, "m_iAmmo", NewWeaponAmmo[num], 4, MyWeaponType);
+            }
+        }
+    }
 }
 
 
 //武器射击事件函数
-public WeaponOldSound(Handle:event,const String:name[],bool:dontBroadcast)
+public Action:WeaponOldSound(Handle:event,const String:name[],bool:dontBroadcast)
 {
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	FadeClientVolume(client,100.0, 0.0, 0.04, 0.0);
-	CreateTimer(0.04, Timer_PrintMessageFiveTimes, client);
-	return Plugin_Continue;
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    // FadeClientVolume(client,100.0, 0.0, 0.1, 0.0);
+    CreateTimer(0.0, Timer_PrintMessageFiveTimes, client);
+    
+    
+    return Plugin_Continue;
 }
 
 //播放新武器射击声音函数
 public Action:Timer_PrintMessageFiveTimes(Handle timer, int client)
 {
-	//获取当前武器名字
-	if(!IsValidEntity(client))
-		return Plugin_Continue;
-	if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
-		return Plugin_Continue;
-	
-	new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    //获取当前武器名字
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
+        return Plugin_Continue;
+    
+    new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
     if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
-		    return Plugin_Continue;	
-	decl String:sWeapon[32];
-	GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
-	ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
-	decl String:data[2][30];
-	ExplodeString(sWeapon, ";", data, 2, 30);
-	
-	int myWeapon = -1;
-	for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
-		if(StrEqual(NewWeaponNames[i], data[1]))
-		{
-			myWeapon = i;
-			break;
-		}
-	}
-	if(myWeapon > -1)
-	{
-		//根据新武器由插件播放射击声开关的值决定如何播放射击声音
-		if(IsNewWeaponUseShootSound[myWeapon] == 1)
-		{
-			decl String:PreStr[] = "play ";			
-			decl String:str[64];
-		    Format(str, sizeof(str), "%s%s", PreStr, NewWeaponShootSound[myWeapon]);
-		    TrimString(str);
-			ClientCommand(client, str);
-			return Plugin_Changed;
-		}
-		if(IsNewWeaponUseShootSound[myWeapon] == 2)
-		{
-			// EmitSoundToClient(client, NewWeaponShootSound[myWeapon], currentWeapon, 1);
-			EmitSoundToAll(NewWeaponShootSound[myWeapon], currentWeapon, 1);
-			return Plugin_Changed;
-		}
-		
-		if(!IsFakeClient(client))    //如果玩家不是bot
-		{
-			if (CheckCommandAccess(client, "generic_admin", ADMFLAG_GENERIC, false))
-			{
-				// 玩家是房主
-			}
-			else    // 玩家不是房主，是普通真人玩家
-			{
-				if(!StrEqual("", NewWeaponShootSound[myWeapon]))
-				{
-					EmitSoundToClient(client, NewWeaponShootSound[myWeapon], currentWeapon, 1);    //不是服务器房主的真人玩家，播放武器射击声
-				}
-			}
-		}
-		
-		//如果父类武器为手雷，则执行改变手雷抛出模型的函数
-		if(StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade"))
-		{
-			DataPack pack = new DataPack();
-		    pack.WriteCell(client);
-		    pack.WriteString(NewWeaponNames[myWeapon]);
-			CreateTimer(0.01, Hegrenade_Throw, pack);
-		}
-	}
+            return Plugin_Continue; 
+    decl String:sWeapon[32];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    decl String:data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1)
+    {
+        if(!StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+        {
+            new Clip = GetEntProp(currentWeapon, Prop_Send, "m_iClip1");
+            new MyWeaponType = GetEntProp(currentWeapon, Prop_Data, "m_iPrimaryAmmoType");
+            int Ammo = GetEntProp(client, Prop_Data, "m_iAmmo", 4, MyWeaponType);
+            if (Clip <= 0 && Ammo <= 0)   // 武器子弹打光时，重置其状态，防止空枪机瞄退出 
+            {
+                SetEntPropFloat(currentWeapon, Prop_Send, "m_flNextPrimaryAttack", GetGameTime());
+                SetEntPropFloat(currentWeapon, Prop_Send, "m_flTimeWeaponIdle", GetGameTime());
+            }
+            else
+            {
+                if(NewWeaponFullAuto[myWeapon] == 1)
+                {
+                    // 将全自动新武器的射击动作序号存储到数据结构中
+                    bool IsSilencerOn = false;
+                    if(StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") || StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+                    {
+                        if(HasEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == true && HasEntProp(currentWeapon, Prop_Send, "m_weaponMode") == true && GetEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == 1)
+                            IsSilencerOn = true;
+                    }
+                    
+                    if(IsSilencerOn == false)
+                    {
+                        if(g_iShootCount[currentWeapon] <= 11)
+                            g_iShootCount[currentWeapon]++;
+                    }
+                    else
+                    {
+                        if(g_iShootCount2[currentWeapon] <= 11)
+                            g_iShootCount2[currentWeapon]++;
+                    }
+                    
+                    int iSequence = GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence", 4);
+                    // PrintToChatAll("动作：%d", iSequence);
+                    
+                    // 检测是否是draw动作
+                    bool IsDrawSeq = false;
+                    int DrawCount = g_iDrawCount[myWeapon];
+                    for (int n = 0; n < DrawCount; n++)
+                    {
+                        if(iSequence == g_iDrawSequence[myWeapon][n])
+                        {
+                            IsDrawSeq = true;
+                            break;
+                        }
+                    }
+                    
+                    if(iSequence > 0 && ((IsSilencerOn == false && g_iShootCount[currentWeapon] <= 11) || (IsSilencerOn == true && g_iShootCount2[currentWeapon] <= 11)) && IsDrawSeq == false)
+                    {
+                        if(IsSilencerOn == false)
+                        {
+                            if(!StrEqual(NewWeaponFatherNames[myWeapon], "usp") && !StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+                            {
+                                bool CanUseADS = false;
+                                int myWeapon2 = -1, myWeapon3 = -1;
+                                if(g_bADSPluginRunning == true && WeaponsCount2 > 0)    // 检测是否适配机瞄插件
+                                {
+                                    for(int n = 0; n <= (sizeof(ADSNewWeaponNames) - 1); n++) {
+                                        if(StrEqual(ADSNewWeaponNames[n], data[1]))
+                                        {
+                                            myWeapon2 = n;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if(g_bSideADSPluginRunning == true && WeaponsCount3 > 0)    // 检测是否适配侧瞄插件
+                                {
+                                    for(int n = 0; n <= (sizeof(SideADSNewWeaponNames) - 1); n++) {
+                                        if(StrEqual(SideADSNewWeaponNames[n], data[1]))
+                                        {
+                                            myWeapon3 = n;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if(myWeapon2 > -1 || myWeapon3 > -1)
+                                {
+                                    CanUseADS = true;
+                                }
+                                
+                                if(CanUseADS == true)  // 如果该武器支持机瞄/侧瞄，则需判定该动作是否是机瞄/侧瞄动作，再记录
+                                {
+                                    if(myWeapon2 > -1)    // 该武器能机瞄
+                                    {
+                                        if(iSequence != ADSAnim_Move[myWeapon2])
+                                            StoreWeaponShootSequence(NewWeaponNames[myWeapon], iSequence);
+                                    }
+                                    if(myWeapon3 > -1)    // 该武器能侧瞄
+                                    {
+                                        if(iSequence != SideADSAnim_Move[myWeapon3] && iSequence != SideADSAnim_Move2[myWeapon3] && iSequence != SideADSAnim_Move_ads[myWeapon3])
+                                            StoreWeaponShootSequence(NewWeaponNames[myWeapon], iSequence);
+                                    }
+                                }
+                                else  // 如果该武器不支持机瞄和侧瞄，直接记录
+                                {
+                                    StoreWeaponShootSequence(NewWeaponNames[myWeapon], iSequence);
+                                }
+                            }
+                            else    // 如果新武器的父类是m4或者usp，且处于非消音状态，直接记录
+                            {
+                                StoreWeaponShootSequence(NewWeaponNames[myWeapon], iSequence);
+                            }
+                        }
+                        else    // 如果新武器的父类是m4或者usp，且处于消音状态
+                        {
+                            decl String:PostStr[] = "_silenced";
+                            decl String:NewWeaponSilencedNames[64];
+                            Format(NewWeaponSilencedNames, sizeof(NewWeaponSilencedNames), "%s%s", NewWeaponNames[myWeapon], PostStr);
+                            TrimString(NewWeaponSilencedNames); 
+                            StoreWeaponShootSequence(NewWeaponSilencedNames, iSequence);
+                        }
+                    }         
+                    
+                    // 修复全自动武器的射击动作丢失
+                    if(g_iLastShootSeq[currentWeapon] > 0)
+                    {
+                        if(iSequence == g_iLastShootSeq[currentWeapon])
+                        {
+                            if(IsADS[client] == true)    // 修复全自动武器的机瞄射击动作丢失（父类是m4a1或usp的新武器，不支持机瞄，因此不用考虑此种情况）
+                            {
+                                // PrintToChatAll("重复射击：%d", iSequence);
+                                ArrayList arr = GetWeaponShootSeqs(NewWeaponNames[myWeapon]);
+                                if (arr != null)
+                                {
+                                    int count = arr.Length;
+                                    if(count > 1)
+                                    {
+                                        int Result = -1;
+                                        if(count > 2)
+                                        {
+                                            int Type = GetRandomInt(1, 9);
+                                            if(Type % 2 == 0)
+                                            {
+                                                for (int i = 0; i < count; i++)
+                                                {
+                                                    int seq = arr.Get(i);
+                                                    if(seq != g_iLastShootSeq[currentWeapon])
+                                                    {
+                                                        Result = seq;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                for (int i = count - 1; i >= 0; i--)
+                                                {
+                                                    int seq = arr.Get(i);
+                                                    if(seq != g_iLastShootSeq[currentWeapon])
+                                                    {
+                                                        Result = seq;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            for (int i = 0; i < count; i++)
+                                            {
+                                                int seq = arr.Get(i);
+                                                if(seq != g_iLastShootSeq[currentWeapon])
+                                                {
+                                                    Result = seq;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        
+                                        if(Result > -1)    // 为全自动武器机瞄射击执行不同序号的的射击动作
+                                        {
+                                            // PrintToChatAll("新动作:%d", Result);    
+                                            SetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence", Result);
+                                            SetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate", 1.0);
+                                            SetEntPropFloat(ClientVM[client][0], Prop_Data, "m_flCycle", 0.0);
+                                            // g_iLastShootSeq[currentWeapon] = Result;
+                                        }
+                                    }
+                                }
+                            }
+                            else  //  // 修复全自动武器的腰射射击动作丢失
+                            {
+                                bool FixFlag = false;
+                                if(IsSilencerOn == false)
+                                {
+                                    if(g_iShootCount[currentWeapon] > 11)
+                                        FixFlag = true;
+                                }
+                                else
+                                {
+                                    if(g_iShootCount2[currentWeapon] > 11)
+                                        FixFlag = true;
+                                }
+                                
+                                if(FixFlag == true)    // 新武器首次开火次数累计达11发以后，对新武器腰射的射击动作进行检测，替换重复的射击动作
+                                {
+                                    if(IsSilencerOn == false)    // 普通新武器或父类为m4a1或usp但处于非消音状态下的新武器
+                                    {
+                                        ArrayList arr = GetWeaponShootSeqs(NewWeaponNames[myWeapon]);
+                                        
+                                        if (arr != null)
+                                        {
+                                            int count = arr.Length;
+                                            if(count > 1)
+                                            {
+                                                int Result = -1;
+                                                if(count > 2)
+                                                {
+                                                    int Type = GetRandomInt(1, 9);
+                                                    if(Type % 2 == 0)
+                                                    {
+                                                        for (int i = 0; i < count; i++)
+                                                        {
+                                                            int seq = arr.Get(i);
+                                                            if(seq != g_iLastShootSeq[currentWeapon])
+                                                            {
+                                                                Result = seq;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        for (int i = count - 1; i >= 0; i--)
+                                                        {
+                                                            int seq = arr.Get(i);
+                                                            if(seq != g_iLastShootSeq[currentWeapon])
+                                                            {
+                                                                Result = seq;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    for (int i = 0; i < count; i++)
+                                                    {
+                                                        int seq = arr.Get(i);
+                                                        if(seq != g_iLastShootSeq[currentWeapon])
+                                                        {
+                                                            Result = seq;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                if(Result > -1)    // 为全自动武器腰射状态下射击执行不同序号的的射击动作（适用于普通新武器或父类为m4a1或usp但处于非消音状态下的新武器）
+                                                {
+                                                    // PrintToChatAll("新动作:%d", Result);    
+                                                    SetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence", Result);
+                                                    SetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate", 1.0);
+                                                    SetEntPropFloat(ClientVM[client][0], Prop_Data, "m_flCycle", 0.0);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else    // 父类为m4a1或usp的新武器，且处于消音状态下
+                                    {
+                                        decl String:PostStr[] = "_silenced";
+                                        decl String:NewWeaponSilencedNames[64];
+                                        Format(NewWeaponSilencedNames, sizeof(NewWeaponSilencedNames), "%s%s", NewWeaponNames[myWeapon], PostStr);
+                                        TrimString(NewWeaponSilencedNames); 
+                                        ArrayList arr = GetWeaponShootSeqs(NewWeaponSilencedNames);
+                                        if (arr != null)
+                                        {
+                                            int count = arr.Length;
+                                            if(count > 1)
+                                            {
+                                                int Result = -1;
+                                                if(count > 2)
+                                                {
+                                                    int Type = GetRandomInt(1, 9);
+                                                    if(Type % 2 == 0)
+                                                    {
+                                                        for (int i = 0; i < count; i++)
+                                                        {
+                                                            int seq = arr.Get(i);
+                                                            if(seq != g_iLastShootSeq[currentWeapon])
+                                                            {
+                                                                Result = seq;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        for (int i = count - 1; i >= 0; i--)
+                                                        {
+                                                            int seq = arr.Get(i);
+                                                            if(seq != g_iLastShootSeq[currentWeapon])
+                                                            {
+                                                                Result = seq;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    for (int i = 0; i < count; i++)
+                                                    {
+                                                        int seq = arr.Get(i);
+                                                        if(seq != g_iLastShootSeq[currentWeapon])
+                                                        {
+                                                            Result = seq;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                if(Result > -1)    // 为全自动武器腰射状态下射击执行不同序号的的射击动作（适用于正处于消音状态下的父类为m4a1或usp的新武器）
+                                                {
+                                                    // PrintToChatAll("新动作:%d", Result);    
+                                                    SetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence", Result);
+                                                    SetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate", 1.0);
+                                                    SetEntPropFloat(ClientVM[client][0], Prop_Data, "m_flCycle", 0.0);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if(iSequence > 0)
+                        g_iLastShootSeq[currentWeapon] = iSequence;
+                }
+            }
+        }
+        
+        
+        bool SilencedShoot = false;
+        decl String:Path6[64];
+        if(IsNewWeaponUseShootSound[myWeapon] > 0)
+        {
+            // 如果父类为m4或者usp
+            if(StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") || StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+            {
+                // 如果武器处于消音状态
+                if(HasEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == true && HasEntProp(currentWeapon, Prop_Send, "m_weaponMode") == true && GetEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == 1)
+                {
+                    strcopy(Path6, strlen(NewWeaponShootSound[myWeapon]) + 1, NewWeaponShootSound[myWeapon]);
+                    ReplaceStringEx(Path6, sizeof(Path6), ".wav", "", -1, -1, false);
+                    decl String:PreStr7[] = "_silenced.wav";
+                    
+                    Format(Path6, sizeof(Path6), "%s%s", Path6, PreStr7);
+                    TrimString(Path6);
+                    
+                    decl String:Path7[64];
+                    decl String:PreStr8[] = "sound/";
+                    Format(Path7, sizeof(Path7), "%s%s", PreStr8, Path6);
+                    TrimString(Path7);
+                    if(FileExists(Path7, true))
+                    {
+                        SilencedShoot = true;
+                    }
+                }
+            }
+        }
+        
+        new Clip = GetEntProp(currentWeapon, Prop_Send, "m_iClip1");
+        new MyWeaponType = GetEntProp(currentWeapon, Prop_Data, "m_iPrimaryAmmoType");
+        int Ammo = 0;
+        if(MyWeaponType > 0)
+            Ammo = GetEntProp(client, Prop_Data, "m_iAmmo", 4, MyWeaponType);
+        
+        //根据新武器由插件播放射击声开关的值决定如何播放射击声音
+        if(IsNewWeaponUseShootSound[myWeapon] == 1 && (Clip > 0 || Ammo > 0))
+        {
+            decl String:PreStr[] = "play ";         
+            decl String:str[64];
+            if(SilencedShoot == false)
+                Format(str, sizeof(str), "%s%s", PreStr, NewWeaponShootSound[myWeapon]);
+            else
+                Format(str, sizeof(str), "%s%s", PreStr, Path6);
+            TrimString(str);
+            ClientCommand(client, str);
+            return Plugin_Changed;
+        }
+        
+        if(IsNewWeaponUseShootSound[myWeapon] == 2 && (Clip > 0 || Ammo > 0))
+        {
+            // EmitSoundToClient(client, NewWeaponShootSound[myWeapon], currentWeapon, 1);
+            if(SilencedShoot == false)
+                EmitSoundToAll(NewWeaponShootSound[myWeapon], currentWeapon, 1);
+            else
+                EmitSoundToAll(Path6, currentWeapon, 1);
+            return Plugin_Changed;
+        }
+        
+        if(!IsFakeClient(client))    //如果玩家不是bot
+        {
+            if (CheckCommandAccess(client, "generic_admin", ADMFLAG_GENERIC, false))
+            {
+                // 玩家是房主
+            }
+            else    // 玩家不是房主，是普通真人玩家
+            {
+                if(!StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+                {
+                    if(!StrEqual("", NewWeaponShootSound[myWeapon]) && (Clip > 0 || Ammo > 0))
+                    {
+                        if(SilencedShoot == false)
+                            EmitSoundToClient(client, NewWeaponShootSound[myWeapon], currentWeapon, 1);    //不是服务器房主的真人玩家，播放武器射击声
+                        else
+                            EmitSoundToClient(client, Path6, currentWeapon, 1);    //不是服务器房主的真人玩家，播放武器射击声
+                    }
+                }
+            }
+        }
+        
+        //如果父类武器为手雷，则执行改变手雷抛出模型的函数
+        if(StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") || StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") || StrEqual(NewWeaponFatherNames[myWeapon], "flashbang"))
+        {
+            int type = 1;
+            if(StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade"))
+                type = 2;
+            if(StrEqual(NewWeaponFatherNames[myWeapon], "flashbang"))
+                type = 3;
+            
+            DataPack pack = new DataPack();
+            pack.WriteCell(client);
+            pack.WriteCell(type);
+            pack.WriteString(NewWeaponNames[myWeapon]);
+            CreateTimer(0.01, Hegrenade_Throw, pack);
+        }
+    }
     return Plugin_Continue;
+}
+
+
+// 存储武器动画序号的示例函数
+void StoreWeaponShootSequence(const char[] weaponname, int seq)
+{
+    ArrayList arr;
+    // 从StringMap中获取已存在的数组
+    if (!g_hWeaponShootSeqs.GetValue(weaponname, arr))
+    {
+        // 如果不存在，则创建一个新的ArrayList
+        arr = new ArrayList();
+        g_hWeaponShootSeqs.SetValue(weaponname, arr);
+    }
+    
+    // 将动画序号添加到数组中（确保不重复）
+    if (arr.FindValue(seq) == -1)
+    {
+        arr.Push(seq);
+        SortArrayList(arr, true);
+    }
+}
+
+
+// tArrayList排序函数（true=升序，false=降序）
+void SortArrayList(ArrayList array, bool ascending)
+{
+    int size = array.Length;
+    if (size <= 1) return;
+
+    // 1. 创建临时数组并复制数据
+    int[] temp = new int[size];
+    for (int i = 0; i < size; i++) {
+        temp[i] = array.Get(i);
+    }
+
+    // 2. 排序
+    SortOrder order = ascending ? Sort_Ascending : Sort_Descending;
+    SortIntegers(temp, size, order);
+
+    // 3. 清空原 ArrayList 并填充回排序后的数据
+    array.Clear();
+    for (int i = 0; i < size; i++) {
+        array.Push(temp[i]);
+    }
+}
+
+
+// 获取某把武器的所有射击动画序号
+ArrayList GetWeaponShootSeqs(const char[] weaponClassname)
+{
+    ArrayList arr;
+    if (g_hWeaponShootSeqs.GetValue(weaponClassname, arr))
+    {
+        return arr;
+    }
+    return null;
 }
 
 
 //修改新武器伤害值函数
 public Action:OnTakeDamage(victim, &attacker, &inflictor, &Float:damage, &damagetype)
 {
-	if(attacker == inflictor && inflictor <= MaxClients)
-	{
-		if(!IsValidEntity(attacker))
-		    return Plugin_Continue;
-	    if(HasEntProp(attacker, Prop_Send, "m_hActiveWeapon") == false)
-		    return Plugin_Continue;
-		
-		new currentWeapon = GetEntPropEnt(attacker, Prop_Send, "m_hActiveWeapon");
-		if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
-		    return Plugin_Continue;
-	    decl String:sWeapon[32];
-	    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
-		ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
-		decl String:data[2][30];
-	    ExplodeString(sWeapon, ";", data, 2, 30);
-		
-	    int myWeapon = -1;
-		for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
-			if(StrEqual(NewWeaponNames[i], data[1]))
-		    {
-			    myWeapon = i;
-			    break;
-		    }
-		}
-		
-		//此函数对手雷无效
-		if(myWeapon > -1 && !StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade"))  
-		{
-			if(NewWeaponDamage[myWeapon] > 0)
-			{
-				//新武器伤害倍率，新武器初始伤害值等于父类武器的伤害值。1.0表示不变，2.0表示将新武器伤害值改为初始伤害值的两倍
-				damage *= NewWeaponDamage[myWeapon]; 					
-			    return Plugin_Changed;
-			}
-		}
-	}
-	return Plugin_Continue;
-}
-
-//改变手雷抛出模型函数，以修复旧版加枪插件不能加载手雷抛出模型的bug
-public Action:Hegrenade_Throw(Handle:timer, DataPack pack)
-{
-	new ent = -1;
-	new lastent;
-	new owner;
-	
-	pack.Reset(); 
-	int client = pack.ReadCell();
-	decl String:WeaponName[32];
-	pack.ReadString(WeaponName, sizeof(WeaponName));
-	CloseHandle(pack);
-	
-	ent = FindEntityByClassname(ent, "hegrenade_projectile")	
-	while (ent != -1)
-	{
-		owner = GetEntPropEnt(ent, Prop_Send, "m_hThrower")		
-		if (IsValidEntity(ent) && owner == client)
-			break;
-		
-		ent = FindEntityByClassname(ent, "hegrenade_projectile")		
-		if (ent == lastent)
-		{
-			ent = -1;
-			break;
-		}		
-		lastent = ent
-	}
-	
-	if (ent != -1)
-	{	
-		decl String:PreStr1[] = "models/weapons/w_";
-		decl String:PreStr2[] = "_thrown.mdl";
-		decl String:Path[64];
-		Format(Path, sizeof(Path), "%s%s%s", PreStr1, WeaponName, PreStr2);
-		TrimString(Path);
-		//如果新手雷附带throw模型，则加载新手雷的抛出模型
-		if(FileExists(Path, true))
-			SetEntityModel(ent, Path);
-	}
-}
-
-
-//修改新武器精度差函数
-public OnPostThink(client)
-{
-	new Buttons = GetClientButtons(client);
-	if (Buttons & IN_ATTACK)
-	{
-		new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
-		    return Plugin_Continue;	
-		decl String:sWeapon[32];
-	    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
-		ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
-	    decl String:data[2][30];
-	    ExplodeString(sWeapon, ";", data, 2, 30);
-		
-		int myWeapon = -1;
-		for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
-			if(StrEqual(NewWeaponNames[i], data[1]))
-		    {
-			    myWeapon = i;
-			    break;
-		    }
-		}
-		
-		//此函数不用于刀和手雷
-	    if(myWeapon > -1 && !StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
-	    {
-			if(NewWeaponAccuracy[myWeapon] > 0 && NewWeaponAccuracy[myWeapon] <= 1)
-			{
-				//可设置精度差范围0.0（不含）-1.0，值0.0将使用基本点差而不是没有精度差
-				SetEntPropFloat(currentWeapon, Prop_Send, "m_fAccuracyPenalty", NewWeaponAccuracy[myWeapon]);			
-			    return Plugin_Changed;
-			}
-	    }
-	}
-	return Plugin_Continue;
-}
-
-
-//修复起源v9x版本闪烁问题
-public void:OnWeaponEquip3(client, weapon)
-{
-	if(!IsValidEntity(client))
-		return;
-    char sWeapon[64];
-    GetEdictClassname(weapon, sWeapon, sizeof(sWeapon));
-	ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
-	char data[2][30];
-	ExplodeString(sWeapon, ";", data, 2, 30);
-	
-	int myWeapon = -1;
-	for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
-		if(StrEqual(NewWeaponNames[i], data[1]))
-		{
-			myWeapon = i;
-			break;
-		}
-	}
-	if(myWeapon > -1 && IsClient(client, true) && !IsFakeClient(client))
-	{
-		int OwnerId = -1;
-		for(int i = 1; i <= MaxClients; i++)
-		{
-			if(IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i))
-			{
-				// 记录房主的id
-				if (CheckCommandAccess(i, "generic_admin", ADMFLAG_GENERIC, false))
-				{
-					OwnerId = i;
-				}
-			}
-		}
-		
-		ClientCommand(client, "sv_client_predict 0");    //禁用客户端预测
-		ClientPredict[client] = 0;
-		SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", newWalkSpeed); 
-		
-		// 如果是非房主真人玩家购买新枪，则禁用服务器客户端预测
-		if(client != OwnerId && OwnerId > 0)
-		{
-			ServerCommand("sv_client_predict 0");
-			// 调整其他真人玩家的ClientPredict值（包括房主）
-			for(int i = 1; i <= MaxClients; i++)
-			{
-				if(IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i))
-				{
-					if(i != client)
-					{
-						ClientPredict[i] = 0;
-						SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", newWalkSpeed);
-					}
-				}
-			}
-		}
-		
-	}	
-}
-
-
-//修复禁用客户端预测时某些声音消失的bug
-public Action:SHook2(clients[64], &numClients, String:sample[PLATFORM_MAX_PATH], &entity, &channel, &Float:volume, &level, &pitch, &flags)
-{
-	//修复禁用客户端预测时刀子声音消失的bug
-	if (IsValidEdict(entity) && (entity > -1))
-	{
-		char sWeapon[64];
-		GetEdictClassname(entity, sWeapon, sizeof(sWeapon));
-	if(StrContains(sWeapon, "weapon_knife") != -1 || StrContains(sample, "knife") != -1)
-		{
-			int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-			if(IsValidEntity(owner) && owner > 0 && owner <= MaxClients && ClientPredict[owner] == 0)
-			{
-				if(StrContains(sample, ".wav") != -1)
-				{
-					EmitSoundToClient(owner, sample, entity, channel, level, flags, volume, pitch);
-					
-					// 声音也传递给其他关闭预测的真人玩家
-					for(int i = 1; i <= MaxClients; i++)
-					{
-						if(IsClientInGame(i) && !IsFakeClient(i) && ClientPredict[i] == 0)
-						{
-							if(i != owner)
-							{
-								EmitSoundToClient(i, sample, entity, channel, level, flags, volume, pitch);
-							}
-						}
-					}
-					
-				}
-				else
-				{
-					char MySound2[256];
-					Format(MySound2, sizeof(MySound2), "%s%s", sample, ".wav");
-					EmitSoundToClient(owner, MySound2, entity, channel, level, flags, volume, pitch);
-					
-					// 声音也传递给其他关闭预测的真人玩家
-					for(int i = 1; i <= MaxClients; i++)
-					{
-						if(IsClientInGame(i) && !IsFakeClient(i) && ClientPredict[i] == 0)
-						{
-							if(i != owner)
-							{
-								EmitSoundToClient(i, sample, entity, channel, level, flags, volume, pitch);
-							}
-						}
-					}
-					
-				}
-			}
-		}		
-	}
-	
-	//修复禁用客户端预测时脚步声消失的bug
-    if(StrContains(sample, "player/footsteps") != -1 || StrContains(sample, "player/land") != -1 )
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(attacker == inflictor && inflictor <= MaxClients)
     {
-		  decl String:str11[32];
-	      GetEdictClassname(entity, str11, sizeof(str11));
-		  if(IsValidEntity(entity) && entity > 0 && entity <= MaxClients && ClientPredict[entity] == 0)
-		  {
-			  // PrintToChat(entity, "提示：响应！");
-			  // EmitSound(clients, numClients, sample, entity, channel, level, flags, volume, pitch);
-			  if(StrContains(sample, ".wav") != -1)
-			  {
-				  EmitSoundToClient(entity, sample, entity, channel, level, flags, volume, pitch);
-				  
-				  // 声音也传递给其他关闭预测的真人玩家
-				    for(int i = 1; i <= MaxClients; i++)
-					{
-						if(IsClientInGame(i) && !IsFakeClient(i) && ClientPredict[i] == 0)
-						{
-							if(i != entity)
-							{
-								EmitSoundToClient(i, sample, entity, channel, level, flags, volume, pitch);
-							}
-						}
-					}
-					
-			  }
-			  else
-			  {
-				char MySound2[256];
-				Format(MySound2, sizeof(MySound2), "%s%s", sample, ".wav");
-				EmitSoundToClient(entity, MySound2, entity, channel, level, flags, volume, pitch);
-				  
-				// 声音也传递给其他关闭预测的真人玩家
-				for(int i = 1; i <= MaxClients; i++)
-				{
-					if(IsClientInGame(i) && !IsFakeClient(i) && ClientPredict[i] == 0)
-					{
-						if(i != entity)
-						{
-							EmitSoundToClient(i, sample, entity, channel, level, flags, volume, pitch);
-						}
-					}
-				}
-				
-			  }			  
-		  }
+        if(!IsValidEntity(attacker))
+            return Plugin_Continue;
+        if(HasEntProp(attacker, Prop_Send, "m_hActiveWeapon") == false)
+            return Plugin_Continue;
+        
+        new currentWeapon = GetEntPropEnt(attacker, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+            return Plugin_Continue;
+        decl String:sWeapon[32];
+        GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+        ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+        decl String:data[2][30];
+        ExplodeString(sWeapon, ";", data, 2, 30);
+        
+        int myWeapon = -1;
+        for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+            if(StrEqual(NewWeaponNames[i], data[1]))
+            {
+                myWeapon = i;
+                break;
+            }
+        }
+        
+        //此函数对手雷无效
+        if(myWeapon > -1 && !StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang"))  
+        {
+            if(NewWeaponDamage[myWeapon] > 0)
+            {
+                //新武器伤害倍率，新武器初始伤害值等于父类武器的伤害值。1.0表示不变，2.0表示将新武器伤害值改为初始伤害值的两倍
+                damage *= NewWeaponDamage[myWeapon];                    
+                return Plugin_Changed;
+            }
+        }
     }
     return Plugin_Continue;
 }
 
 
-//修复禁用客户端预测时新枪弹孔消失的bug
+//改变手雷抛出模型函数，以修复旧版加枪插件不能加载手雷抛出模型的bug
+public Action:Hegrenade_Throw(Handle:timer, DataPack pack)
+{
+    new ent = -1;
+    // new lastent;
+    new owner;
+    int latestEnt = -1;  // 用于记录最新（索引最大）的投掷物
+    
+    pack.Reset(); 
+    int client = pack.ReadCell();
+    int type = pack.ReadCell();
+    decl String:WeaponName[32];
+    pack.ReadString(WeaponName, sizeof(WeaponName));
+    CloseHandle(pack);  
+    
+    if(type == 2)
+        ent = FindEntityByClassname(ent, "smokegrenade_projectile");
+    else if(type == 3)
+        ent = FindEntityByClassname(ent, "flashbang_projectile");
+    else
+        ent = FindEntityByClassname(ent, "hegrenade_projectile");
+    while (ent != -1)
+    {
+        owner = GetEntPropEnt(ent, Prop_Send, "m_hThrower")     
+        if (IsValidEntity(ent) && owner == client)
+        {
+            // 记录该实体，并保留索引最大的（即最新创建的）
+            if (latestEnt == -1 || ent > latestEnt)
+                latestEnt = ent;
+            // break;
+        }
+        
+        if(type == 2)
+            ent = FindEntityByClassname(ent, "smokegrenade_projectile");
+        else if(type == 3)
+            ent = FindEntityByClassname(ent, "flashbang_projectile");
+        else
+            ent = FindEntityByClassname(ent, "hegrenade_projectile");
+        /*if (ent == lastent)
+        {
+            ent = -1;
+            break;
+        }       
+        lastent = ent;*/
+    }
+    
+    // if (ent != -1)
+    if (latestEnt != -1)
+    {   
+        decl String:PreStr1[] = "models/weapons/w_";
+        decl String:PreStr2[] = "_thrown.mdl";
+        decl String:Path[64];
+        Format(Path, sizeof(Path), "%s%s%s", PreStr1, WeaponName, PreStr2);
+        TrimString(Path);
+        //如果新手雷附带throw模型，则加载新手雷的抛出模型
+        if(FileExists(Path, true))
+            SetEntityModel(latestEnt, Path);
+    }
+}
+
+
+//修改新武器精度差函数
+public Action:OnPostThink(client)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    new Buttons = GetClientButtons(client);
+    if (Buttons & IN_ATTACK)
+    {
+        new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+            return Plugin_Continue; 
+        decl String:sWeapon[32];
+        GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+        ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+        decl String:data[2][30];
+        ExplodeString(sWeapon, ";", data, 2, 30);
+        
+        int myWeapon = -1;
+        for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+            if(StrEqual(NewWeaponNames[i], data[1]))
+            {
+                myWeapon = i;
+                break;
+            }
+        }
+        
+        //此函数不用于刀和手雷
+        if(myWeapon > -1 && !StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+        {
+            if(NewWeaponAccuracy[myWeapon] > 0 && NewWeaponAccuracy[myWeapon] <= 1)
+            {
+                //可设置精度差范围0.0（不含）-1.0，值0.0将使用基本点差而不是没有精度差
+                SetEntPropFloat(currentWeapon, Prop_Send, "m_fAccuracyPenalty", NewWeaponAccuracy[myWeapon]);           
+                return Plugin_Changed;
+            }
+        }
+    }
+    
+    return Plugin_Continue;
+}
+
+
+// 消除父类武器的枪声以及武器闪烁
+public Action:OnPostThinkPost(client)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    decl String:sWeapon[32];
+    GetEntityClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    decl String:data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    
+    // 消除父类武器枪声
+    if(myWeapon > -1 && !StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+    {
+        bool GrenadeFlag = false;
+        if(StrEqual(NewWeaponFatherNames[myWeapon], "usp") || StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+        {
+            if(HasEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == true && HasEntProp(currentWeapon, Prop_Send, "m_weaponMode") == true && GetEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == 1)
+            {
+                int AmmoType = GetEntProp(currentWeapon, Prop_Send, "m_iSecondaryAmmoType");
+                if(AmmoType > -1)
+                    GrenadeFlag = true;    // 当你的武器适配下挂式榴弹发射器插件并且正处于枪榴弹模式时，该值为真
+            }
+        }
+        
+        if(GrenadeFlag == false && GetEntProp(currentWeapon, Prop_Send, "m_iClip1") > 0 && !IsFakeClient(client))
+        {
+            // 获取当前服务器时间和武器冷却属性的地址
+            // float currentTime = GetGameTime();
+            // Address nextAttackAddr = GetEntityAddress(currentWeapon) + FindSendPropInfo("CBaseCombatWeapon", "m_flNextPrimaryAttack");
+            
+            // 关键操作：先从内存中读取原始值并存储，然后立即写入一个巨大的值
+            // g_fOriginalNextAttack[client] = LoadFromAddress(nextAttackAddr, NumberType_Int32);
+            // StoreToAddress(nextAttackAddr, view_as<int>(currentTime + 9999.0), NumberType_Int32);
+            
+            // 安全地保存原始冷却时间
+            g_fOriginalNextAttack[client] = GetEntPropFloat(currentWeapon, Prop_Send, "m_flNextPrimaryAttack");
+            // 安全地设置一个极大的冷却值，欺骗客户端
+            SetEntPropFloat(currentWeapon, Prop_Send, "m_flNextPrimaryAttack", GetGameTime() + 9999.0);
+        }
+    }
+    
+    // 消除闪烁专用
+    static OldWeapon[MAXPLAYERS + 1];
+    static OldSequence[MAXPLAYERS + 1];
+    static Float:OldCycle[MAXPLAYERS + 1];
+    static bool SetFlag[MAXPLAYERS + 1] = {false};
+    
+    if(!IsPlayerAlive(client))
+        return Plugin_Continue;
+
+    //handle spectators
+    if (ClientVM[client][0] == -1 || ClientVM[client][1] == -1 || !IsValidEntity(ClientVM[client][0]) || !IsValidEdict(ClientVM[client][0]) || !IsValidEntity(ClientVM[client][1]) || !IsValidEdict(ClientVM[client][1]))
+        return Plugin_Continue;
+
+    new Sequence = GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence");
+    new Float:Cycle = GetEntPropFloat(ClientVM[client][0], Prop_Data, "m_flCycle");
+
+    if (!IsValidEdict(currentWeapon))
+    {
+        if(myWeapon > -1)
+        {
+            // new EntEffects = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+            // EntEffects |= EF_NODRAW;
+            // SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects);
+        }
+
+        IsCustom[client] = false;
+
+        OldWeapon[client] = currentWeapon;
+        OldSequence[client] = Sequence;
+        OldCycle[client] = Cycle;
+
+        return Plugin_Continue;
+    }
+    
+    new EntEffects0 = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+    if (EntEffects0 == 0 && IsCustom[client] == true)
+        SetFlag[client] = true;
+    else
+        SetFlag[client] = false;
+
+    //just stuck the weapon switching in here as well instead of a separate hook
+    if (currentWeapon != OldWeapon[client] || SetFlag[client] == true)    // 当前武器产生变化，或使用新武器且默认v模显示时
+    {
+    // ================================================================Add the Weapon Class here first====================================================================================
+        if(myWeapon > -1)    // 切换到新武器时
+        {
+            if(IsADS[client] == true)
+            {
+                // 用老版加载方式加载机瞄模型的新武器，处于机瞄状态时，不作处理
+            }
+            else
+            {
+                //hide viewmodel
+                new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+                EntEffects |= EF_NODRAW;
+                SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+                //unhide unused viewmodel
+                // EntEffects = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+                // EntEffects &= ~EF_NODRAW;
+                // SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects);
+
+// ====================================================================================================================================================
+// =============================================Now Down here Add a [else if] so the plugin assigns the model to the weapon_class======================
+// ====================================================================================================================================================
+                //set model and copy over props from viewmodel to used viewmodel
+                // SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+// ====================================================================================================================================================
+// ====================================================================================================================================================
+                // SetEntPropEnt(ClientVM[client][1], Prop_Send, "m_hWeapon", GetEntPropEnt(ClientVM[client][0], Prop_Send, "m_hWeapon"));
+
+                SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+                SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+
+                IsCustom[client] = true;
+                SetFlag[client] = false;
+            }
+        }
+        else    // 切换到其他武器时
+        {
+            //hide unused viewmodel if the current weapon isn't using it
+            // new EntEffects = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+            // EntEffects |= EF_NODRAW;
+            // SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects);
+            SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", 0);
+
+            IsCustom[client] = false;
+        }
+    }
+    else    // 当前武器没有产生变化，且不是使用新武器+默认v模显示时，持有新武器时几乎每帧执行
+    {
+        if (IsCustom[client])
+        {
+            //copy the animation stuff from the viewmodel to the used one every frame
+            if(IsADS[client] == false)    // 支持机瞄模型的新武器，处于腰射状态时
+            {
+                if(NewWeaponFullAuto[myWeapon] == 0)    // 半自动武器、非自动武器正常同步动画
+                {
+                    SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+                    SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+                    SetEntPropFloat(ClientVM[client][1], Prop_Data, "m_flCycle", Cycle);
+                    
+                    if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                    {
+                        bool ReloadFalg = false;
+                        if(StrEqual(NewWeaponFatherNames[myWeapon], "m3") || StrEqual(NewWeaponFatherNames[myWeapon], "xm1014"))
+                        {
+                            int myWeapon2 = -1;
+                            decl String:sWeapon2[32];
+                            GetEdictClassname(currentWeapon, sWeapon2, sizeof(sWeapon2));
+                            for(int i = 0; i <= (sizeof(ExceptionalShotguns) - 1); i++) {
+                                if(strlen(ExceptionalShotguns[i]) > 0 && StrEqual(ExceptionalShotguns[i], sWeapon2))
+                                {
+                                    myWeapon2 = i;
+                                    break;
+                                }
+                            }
+                            
+                            // IsReloading[currentWeapon] == true意味着父类武器是霰弹枪的新武器正在换弹
+                            if(IsReloading[currentWeapon] == true && NewShotgunAfterReloadIndex[myWeapon] > 0 && myWeapon2 == -1)
+                                ReloadFalg = true;
+                        }
+                        if(ReloadFalg == false)
+                            SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", 0);                       
+                        else    // 对父类武器是霰弹枪的新武器换弹作特殊处理（插播的是reload_after动作）
+                        {
+                            new MyWeaponType = GetEntProp(currentWeapon, Prop_Data, "m_iPrimaryAmmoType");
+                            int Ammo = GetEntProp(client, Prop_Data, "m_iAmmo", 4, MyWeaponType);
+                            if (Ammo > 0)
+                                SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", NewShotgunAfterReloadIndex[myWeapon]);
+                            else    // 打光子弹后不作特殊处理
+                                SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", 0);
+                        }
+                    }
+                }
+                else    // 全自动武器同步射击动画作特殊处理
+                {
+                    bool IsSilencerOn = false;
+                    if(StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") || StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+                    {
+                        if(HasEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == true && HasEntProp(currentWeapon, Prop_Send, "m_weaponMode") == true && GetEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == 1)
+                            IsSilencerOn = true;
+                    }
+                    
+                    new Sequence2 = GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence");
+                    int Result = -1;
+                    
+                    if(IsSilencerOn == false)    // 新武器的父类不是m4a1或usp，或者虽然父类是m4a1或usp但此时为非消音状态
+                    {
+                        ArrayList arr = GetWeaponShootSeqs(NewWeaponNames[myWeapon]);
+                        if (arr != null)
+                        {
+                            int count = arr.Length;
+                            if(count > 1)
+                            {
+                                for (int i = 0; i < count; i++)
+                                {
+                                    int seq = arr.Get(i);
+                                    if(seq == Sequence2)
+                                    {
+                                        Result = seq;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else    // 新武器的父类是m4a1或usp，且此时为消音状态
+                    {
+                        decl String:PostStr[] = "_silenced";
+                        decl String:NewWeaponSilencedNames[64];
+                        Format(NewWeaponSilencedNames, sizeof(NewWeaponSilencedNames), "%s%s", NewWeaponNames[myWeapon], PostStr);
+                        TrimString(NewWeaponSilencedNames); 
+                        
+                        ArrayList arr = GetWeaponShootSeqs(NewWeaponSilencedNames);
+                        if (arr != null)
+                        {
+                            int count = arr.Length;
+                            if(count > 1)
+                            {
+                                for (int i = 0; i < count; i++)
+                                {
+                                    int seq = arr.Get(i);
+                                    if(seq == Sequence2)
+                                    {
+                                        Result = seq;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }                   
+                    
+                    if(Result > -1)    // 当全自动武器执处于腰射状态且正在执行射击动作时
+                    {
+                        new Clip = GetEntProp(currentWeapon, Prop_Send, "m_iClip1");
+                        new MyWeaponType = GetEntProp(currentWeapon, Prop_Data, "m_iPrimaryAmmoType");
+                        int Ammo = GetEntProp(client, Prop_Data, "m_iAmmo", 4, MyWeaponType);
+                        if (Clip <= 0 && Ammo <= 0)
+                        {
+                            // 武器子弹打光时，不同步动画，防止空枪机瞄退出
+                        }
+                        else    // 同步腰射状态下的射击动作
+                        {
+                            bool GrenadeFlag = false;
+                            if(StrEqual(NewWeaponFatherNames[myWeapon], "usp") || StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+                            {
+                                if(HasEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == true && HasEntProp(currentWeapon, Prop_Send, "m_weaponMode") == true)
+                                {
+                                    int AmmoType = GetEntProp(currentWeapon, Prop_Send, "m_iSecondaryAmmoType");
+                                    if(AmmoType > -1)
+                                        GrenadeFlag = true;    // 当你的武器适配下挂式榴弹发射器插件并且正处于枪榴弹模式时，该值为真
+                                }
+                            }
+                            if(GrenadeFlag == false)
+                            {
+                                SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+                                SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+                                SetEntPropFloat(ClientVM[client][1], Prop_Data, "m_flCycle", Cycle);
+
+                                // 新武器的父类不是m4a1或usp时
+                                if(!StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") && !StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+                                {
+                                    if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                                    {
+                                        SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", 0);
+                                    }
+                                }
+                                else    // 父类是m4a1或usp时（但不适配下挂式榴弹发射器插件）
+                                {
+                                    if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                                    {
+                                        SetEntPropFloat(currentWeapon, Prop_Send, "m_flTimeWeaponIdle", GetGameTime());
+                                    }
+                                }
+                            }
+                            else    // 对下挂榴弹新武器降低腰射动作同步频率，防止跳出
+                            {
+                                if(BlockTime[client] == 0)
+                                {
+                                    BlockTime[client] = 1;
+                                    CreateTimer(NewWeaponCycleTime[myWeapon] * 1.5, Timer_RestrictTime2, client);
+                                    
+                                    SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+                                    SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+                                    SetEntPropFloat(ClientVM[client][1], Prop_Data, "m_flCycle", Cycle);
+
+                                    if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                                    {
+                                        SetEntPropFloat(currentWeapon, Prop_Send, "m_flTimeWeaponIdle", GetGameTime());
+                                    }
+                                }
+                            }
+                        }           
+                    }
+                    else    // 为全自动武器正常执行其他动作
+                    {
+                        SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+                        SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+                        SetEntPropFloat(ClientVM[client][1], Prop_Data, "m_flCycle", Cycle);
+
+                        /* if(!StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") && !StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+                        {
+                            if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                            {
+                                SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", 0);
+                            }
+                        }
+                        else
+                        {
+                            if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                            {
+                                SetEntPropFloat(currentWeapon, Prop_Send, "m_flTimeWeaponIdle", GetGameTime());
+                            }
+                        }*/
+                    }
+                }
+            }
+            else    // 用新版加载方式加载机瞄模型的新武器，处于机瞄状态时
+            {
+                if(NewWeaponFullAuto[myWeapon] == 0)    // 半自动武器、非自动武器正常同步射击动画
+                {
+                    SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+                    SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+                    SetEntPropFloat(ClientVM[client][1], Prop_Data, "m_flCycle", Cycle);
+
+                    if ((Cycle < OldCycle[client]) && (Sequence == OldSequence[client]))
+                    {
+                        SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", 0);
+                    }
+                }
+                else
+                {
+                    // 全自动新武器通常不用新版加载方式加载机瞄模型
+                }
+            }
+        }
+    }
+    //hide viewmodel a frame after spawning
+    if (SpawnCheck[client])
+    {
+        SpawnCheck[client] = false;
+        if (IsCustom[client])
+        {
+            new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+            EntEffects |= EF_NODRAW;
+            SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+        }
+    }
+    
+    OldWeapon[client] = currentWeapon;
+    OldSequence[client] = Sequence;
+    OldCycle[client] = Cycle;
+    
+    return Plugin_Continue;
+}
+
+
+public Action:Timer_RestrictTime2(Handle timer, int client)
+{
+    BlockTime[client] = 0;
+    return Plugin_Continue;
+}
+
+
+// 消除父类武器枪声
+public Action:OnPreThink(int client)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+        
+    // 检查并恢复冷却时间
+    if (g_fOriginalNextAttack[client] != 0)
+    {
+        int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+            return Plugin_Continue; 
+        decl String:sWeapon[32];
+        GetEntityClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+        ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+        decl String:data[2][30];
+        ExplodeString(sWeapon, ";", data, 2, 30);
+        
+        int myWeapon = -1;
+        for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+            if(StrEqual(NewWeaponNames[i], data[1]))
+            {
+                myWeapon = i;
+                break;
+            }
+        }
+        
+        if(myWeapon > -1 && !StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+        {
+            bool GrenadeFlag = false;
+            if(StrEqual(NewWeaponFatherNames[myWeapon], "usp") || StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+            {
+                if(HasEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == true && HasEntProp(currentWeapon, Prop_Send, "m_weaponMode") == true && GetEntProp(currentWeapon, Prop_Send, "m_bSilencerOn") == 1)
+                {
+                    int AmmoType = GetEntProp(currentWeapon, Prop_Send, "m_iSecondaryAmmoType");
+                    if(AmmoType > -1)
+                        GrenadeFlag = true;    // 当你的武器适配下挂式榴弹发射器插件并且正处于枪榴弹模式时，该值为真
+                }
+            }
+            
+            if(GrenadeFlag == false && GetEntProp(currentWeapon, Prop_Send, "m_iClip1") > 0 && !IsFakeClient(client))
+            {
+                // Address nextAttackAddr = GetEntityAddress(currentWeapon) + FindSendPropInfo("CBaseCombatWeapon", "m_flNextPrimaryAttack");
+                // StoreToAddress(nextAttackAddr, view_as<int>(g_fOriginalNextAttack[client]), NumberType_Int32);
+                // 更安全地恢复冷却
+                SetEntPropFloat(currentWeapon, Prop_Send, "m_flNextPrimaryAttack", g_fOriginalNextAttack[client]);
+                g_fOriginalNextAttack[client] = 0.0;
+            }
+        }
+    }
+    return Plugin_Continue; 
+}
+
+
+// 防止装备时出错
+public Action:OnWeaponEquip3(client, weapon)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    char sWeapon[64];
+    GetEdictClassname(weapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        UseNewWeapon[client] = true;
+        
+        SDKHook(weapon, SDKHook_ReloadPost, OnWeaponReload);
+        
+        // 如果先购买主武器（新武器），再购买副武器（也是新武器），则强制切换到副武器，以免出错
+        new MainWeapon = GetPlayerWeaponSlot(client, 0);
+        new SecWeapon = GetPlayerWeaponSlot(client, 1);
+        if(weapon == SecWeapon && SecWeapon > 0 && MainWeapon > 0)
+        {
+            char sWeapon2[64];
+            GetEdictClassname(MainWeapon, sWeapon2, sizeof(sWeapon2));
+            ReplaceStringEx(sWeapon2, strlen(sWeapon2), "_", ";");
+            char data2[2][30];
+            ExplodeString(sWeapon2, ";", data2, 2, 30);
+            
+            int myWeapon2 = -1;
+            for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+                if(StrEqual(NewWeaponNames[i], data2[1]))
+                {
+                    myWeapon2 = i;
+                    break;
+                }
+            }
+            
+            if(myWeapon2 > -1)
+            {
+                char sWeapon3[64];
+                GetEdictClassname(weapon, sWeapon3, sizeof(sWeapon3));
+                TrimString(sWeapon3);
+                FakeClientCommand(client, "use %s", sWeapon3);    // 强制切换到副武器，以免出错
+            }
+        }
+        
+        g_fOriginalNextAttack[client] = 0.0;    // 清空新武器射击延迟时间
+    }
+    return Plugin_Continue;
+}
+
+
+// 检测换弹时间
+public Action:OnWeaponReload(weapon)
+{
+    new client = GetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity");
+    if (IsClient(client, true))
+    {
+        IsADS[client] = false;
+        // float ReloadTime = GetEntPropFloat(client, Prop_Send, "m_flNextAttack") - GetGameTime()    //获取换弹时间
+        // CreateTimer(ReloadTime, Timer_RestrictTime, weapon);
+        
+        char sWeapon[64];
+        GetEdictClassname(weapon, sWeapon, sizeof(sWeapon));
+        ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+        char data[2][30];
+        ExplodeString(sWeapon, ";", data, 2, 30);
+        
+        int myWeapon = -1;
+        for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+            if(StrEqual(NewWeaponNames[i], data[1]))
+            {
+                myWeapon = i;
+                break;
+            }
+        }
+        if(myWeapon > -1)
+        {
+            // 对支持机瞄的新武器进行换弹处理
+            if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+            {
+                new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+                EntEffects |= EF_NODRAW;
+                SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+                
+                new EntEffects2 = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+                EntEffects2 &= ~EF_NODRAW;
+                SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects2);
+                SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+            }
+            
+            // 对父类武器是霰弹枪的新武器进行特殊换弹处理
+            if(StrEqual(NewWeaponFatherNames[myWeapon], "m3") || StrEqual(NewWeaponFatherNames[myWeapon], "xm1014"))
+            {
+                int myWeapon2 = -1;
+                decl String:sWeapon2[32];
+                GetEdictClassname(weapon, sWeapon2, sizeof(sWeapon2));
+                for(int i = 0; i <= (sizeof(ExceptionalShotguns) - 1); i++) {
+                    if(strlen(ExceptionalShotguns[i]) > 0 && StrEqual(ExceptionalShotguns[i], sWeapon2))
+                    {
+                        myWeapon2 = i;
+                        break;
+                    }
+                }
+                
+                if(myWeapon2 > -1)
+                {
+                    // PrintToChatAll("特殊霰弹枪");
+                    return Plugin_Handled;
+                }
+                
+                IsReloading[weapon] = true;
+                
+                DataPack pack2 = new DataPack();
+                pack2.WriteCell(client);
+                pack2.WriteCell(weapon);
+                pack2.WriteCell(myWeapon);    
+                CreateTimer(0.1, Timer_RestrictTime_New, pack2);
+            }
+        }
+    }
+    return Plugin_Continue; 
+}
+
+
+// 对父类武器是霰弹枪的新武器进行特殊换弹处理
+public Action:Timer_RestrictTime_New(Handle timer, DataPack pack2)
+{
+    pack2.Reset(); 
+    int client = pack2.ReadCell();
+    int NewWeapon = pack2.ReadCell();
+    int myWeapon = pack2.ReadCell();
+    CloseHandle(pack2);
+    
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue; 
+    
+    if(!IsValidEntity(NewWeapon))
+        return Plugin_Continue;
+    
+    if(myWeapon == -1)
+        return Plugin_Continue;
+    
+    new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEntity(currentWeapon) || currentWeapon == -1 || currentWeapon != NewWeapon)
+        return Plugin_Continue;
+    
+    new MyWeaponType = GetEntProp(currentWeapon, Prop_Data, "m_iPrimaryAmmoType");
+    new ammo = GetEntProp(client, Prop_Data, "m_iAmmo", 4, MyWeaponType);
+    new clip =  GetEntProp(currentWeapon, Prop_Send, "m_iClip1");
+    if((ammo > 0 && clip == NewShotgunClip[myWeapon]) || (ammo == 0 && clip > 0))
+    {
+        IsReloading[NewWeapon] = false;
+        
+        DataPack pack5 = new DataPack();
+        pack5.WriteCell(client);
+        pack5.WriteCell(NewWeapon);
+        pack5.WriteCell(myWeapon);    
+        CreateTimer(0.0, Timer_RestrictTime_New2, pack5);
+    }
+    
+    return Plugin_Continue;
+}
+
+
+// 对父类武器是霰弹枪的新武器进行特殊换弹处理
+public Action:Timer_RestrictTime_New2(Handle timer, DataPack pack2)
+{
+    pack2.Reset(); 
+    int client = pack2.ReadCell();
+    int NewWeapon = pack2.ReadCell();
+    int myWeapon = pack2.ReadCell();
+    CloseHandle(pack2);
+    
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue; 
+    
+    if(!IsValidEntity(NewWeapon))
+        return Plugin_Continue;
+    
+    if(myWeapon == -1)
+        return Plugin_Continue;
+    
+    new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEntity(currentWeapon) || currentWeapon == -1 || currentWeapon != NewWeapon)
+        return Plugin_Continue;
+    
+    int ReloadEndSequence = GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence");
+    if(ReloadEndSequence > 0)
+        NewShotgunAfterReloadIndex[myWeapon] = ReloadEndSequence;    // 记录父类武器是霰弹枪的新武器的reload_after换弹动作
+    
+    return Plugin_Continue;
+    
+}
+
+
+// 对父类武器是霰弹枪的新武器进行特殊换弹处理
+/*public Action:Timer_RestrictTime_New(Handle timer, DataPack pack2)
+{
+    pack2.Reset(); 
+    int client = pack2.ReadCell();
+    int NewWeapon = pack2.ReadCell();
+    int myWeapon = pack2.ReadCell();
+    CloseHandle(pack2);
+    
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue; 
+    
+    if(!IsValidEntity(NewWeapon))
+        return Plugin_Continue;
+    
+    if(myWeapon == -1)
+        return Plugin_Continue;
+    
+    new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEntity(currentWeapon) || currentWeapon == -1 || currentWeapon != NewWeapon)
+        return Plugin_Continue;
+    
+    new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+    EntEffects |= EF_NODRAW;
+    SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+    
+    float TempTime = GetEntPropFloat(client, Prop_Send, "m_flNextAttack");
+    float ReloadTime = TempTime - GetGameTime();    //获取换弹时间
+    if(ReloadTime < 0)
+        return Plugin_Continue;
+    float ReloadTime2_0 = GetEntPropFloat(currentWeapon, Prop_Send, "m_flTimeWeaponIdle") - GetGameTime();
+    if(ReloadTime2_0 > 30.0)
+    {
+        ReloadTime2_0 = ReloadTime2_0 / 30.0;
+        float ReloadTime2 = ReloadTime2_0;      
+        if(ReloadTime2 > ReloadTime)
+            ReloadTime = ReloadTime2;
+    }       
+    // PrintToChatAll("时间1：%f", ReloadTime);
+    // PrintToChatAll("时间2：%f", ReloadTime);
+    
+    SetEntPropFloat(client, Prop_Data, "m_flNextAttack", GetGameTime() + ReloadTime + 0.2);
+    SetTimeWeaponIdle(currentWeapon, GetGameTime() + ReloadTime + 0.2);
+    
+    DataPack pack3 = new DataPack();
+    pack3.WriteCell(client);
+    pack3.WriteCell(myWeapon);  
+    CreateTimer(ReloadTime, Timer_RestrictTime_New2, pack3);
+    
+    return Plugin_Continue;
+}*/
+
+
+// 对父类武器是霰弹枪的新武器进行特殊换弹处理
+/*public Action:Timer_RestrictTime_New2(Handle timer, DataPack pack3)
+{
+    pack3.Reset(); 
+    int client = pack3.ReadCell();
+    int weapon = pack3.ReadCell();
+    CloseHandle(pack3);
+    
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && myWeapon == weapon)
+    {
+        if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+        {
+            SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+            SetEntPropEnt(ClientVM[client][1], Prop_Send, "m_hWeapon", GetEntPropEnt(ClientVM[client][0], Prop_Send, "m_hWeapon"));
+            
+            SetEntProp(ClientVM[client][1], Prop_Send, "m_nSequence", GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence"));
+            SetEntPropFloat(ClientVM[client][1], Prop_Send, "m_flPlaybackRate", GetEntPropFloat(ClientVM[client][0], Prop_Send, "m_flPlaybackRate"));
+            float Cycle = GetEntPropFloat(ClientVM[client][0], Prop_Data, "m_flCycle");
+            SetEntPropFloat(ClientVM[client][1], Prop_Data, "m_flCycle", Cycle);
+        }
+    }
+    return Plugin_Continue;
+}*/
+
+
+/*SetTimeWeaponIdle(entity, Float:flTime)
+{
+    SetEntPropFloat(entity, Prop_Send, "m_flTimeWeaponIdle", flTime);
+    return 0;
+}*/
+
+
+// 切换武器时对新武器进行处理
+public Action:OnWeaponSwitch3(client, weapon)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    char sWeapon[64];
+    GetEdictClassname(weapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        UseNewWeapon[client] = true;
+        
+        IsADS[client] = false;
+        
+        g_fOriginalNextAttack[client] = 0.0;    // 清空新武器射击延迟时间
+        
+        if(!StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+            SetEntPropFloat(weapon, Prop_Send, "m_flNextPrimaryAttack", GetGameTime() + g_fOriginalNextAttack[client]);
+        
+        CreateTimer(0.0, Timer_SetViewModel, client);
+        
+        // 获取新武器的 Draw 动画序列号
+        int iSequence = GetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence", 4);
+        AddDrawSequence(myWeapon, iSequence);
+    }
+    else
+    {
+        
+    }
+    return Plugin_Continue;
+}
+
+
+// 隐藏默认viewmodel，显示备用viewmodel
+public Action:Timer_SetViewModel(Handle timer, int client)
+{
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        if(NewWeaponFullAuto[myWeapon] == 1)  // 全自动武器彻底隐藏默认viewmodel以消除多余抛壳
+        {
+            if(!StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") && !StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+            {
+                SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", 32);
+                SetEntProp(ClientVM[client][0], Prop_Send, "m_nModelIndex", 0);
+            }          
+        }
+        
+        if (ClientVM[client][1] > 0 && IsValidEntity(ClientVM[client][1]) && IsValidEdict(ClientVM[client][1]))
+        {           
+            //set model and copy over props from viewmodel to used viewmodel
+            new EntEffects = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+            EntEffects &= ~EF_NODRAW;
+            SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects);
+            SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+            SetEntPropEnt(ClientVM[client][1], Prop_Send, "m_hWeapon", GetEntPropEnt(ClientVM[client][0], Prop_Send, "m_hWeapon"));
+        }
+    }
+    else
+    {
+        /*if (ClientVM[client][1] > 0 && IsValidEntity(ClientVM[client][1]) && IsValidEdict(ClientVM[client][1]))
+        {
+            new EntEffects = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+            EntEffects |= EF_NODRAW;
+            SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects);
+        }*/
+    }
+    return Plugin_Continue;
+}
+
+
+// 存储新武器的 Draw 动画序列号。
+bool AddDrawSequence(int weaponIndex, int seq)
+{
+    if (weaponIndex < 0 || weaponIndex >= 256)
+        return false;
+    
+    int count = g_iDrawCount[weaponIndex];
+    // 检查是否已达到最大数量
+    if (count >= 6)
+        return false;
+    
+    // 检查是否已存在该序列号
+    for (int i = 0; i < count; i++)
+    {
+        if (g_iDrawSequence[weaponIndex][i] == seq)
+            return false;
+    }
+    
+    g_iDrawSequence[weaponIndex][count] = seq;
+    g_iDrawCount[weaponIndex] = count + 1;
+    return true;
+}
+
+
+// 掉落武器函数
+public Action:OnWeaponDrop(client, weapon)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    if(!IsPlayerAlive(client))
+        return Plugin_Continue;
+    
+    char sWeapon[64];
+    GetEdictClassname(weapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        CreateTimer(0.0, Timer_CheckWeapons, client);
+    }
+    return Plugin_Continue;
+}
+
+
+public Action:Timer_CheckWeapons(Handle timer, int client)
+{
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    int weaponCount = GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons");
+
+    bool HasNewWeapon = false;
+    // 遍历数组
+    for (int i = 0; i < weaponCount; i++)
+    {
+        // 获取实体ID
+        int weapon = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
+        if (weapon > 0 && IsValidEntity(weapon))
+        {
+            char sWeapon[64];
+            GetEdictClassname(weapon, sWeapon, sizeof(sWeapon));
+            ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+            char data[2][30];
+            ExplodeString(sWeapon, ";", data, 2, 30);
+            
+            int myWeapon = -1;
+            for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
+                if(StrEqual(NewWeaponNames[n], data[1]))
+                {
+                    myWeapon = n;
+                    break;
+                }
+            }
+            if(myWeapon > -1)
+            {
+                HasNewWeapon = true;
+                break;
+            }
+        }
+    }
+    // 如果没有装备新枪
+    if(HasNewWeapon == false)    
+    {
+        UseNewWeapon[client] = false;
+    }
+    
+    return Plugin_Continue;
+}
+
+
+
+// 增强对机瞄和侧瞄插件的兼容性
+public Action OnPlayerRunCmd(int client, int &buttons)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    if (buttons & IN_ATTACK2)
+    {
+        if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
+        return Plugin_Continue;
+    
+        new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+                return Plugin_Continue; 
+        
+        if(UseNewWeapon[client] == true) 
+        {
+            CreateTimer(0.0, Timer_ChangeADSViewModel, client);
+        }
+    }
+    return Plugin_Continue;
+}
+
+
+public Action:Timer_ChangeADSViewModel(Handle timer, int client)
+{
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        if(BlockTime2[client] == 0)
+        {
+            BlockTime2[client] = 1;
+            CreateTimer(0.2, Timer_RestrictTime3, client);
+            
+            char s_Model[64];
+            GetEntPropString(ClientVM[client][0], Prop_Data, "m_ModelName", s_Model, sizeof(s_Model));
+            ReplaceStringEx(s_Model, strlen(s_Model), "models/weapons/v_", "");
+            ReplaceStringEx(s_Model, strlen(s_Model), ".mdl", "");
+            
+            if(!StrEqual(NewWeaponFatherNames[myWeapon], "usp") && !StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+            {
+                bool CanUseADS = false;
+                int myWeapon2 = -1, myWeapon3 = -1;
+                if(g_bADSPluginRunning == true && WeaponsCount2 > 0)    // 检测是否适配机瞄插件
+                {
+                    for(int n = 0; n <= (sizeof(ADSNewWeaponNames) - 1); n++) {
+                        if(StrEqual(ADSNewWeaponNames[n], data[1]))
+                        {
+                            myWeapon2 = n;
+                            break;
+                        }
+                    }
+                }
+                if(g_bSideADSPluginRunning == true && WeaponsCount3 > 0)    // 检测是否适配侧瞄插件
+                {
+                    for(int n = 0; n <= (sizeof(SideADSNewWeaponNames) - 1); n++) {
+                        if(StrEqual(SideADSNewWeaponNames[n], data[1]))
+                        {
+                            myWeapon3 = n;
+                            break;
+                        }
+                    }
+                }
+                if(myWeapon2 > -1 || myWeapon3 > -1)
+                {
+                    CanUseADS = true;
+                }
+                
+                if(CanUseADS == true)  // 如果该武器支持机瞄/侧瞄
+                {
+                    // 获取机瞄/侧瞄衔接动作时间
+                    float ChangeTime = 0.0;
+                    if(myWeapon2 > -1)
+                    {
+                        if(ADSAnim_Move_Time[myWeapon2] > 0.0)
+                            ChangeTime = ADSAnim_Move_Time[myWeapon2];
+                    }
+                    if(myWeapon3 > -1)
+                    {
+                        if(SideADSAnim_Move_Time[myWeapon3] > 0.0)
+                            ChangeTime = SideADSAnim_Move_Time[myWeapon3];
+                    }
+                    
+                    int NowModelIndex = GetEntProp(ClientVM[client][0], Prop_Send, "m_nModelIndex");
+                    if((NewWeaponFullAuto[myWeapon] == 1 && StrContains(s_Model, NewWeaponNames[myWeapon]) != -1 && !StrEqual(s_Model, NewWeaponNames[myWeapon])) || (NewWeaponFullAuto[myWeapon] == 0 && NowModelIndex != NewWeaponsModelIndex[myWeapon]))    // 实际上已切换到腰射状态
+                    {
+                        // PrintToChatAll("腰射");
+                        IsADS[client] = false;
+                        new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+                        EntEffects |= ~EF_NODRAW;
+                        SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+                        
+                        
+                        // 用于消除全自动新武器退回腰射状态时的亮度闪烁
+                        if(NewWeaponFullAuto[myWeapon] == 1)
+                        {
+                            DataPack pack4 = new DataPack();
+                            pack4.WriteCell(client);
+                            pack4.WriteCell(myWeapon);  
+                            CreateTimer(ChangeTime, Timer_ChangeADSViewModel_New, pack4);
+                        }
+                        else    // 用于消除半自动新武器退回腰射状态时的射击动作丢失和亮度闪烁
+                        {
+                            if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+                                SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+                            
+                            DataPack pack4 = new DataPack();
+                            pack4.WriteCell(client);
+                            pack4.WriteCell(myWeapon);  
+                            CreateTimer(ChangeTime, Timer_ChangeADSViewModel_New3, pack4);
+                        }
+                    }
+                    if((NewWeaponFullAuto[myWeapon] == 1 && StrEqual(s_Model, NewWeaponNames[myWeapon])) || (NewWeaponFullAuto[myWeapon] == 0 && NowModelIndex == NewWeaponsModelIndex[myWeapon]))    // 实际上已切换到机瞄状态
+                    {
+                        // PrintToChatAll("机瞄");
+                        IsADS[client] = true;
+                        new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+                        EntEffects &= ~EF_NODRAW;
+                        SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+                        SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", 0);
+                        
+                        // 消除腰射到机瞄的衔接动作的闪烁
+                        SetEntProp(ClientVM[client][0], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+                        if(!StrEqual(NewWeaponFatherNames[myWeapon], "m4a1") && !StrEqual(NewWeaponFatherNames[myWeapon], "usp"))
+                        {
+                            SetEntProp(ClientVM[client][0], Prop_Send, "m_nSequence", 0);
+                        }
+                        
+                        // 用于消除全自动新武器进入机瞄状态时的亮度闪烁
+                        if(NewWeaponFullAuto[myWeapon] == 1)
+                        { 
+                            CreateTimer(ChangeTime, Timer_ChangeADSViewModel_New2, client);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Plugin_Continue;
+}
+
+
+// 消除全自动武器退回腰射状态时的亮度闪烁
+public Action:Timer_ChangeADSViewModel_New(Handle timer, DataPack pack4)
+{
+    pack4.Reset(); 
+    int client = pack4.ReadCell();
+    int myWeapon = pack4.ReadCell();
+    CloseHandle(pack4);
+    
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", 32);
+    SetEntProp(ClientVM[client][0], Prop_Send, "m_nModelIndex", 0);
+    if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+    {
+        SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+    }
+    return Plugin_Continue; 
+}
+
+
+// 消除全自动武器入机瞄/侧瞄状态时的亮度闪烁
+public Action:Timer_ChangeADSViewModel_New2(Handle timer, int client)
+{
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue;
+    
+    if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+    {
+        SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", 0);
+    }
+    return Plugin_Continue;
+}
+
+
+// 消除半自动武器退回腰射状态时的射击动作丢失和亮度闪烁
+public Action:Timer_ChangeADSViewModel_New3(Handle timer, DataPack pack4)
+{
+    pack4.Reset(); 
+    int client = pack4.ReadCell();
+    int myWeapon = pack4.ReadCell();
+    CloseHandle(pack4);
+    
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", 32);
+    // SetEntProp(ClientVM[client][0], Prop_Send, "m_nModelIndex", 0);
+    if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+    {
+        new EntEffects = GetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects");
+        EntEffects &= ~EF_NODRAW;
+        SetEntProp(ClientVM[client][1], Prop_Send, "m_fEffects", EntEffects);
+        SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+    }
+    return Plugin_Continue; 
+}
+
+
+public Action:Timer_RestrictTime3(Handle timer, int client)
+{
+    BlockTime2[client] = 0;
+    return Plugin_Continue;
+}
+
+
+// 增强对侧瞄插件的兼容性
+public Action:Command_SideADS(client, const String:cmd[], argc)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(client == 0)
+        client = 1;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    if(IsClient(client,true))
+    {
+        if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
+        return Plugin_Continue;
+    
+        new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+                return Plugin_Continue; 
+        
+        if(UseNewWeapon[client] == true) 
+        {
+            CreateTimer(0.0, Timer_ChangeSideADSViewModel, client);
+        }
+    }
+    return Plugin_Continue;
+}
+
+
+public Action:Timer_ChangeSideADSViewModel(Handle timer, int client)
+{
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        char s_Model[64];
+        GetEntPropString(ClientVM[client][0], Prop_Data, "m_ModelName", s_Model, sizeof(s_Model));
+        ReplaceStringEx(s_Model, strlen(s_Model), "models/weapons/v_", "");
+        ReplaceStringEx(s_Model, strlen(s_Model), ".mdl", "");
+        
+        
+        if(!StrEqual(NewWeaponFatherNames[myWeapon], "usp") && !StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+        {
+            bool CanUseADS = false;
+            int myWeapon2 = -1;
+            if(g_bSideADSPluginRunning == true && WeaponsCount3 > 0)    // 检测是否适配侧瞄插件
+            {
+                for(int n = 0; n <= (sizeof(SideADSNewWeaponNames) - 1); n++) {
+                    if(StrEqual(SideADSNewWeaponNames[n], data[1]))
+                    {
+                        myWeapon2 = n;
+                        break;
+                    }
+                }
+            }
+            if(myWeapon2 > -1)
+            {
+                CanUseADS = true;
+            }
+            
+            if(CanUseADS == true)  // 如果该武器支持侧瞄
+            {
+                // 获取侧瞄衔接动作时间
+                float ChangeTime = 0.0;
+                if(SideADSAnim_Move_Time[myWeapon2] > 0.0)
+                    ChangeTime = SideADSAnim_Move_Time[myWeapon2];
+                
+                int NowModelIndex = GetEntProp(ClientVM[client][0], Prop_Send, "m_nModelIndex");
+                if((NewWeaponFullAuto[myWeapon] == 1 && StrEqual(s_Model, SideADSNewWeaponsZoomModel[myWeapon2])) || (NewWeaponFullAuto[myWeapon] == 0 && NowModelIndex == NewWeaponsModelIndex[myWeapon]))    // 实际上已切换到腰射状态
+                {
+                    // PrintToChatAll("腰射");
+                    IsADS[client] = false;
+                    new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+                    EntEffects |= ~EF_NODRAW;
+                    SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+                    
+                    // 用于消除全自动新武器退回腰射状态时的亮度闪烁
+                    if(NewWeaponFullAuto[myWeapon] == 1)
+                    {
+                        DataPack pack4 = new DataPack();
+                        pack4.WriteCell(client);
+                        pack4.WriteCell(myWeapon);  
+                        CreateTimer(ChangeTime, Timer_ChangeADSViewModel_New, pack4);
+                    }
+                    else    // 用于消除半自动新武器退回腰射状态时的射击动作丢失和亮度闪烁
+                    {
+                        if (ClientVM[client][1] > 0 && IsValidEdict(ClientVM[client][1]) && IsValidEntity(ClientVM[client][1]))
+                            SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", NewWeaponsModelIndex[myWeapon]);
+                        
+                        DataPack pack4 = new DataPack();
+                        pack4.WriteCell(client);
+                        pack4.WriteCell(myWeapon);  
+                        CreateTimer(ChangeTime, Timer_ChangeADSViewModel_New3, pack4);
+                    }
+                }
+                if((NewWeaponFullAuto[myWeapon] == 1 && StrEqual(s_Model, NewWeaponNames[myWeapon])) || (NewWeaponFullAuto[myWeapon] == 1 && StrContains(s_Model, NewWeaponNames[myWeapon]) != -1 && !StrEqual(s_Model, SideADSNewWeaponsZoomModel[myWeapon2])) || (NewWeaponFullAuto[myWeapon] == 0 && NowModelIndex == NewWeaponsModelIndex[myWeapon]))    // 实际上已切换到机瞄状态
+                {
+                    // PrintToChatAll("侧瞄");
+                    IsADS[client] = true;
+                    new EntEffects = GetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects");
+                    EntEffects &= ~EF_NODRAW;
+                    SetEntProp(ClientVM[client][0], Prop_Send, "m_fEffects", EntEffects);
+                    SetEntProp(ClientVM[client][1], Prop_Send, "m_nModelIndex", 0);
+                    
+                    // 用于消除全自动新武器进入侧瞄状态时的亮度闪烁
+                    if(NewWeaponFullAuto[myWeapon] == 1)
+                    { 
+                        CreateTimer(ChangeTime, Timer_ChangeADSViewModel_New2, client);
+                    }
+                }
+            }
+        }
+    }
+    return Plugin_Continue;
+}
+
+
+// 增强对快速近战插件的兼容性
+public Action:Command_QuickMelee(client, const String:cmd[], argc)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(client == 0)
+        client = 1;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    if(IsClient(client,true))
+    {
+        if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
+        return Plugin_Continue;
+    
+        new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+                return Plugin_Continue; 
+        
+        CreateTimer(0.0, Timer_ChangeViewModel2, client);
+    }
+    return Plugin_Continue;
+}
+
+
+// 增强对飞刀插件的兼容性
+public Action:Command_ThrowKnives(client, const String:cmd[], argc)
+{
+    if(isEnabled == false)
+        return Plugin_Continue;
+    
+    if(client == 0)
+        client = 1;
+    
+    if(!IsValidEntity(client))
+        return Plugin_Continue;
+    
+    if(IsClient(client,true))
+    {
+        if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
+        return Plugin_Continue;
+    
+        new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+                return Plugin_Continue; 
+        
+        new knife = GetPlayerWeaponSlot(client, 2);
+        if(knife > 0 && knife != currentWeapon)
+        {
+            CreateTimer(0.0, Timer_ChangeViewModel2, client);
+        }
+    }
+    return Plugin_Continue;
+}
+
+
+public Action:Timer_ChangeViewModel2(Handle timer, int client)
+{   
+    if(!IsValidEntity(client) || !IsClient(client, true))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(client, true))
+    {
+        CreateTimer(0.0, Timer_SetViewModel, client);
+    }
+    return Plugin_Continue;
+}
+
+
+//修复新武器枪火、弹孔消失的bug
 public Action Hook_FireTE(const char[] te_name, const int[] Players, int numClients, float delay)
 {
-	new client = TE_ReadNum("m_iPlayer") + 1;
-	if(IsValidEntity(client) && client > 0 && client <= MaxClients && ClientPredict[client] == 0)
+    if(isEnabled == false)
+        return Plugin_Continue; 
+    
+    new client = TE_ReadNum("m_iPlayer") + 1;
+    
+    if(IsValidEntity(client) && client > 0 && client <= MaxClients && UseNewWeapon[client] == true)
     {
-		int MyShoot = -1;
-		for(int i = 0; i < numClients; i++) {
-			if(Players[i] == client)
-		    {
-			    MyShoot = i;
-			    break;
-		    }
-		}
-		if(MyShoot == -1)
-		{
-			// PrintToChat(client, "符合客户实体：%d", client);
-			if(HasEntProp(client, Prop_Send, "m_hActiveWeapon") == false)
-		        return Plugin_Continue;
-			new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-			int myWeapon = -1;			
-			if (IsValidEdict(currentWeapon) && (currentWeapon > -1))
-			{
-				char sWeapon[64];
-				GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
-				ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
-				char data[2][30];
-				ExplodeString(sWeapon, ";", data, 2, 30);
-				
-				
-				for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
-					if(StrEqual(NewWeaponNames[i], data[1]))
-					{
-						myWeapon = i;
-						break;
-					}
-				}
-			}				
-            	
-			if(myWeapon == -1 && IsFakeClient(client))
-				return Plugin_Continue;
-			if (myWeapon > -1)
-			{
-				int MyMode = TE_ReadNum("m_iMode");
-				if( MyMode == 1 && StrEqual(NewWeaponFatherNames[myWeapon], "sg550") )
-					 TE_WriteNum("m_iWeaponID", 13);    //连狙开镜时只能发出父类武器的枪声      
-                if( MyMode == 1 && StrEqual(NewWeaponFatherNames[myWeapon], "g3sg1") )
-					TE_WriteNum("m_iWeaponID", 23);    //连狙开镜时只能发出父类武器的枪声     		
-				if(MyMode == 0 || ( !StrEqual(NewWeaponFatherNames[myWeapon], "sg550") && !StrEqual(NewWeaponFatherNames[myWeapon], "g3sg1")) ) 
-				{
-					TE_WriteNum("m_iWeaponID", 24);    //修复客户端新枪的枪声变为原版武器的bug
-				}				    
-			}		
-			
-			// 检测真人玩家数量
-			int RealPlayerNum = 0;
-			for(int i = 1; i <= MaxClients; i++)
-			{
-				if(IsClientInGame(i) && !IsFakeClient(i))
-				{
-					RealPlayerNum++;
-				}
-			}
-			
-			// 非联机状态
-			if(RealPlayerNum <= 1)
-			{
-				numClients ++;
-				TE_SendToClient(client);
-			}
-			
-			// 联机状态下，弹孔和枪声传递给所有关闭预测的真人玩家
-			else
-			{
-				int RealPlayers[128] = 0;
-				int num = 0;
-				for(int i = 1; i <= MaxClients; i++)
-				{
-					if(IsClientInGame(i) && !IsFakeClient(i) && ClientPredict[i] == 0)
-					{
-						RealPlayers[num] = i;
-						num++;
-					}
-				}
-				if(num > 0)
-				{
-					numClients = numClients + num;
-					TE_Send(RealPlayers, num);
-				}
-			}
-			
-			return Plugin_Changed;		
-		}
+        new currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+        if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+            return Plugin_Continue; 
+        decl String:sWeapon[32];
+        GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+        ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+        decl String:data[2][30];
+        ExplodeString(sWeapon, ";", data, 2, 30);
+        
+        int myWeapon = -1;
+        for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+            if(StrEqual(NewWeaponNames[i], data[1]))
+            {
+                myWeapon = i;
+                break;
+            }
+        }
+    
+        if(myWeapon > -1)
+        {
+            int WeaponID = TE_ReadNum("m_iWeaponID");
+            // PrintToServer("武器ID：%d", WeaponID);
+            if(WeaponID != 24)
+            {
+                if(NewWeaponBullets[myWeapon] < 2)
+                {
+                    // 手动重建弹孔临时实体
+                    TE_Start("Shotgun Shot");
+                    TE_WriteNum("m_iPlayer", client - 1); // 注意：原接口中玩家索引通常从0开始
+                    TE_WriteNum("m_iWeaponID", 24);    //修复客户端新枪的枪声变为原版武器的bug
+                    
+                     // 发送给所有玩家（这会让弹孔显示出来）
+                    TE_SendToAll(0.0);          
+                    return Plugin_Stop;  
+                }
+                else    // 霰弹枪有多个弹孔，特殊处理
+                {
+                    int Bullets = 1;
+                    if(NewWeaponBullets[myWeapon] >= 8)
+                        Bullets = 8;
+                    else
+                        Bullets = NewWeaponBullets[myWeapon]
+                    
+                    float fOrigin[3]; 
+                    TE_ReadVector("m_vecOrigin", fOrigin);
+                    
+                    for (int i = 0; i < Bullets; i++)    // 默认6个弹孔
+                    {
+                        // 手动重建弹孔临时实体
+                        TE_Start("Shotgun Shot");
+                        TE_WriteNum("m_iPlayer", client - 1); // 注意：原接口中玩家索引通常从0开始
+                        TE_WriteNum("m_iWeaponID", 24);    //修复客户端新枪的枪声变为原版武器的bug
+                        
+                        float fNewOrigin[3];
+                        GetRandomSpreadPosition(fNewOrigin, fOrigin); // 计算散布位置
+                        TE_WriteVector("m_vecOrigin", fNewOrigin);
+                        
+                         // 发送给所有玩家（这会让弹孔显示出来）
+                        TE_SendToAll(0.0); 
+                    }
+                    
+                    return Plugin_Stop;  
+                }   
+            }
+            else
+                return Plugin_Continue;   
+        }
     }
-	return Plugin_Continue;
+    
+    return Plugin_Continue;
+}
+
+
+// 自定义的散布计算函数
+void GetRandomSpreadPosition(float fNewOrigin[3], float originalOrigin[3])
+{
+    // 定义散布范围，单位是游戏内的长度单位（通常为英寸），你可以根据需要调整
+    // 例如：50.0 表示在X轴和Y轴上最多偏移 50 个单位
+    float spreadRange = 4.0; 
+    
+    // 生成随机偏移量
+    float offset[3];
+    offset[0] = GetRandomFloat(-spreadRange, spreadRange);
+    offset[1] = GetRandomFloat(-spreadRange, spreadRange);
+    offset[2] = GetRandomFloat(-spreadRange, spreadRange); // Z轴的偏移量通常较小或为0，以免弹孔“飞”到空中
+    
+    // 将偏移量加到原始命中点上
+    fNewOrigin[0] = originalOrigin[0] + offset[0];
+    fNewOrigin[1] = originalOrigin[1] + offset[1];
+    fNewOrigin[2] = originalOrigin[2] + offset[2];
+}
+
+
+public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{
+    if(isEnabled == false)
+        return;
+    
+    new victim = GetClientOfUserId(GetEventInt(event, "userid"));
+    UseNewWeapon[victim] = false;
+    IsADS[victim] = false;
+    
+    if (ClientVM[victim][1] == -1 || !IsValidEntity(ClientVM[victim][1]))
+        return;
+    
+    new EntEffects = GetEntProp(ClientVM[victim][1], Prop_Send, "m_fEffects");
+    EntEffects |= EF_NODRAW;
+    SetEntProp(ClientVM[victim][1], Prop_Send, "m_fEffects", EntEffects);   
+    return;
+}
+
+
+//when a player repsawns at round start after surviving previous round the viewmodel is unhidden
+public Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+    if(isEnabled == false)
+        return;
+    
+    new UserId = GetEventInt(event, "userid");
+    new client = GetClientOfUserId(UserId);
+    
+    //use to delay hiding viewmodel a frame or it won't work
+    SpawnCheck[client] = true; 
+
+    g_fOriginalNextAttack[client] = 0.0;
+    BlockTime[client] = 0;
+    BlockTime2[client] = 0;
+    IsADS[client] = false;
+    UseNewWeapon[client] = false;
+    
+    int currentWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return; 
+    
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1)
+    {
+        UseNewWeapon[client] = true;
+        CreateTimer(0.1, Timer_SetViewModel, client);
+        
+        if(!StrEqual(NewWeaponFatherNames[myWeapon], "hegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "smokegrenade") && !StrEqual(NewWeaponFatherNames[myWeapon], "flashbang") && !StrEqual(NewWeaponFatherNames[myWeapon], "knife"))
+            SetEntPropFloat(currentWeapon, Prop_Send, "m_flNextPrimaryAttack", GetGameTime() + g_fOriginalNextAttack[client]);
+    }
+    
+    return;
+}  
+
+
+// 设置玩家的第二个视图模型
+public OnEntityCreated(entity, const String:classname[])
+{  
+    if(isEnabled == false)
+        return;
+
+    if (StrEqual(classname, "predicted_viewmodel", false))
+    {
+        SDKHook(entity, SDKHook_Spawn, OnEntitySpawned);
+    }
+    
+    return;
+}
+
+
+//find both of the clients viewmodels
+public OnEntitySpawned(entity)
+{
+    new Owner = GetEntPropEnt(entity, Prop_Send, "m_hOwner");
+    if ((Owner > 0) && (Owner <= MaxClients))
+    {
+        if (GetEntProp(entity, Prop_Send, "m_nViewModelIndex") == 0)
+        {
+            ClientVM[Owner][0] = entity;
+            SDKHook(entity, SDKHook_SetTransmit, Hook_SetTransmit_Suppress);
+        }
+        else if (GetEntProp(entity, Prop_Send, "m_nViewModelIndex") == 1)
+        {
+            ClientVM[Owner][1] = entity;
+        }
+    }
+}
+
+
+// 隐藏腰射时多余的弹壳和枪火
+public Action Hook_SetTransmit_Suppress(int entity, int client)
+{
+    // 阻止该实体对任何客户端进行网络传输（即让所有玩家都看不见它）
+    // 获取该 viewmodel 的主人
+    int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwner");
+    if (owner < 1 || owner > MaxClients || !IsClientInGame(owner))
+        return Plugin_Continue;
+    
+    if(!IsValidEntity(owner))
+        return Plugin_Continue;
+    
+    int currentWeapon = GetEntPropEnt(owner, Prop_Send, "m_hActiveWeapon");
+    if (!IsValidEdict(currentWeapon) || (currentWeapon == -1))
+        return Plugin_Continue; 
+    
+    char sWeapon[64];
+    GetEdictClassname(currentWeapon, sWeapon, sizeof(sWeapon));
+    ReplaceStringEx(sWeapon, strlen(sWeapon), "_", ";");
+    char data[2][30];
+    ExplodeString(sWeapon, ";", data, 2, 30);
+    
+    int myWeapon = -1;
+    for(int i = 0; i <= (sizeof(NewWeaponNames) - 1); i++) {
+        if(StrEqual(NewWeaponNames[i], data[1]))
+        {
+            myWeapon = i;
+            break;
+        }
+    }
+    if(myWeapon > -1 && IsClient(owner, true) && !IsFakeClient(owner))
+    {
+        if(NewWeaponFullAuto[myWeapon] == 1 && IsADS[owner] == false)    // 新武器处于腰射状态时默认viewmodel
+        {
+            if(!StrEqual(NewWeaponFatherNames[myWeapon], "usp") && !StrEqual(NewWeaponFatherNames[myWeapon], "m4a1"))
+            {
+                return Plugin_Handled;
+            }    
+        }
+    }
+    return Plugin_Continue;
 }
 
 
 //检测玩家属性函数
 bool:IsClient(Client, bool:Alive)
 {
-	return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
+    return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
 }
 
 
+// 每回合开始事件（用于联机）
 public Action:RoundStart(Handle:event, const String:name[], bool:dontBroadcast) 
 {
-	RoundStartTime = GetTickedTime();    //获取每回合开始时间
-	if(isEnabled == true)
-	{
-		// RealPlayerNum：真人玩家人数；OwnerId：房主id
-		int RealPlayerNum = 0;
-		int OwnerId = -1;
-		
-		for(int i = 0; i <= (sizeof(ClientPredict) - 1); i++) {
-			ClientPredict[i] = 1;
-		}
-		
-		for(int i = 1; i <= MaxClients; i++)
-		{
-			if(IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i))
-			{				
-				// 检测回合开始时是否装备新枪
+    RoundStartTime = GetTickedTime();    //获取每回合开始时间
+    if(isEnabled == true)
+    {
+        // RealPlayerNum：真人玩家人数；OwnerId：房主id
+        int RealPlayerNum = 0;
+        int OwnerId = -1;
+        
+        for(int i = 0; i <= MAXPLAYERS; i++) {
+            UseNewWeapon[i] = false;
+            g_fOriginalNextAttack[i] = 0.0;
+            BlockTime[i] = 0;
+            BlockTime2[i] = 0;
+            IsADS[i] = false;
+        }
+        
+        for(int i = 0; i < sizeof(g_iLastShootSeq); i++)
+        {
+            g_iLastShootSeq[i] = -1;
+        }
+        for(int i = 0; i < sizeof(g_iShootCount); i++)
+        {
+            g_iShootCount[i] = -1;
+        }
+        for(int i = 0; i < sizeof(g_iShootCount2); i++)
+        {
+            g_iShootCount2[i] = -1;
+        }
+        
+        for(int i = 0; i < sizeof(IsReloading); i++)
+        {
+            IsReloading[i] = false;
+        }
+        
+        for(int i = 1; i <= MaxClients; i++)
+        {
+            if(IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i))
+            {  
+                // 检测回合开始时是否装备新枪
                 new MainWeapon = GetPlayerWeaponSlot(i, 0);
-				new SecWeapon = GetPlayerWeaponSlot(i, 1);
-				new knife = GetPlayerWeaponSlot(i, 2);
-				
-				int myWeapon1 = -1, myWeapon2 = -1, myWeapon3 = -1;
-				
-				if (IsValidEdict(MainWeapon) && (MainWeapon > -1))
-				{
-					decl String:sWeapon1[32];
-					GetEdictClassname(MainWeapon, sWeapon1, sizeof(sWeapon1));
-					ReplaceStringEx(sWeapon1, strlen(sWeapon1), "_", ";");
-					decl String:data1[2][30];
-					ExplodeString(sWeapon1, ";", data1, 2, 30);
-					
-					for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
-						if(StrEqual(NewWeaponNames[n], data1[1]))
-						{
-							myWeapon1 = n;
-							break;
-						}
-				    }
-				}
-				
-				if (IsValidEdict(SecWeapon) && (SecWeapon > -1))
-				{
-					decl String:sWeapon2[32];
-					GetEdictClassname(SecWeapon, sWeapon2, sizeof(sWeapon2));
-					ReplaceStringEx(sWeapon2, strlen(sWeapon2), "_", ";");
-					decl String:data2[2][30];
-					ExplodeString(sWeapon2, ";", data2, 2, 30);
-					
-					for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
-						if(StrEqual(NewWeaponNames[n], data2[1]))
-						{
-							myWeapon2 = n;
-							break;
-						}
-				    }
-				}
-				
-				if (IsValidEdict(knife) && (knife > -1))
-				{
-					decl String:sWeapon3[32];
-					GetEdictClassname(knife, sWeapon3, sizeof(sWeapon3));
-					ReplaceStringEx(sWeapon3, strlen(sWeapon3), "_", ";");
-					decl String:data3[2][30];
-					ExplodeString(sWeapon3, ";", data3, 2, 30);
-					
-					for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
-						if(StrEqual(NewWeaponNames[n], data3[1]))
-						{
-							myWeapon3 = n;
-							break;
-						}
-				    }
-				}
-				
-				// 记录房主的id
-				if (CheckCommandAccess(i, "generic_admin", ADMFLAG_GENERIC, false))
-				{
-					OwnerId = i;
-				}
-				RealPlayerNum++;
-				
-				if(myWeapon1 > -1 || myWeapon2 > -1 || myWeapon3 > -1)    // 如果装备新枪
-				{
-					ClientCommand(i, "sv_client_predict 0");    //禁用客户端预测	
-					ClientPredict[i] = 0;
-					SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", newWalkSpeed);
-				}
-				else
-				{
-					ClientCommand(i, "sv_client_predict -1");    //启用用客户端预测
-					SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", 1.0);
-					
-					// 回合开始时检测，当玩家不是房主，是普通真人玩家，需要把ClientPredict数组的对应值改为0
-					if (CheckCommandAccess(i, "generic_admin", ADMFLAG_GENERIC, false))
-					{
-						// 玩家是房主
-					}
-					else
-					{
-						// 玩家不是房主
-						ClientPredict[i] = 0;
-					}
-				}
-			}
-		}
-		
-		// 真人玩家人数大于1
-		if(RealPlayerNum > 1)
-		{
-			CreateTimer(1.0, Timer_PrintMessageFiveTimes7, OwnerId);
-		}
-	}
+                new SecWeapon = GetPlayerWeaponSlot(i, 1);
+                new knife = GetPlayerWeaponSlot(i, 2);
+                
+                int myWeapon1 = -1, myWeapon2 = -1, myWeapon3 = -1;
+                
+                if (IsValidEdict(MainWeapon) && (MainWeapon > -1))
+                {
+                    decl String:sWeapon1[32];
+                    GetEdictClassname(MainWeapon, sWeapon1, sizeof(sWeapon1));
+                    ReplaceStringEx(sWeapon1, strlen(sWeapon1), "_", ";");
+                    decl String:data1[2][30];
+                    ExplodeString(sWeapon1, ";", data1, 2, 30);
+                    
+                    for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
+                        if(StrEqual(NewWeaponNames[n], data1[1]))
+                        {
+                            myWeapon1 = n;
+                            break;
+                        }
+                    }
+                }
+                
+                if (IsValidEdict(SecWeapon) && (SecWeapon > -1))
+                {
+                    decl String:sWeapon2[32];
+                    GetEdictClassname(SecWeapon, sWeapon2, sizeof(sWeapon2));
+                    ReplaceStringEx(sWeapon2, strlen(sWeapon2), "_", ";");
+                    decl String:data2[2][30];
+                    ExplodeString(sWeapon2, ";", data2, 2, 30);
+                    
+                    for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
+                        if(StrEqual(NewWeaponNames[n], data2[1]))
+                        {
+                            myWeapon2 = n;
+                            break;
+                        }
+                    }
+                }
+                
+                if (IsValidEdict(knife) && (knife > -1))
+                {
+                    decl String:sWeapon3[32];
+                    GetEdictClassname(knife, sWeapon3, sizeof(sWeapon3));
+                    ReplaceStringEx(sWeapon3, strlen(sWeapon3), "_", ";");
+                    decl String:data3[2][30];
+                    ExplodeString(sWeapon3, ";", data3, 2, 30);
+                    
+                    for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
+                        if(StrEqual(NewWeaponNames[n], data3[1]))
+                        {
+                            myWeapon3 = n;
+                            break;
+                        }
+                    }
+                }
+                
+                if(myWeapon1 > -1 || myWeapon2 > -1 || myWeapon3 > -1)    // 如果装备新枪
+                {
+                    UseNewWeapon[i] = true;
+                }
+                
+                // 记录房主的id
+                if (CheckCommandAccess(i, "generic_admin", ADMFLAG_GENERIC, false))
+                {
+                    OwnerId = i;
+                }
+                RealPlayerNum++;
+            }
+        }
+        
+        // 真人玩家人数大于1
+        if(RealPlayerNum > 1)
+        {
+            CreateTimer(1.0, Timer_PrintMessageFiveTimes7, OwnerId);
+        }
+    }
+    return Plugin_Continue;
 }
 
 
 // 联机时的每回合开始函数
 public Action:Timer_PrintMessageFiveTimes7(Handle timer, int OwnerId)
 {
-	if(!IsValidEntity(OwnerId))
-		return Plugin_Continue;
-	ServerCommand("sv_client_predict 0");    //联机每回合开始时禁用服务器客户端预测
-	if(ClientPredict[OwnerId] == 1)
-	{
-		ClientPredict[OwnerId] = 0;
-		SetEntPropFloat(OwnerId, Prop_Data, "m_flLaggedMovementValue", newWalkSpeed);
-		
-		for(int i = 1; i <= MaxClients; i++)
-		{
-			if(IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i))
-			{
-				if (CheckCommandAccess(i, "generic_admin", ADMFLAG_GENERIC, false))
-				{
-					// 玩家是房主
-				}
-				else
-				{
-					SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", newWalkSpeed);
-					// 检测非房主真人玩家回合开始时是否装备新枪
-					new MainWeapon = GetPlayerWeaponSlot(i, 0);
-					new SecWeapon = GetPlayerWeaponSlot(i, 1);
-					new knife = GetPlayerWeaponSlot(i, 2);
-					
-					int myWeapon1 = -1, myWeapon2 = -1, myWeapon3 = -1;
-					
-					if (IsValidEdict(MainWeapon) && (MainWeapon > -1))
-					{
-						decl String:sWeapon1[32];
-						GetEdictClassname(MainWeapon, sWeapon1, sizeof(sWeapon1));
-						ReplaceStringEx(sWeapon1, strlen(sWeapon1), "_", ";");
-						decl String:data1[2][30];
-						ExplodeString(sWeapon1, ";", data1, 2, 30);
-						
-						for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
-							if(StrEqual(NewWeaponNames[n], data1[1]))
-							{
-								myWeapon1 = n;
-								break;
-							}
-						}
-					}
-					
-					if (IsValidEdict(SecWeapon) && (SecWeapon > -1))
-					{
-						decl String:sWeapon2[32];
-						GetEdictClassname(SecWeapon, sWeapon2, sizeof(sWeapon2));
-						ReplaceStringEx(sWeapon2, strlen(sWeapon2), "_", ";");
-						decl String:data2[2][30];
-						ExplodeString(sWeapon2, ";", data2, 2, 30);
-						
-						for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
-							if(StrEqual(NewWeaponNames[n], data2[1]))
-							{
-								myWeapon2 = n;
-								break;
-							}
-						}
-					}
-					
-					// 如果装备新枪
-					if((myWeapon1 > -1 || myWeapon2 > -1) && (IsValidEdict(knife) && (knife > -1)))    
-					{
-						if(HasEntProp(i, Prop_Send, "m_hActiveWeapon") == false)
-							return Plugin_Continue;
-						// 切换到刀
-						SetEntPropEnt(i, Prop_Send, "m_hActiveWeapon", knife);
-					}
-				}				
-			}
-		}
-	}
+    if(!IsValidEntity(OwnerId))
+        return Plugin_Continue;
+        
+    for(int i = 1; i <= MaxClients; i++)
+    {
+        if(IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i))
+        {
+            if (CheckCommandAccess(i, "generic_admin", ADMFLAG_GENERIC, false))
+            {
+                // 玩家是房主
+            }
+            else
+            {
+                // 检测非房主真人玩家回合开始时是否装备新枪
+                new MainWeapon = GetPlayerWeaponSlot(i, 0);
+                new SecWeapon = GetPlayerWeaponSlot(i, 1);
+                new knife = GetPlayerWeaponSlot(i, 2);
+                
+                int myWeapon1 = -1, myWeapon2 = -1;
+                
+                if (IsValidEdict(MainWeapon) && (MainWeapon > -1))
+                {
+                    decl String:sWeapon1[32];
+                    GetEdictClassname(MainWeapon, sWeapon1, sizeof(sWeapon1));
+                    ReplaceStringEx(sWeapon1, strlen(sWeapon1), "_", ";");
+                    decl String:data1[2][30];
+                    ExplodeString(sWeapon1, ";", data1, 2, 30);
+                    
+                    for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
+                        if(StrEqual(NewWeaponNames[n], data1[1]))
+                        {
+                            myWeapon1 = n;
+                            break;
+                        }
+                    }
+                }
+                
+                if (IsValidEdict(SecWeapon) && (SecWeapon > -1))
+                {
+                    decl String:sWeapon2[32];
+                    GetEdictClassname(SecWeapon, sWeapon2, sizeof(sWeapon2));
+                    ReplaceStringEx(sWeapon2, strlen(sWeapon2), "_", ";");
+                    decl String:data2[2][30];
+                    ExplodeString(sWeapon2, ";", data2, 2, 30);
+                    
+                    for(int n = 0; n <= (sizeof(NewWeaponNames) - 1); n++) {
+                        if(StrEqual(NewWeaponNames[n], data2[1]))
+                        {
+                            myWeapon2 = n;
+                            break;
+                        }
+                    }
+                }
+                
+                // 如果装备新枪
+                if((myWeapon1 > -1 || myWeapon2 > -1) && (IsValidEdict(knife) && (knife > -1)))    
+                {
+                    if(HasEntProp(i, Prop_Send, "m_hActiveWeapon") == false)
+                        return Plugin_Continue;
+                    // 切换到刀
+                    SetEntPropEnt(i, Prop_Send, "m_hActiveWeapon", knife);
+                }
+            }               
+        }
+    }
+    
+    return Plugin_Continue;
 }
 

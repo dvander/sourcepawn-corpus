@@ -1,6 +1,6 @@
 /*
 *	Ragdoll Fader
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.2"
+#define PLUGIN_VERSION 		"1.3"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.3 (11-Jan-2024)
+	- Added cvars to turn on/off the plugin in specific game mores. Requested by "S.A.S".
 
 1.2 (12-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
@@ -49,6 +52,10 @@
 #include <sourcemod>
 #include <sdktools>
 
+#define CVAR_FLAGS			FCVAR_NOTIFY
+
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
+bool g_bCvarAllow, g_bMapStarted;
 int g_iRagdollFader, g_iPlayerSpawn, g_iRoundStart;
 
 
@@ -79,8 +86,26 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-	CreateConVar("l4d_ragdoll_fader", PLUGIN_VERSION, "Ragdoll Fader plugin version.", FCVAR_DONTRECORD);
+	// =========================
+	// CVARS
+	// =========================
+	g_hCvarAllow =			CreateConVar(	"l4d_ragdoll_fader_allow",			"1",				"0=Plugin off, 1=Plugin on.", CVAR_FLAGS );
+	g_hCvarModes =			CreateConVar(	"l4d_ragdoll_fader_modes",			"",					"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
+	g_hCvarModesOff =		CreateConVar(	"l4d_ragdoll_fader_modes_off",		"",					"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
+	g_hCvarModesTog =		CreateConVar(	"l4d_ragdoll_fader_modes_tog",		"0",				"Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus, 8=Scavenge. Add numbers together.", CVAR_FLAGS );
+	CreateConVar(							"l4d_ragdoll_fader", PLUGIN_VERSION, "Ragdoll Fader plugin version.", FCVAR_DONTRECORD);
+	AutoExecConfig(true,					"l4d_ragdoll_fader");
 
+	g_hCvarMPGameMode = FindConVar("mp_gamemode");
+	g_hCvarMPGameMode.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarModes.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarModesOff.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarModesTog.AddChangeHook(ConVarChanged_Allow);
+	g_hCvarAllow.AddChangeHook(ConVarChanged_Allow);
+
+	// =========================
+	// EVENTS
+	// =========================
 	HookEvent("round_end",			Event_RoundEnd,		EventHookMode_PostNoCopy);
 	HookEvent("round_start",		Event_RoundStart,	EventHookMode_PostNoCopy);
 	HookEvent("player_spawn",		Event_PlayerSpawn,	EventHookMode_PostNoCopy);
@@ -89,6 +114,121 @@ public void OnPluginStart()
 public void OnPluginEnd()
 {
 	ResetPlugin();
+}
+
+public void OnMapStart()
+{
+	g_bMapStarted = true;
+}
+
+public void OnMapEnd()
+{
+	g_bMapStarted = false;
+
+	ResetPlugin();
+}
+
+
+
+// ====================================================================================================
+//					CVARS
+// ====================================================================================================
+public void OnConfigsExecuted()
+{
+	IsAllowed();
+}
+
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+{
+	IsAllowed();
+}
+
+void IsAllowed()
+{
+	bool bCvarAllow = g_hCvarAllow.BoolValue;
+	bool bAllowMode = IsAllowedGameMode();
+
+	if( g_bCvarAllow == false && bCvarAllow == true && bAllowMode == true )
+	{
+		CreateFader();
+		g_bCvarAllow = true;
+	}
+
+	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
+	{
+		ResetPlugin();
+		g_bCvarAllow = false;
+	}
+}
+
+int g_iCurrentMode;
+bool IsAllowedGameMode()
+{
+	if( g_hCvarMPGameMode == null )
+		return false;
+
+	int iCvarModesTog = g_hCvarModesTog.IntValue;
+	if( iCvarModesTog != 0 )
+	{
+		if( g_bMapStarted == false )
+			return false;
+
+		g_iCurrentMode = 0;
+
+		int entity = CreateEntityByName("info_gamemode");
+		if( IsValidEntity(entity) )
+		{
+			DispatchSpawn(entity);
+			HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
+			HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
+			HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
+			HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
+			ActivateEntity(entity);
+			AcceptEntityInput(entity, "PostSpawnActivate");
+			if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
+				RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
+		}
+
+		if( g_iCurrentMode == 0 )
+			return false;
+
+		if( !(iCvarModesTog & g_iCurrentMode) )
+			return false;
+	}
+
+	char sGameModes[64], sGameMode[64];
+	g_hCvarMPGameMode.GetString(sGameMode, sizeof(sGameMode));
+	Format(sGameMode, sizeof(sGameMode), ",%s,", sGameMode);
+
+	g_hCvarModes.GetString(sGameModes, sizeof(sGameModes));
+	if( sGameModes[0] )
+	{
+		Format(sGameModes, sizeof(sGameModes), ",%s,", sGameModes);
+		if( StrContains(sGameModes, sGameMode, false) == -1 )
+			return false;
+	}
+
+	g_hCvarModesOff.GetString(sGameModes, sizeof(sGameModes));
+	if( sGameModes[0] )
+	{
+		Format(sGameModes, sizeof(sGameModes), ",%s,", sGameModes);
+		if( StrContains(sGameModes, sGameMode, false) != -1 )
+			return false;
+	}
+
+	return true;
+}
+
+void OnGamemode(const char[] output, int caller, int activator, float delay)
+{
+	if( strcmp(output, "OnCoop") == 0 )
+		g_iCurrentMode = 1;
+	else if( strcmp(output, "OnSurvival") == 0 )
+		g_iCurrentMode = 2;
+	else if( strcmp(output, "OnVersus") == 0 )
+		g_iCurrentMode = 4;
+	else if( strcmp(output, "OnScavenge") == 0 )
+		g_iCurrentMode = 8;
 }
 
 
@@ -104,11 +244,6 @@ void ResetPlugin()
 }
 
 void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
-{
-	ResetPlugin();
-}
-
-public void OnMapEnd()
 {
 	ResetPlugin();
 }

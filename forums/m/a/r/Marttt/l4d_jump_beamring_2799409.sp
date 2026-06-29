@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.4 (09-February-2025)
+    - Compatibility update for SM 1.12.
+
 1.0.3 (08-July-2023)
     - Added cvar to enable beam by client flag. (thanks "Lider99 " for requesting)
 
@@ -23,7 +26,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Jump Beam Ring"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Creates a colored beam ring on player jump"
-#define PLUGIN_VERSION                "1.0.3"
+#define PLUGIN_VERSION                "1.0.4"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=341804"
 
 // ====================================================================================================
@@ -179,7 +182,7 @@ enum struct PluginData
     PluginCookies cookies;
 
     bool eventsHooked;
-    bool enabled;
+    bool enable;
     char model[PLATFORM_MAX_PATH];
     int modelIndex;
     char sColor[12];
@@ -205,7 +208,7 @@ enum struct PluginData
 
     void GetCvarValues()
     {
-        this.enabled = this.cvars.l4d_jump_beamring_enable.BoolValue;
+        this.enable = this.cvars.l4d_jump_beamring_enable.BoolValue;
         this.cvars.l4d_jump_beamring_model.GetString(this.model, sizeof(this.model));
         TrimString(this.model);
         if (this.model[0] != 0)
@@ -235,7 +238,7 @@ enum struct PluginData
 
     void HookEvents()
     {
-        if (this.enabled && !this.eventsHooked)
+        if (this.enable && !this.eventsHooked)
         {
             this.eventsHooked = true;
 
@@ -244,7 +247,7 @@ enum struct PluginData
             return;
         }
 
-        if (!this.enabled && this.eventsHooked)
+        if (!this.enable && this.eventsHooked)
         {
             this.eventsHooked = false;
 
@@ -333,7 +336,7 @@ int MenuHandlerColor(Menu menu, MenuAction action, int param1, int param2)
 
 public void OnMapStart()
 {
-    if (plugin.enabled && plugin.model[0] != 0)
+    if (plugin.enable && plugin.model[0] != 0)
         plugin.modelIndex = PrecacheModel(plugin.model, true);
 }
 
@@ -452,7 +455,9 @@ public void Event_PlayerJump(Event event, char[] error, bool dontBroadcast)
         }
         else
         {
-            color = plugin.color;
+            color[0] = plugin.color[0];
+            color[1] = plugin.color[1];
+            color[2] = plugin.color[2];
         }
     }
     color[3] = plugin.alpha;
@@ -483,7 +488,7 @@ public void Event_PlayerJump(Event event, char[] error, bool dontBroadcast)
 // ====================================================================================================
 Action CmdBeamJumpColor(int client, int args)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return Plugin_Handled;
 
     if (!IsValidClient(client))
@@ -577,7 +582,7 @@ Action Cmd_PrintCvars(int client, int args)
     PrintToConsole(client, "------------------ Plugin Cvars (l4d_jump_beamring) ------------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_jump_beamring_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_jump_beamring_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
+    PrintToConsole(client, "l4d_jump_beamring_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
     PrintToConsole(client, "l4d_jump_beamring_model : \"%s\"", plugin.model);
     PrintToConsole(client, "l4d_jump_beamring_color : \"%s\"", plugin.sColor);
     PrintToConsole(client, "l4d_jump_beamring_alpha : %i", plugin.alpha);

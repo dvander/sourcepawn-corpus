@@ -1,6 +1,6 @@
 /*
 *	Glare
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2025 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.14"
+#define PLUGIN_VERSION 		"2.16"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+2.16 (21-May-2025)
+	- Added checks to prevent creating Glare beams on clients who don't have access to the "sm_glare" command. Requested by "SotName".
+
+2.15 (10-Jan-2024)
+	- Fixed the saved color not restoring on connection when the cookies are loaded early. Thanks to "Voevoda" for reporting.
+	- Possibly fixed rare invalid handle errors. Thanks to "Voevoda" for reporting.
 
 2.14 (28-Aug-2022)
 	- Really fixed invalid handles.
@@ -148,7 +155,7 @@
 
 
 ConVar g_hCvarAllow, g_hCvarAlpha, g_hCvarBots, g_hCvarColor, g_hCvarCustom, g_hCvarDefault, g_hCvarHalo, g_hCvarLength, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarTransmit, g_hCvarWidth;
-int g_iCvarAlpha, g_iCvarBots, g_iCvarColor, g_iCvarCustom, g_iCvarDefault, g_iCvarLength, g_iCvarTransmit, g_iCvarWidth;
+int g_iCvarAlpha, g_iCvarBots, g_iCvarColor, g_iCvarCustom, g_iCvarDefault, g_iCvarLength, g_iCvarTransmit, g_iCvarWidth, g_iCommandCheck;
 bool g_bCvarAllow, g_bMapStarted, g_bLateLoad, g_bLeft4Dead2, g_bAttachments;
 float g_fCvarHalo;
 Handle g_hCookie;
@@ -343,7 +350,7 @@ public void OnClientDisconnect_Post(int client)
 	g_bQuitting[client] = false;
 }
 
-public void OnClientPutInServer(int client)
+public void OnClientConnected(int client)
 {
 	g_iGlareColor[client] = g_iCvarColor;
 
@@ -371,6 +378,8 @@ public void OnClientCookiesCached(int client)
 {
 	if( g_iCvarCustom == 2 && !IsFakeClient(client) )
 	{
+		if( !HasClientAccess(client) ) return;
+
 		char sCookie[10];
 		GetClientCookie(client, g_hCookie, sCookie, sizeof(sCookie));
 
@@ -418,7 +427,14 @@ Action CmdGlare(int client, int args)
 	{
 		ReplyToCommand(client, "Command can only be used %s", IsDedicatedServer() ? "in game on a dedicated server." : "in chat on a Listen server.");
 	}
-	else if( args == 0 )
+
+	if( !HasClientAccess(client) )
+	{
+		ReplyToCommand(client, "[SM] %T.", "No Access", client);
+		return Plugin_Handled;
+	}
+
+	if( args == 0 )
 	{
 		g_hMenu.Display(client, 0);
 	}
@@ -608,6 +624,7 @@ public void OnMapStart()
 public void OnMapEnd()
 {
 	g_bMapStarted = false;
+	g_iCommandCheck = 0;
 	OnPluginEnd();
 }
 
@@ -682,7 +699,7 @@ void IsAllowed()
 			{
 				if( IsClientInGame(i) )
 				{
-					OnClientPutInServer(i);
+					OnClientConnected(i);
 					OnClientCookiesCached(i);
 				}
 			}
@@ -1066,8 +1083,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				char sTemp[32];
 				GetClientWeapon(client, sTemp, sizeof(sTemp));
 
-				int val;
-				if( g_hWeapons.GetValue(sTemp[7], val) == false )
+				if( g_hWeapons.ContainsKey(sTemp[7]) == false )
 				{
 					g_iPlayerEnum[client] |= ENUM_BLOCK;
 				}
@@ -1156,19 +1172,20 @@ void CreateLight(int client)
 
 	if( !g_bQuitting[client] )
 	{
-		g_hTimerCreate[client] = CreateTimer(0.3, TimerCreate, GetClientUserId(client));
+		g_hTimerCreate[client] = CreateTimer(0.3, TimerCreate, client);
 	}
 }
 
 Action TimerCreate(Handle timer, int client)
 {
-	client = GetClientOfUserId(client);
-	if( client && IsClientInGame(client) )
+	g_hTimerCreate[client] = null;
+
+	if( IsClientInGame(client) )
 	{
+		if( !IsFakeClient(client) && !HasClientAccess(client) ) return Plugin_Continue;
+
 		CreateBeam(client);
 	}
-
-	g_hTimerCreate[client] = null;
 
 	return Plugin_Continue;
 }
@@ -1215,8 +1232,7 @@ void CreateBeam(int client)
 
 	GetClientWeapon(client, sTemp, sizeof(sTemp));
 
-	int val;
-	if( g_hWeapons.GetValue(sTemp[7], val) )
+	if( g_hWeapons.ContainsKey(sTemp[7]) )
 	{
 		int bone = Attachments_GetWorldModel(client, weapon);
 		SetVariantString("!activator");
@@ -1235,7 +1251,7 @@ Action Hook_SetTransmitLight(int entity, int client)
 	return Plugin_Continue;
 }
 
-Action TimerLightOn(Handle timer, any client)
+Action TimerLightOn(Handle timer, int client)
 {
 	client = GetClientOfUserId(client);
 	if( client && IsClientInGame(client) )
@@ -1260,4 +1276,22 @@ bool IsValidEntRef(int entity)
 	if( entity && EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
 		return true;
 	return false;
+}
+
+bool HasClientAccess(int client)
+{
+	if( g_iCommandCheck == 0 ) // Prevent constantly checking clients for access if no override is found on each map change
+	{
+		int flags;
+		GetCommandOverride("sm_glare", Override_Command, flags);
+
+		if( flags )
+			g_iCommandCheck = 1;
+		else
+			g_iCommandCheck = 2;
+	}
+
+	if( g_iCommandCheck == 2 ) return true;
+
+	return CheckCommandAccess(client, "sm_glare", 0);
 }

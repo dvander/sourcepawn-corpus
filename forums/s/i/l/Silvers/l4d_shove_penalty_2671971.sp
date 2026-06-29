@@ -1,6 +1,6 @@
 /*
 *	Shove Penalty Unlocker
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.5"
+#define PLUGIN_VERSION 		"1.6"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+1.6 (05-May-2024)
+	- Fixed the plugin breaking in the recent L4D1 Linux update. Thanks to "HarryPotter" for reporting and testing.
+	- GameData and plugin updated.
 
 1.5 (25-Apr-2022)
 	- Fixed the plugin not initializing. Thanks to "Orinuse" for reporting.
@@ -127,7 +131,7 @@ public void OnPluginStart()
 		g_ByteSaved[i] = LoadFromAddress(g_Address + view_as<Address>(i), NumberType_Int8);
 	}
 
-	if( g_ByteSaved[0] != (g_ByteCount == 1 ? 0x0F : 0xE8) ) SetFailState("Failed to load, byte mis-match. %d (0x%02X != 0xE8)", offset, g_ByteSaved[0]);
+	if( g_ByteSaved[0] != (g_ByteCount == 1 ? 0x75 : 0xE8) ) SetFailState("Failed to load, byte mis-match. %d (0x%02X != 0xE8)", offset, g_ByteSaved[0]);
 
 	delete hGameData;
 
@@ -163,7 +167,7 @@ public void OnConfigsExecuted()
 	GetCvars();
 }
 
-public void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -178,9 +182,8 @@ void GetCvars()
 // ====================================================================================================
 //					FATIGUE
 // ====================================================================================================
-
 //This hook will be useful for our purpose because there are no events fired when player shoves.
-public Action HookSound_Callback(int Clients[64], int &NumClients, char StrSample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
+Action HookSound_Callback(int Clients[64], int &NumClients, char StrSample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
 {
 	if( g_iTimePenalty == 5 )
 		return Plugin_Continue;
@@ -237,7 +240,7 @@ void PatchAddress(bool patch)
 		// Linux
 		if( g_ByteCount == 1 )
 		{
-			StoreToAddress(g_Address + view_as<Address>(1), 0x89, NumberType_Int8);
+			StoreToAddress(g_Address, 0x79, NumberType_Int8); // 0x75 JNZ (jump short if non zero) to 0x79 JS (Jump short if not sign) - always not jump
 		}
 		else
 		// Windows
@@ -249,6 +252,7 @@ void PatchAddress(bool patch)
 	else if( patched && !patch )
 	{
 		patched = false;
+
 		for( int i = 0; i < g_ByteCount; i++ )
 			StoreToAddress(g_Address + view_as<Address>(i), g_ByteSaved[i], NumberType_Int8);
 	}

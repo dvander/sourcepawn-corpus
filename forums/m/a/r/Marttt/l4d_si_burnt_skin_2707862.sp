@@ -213,7 +213,7 @@ public void OnPluginStart()
     g_hCvar_Chance        = CreateConVar("l4d_si_burnt_skin_chance", "100.0", "Chance of a special infected spawn with burnt skin.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_MinPercent    = CreateConVar("l4d_si_burnt_skin_min_percent", "0.0", "Minimal random % of skin burn on special infecteds.", CVAR_FLAGS, true, 0.0, true, 100.0);
     g_hCvar_MaxPercent    = CreateConVar("l4d_si_burnt_skin_max_percent", "100.0", "Maximum random % of skin burn on special infecteds.", CVAR_FLAGS, true, 0.0, true, 100.0);
-    g_hCvar_DmgMultiplier = CreateConVar("l4d_si_burnt_skin_dmg_multiplier", "10.0", "Damage bonus % multiplied by the percentage of the special infected burnt skin.\nFormula: Damage + (Damage * Bonus / 100 * Burn Percentage).\n0 = OFF.", CVAR_FLAGS, true, -100.0);
+    g_hCvar_DmgMultiplier = CreateConVar("l4d_si_burnt_skin_dmg_multiplier", "0.0", "Damage bonus % multiplied by the percentage of the special infected burnt skin.\nFormula: Damage + (Damage * Bonus / 100 * Burn Percentage).\n0 = OFF.", CVAR_FLAGS, true, -100.0);
 
     if (g_bL4D2)
         g_hCvar_SI        = CreateConVar("l4d_si_burnt_skin_si", "127", "Which special infected should have burnt skin.\n1 = SMOKER, 2 = BOOMER, 4 = HUNTER, 8 = SPITTER, 16 = JOCKEY, 32 = CHARGER, 64 = TANK.\nAdd numbers greater than 0 for multiple options.\nExample: \"127\", enables burnt skin for all SI.", CVAR_FLAGS, true, 0.0, true, 127.0);
@@ -291,8 +291,6 @@ void GetCvars()
     g_fCvar_DmgMultiplier = g_hCvar_DmgMultiplier.FloatValue;
     g_bCvar_DmgMultiplier = g_fCvar_DmgMultiplier != 0.0;
     g_iCvar_SI = g_hCvar_SI.IntValue;
-
-    HookEvents();
 }
 
 /****************************************************************************************************/

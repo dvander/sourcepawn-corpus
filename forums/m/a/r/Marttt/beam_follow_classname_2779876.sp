@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.1 (09-February-2025)
+    - Compatibility update for SM 1.12.
+
 1.0.0 (09-May-2022)
     - Initial release.
 
@@ -14,7 +17,7 @@ Change Log:
 #define PLUGIN_NAME                   "[ANY] Beam/Trail Follow by Classname"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Creates a beam that follow entities by classname"
-#define PLUGIN_VERSION                "1.0.0"
+#define PLUGIN_VERSION                "1.0.1"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=337859"
 
 // ====================================================================================================
@@ -60,25 +63,28 @@ public Plugin myinfo =
 #define NO_HALO                       0
 
 // ====================================================================================================
-// Plugin Cvars
+// enum structs - Plugin Variables
 // ====================================================================================================
-ConVar g_hCvar_Enabled;
+PluginData plugin;
 
 // ====================================================================================================
-// bool - Plugin Variables
+// enums / enum structs
 // ====================================================================================================
-bool g_bConfigsExecuted;
-bool g_bCvar_Enabled;
+enum struct PluginCvars
+{
+    ConVar beam_follow_classname_version;
+    ConVar beam_follow_classname_enable;
 
-// ====================================================================================================
-// ArrayList - Plugin Variables
-// ====================================================================================================
-ArrayList g_alBeamFollowing;
+    void Init()
+    {
+        this.beam_follow_classname_version = CreateConVar("beam_follow_classname_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
+        this.beam_follow_classname_enable  = CreateConVar("beam_follow_classname_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
 
-// ====================================================================================================
-// StringMap - Plugin Variables
-// ====================================================================================================
-StringMap g_smClassnameConfig;
+        this.beam_follow_classname_enable.AddChangeHook(Event_ConVarChanged);
+
+        AutoExecConfig(true, CONFIG_FILENAME);
+    }
+}
 
 // ====================================================================================================
 // enum structs
@@ -99,38 +105,187 @@ enum struct BeamSetup
     int alpha;
 }
 
-// ====================================================================================================
-// enum struct - Plugin Variables
-// ====================================================================================================
-BeamSetup defaultConfig;
+/****************************************************************************************************/
+
+enum struct PluginData
+{
+    PluginCvars cvars;
+    BeamSetup defaultConfig;
+
+    ArrayList alBeamFollowing;
+    StringMap smClassnameConfig;
+
+    bool configsExecuted;
+    bool enable;
+
+    void Init()
+    {
+        this.cvars.Init();
+        this.alBeamFollowing = new ArrayList();
+        this.smClassnameConfig = new StringMap();
+        this.RegisterCmds();
+    }
+
+    void GetCvarValues()
+    {
+        this.enable = this.cvars.beam_follow_classname_enable.BoolValue;
+    }
+
+    void RegisterCmds()
+    {
+        RegAdminCmd("sm_beam_follow_config_reload", Cmd_Reload, ADMFLAG_ROOT, "Reload the beam follow configs.");
+        RegAdminCmd("sm_print_cvars_beam_follow_classname", Cmd_PrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
+    }
+
+    void LoadConfigs()
+    {
+        this.smClassnameConfig.Clear();
+
+        char path[PLATFORM_MAX_PATH];
+        BuildPath(Path_SM, path, sizeof(path), "data/%s.cfg", DATA_FILENAME);
+
+        if (!FileExists(path))
+        {
+            SetFailState("Missing required data file on \"data/%s.cfg\", please re-download.", DATA_FILENAME);
+            return;
+        }
+
+        KeyValues kv = new KeyValues(DATA_FILENAME);
+        kv.ImportFromFile(path);
+
+        if (kv.JumpToKey("default"))
+        {
+            this.defaultConfig.enable = (kv.GetNum("enable", 0) == 1);
+            kv.GetString("model", this.defaultConfig.model, sizeof(BeamSetup::model), "");
+            if (this.defaultConfig.model[0] != 0)
+                this.defaultConfig.modelIndex = PrecacheModel(this.defaultConfig.model, true);
+            this.defaultConfig.lifeDuration = kv.GetFloat("lifeDuration", 0.0);
+            this.defaultConfig.widthStart = kv.GetFloat("widthStart", 0.0);
+            this.defaultConfig.widthEnd = kv.GetFloat("widthEnd", 0.0);
+            this.defaultConfig.fadeDuration = kv.GetNum("fadeDuration", 0);
+            this.defaultConfig.randomColor = (kv.GetNum("randomColor", 0) == 1);
+            kv.GetString("color", this.defaultConfig.color, sizeof(BeamSetup::color), "");
+            this.defaultConfig.colorRGB = ConvertRGBToIntArray(this.defaultConfig.color);
+            this.defaultConfig.randomAlpha = (kv.GetNum("randomAlpha", 0) == 1);
+            this.defaultConfig.alpha = kv.GetNum("alpha", 0);
+        }
+
+        kv.Rewind();
+
+        char section[64];
+        bool enable;
+
+        if (kv.JumpToKey("classnames"))
+        {
+            if (kv.GotoFirstSubKey())
+            {
+                do
+                {
+                    enable = (kv.GetNum("enable", this.defaultConfig.enable) == 1);
+                    if (!enable)
+                        continue;
+
+                    BeamSetup config;
+                    config.enable = enable;
+                    kv.GetString("model", config.model, sizeof(config.model), this.defaultConfig.model);
+                    if (config.model[0] != 0)
+                        config.modelIndex = PrecacheModel(config.model, true);
+                    config.lifeDuration = kv.GetFloat("lifeDuration", this.defaultConfig.lifeDuration);
+                    config.widthStart = kv.GetFloat("widthStart", this.defaultConfig.widthStart);
+                    config.widthEnd = kv.GetFloat("widthEnd", this.defaultConfig.widthEnd);
+                    config.fadeDuration = kv.GetNum("fadeDuration", this.defaultConfig.fadeDuration);
+                    config.randomColor = (kv.GetNum("randomColor", this.defaultConfig.randomColor) == 1);
+                    kv.GetString("color", config.color, sizeof(config.color), this.defaultConfig.color);
+                    config.colorRGB = ConvertRGBToIntArray(config.color);
+                    config.randomAlpha = (kv.GetNum("randomAlpha", this.defaultConfig.randomAlpha) == 1);
+                    config.alpha = kv.GetNum("alpha", this.defaultConfig.alpha);
+
+                    kv.GetSectionName(section, sizeof(section));
+                    TrimString(section);
+                    StringToLowerCase(section);
+
+                    this.smClassnameConfig.SetArray(section, config, sizeof(config));
+                } while (kv.GotoNextKey());
+            }
+        }
+
+        kv.Rewind();
+
+        delete kv;
+    }
+
+    void LateLoad()
+    {
+        int entity;
+        char classname[64];
+
+        entity = INVALID_ENT_REFERENCE;
+        while ((entity = FindEntityByClassname(entity, "*")) != INVALID_ENT_REFERENCE)
+        {
+            if (entity < 0)
+                continue;
+
+            GetEntityClassname(entity, classname, sizeof(classname));
+            OnEntityCreated(entity, classname);
+        }
+    }
+
+    void CreateBeamFollow(int entity, const char[] classname)
+    {
+        int find = this.alBeamFollowing.FindValue(entity);
+
+        if (find != -1)
+            return;
+
+        BeamSetup config;
+        this.smClassnameConfig.GetArray(classname, config, sizeof(config));
+
+        if (!config.enable)
+            return;
+
+        int color[4];
+
+        if (config.randomColor)
+        {
+            color[0] = GetRandomInt(0, 255);
+            color[1] = GetRandomInt(0, 255);
+            color[2] = GetRandomInt(0, 255);
+        }
+        else
+        {
+            color[0] = config.colorRGB[0];
+            color[1] = config.colorRGB[1];
+            color[2] = config.colorRGB[2];
+        }
+
+        if (config.randomAlpha)
+        {
+            color[3] = GetRandomInt(0, 255);
+        }
+        else
+        {
+            color[3] = config.alpha;
+        }
+
+        this.alBeamFollowing.Push(entity);
+        TE_SetupBeamFollow(entity, config.modelIndex, NO_HALO, config.lifeDuration, config.widthStart, config.widthEnd, config.fadeDuration, color);
+        TE_SendToAll();
+    }
+}
 
 // ====================================================================================================
 // Plugin Start
 // ====================================================================================================
 public void OnPluginStart()
 {
-    g_alBeamFollowing = new ArrayList();
-    g_smClassnameConfig = new StringMap();
-
-    CreateConVar("beam_follow_classname_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-    g_hCvar_Enabled = CreateConVar("beam_follow_classname_enable", "1", "Enable/Disable the plugin.\n0 = Disable, 1 = Enable.", CVAR_FLAGS, true, 0.0, true, 1.0);
-
-    // Hook plugin ConVars change
-    g_hCvar_Enabled.AddChangeHook(Event_ConVarChanged);
-
-    // Load plugin configs from .cfg
-    AutoExecConfig(true, CONFIG_FILENAME);
-
-    // Admin Commands
-    RegAdminCmd("sm_beam_follow_config_reload", CmdReload, ADMFLAG_ROOT, "Reload the beam follow configs.");
-    RegAdminCmd("sm_print_cvars_beam_follow_classname", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
+    plugin.Init();
 }
 
 /****************************************************************************************************/
 
 public void OnMapStart()
 {
-    LoadConfigs(); // Refresh model index
+    plugin.LoadConfigs(); // Refresh model index
 
     // Fix for when OnConfigsExecuted is not executed by SM in some games
     RequestFrame(OnConfigsExecuted);
@@ -138,142 +293,34 @@ public void OnMapStart()
 
 /****************************************************************************************************/
 
-public void OnConfigsExecuted()
-{
-    if (g_bConfigsExecuted)
-        return;
-
-    g_bConfigsExecuted = true;
-
-    GetCvars();
-
-    LateLoad();
-}
-
-/****************************************************************************************************/
-
 void Event_ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-    GetCvars();
-
-    LateLoad();
+    OnConfigsExecuted();
 }
 
 /****************************************************************************************************/
 
-void GetCvars()
+public void OnConfigsExecuted()
 {
-    g_bCvar_Enabled = g_hCvar_Enabled.BoolValue;
-}
-
-/****************************************************************************************************/
-
-void LoadConfigs()
-{
-    g_smClassnameConfig.Clear();
-
-    char path[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM, path, sizeof(path), "data/%s.cfg", DATA_FILENAME);
-
-    if (!FileExists(path))
-    {
-        SetFailState("Missing required data file on \"data/%s.cfg\", please re-download.", DATA_FILENAME);
+    if (plugin.configsExecuted)
         return;
-    }
 
-    KeyValues kv = new KeyValues(DATA_FILENAME);
-    kv.ImportFromFile(path);
-
-    if (kv.JumpToKey("default"))
-    {
-        defaultConfig.enable = (kv.GetNum("enable", 0) == 1);
-        kv.GetString("model", defaultConfig.model, sizeof(defaultConfig.model), "");
-        if (defaultConfig.model[0] != 0)
-            defaultConfig.modelIndex = PrecacheModel(defaultConfig.model, true);
-        defaultConfig.lifeDuration = kv.GetFloat("lifeDuration", 0.0);
-        defaultConfig.widthStart = kv.GetFloat("widthStart", 0.0);
-        defaultConfig.widthEnd = kv.GetFloat("widthEnd", 0.0);
-        defaultConfig.fadeDuration = kv.GetNum("fadeDuration", 0);
-        defaultConfig.randomColor = (kv.GetNum("randomColor", 0) == 1);
-        kv.GetString("color", defaultConfig.color, sizeof(defaultConfig.color), "");
-        defaultConfig.colorRGB = ConvertRGBToIntArray(defaultConfig.color);
-        defaultConfig.randomAlpha = (kv.GetNum("randomAlpha", 0) == 1);
-        defaultConfig.alpha = kv.GetNum("alpha", 0);
-    }
-
-    kv.Rewind();
-
-    char section[64];
-    bool enable;
-
-    if (kv.JumpToKey("classnames"))
-    {
-        if (kv.GotoFirstSubKey())
-        {
-            do
-            {
-                enable = (kv.GetNum("enable", defaultConfig.enable) == 1);
-                if (!enable)
-                    continue;
-
-                BeamSetup config;
-                config.enable = enable;
-                kv.GetString("model", config.model, sizeof(config.model), defaultConfig.model);
-                if (config.model[0] != 0)
-                    config.modelIndex = PrecacheModel(config.model, true);
-                config.lifeDuration = kv.GetFloat("lifeDuration", defaultConfig.lifeDuration);
-                config.widthStart = kv.GetFloat("widthStart", defaultConfig.widthStart);
-                config.widthEnd = kv.GetFloat("widthEnd", defaultConfig.widthEnd);
-                config.fadeDuration = kv.GetNum("fadeDuration", defaultConfig.fadeDuration);
-                config.randomColor = (kv.GetNum("randomColor", defaultConfig.randomColor) == 1);
-                kv.GetString("color", config.color, sizeof(config.color), defaultConfig.color);
-                config.colorRGB = ConvertRGBToIntArray(config.color);
-                config.randomAlpha = (kv.GetNum("randomAlpha", defaultConfig.randomAlpha) == 1);
-                config.alpha = kv.GetNum("alpha", defaultConfig.alpha);
-
-                kv.GetSectionName(section, sizeof(section));
-                TrimString(section);
-                StringToLowerCase(section);
-
-                g_smClassnameConfig.SetArray(section, config, sizeof(config));
-            } while (kv.GotoNextKey());
-        }
-    }
-
-    kv.Rewind();
-
-    delete kv;
-}
-
-/****************************************************************************************************/
-
-void LateLoad()
-{
-    int entity;
-    char classname[64];
-
-    entity = INVALID_ENT_REFERENCE;
-    while ((entity = FindEntityByClassname(entity, "*")) != INVALID_ENT_REFERENCE)
-    {
-        if (entity < 0)
-            continue;
-
-        GetEntityClassname(entity, classname, sizeof(classname));
-        OnEntityCreated(entity, classname);
-    }
+    plugin.configsExecuted = true;
+    plugin.GetCvarValues();
+    plugin.LateLoad();
 }
 
 /****************************************************************************************************/
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!g_bCvar_Enabled)
+    if (!plugin.enable)
         return;
 
     if (entity < 0)
         return;
 
-    CreateBeamFollow(entity, classname);
+    plugin.CreateBeamFollow(entity, classname);
 }
 
 /****************************************************************************************************/
@@ -283,62 +330,19 @@ public void OnEntityDestroyed(int entity)
     if (entity < 0)
         return;
 
-    int find = g_alBeamFollowing.FindValue(entity);
+    int find = plugin.alBeamFollowing.FindValue(entity);
 
     if (find != -1)
-        g_alBeamFollowing.Erase(find);
-}
-
-/****************************************************************************************************/
-
-void CreateBeamFollow(int entity, const char[] classname)
-{
-    int find = g_alBeamFollowing.FindValue(entity);
-
-    if (find != -1)
-        return;
-
-    BeamSetup config;
-    g_smClassnameConfig.GetArray(classname, config, sizeof(config));
-
-    if (!config.enable)
-        return;
-
-    int color[4];
-
-    if (config.randomColor)
-    {
-        color[0] = GetRandomInt(0, 255);
-        color[1] = GetRandomInt(0, 255);
-        color[2] = GetRandomInt(0, 255);
-    }
-    else
-    {
-        color = config.colorRGB;
-    }
-
-    if (config.randomAlpha)
-    {
-        color[3] = GetRandomInt(0, 255);
-    }
-    else
-    {
-        color[3] = config.alpha;
-    }
-
-    g_alBeamFollowing.Push(entity);
-    TE_SetupBeamFollow(entity, config.modelIndex, NO_HALO, config.lifeDuration, config.widthStart, config.widthEnd, config.fadeDuration, color);
-    TE_SendToAll();
+        plugin.alBeamFollowing.Erase(find);
 }
 
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
-Action CmdReload(int client, int args)
+Action Cmd_Reload(int client, int args)
 {
-    LoadConfigs();
-
-    LateLoad();
+    plugin.LoadConfigs();
+    plugin.LateLoad();
 
     if (IsValidClient(client))
         PrintToChat(client, "\x04[\x05Beam follow configs \x03reloaded\x04]");
@@ -348,7 +352,7 @@ Action CmdReload(int client, int args)
 
 /****************************************************************************************************/
 
-Action CmdPrintCvars(int client, int args)
+Action Cmd_PrintCvars(int client, int args)
 {
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
@@ -356,11 +360,11 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "--------------- Plugin Cvars (beam_follow_classname) ---------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "beam_follow_classname_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "beam_follow_classname_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
+    PrintToConsole(client, "beam_follow_classname_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "----------------------------- Array List -----------------------------");
     PrintToConsole(client, "");
-    PrintToConsole(client, "g_alBeamFollowing count : %i", g_alBeamFollowing.Length);
+    PrintToConsole(client, "plugin.alBeamFollowing count : %i", plugin.alBeamFollowing.Length);
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

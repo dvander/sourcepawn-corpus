@@ -1,139 +1,136 @@
-#pragma newdecls required
 #pragma semicolon 1
+#pragma newdecls required
 
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
 
-#define PLUGIN_VERSION "0.5e"
-#define CVAR_FLAGS	FCVAR_SPONLY
+#define PLUGIN_VERSION "0.5g"
+#define CVAR_FLAGS FCVAR_NOTIFY
 
-#define TIER2					(1<<0)
-#define TIER1					(1<<1)
-#define MAGNUM					(1<<2)
-#define PISTOL					(1<<3)
+#define TIER2 (1<<0)
+#define TIER1 (1<<1)
+#define MAGNUM (1<<2)
+#define PISTOL (1<<3)
 
-char 	s_Weapons[][] =
-		{
-			"weapon_pistol",					//	[0]
-			"weapon_smg",						//	[1]
-			"weapon_pumpshotgun",				//	[2]
-			"weapon_autoshotgun",				//	[3]
-			"weapon_rifle",						//	[4]
-			"weapon_hunting_rifle",				//	[5]
-			"weapon_smg_silenced",				//	[6]
-			"weapon_shotgun_chrome",			//	[7]
-			"weapon_rifle_desert",				//	[8]
-			"weapon_sniper_military",			//	[9]
-			"weapon_shotgun_spas",				//	[10]
-			"weapon_rifle_ak47",				//	[11]
-			"weapon_pistol_magnum",				//	[12]
-			"weapon_smg_mp5",					//	[13]
-			"weapon_rifle_sg552",				//	[14]
-			"weapon_sniper_awp",				//	[15]
-			"weapon_sniper_scout"				//	[16]
-		},
+static const char g_sWeapons[][] =
+{
+	"weapon_pistol",                  // [0]
+	"weapon_smg",                     // [1]
+	"weapon_pumpshotgun",             // [2]
+	"weapon_autoshotgun",             // [3]
+	"weapon_rifle",                   // [4]
+	"weapon_hunting_rifle",           // [5]
+	"weapon_smg_silenced",            // [6]
+	"weapon_shotgun_chrome",          // [7]
+	"weapon_rifle_desert",            // [8]
+	"weapon_sniper_military",         // [9]
+	"weapon_shotgun_spas",            // [10]
+	"weapon_rifle_ak47",              // [11]
+	"weapon_pistol_magnum",           // [12]
+	"weapon_smg_mp5",                 // [13]
+	"weapon_rifle_sg552",             // [14]
+	"weapon_sniper_awp",              // [15]
+	"weapon_sniper_scout"             // [16]
+};
 
-		s_WeaponSpawns[][] =
-		{
-			"weapon_pistol_spawn",				//	[0]
-			"weapon_smg_spawn",					//	[1]
-			"weapon_pumpshotgun_spawn",			//	[2]
-			"weapon_autoshotgun_spawn",			//	[3]
-			"weapon_rifle_spawn",				//	[4]
-			"weapon_hunting_rifle_spawn",		//	[5]
-			"weapon_smg_silenced_spawn",		//	[6]
-			"weapon_shotgun_chrome_spawn",		//	[7]
-			"weapon_rifle_desert_spawn",		//	[8]
-			"weapon_sniper_military_spawn",		//	[9]
-			"weapon_shotgun_spas_spawn",		//	[10]
-			"weapon_rifle_ak47_spawn",			//	[11]
-			"weapon_pistol_magnum_spawn",		//	[12]
-			"weapon_smg_mp5_spawn",				//	[13]
-			"weapon_rifle_sg552_spawn",			//	[14]
-			"weapon_sniper_awp_spawn",			//	[15]
-			"weapon_sniper_scout_spawn"			//	[16]
-		};
+static const char g_sWeaponSpawns[][] =
+{
+	"weapon_pistol_spawn",            // [0]
+	"weapon_smg_spawn",               // [1]
+	"weapon_pumpshotgun_spawn",       // [2]
+	"weapon_autoshotgun_spawn",       // [3]
+	"weapon_rifle_spawn",             // [4]
+	"weapon_hunting_rifle_spawn",     // [5]
+	"weapon_smg_silenced_spawn",      // [6]
+	"weapon_shotgun_chrome_spawn",    // [7]
+	"weapon_rifle_desert_spawn",      // [8]
+	"weapon_sniper_military_spawn",   // [9]
+	"weapon_shotgun_spas_spawn",      // [10]
+	"weapon_rifle_ak47_spawn",        // [11]
+	"weapon_pistol_magnum_spawn",     // [12]
+	"weapon_smg_mp5_spawn",           // [13]
+	"weapon_rifle_sg552_spawn",       // [14]
+	"weapon_sniper_awp_spawn",        // [15]
+	"weapon_sniper_scout_spawn"       // [16]
+};
 
-int 	i_WeaponIds[] =
-		{
-			1,									//	[0]
-			2,									//	[1]
-			3,									//	[2]
-			4,									//	[3]
-			5,									//	[4]
-			6,									//	[5]
-			7,									//	[6]
-			8,									//	[7]
-			9,									//	[8]
-			10,									//	[9]
-			11,									//	[10]
-			26,									//	[11]
-			32,									//	[12]
-			33,									//	[13]
-			34,									//	[14]
-			35,									//	[15]
-			36									//	[16]
-		},
+static const int g_iWeaponIds[] =
+{
+	1,                                // [0]
+	2,                                // [1]
+	3,                                // [2]
+	4,                                // [3]
+	5,                                // [4]
+	6,                                // [5]
+	7,                                // [6]
+	8,                                // [7]
+	9,                                // [8]
+	10,                               // [9]
+	11,                               // [10]
+	26,                               // [11]
+	32,                               // [12]
+	33,                               // [13]
+	34,                               // [14]
+	35,                               // [15]
+	36                                // [16]
+};
 
-		// Number of rounds in a single weapon
-		i_WeaponsAmmo[] =
-		{
-			0,									//	[0]		//	pistol
-			650,								//	[1]		//	smg
-			128,								//	[2]		//	pumpshotgun
-			128,								//	[3] 	//	autoshotgun
-			450,								//	[4]		//	rifle
-			150,								//	[5]		//	hunting_rifle
-			650,								//	[6]		//	smg_silenced
-			128,								//	[7]		//	shotgun_chrome
-			360,								//	[8]		//	rifle_desert
-			180,								//	[9]		//	sniper_military
-			90,									//	[10]	//	shotgun_spas
-			360,								//	[11]	//	rifle_ak47
-			0,									//	[12]	//	pistol_magnum
-			650,								//	[13]	//	smg_mp5
-			360,								//	[14]	//	rifle_sg552
-			180,								//	[15]	//	sniper_awp
-			180									//	[16]	//	sniper_scout
-		},
+// Number of rounds in a single weapon
+static const int g_iWeaponsAmmo[] =
+{
+	0,                                // [0] pistol
+	650,                              // [1] smg
+	128,                              // [2] pumpshotgun
+	128,                              // [3] autoshotgun
+	450,                              // [4] rifle
+	150,                              // [5] hunting_rifle
+	650,                              // [6] smg_silenced
+	128,                              // [7] shotgun_chrome
+	360,                              // [8] rifle_desert
+	180,                              // [9] sniper_military
+	90,                               // [10] shotgun_spas
+	360,                              // [11] rifle_ak47
+	0,                                // [12] pistol_magnum
+	650,                              // [13] smg_mp5
+	360,                              // [14] rifle_sg552
+	180,                              // [15] sniper_awp
+	180                               // [16] sniper_scout
+};
 
-		i_Tier2Index1[] = {3, 4, 5},
-		i_Tier2Index2[] = {8, 9, 10, 11, 14, 15, 16},
-		i_Tier1Index1[] = {1, 2},
-		i_Tier1Index2[] = {6, 7, 13},
-		i_MagnumIndex = 12,
-		i_PistolIndex = 0;
+static const int g_iTier2Index1[] = {3, 4, 5};
+static const int g_iTier2Index2[] = {8, 9, 10, 11, 14, 15, 16};
+static const int g_iTier1Index1[] = {1, 2};
+static const int g_iTier1Index2[] = {6, 7, 13};
+static const int g_iMagnumIndex = 12;
+static const int g_iPistolIndex = 0;
 		
-ConVar	h_Cvar_PluginEnable, h_Cvar_GunTypes, h_Cvar_AutoShotgunCount, h_Cvar_RifleCount, h_Cvar_Hunting_RifleCount, h_Cvar_PistolCount, h_Cvar_PumpshotgunCount,
-		h_Cvar_SmgCount, h_Cvar_OtherGunsCount, h_Cvar_MaxBotHalt, h_Cvar_MaxClientsLoading;
-
-int	i_Cvar_AutoShotgunCount, i_Cvar_RifleCount, i_Cvar_Hunting_RifleCount, i_Cvar_PistolCount, i_Cvar_PumpshotgunCount,
-	i_Cvar_SmgCount, i_Cvar_OtherGunsCount, i_Cvar_GunTypes, i_Cvar_MaxBotHalt, i_Cvar_MaxClientsLoading;
-	
-Handle h_DelayTimer, h_SbStopTimer, h_SbStopCvar;
-
-bool b_Enable, b_Left4Dead2;
+ConVar g_hCvar_PluginEnable, g_hCvar_GunTypes, g_hCvar_AutoShotgunCount, g_hCvar_RifleCount, g_hCvar_Hunting_RifleCount, g_hCvar_PistolCount, 
+       g_hCvar_PumpshotgunCount, g_hCvar_SmgCount, g_hCvar_OtherGunsCount, g_hCvar_MaxBotHalt, g_hCvar_MaxClientsLoading, g_hSbStopCvar;
+int    g_iCvar_AutoShotgunCount, g_iCvar_RifleCount, g_iCvar_Hunting_RifleCount, g_iCvar_PistolCount, g_iCvar_PumpshotgunCount,
+       g_iCvar_SmgCount, g_iCvar_OtherGunsCount, g_iCvar_GunTypes, g_iCvar_MaxBotHalt, g_iCvar_MaxClientsLoading;
+Handle g_hDelayTimer, g_hSbStopTimer;
+bool   g_bEnable, g_bLeft4Dead2;
 
 public Plugin myinfo =
 {
 	name = "[L4D & L4D2] Single Gun Spawns",
-	author = "Don't Fear The Reaper, [ALLY] Electr0, Dosergen",
+	author = "Don't Fear The Reaper, Electr0, Dosergen",
 	description = "Replaces all gun spawns with single guns",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=172918"
-};
+}
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {	
 	EngineVersion iEngineVersion = GetEngineVersion();
-	if( iEngineVersion == Engine_Left4Dead ) 
+	if (iEngineVersion == Engine_Left4Dead) 
 	{
-		b_Left4Dead2 = false;
+		g_bLeft4Dead2 = false;
 	}
-	else if( iEngineVersion == Engine_Left4Dead2 ) 
+	else if (iEngineVersion == Engine_Left4Dead2) 
 	{
-		b_Left4Dead2 = true;
+		g_bLeft4Dead2 = true;
 	}
 	else
 	{
@@ -147,32 +144,32 @@ public void OnPluginStart()
 {
 	CreateConVar("l4d_1gunspawns_version", PLUGIN_VERSION, "Version of the '[L4D & L4D2] Single Guns Spawns' plugin", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
-	h_Cvar_PluginEnable = CreateConVar("l4d_1gunspawns_enable", "1", "Plugin Enable? (1: ON, 0: OFF)", CVAR_FLAGS, true, 0.0, true, 1.0);
-	h_Cvar_GunTypes = CreateConVar("l4d_1gunspawns_types", "15", "Sum of gun types to get replaced (1: Tier 2, 2: Tier 1, 4: Magnum, 8: Pistol, 15: All)", CVAR_FLAGS, true, 0.0, true, 15.0);
-	h_Cvar_AutoShotgunCount = CreateConVar("l4d_1gunspawns_autoshotgun_count", "1", "Amount of Autoshotguns to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_RifleCount = CreateConVar("l4d_1gunspawns_rifle_count", "1", "Amount of M4s to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_Hunting_RifleCount = CreateConVar("l4d_1gunspawns_hunting_rifle_count", "1", "Amount of Hunting Sniper Rifles to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_PistolCount = CreateConVar("l4d_1gunspawns_pistol_count", "1", "Amount of Pistols to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_PumpshotgunCount = CreateConVar("l4d_1gunspawns_pumpshotgun_count", "1", "Amount of Pumpshotguns to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_SmgCount = CreateConVar("l4d_1gunspawns_smg_count", "1", "Amount of SMGs to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_OtherGunsCount = CreateConVar("l4d_1gunspawns_count", "1", "Amount of Other guns to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
-	h_Cvar_MaxBotHalt = CreateConVar("l4d_1gunspawns_maxbothalt", "30", "Maximum time (in seconds) the survivor bots will be halted on round start", CVAR_FLAGS, true, 0.0, true, 300.0);
-	h_Cvar_MaxClientsLoading = CreateConVar("l4d_1gunspawns_maxloading", "1", "Maximum number of loading clients to ignore on bot reactivation", CVAR_FLAGS, true, 0.0, true, 32.0);
+	g_hCvar_PluginEnable = CreateConVar("l4d_1gunspawns_enable", "1", "Plugin Enable? (1: ON, 0: OFF)", CVAR_FLAGS, true, 0.0, true, 1.0);
+	g_hCvar_GunTypes = CreateConVar("l4d_1gunspawns_types", "15", "Sum of gun types to get replaced (1: Tier 2, 2: Tier 1, 4: Magnum, 8: Pistol, 15: All)", CVAR_FLAGS, true, 0.0, true, 15.0);
+	g_hCvar_AutoShotgunCount = CreateConVar("l4d_1gunspawns_autoshotgun_count", "1", "Amount of Autoshotguns to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_RifleCount = CreateConVar("l4d_1gunspawns_rifle_count", "1", "Amount of M4s to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_Hunting_RifleCount = CreateConVar("l4d_1gunspawns_hunting_rifle_count", "1", "Amount of Hunting Sniper Rifles to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_PistolCount = CreateConVar("l4d_1gunspawns_pistol_count", "1", "Amount of Pistols to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_PumpshotgunCount = CreateConVar("l4d_1gunspawns_pumpshotgun_count", "1", "Amount of Pumpshotguns to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_SmgCount = CreateConVar("l4d_1gunspawns_smg_count", "1", "Amount of SMGs to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_OtherGunsCount = CreateConVar("l4d_1gunspawns_count", "1", "Amount of Other guns to replace a weapon spawn with", CVAR_FLAGS, true, 0.0, true, 16.0);
+	g_hCvar_MaxBotHalt = CreateConVar("l4d_1gunspawns_maxbothalt", "30", "Maximum time (in seconds) the survivor bots will be halted on round start", CVAR_FLAGS, true, 0.0, true, 300.0);
+	g_hCvar_MaxClientsLoading = CreateConVar("l4d_1gunspawns_maxloading", "1", "Maximum number of loading clients to ignore on bot reactivation", CVAR_FLAGS, true, 0.0, true, 32.0);
 
 	AutoExecConfig(true, "l4d_1gunspawns");
 	
-	h_Cvar_PluginEnable.AddChangeHook(ConVarChanged_Allow);
-	h_Cvar_GunTypes.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_AutoShotgunCount.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_RifleCount.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_Hunting_RifleCount.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_PistolCount.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_PumpshotgunCount.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_SmgCount.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_OtherGunsCount.AddChangeHook(ConVarChanged_Cvars);
-	h_SbStopCvar = FindConVar("sb_stop");
-	h_Cvar_MaxBotHalt.AddChangeHook(ConVarChanged_Cvars);
-	h_Cvar_MaxClientsLoading.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_PluginEnable.AddChangeHook(ConVarChanged_Allow);
+	g_hCvar_GunTypes.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_AutoShotgunCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_RifleCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_Hunting_RifleCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_PistolCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_PumpshotgunCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_SmgCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_OtherGunsCount.AddChangeHook(ConVarChanged_Cvars);
+	g_hSbStopCvar = FindConVar("sb_stop");
+	g_hCvar_MaxBotHalt.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvar_MaxClientsLoading.AddChangeHook(ConVarChanged_Cvars);
 	
 	IsAllowed();
 }
@@ -182,311 +179,270 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
 void GetCvars()
 {
-	i_Cvar_GunTypes = h_Cvar_GunTypes.IntValue;
-	i_Cvar_AutoShotgunCount = h_Cvar_AutoShotgunCount.IntValue;
-	i_Cvar_RifleCount = h_Cvar_RifleCount.IntValue;
-	i_Cvar_Hunting_RifleCount = h_Cvar_Hunting_RifleCount.IntValue;
-	i_Cvar_PistolCount = h_Cvar_PistolCount.IntValue;
-	i_Cvar_PumpshotgunCount = h_Cvar_PumpshotgunCount.IntValue;
-	i_Cvar_SmgCount = h_Cvar_SmgCount.IntValue;
-	i_Cvar_OtherGunsCount = h_Cvar_OtherGunsCount.IntValue;
-	i_Cvar_MaxBotHalt = h_Cvar_MaxBotHalt.IntValue;
-	i_Cvar_MaxClientsLoading = h_Cvar_MaxClientsLoading.IntValue;
+	g_iCvar_GunTypes = g_hCvar_GunTypes.IntValue;
+	g_iCvar_AutoShotgunCount = g_hCvar_AutoShotgunCount.IntValue;
+	g_iCvar_RifleCount = g_hCvar_RifleCount.IntValue;
+	g_iCvar_Hunting_RifleCount = g_hCvar_Hunting_RifleCount.IntValue;
+	g_iCvar_PistolCount = g_hCvar_PistolCount.IntValue;
+	g_iCvar_PumpshotgunCount = g_hCvar_PumpshotgunCount.IntValue;
+	g_iCvar_SmgCount = g_hCvar_SmgCount.IntValue;
+	g_iCvar_OtherGunsCount = g_hCvar_OtherGunsCount.IntValue;
+	g_iCvar_OtherGunsCount = g_hCvar_OtherGunsCount.IntValue;	
+	g_iCvar_MaxBotHalt = g_hCvar_MaxBotHalt.IntValue;
+	g_iCvar_MaxClientsLoading = g_hCvar_MaxClientsLoading.IntValue;
 }
 
 void IsAllowed()
 {
-	bool bCvarAllow = h_Cvar_PluginEnable.BoolValue;
+	bool bCvarAllow = g_hCvar_PluginEnable.BoolValue;
 	GetCvars();
-
-	if( b_Enable == false && bCvarAllow == true )
+	if (g_bEnable == false && bCvarAllow == true)
 	{
-		b_Enable = true;
+		g_bEnable = true;
 		HookEvent("round_start", Event_RoundStart, EventHookMode_PostNoCopy);
 		HookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
 	}
 
-	else if( b_Enable == true && bCvarAllow == false )
+	else if (g_bEnable == true && bCvarAllow == false)
 	{
-		b_Enable = false;
+		g_bEnable = false;
 		UnhookEvent("round_start", Event_RoundStart, EventHookMode_PostNoCopy);
 		UnhookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
 	}
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
-	SetConVarBool(h_SbStopCvar, true);
-	h_DelayTimer = CreateTimer(3.0, PrepareMap, _, TIMER_FLAG_NO_MAPCHANGE);
+	g_hSbStopCvar.SetBool(true);
+	g_hDelayTimer = CreateTimer(3.0, PrepareMap, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
-	if (h_DelayTimer != null)
-	{
-		KillTimer(h_DelayTimer);
-		h_DelayTimer = null;
-	}
-	
-	if (h_SbStopTimer != null)
-	{
-		KillTimer(h_SbStopTimer);
-		h_SbStopTimer = null;
-	}
+	delete g_hDelayTimer;
+	delete g_hSbStopTimer;
 }
 
-public Action PrepareMap(Handle Timer)
+Action PrepareMap(Handle Timer)
 {
-	if (b_Left4Dead2)
+	if (g_bLeft4Dead2)
 	{
 		ReplaceRandom("weapon_spawn");
 	}
-
-	if (i_Cvar_GunTypes & TIER2)
+	if (g_iCvar_GunTypes & TIER2)
 	{
-		for (int i = 0; i < sizeof(i_Tier2Index1); i++)
+		for (int i = 0; i < sizeof(g_iTier2Index1); i++)
 		{
-			ReplaceDefined(s_WeaponSpawns[i_Tier2Index1[i]], i_Tier2Index1[i]);
+			ReplaceDefined(g_sWeaponSpawns[g_iTier2Index1[i]], g_iTier2Index1[i]);
 		}
-
-		if (b_Left4Dead2)
+		if (g_bLeft4Dead2)
 		{
-			for (int i = 0; i < sizeof(i_Tier2Index2); i++)
+			for (int i = 0; i < sizeof(g_iTier2Index2); i++)
 			{
-				ReplaceDefined(s_WeaponSpawns[i_Tier2Index2[i]], i_Tier2Index2[i]);
+				ReplaceDefined(g_sWeaponSpawns[g_iTier2Index2[i]], g_iTier2Index2[i]);
 			}
 		}
 	}
-
-	if (i_Cvar_GunTypes & TIER1)
+	if (g_iCvar_GunTypes & TIER1)
 	{
-		for (int i = 0; i < sizeof(i_Tier1Index1); i++)
+		for (int i = 0; i < sizeof(g_iTier1Index1); i++)
 		{
-			ReplaceDefined(s_WeaponSpawns[i_Tier1Index1[i]], i_Tier1Index1[i]);
+			ReplaceDefined(g_sWeaponSpawns[g_iTier1Index1[i]], g_iTier1Index1[i]);
 		}
-
-		if (b_Left4Dead2)
+		if (g_bLeft4Dead2)
 		{
-			for (int i = 0; i < sizeof(i_Tier1Index2); i++)
+			for (int i = 0; i < sizeof(g_iTier1Index2); i++)
 			{
-				ReplaceDefined(s_WeaponSpawns[i_Tier1Index2[i]], i_Tier1Index2[i]);
+				ReplaceDefined(g_sWeaponSpawns[g_iTier1Index2[i]], g_iTier1Index2[i]);
 			}
 		}
 	}
-
-	if ((i_Cvar_GunTypes & MAGNUM) && b_Left4Dead2)
+	if ((g_iCvar_GunTypes & MAGNUM) && g_bLeft4Dead2)
 	{
-		ReplaceDefined(s_WeaponSpawns[i_MagnumIndex], i_MagnumIndex);
+		ReplaceDefined(g_sWeaponSpawns[g_iMagnumIndex], g_iMagnumIndex);
 	}
-
-	if (i_Cvar_GunTypes & PISTOL)
+	if (g_iCvar_GunTypes & PISTOL)
 	{
-		ReplaceDefined(s_WeaponSpawns[i_PistolIndex], i_PistolIndex);
+		ReplaceDefined(g_sWeaponSpawns[g_iPistolIndex], g_iPistolIndex);
 	}
-
-	int i_StartTime = RoundToNearest(GetGameTime());
-	h_SbStopTimer = CreateTimer(1.0, ResetSbStop, i_StartTime, TIMER_REPEAT);
-
-	h_DelayTimer = null;
+	int g_iStartTime = RoundToNearest(GetGameTime());
+	g_hSbStopTimer = CreateTimer(1.0, ResetSbStop, g_iStartTime, TIMER_REPEAT);
+	g_hDelayTimer = null;
 	return Plugin_Stop;
 }
 
-public Action ResetSbStop(Handle h_Timer, any i_StartTime)
+Action ResetSbStop(Handle g_hTimer, any g_iStartTime)
 {
-	int i_PassedTime = RoundToNearest(GetGameTime()) - i_StartTime;
-	
-	if (i_PassedTime >= i_Cvar_MaxBotHalt)
+	int g_iPassedTime = RoundToNearest(GetGameTime()) - g_iStartTime;
+	int g_iClientsLoading = GetClientCount(false) - GetClientCount(true);
+	if (g_iPassedTime >= g_iCvar_MaxBotHalt || g_iClientsLoading > g_iCvar_MaxClientsLoading)
 	{
-		SetConVarBool(h_SbStopCvar, false);
-		h_SbStopTimer = null;
+		g_hSbStopCvar.SetBool(false);
+		g_hSbStopTimer = null;
 		return Plugin_Stop;
 	}
-	
-	int i_ClientsLoading = GetClientCount(false) - GetClientCount(true);
-	
-	if (i_ClientsLoading > i_Cvar_MaxClientsLoading)
-	{
-		SetConVarBool(h_SbStopCvar, false);
-		h_SbStopTimer = null;
-		return Plugin_Stop;
-	}
-	
 	return Plugin_Continue;
 }
 
-void ReplaceDefined(const char[] s_WeaponSpawn, const int i_Index)
+void ReplaceDefined(const char[] g_sWeaponSpawn, const int g_iIndex)
 {
-	int i_EdictIndex = -1;
-
-	while ((i_EdictIndex = FindEntityByClassname(i_EdictIndex, s_WeaponSpawn)) != INVALID_ENT_REFERENCE)
+	int g_iEdictIndex = -1;
+	while ((g_iEdictIndex = FindEntityByClassname(g_iEdictIndex, g_sWeaponSpawn)) != INVALID_ENT_REFERENCE)
 	{
-		ReplaceCount(i_EdictIndex, i_Index);
+		ReplaceCount(g_iEdictIndex, g_iIndex);
 	}
 }
 
-void ReplaceRandom(const char[] s_WeaponSpawn)
+void ReplaceRandom(const char[] g_sWeaponSpawn)
 {
-	int i_EdictIndex = -1;
-
-	while ((i_EdictIndex = FindEntityByClassname(i_EdictIndex, s_WeaponSpawn)) != INVALID_ENT_REFERENCE)
+	int g_iEdictIndex = -1;
+	while ((g_iEdictIndex = FindEntityByClassname(g_iEdictIndex, g_sWeaponSpawn)) != INVALID_ENT_REFERENCE)
 	{
-		int i_Index = CheckWeaponId(GetEntProp(i_EdictIndex, Prop_Send, "m_weaponID"));
-
-		if (i_Index != -1)
+		int g_iIndex = CheckWeaponId(GetEntProp(g_iEdictIndex, Prop_Send, "m_weaponID"));
+		if (g_iIndex != -1)
 		{
-			ReplaceCount(i_EdictIndex, i_Index);
+			ReplaceCount(g_iEdictIndex, g_iIndex);
 		}
 	}
 }
 
-void ReplaceCount(const int i_EdictIndex, const int i_Index)
+void ReplaceCount(const int g_iEdictIndex, const int g_iIndex)
 {
 	float v_Origin[3], v_Angles[3];
-
-	GetEntPropVector(i_EdictIndex, Prop_Send, "m_vecOrigin", v_Origin);
-	GetEntPropVector(i_EdictIndex, Prop_Send, "m_angRotation", v_Angles);
-
-	AcceptEntityInput(i_EdictIndex, "Kill");
-
-	int i_GunCount = GetGunCountById(i_Index);
-
-	for (int i = 1; i <= i_GunCount; i++)
+	GetEntPropVector(g_iEdictIndex, Prop_Send, "m_vecOrigin", v_Origin);
+	GetEntPropVector(g_iEdictIndex, Prop_Send, "m_angRotation", v_Angles);
+	RemoveEntity(g_iEdictIndex);
+	int g_iGunCount = GetGunCountById(g_iIndex);
+	for (int i = 1; i <= g_iGunCount; i++)
 	{
-		int i_NewEdict = CreateEntityByName(s_Weapons[i_Index]);
-
-		DispatchKeyValueVector(i_NewEdict, "origin", v_Origin);
-		DispatchKeyValueVector(i_NewEdict, "angles", v_Angles);		
-		DispatchKeyValue(i_NewEdict, "spawnflags", "1");
-		DispatchSpawn(i_NewEdict);
-		SetEntProp(i_NewEdict, Prop_Send, "m_iExtraPrimaryAmmo", i_WeaponsAmmo[i_Index]);
+		int g_iNewEdict = CreateEntityByName(g_sWeapons[g_iIndex]);
+		DispatchKeyValueVector(g_iNewEdict, "origin", v_Origin);
+		DispatchKeyValueVector(g_iNewEdict, "angles", v_Angles);
+		DispatchKeyValue(g_iNewEdict, "disableshadows", "1");		
+		DispatchKeyValue(g_iNewEdict, "spawnflags", "1");
+		DispatchSpawn(g_iNewEdict);
+		SetEntProp(g_iNewEdict, Prop_Send, "m_iExtraPrimaryAmmo", g_iWeaponsAmmo[g_iIndex]);
 	}
 }
 
-int GetGunCountById(const int i_Index)
+int GetGunCountById(const int g_iIndex)
 {
-	//0 - "weapon_pistol",
-	//1 - "weapon_smg",
-	//2 - "weapon_pumpshotgun",
-	//3 - "weapon_autoshotgun",
-	//4 - "weapon_rifle",
-	//5 - "weapon_hunting_rifle",
-	//6 - "weapon_smg_silenced",
-	//7 - "weapon_shotgun_chrome",
-	//8 - "weapon_rifle_desert",
-	//9 - "weapon_sniper_military",
-	//10 - "weapon_shotgun_spas",
-	//11 - "weapon_rifle_ak47",
-	//12 - "weapon_pistol_magnum",
-	//13 - "weapon_smg_mp5",
-	//14 - "weapon_rifle_sg552",
-	//15 - "weapon_sniper_awp",
-	//16 - "weapon_sniper_scout"
+	// 0 - "weapon_pistol",
+	// 1 - "weapon_smg",
+	// 2 - "weapon_pumpshotgun",
+	// 3 - "weapon_autoshotgun",
+	// 4 - "weapon_rifle",
+	// 5 - "weapon_hunting_rifle",
+	// 6 - "weapon_smg_silenced",
+	// 7 - "weapon_shotgun_chrome",
+	// 8 - "weapon_rifle_desert",
+	// 9 - "weapon_sniper_military",
+	// 10 - "weapon_shotgun_spas",
+	// 11 - "weapon_rifle_ak47",
+	// 12 - "weapon_pistol_magnum",
+	// 13 - "weapon_smg_mp5",
+	// 14 - "weapon_rifle_sg552",
+	// 15 - "weapon_sniper_awp",
+	// 16 - "weapon_sniper_scout"
 
-	if(i_Index == 0)
+	if (g_iIndex == 0)
 	{
-		return i_Cvar_PistolCount;
+		return g_iCvar_PistolCount;
 	}
-	else if(i_Index == 1)
+	else if (g_iIndex == 1)
 	{
-		return i_Cvar_SmgCount;
+		return g_iCvar_SmgCount;
 	}
-	else if(i_Index == 2)
+	else if (g_iIndex == 2)
 	{
-		return i_Cvar_PumpshotgunCount;
+		return g_iCvar_PumpshotgunCount;
 	}
-	else if(i_Index == 3)
+	else if (g_iIndex == 3)
 	{
-		return i_Cvar_AutoShotgunCount;
+		return g_iCvar_AutoShotgunCount;
 	}
-	else if(i_Index == 4)
+	else if (g_iIndex == 4)
 	{
-		return i_Cvar_RifleCount;
+		return g_iCvar_RifleCount;
 	}
-	else if(i_Index == 5)
+	else if (g_iIndex == 5)
 	{
-		return i_Cvar_Hunting_RifleCount;
+		return g_iCvar_Hunting_RifleCount;
 	}
 	else
 	{
-		return i_Cvar_OtherGunsCount;
+		return g_iCvar_OtherGunsCount;
 	}
 }
 
-int CheckWeaponId(const int i_WeaponId)
+int CheckWeaponId(const int g_iWeaponId)
 {
-	int i_Index = -1;
-
-	for (int i = 0; i < sizeof(i_WeaponIds); i++)
+	int g_iIndex = -1;
+	for (int i = 0; i < sizeof(g_iWeaponIds); i++)
 	{
-		if (i_WeaponId == i_WeaponIds[i])
+		if (g_iWeaponId == g_iWeaponIds[i])
 		{
-			if (i_Cvar_GunTypes & TIER2)
+			if (g_iCvar_GunTypes & TIER2)
 			{
-				for (int j = 0; j < sizeof(i_Tier2Index1); j++)
+				for (int j = 0; j < sizeof(g_iTier2Index1); j++)
 				{
-					if (i == i_Tier2Index1[j])
+					if (i == g_iTier2Index1[j])
 					{
-						i_Index = i;
-						return i_Index;
+						g_iIndex = i;
+						return g_iIndex;
 					}
 				}
-
-				for (int j = 0; j < sizeof(i_Tier2Index2); j++)
+				for (int j = 0; j < sizeof(g_iTier2Index2); j++)
 				{
-					if (i == i_Tier2Index2[j])
+					if (i == g_iTier2Index2[j])
 					{
-						i_Index = i;
-						return i_Index;
-					}
-				}
-			}
-
-			if (i_Cvar_GunTypes & TIER1)
-			{
-				for (int j = 0; j < sizeof(i_Tier1Index1); j++)
-				{
-					if (i == i_Tier1Index1[j])
-					{
-						i_Index = i;
-						return i_Index;
-					}
-				}
-
-				for (int j = 0; j < sizeof(i_Tier1Index2); j++)
-				{
-					if (i == i_Tier1Index2[j])
-					{
-						i_Index = i;
-						return i_Index;
+						g_iIndex = i;
+						return g_iIndex;
 					}
 				}
 			}
-
-			if ((i_Cvar_GunTypes & MAGNUM) && (i == i_MagnumIndex))
+			if (g_iCvar_GunTypes & TIER1)
 			{
-				i_Index = i;
-				return i_Index;
+				for (int j = 0; j < sizeof(g_iTier1Index1); j++)
+				{
+					if (i == g_iTier1Index1[j])
+					{
+						g_iIndex = i;
+						return g_iIndex;
+					}
+				}
+				for (int j = 0; j < sizeof(g_iTier1Index2); j++)
+				{
+					if (i == g_iTier1Index2[j])
+					{
+						g_iIndex = i;
+						return g_iIndex;
+					}
+				}
 			}
-
-			if ((i_Cvar_GunTypes & PISTOL) && (i == i_PistolIndex))
+			if ((g_iCvar_GunTypes & MAGNUM) && (i == g_iMagnumIndex))
 			{
-				i_Index = i;
-				return i_Index;
+				g_iIndex = i;
+				return g_iIndex;
+			}
+			if ((g_iCvar_GunTypes & PISTOL) && (i == g_iPistolIndex))
+			{
+				g_iIndex = i;
+				return g_iIndex;
 			}
 		}
 	}
-
-	return i_Index;
+	return g_iIndex;
 }

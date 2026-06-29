@@ -1,8 +1,5 @@
-#define PLUGIN_VERSION	"1.8"
-#define PLUGIN_NAME		"Weapon Give No Auto Switch"
-#define PLUGIN_PREFIX	"weapon_give_no_auto_switch"
+#define PLUGIN_VERSION	"1.13"
 
-#pragma tabsize 0
 #pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
@@ -13,89 +10,111 @@ forward void GearTransfer_OnWeaponSwap(int client, int target, int itemGiven, in
 
 public Plugin myinfo =
 {
-	name = PLUGIN_NAME,
+	name = "Weapon Give No Auto Switch",
 	author = "little_froy",
 	description = "game play",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=341173"
 };
 
-Action on_weapon_switch(int client, int weapon)
+bool Given[MAXPLAYERS+1];
+
+void reset_player(int client)
 {
-	SDKUnhook(client, SDKHook_WeaponSwitch, on_weapon_switch);
-	return Plugin_Handled;
+	Given[client] = false;
 }
 
-void unhook_weapon_switch(int client, int item)
+public void OnClientPutInServer(int client)
 {
-	char class_name[PLATFORM_MAX_PATH];
+    SDKHook(client, SDKHook_WeaponSwitch, OnWeaponSwitch);
+}
+
+public void OnClientDisconnect_Post(int client)
+{
+	reset_player(client);
+}
+
+Action OnWeaponSwitch(int client, int weapon)
+{
+	if(Given[client])
+	{
+		reset_player(client);
+		return Plugin_Handled;
+	}
+	return Plugin_Continue;
+}
+
+void remove_given_mark(int client, int item)
+{
+	if(!Given[client])
+	{
+		return;
+	}
+	char class_name[64];
 	GetEntityClassname(item, class_name, sizeof(class_name));
 	if(strcmp(class_name, "weapon_pain_pills") == 0 || strcmp(class_name, "weapon_adrenaline") == 0)
 	{
-		SDKUnhook(client, SDKHook_WeaponSwitch, on_weapon_switch);
+		reset_player(client);
 	}	
 }
 
 public void GearTransfer_OnWeaponGive(int client, int target, int item)
 {
-	unhook_weapon_switch(target, item);
+	remove_given_mark(target, item);
 }
 
 public void GearTransfer_OnWeaponGrab(int client, int target, int item)
 {
-	unhook_weapon_switch(client, item);
+	if(target > 0)
+	{
+		remove_given_mark(client, item);
+	}
 }
 
 public void GearTransfer_OnWeaponSwap(int client, int target, int itemGiven, int itemTaken)
 {
-	unhook_weapon_switch(client, itemTaken);
-	unhook_weapon_switch(target, itemGiven);
+	remove_given_mark(client, itemTaken);
+	remove_given_mark(target, itemGiven);
 }
 
 void event_weapon_given(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(event.GetInt("userid"));
-	if(client != 0 && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
+	int id = event.GetInt("weapon");
+	if(id != 15 && id != 23)
 	{
-        switch(event.GetInt("weapon"))
-        {
-            case 15, 23:
-                SDKHook(client, SDKHook_WeaponSwitch, on_weapon_switch);
-        }
+		return;
+	}
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if(client > 0 && !Given[client] && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
+	{
+		Given[client] = true;
 	}
 }
 
 void event_player_spawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if(client != 0 && IsClientInGame(client))
+	if(client > 0 && IsClientInGame(client))
 	{
-		SDKUnhook(client, SDKHook_WeaponSwitch, on_weapon_switch);
+		reset_player(client);
 	}
 }
 
 void event_player_team(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if(client != 0)
+	if(client > 0 && IsClientInGame(client))
 	{
-		if(IsFakeClient(client) && event.GetInt("team") == 1 && event.GetInt("oldteam") == 2)
-		{
-			return;
-		}
-		if(IsClientInGame(client))
-		{
-			SDKUnhook(client, SDKHook_WeaponSwitch, on_weapon_switch);
-		}
+		reset_player(client);
 	}
 }
 
 void event_player_death(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if(client != 0 && IsClientInGame(client))
+	if(client > 0 && IsClientInGame(client))
 	{
-		SDKUnhook(client, SDKHook_WeaponSwitch, on_weapon_switch);
+		reset_player(client);
 	}
 }
 
@@ -116,5 +135,13 @@ public void OnPluginStart()
 	HookEvent("player_team", event_player_team);
 	HookEvent("player_death", event_player_death);
 
-    CreateConVar(PLUGIN_PREFIX ... "_version", PLUGIN_VERSION, "version of " ... PLUGIN_NAME, FCVAR_NOTIFY | FCVAR_DONTRECORD);    
+    CreateConVar("weapon_give_no_auto_switch_version", PLUGIN_VERSION, "version of Weapon Give No Auto Switch", FCVAR_NOTIFY | FCVAR_DONTRECORD); 
+
+	for(int client = 1; client <= MaxClients; client++)
+	{
+		if(IsClientInGame(client))
+		{
+			OnClientPutInServer(client);
+		}
+	} 
 }

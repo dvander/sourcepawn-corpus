@@ -1,6 +1,6 @@
 /*
 *	Gift Rewards
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (10-Jan-2024)
+	- Changed the plugins on/off/mode cvars to use the Left4DHooks (if available) method instead of creating an entity.
 
 1.8 (09-Dec-2022)
 	- Fixed refilling ammo giving to wrong client due to Valve code inside "givecurrentammo" command. Thanks to "GL_INS" for reporting.
@@ -118,6 +121,8 @@ enum L4D2IntWeaponAttributes
 	MAX_SIZE_L4D2IntWeaponAttributes
 };
 
+forward void L4D_OnGameModeChange(int gamemode);
+native int L4D_GetGameModeType();
 native int L4D2_GetIntWeaponAttribute(const char[] weaponName, L4D2IntWeaponAttributes attr);
 
 
@@ -191,6 +196,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_SilentFailure;
 	}
 
+	MarkNativeAsOptional("L4D_GetGameModeType");
 	MarkNativeAsOptional("L4D2_GetIntWeaponAttribute");
 
 	return APLRes_Success;
@@ -508,38 +514,67 @@ void IsAllowed()
 }
 
 int g_iCurrentMode;
+public void L4D_OnGameModeChange(int gamemode)
+{
+	g_iCurrentMode = gamemode;
+}
+
 bool IsAllowedGameMode()
 {
 	if( g_hCvarMPGameMode == null )
 		return false;
 
-	int iCvarModesTog = g_hCvarModesTog.IntValue;
-	if( iCvarModesTog != 0 )
+	if( g_bLeft4DHooks )
 	{
-		if( g_bMapStarted == false )
-			return false;
-
-		g_iCurrentMode = 0;
-
-		int entity = CreateEntityByName("info_gamemode");
-		if( IsValidEntity(entity) )
+		int iCvarModesTog = g_hCvarModesTog.IntValue;
+		if( iCvarModesTog != 0 )
 		{
-			DispatchSpawn(entity);
-			HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
-			ActivateEntity(entity);
-			AcceptEntityInput(entity, "PostSpawnActivate");
-			if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
-				RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
+			if( g_iCurrentMode == 0 )
+				g_iCurrentMode = L4D_GetGameModeType();
+
+			if( g_iCurrentMode == 0 )
+				return false;
+
+			switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+			{
+				case 2:		g_iCurrentMode = 4;
+				case 4:		g_iCurrentMode = 2;
+			}
+
+			if( !(iCvarModesTog & g_iCurrentMode) )
+				return false;
 		}
+	}
+	else
+	{
+		int iCvarModesTog = g_hCvarModesTog.IntValue;
+		if( iCvarModesTog != 0 )
+		{
+			if( g_bMapStarted == false )
+				return false;
 
-		if( g_iCurrentMode == 0 )
-			return false;
+			g_iCurrentMode = 0;
 
-		if( !(iCvarModesTog & g_iCurrentMode) )
-			return false;
+			int entity = CreateEntityByName("info_gamemode");
+			if( IsValidEntity(entity) )
+			{
+				DispatchSpawn(entity);
+				HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
+				HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
+				HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
+				HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
+				ActivateEntity(entity);
+				AcceptEntityInput(entity, "PostSpawnActivate");
+				if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
+					RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
+			}
+
+			if( g_iCurrentMode == 0 )
+				return false;
+
+			if( !(iCvarModesTog & g_iCurrentMode) )
+				return false;
+		}
 	}
 
 	char sGameModes[64], sGameMode[64];
@@ -595,7 +630,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-Action TimerSize(Handle timer, any entity)
+Action TimerSize(Handle timer, int entity)
 {
 	if( EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
 	{

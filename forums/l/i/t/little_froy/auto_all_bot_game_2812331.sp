@@ -1,8 +1,5 @@
-#define PLUGIN_VERSION	"1.0"
-#define PLUGIN_NAME		"Auto All Bot Game"
-#define PLUGIN_PREFIX   "auto_all_bot_game"
+#define PLUGIN_VERSION	"1.1"
 
-#pragma tabsize 0
 #pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
@@ -10,7 +7,7 @@
 
 public Plugin myinfo =
 {
-	name = PLUGIN_NAME,
+	name = "Auto All Bot Game",
 	author = "little_froy",
 	description = "game play",
 	version = PLUGIN_VERSION,
@@ -33,7 +30,7 @@ public void OnClientPutInServer(int client)
     }
 }
 
-public void ConnectedCounter_OnDisconnect(int userid, int count, const int userids[MAXPLAYERS])
+public void ConnectedCounter_OnDisconnect(int userid, int count, const int userids[MAXPLAYERS], const char[] reason, const char[] name, const char[] networkid)
 {
     if(!O_enable)
     {
@@ -45,19 +42,22 @@ public void ConnectedCounter_OnDisconnect(int userid, int count, const int useri
     }
 }
 
-void get_cvars()
+void get_all_cvars()
 {
     O_enable = C_enable.BoolValue;
 }
 
-void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
+void get_single_cvar(ConVar convar)
 {
-	get_cvars();
+    if(convar == C_enable)
+    {
+        O_enable = C_enable.BoolValue;
+    }
 }
 
-public void OnConfigsExecuted()
+void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	get_cvars();
+	get_single_cvar(convar);
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -73,8 +73,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
     C_sb_all_bot_game = FindConVar("sb_all_bot_game");
-    C_enable = CreateConVar(PLUGIN_PREFIX ... "_enable", "1", "1 = enable the plugin, 0 = disable");
+    C_enable = CreateConVar("auto_all_bot_game_enable", "1", "1 = enable the plugin, 0 = disable");
     C_enable.AddChangeHook(convar_changed);
-    CreateConVar(PLUGIN_PREFIX ... "_version", PLUGIN_VERSION, "version of " ... PLUGIN_NAME, FCVAR_NOTIFY | FCVAR_DONTRECORD);
-    get_cvars();
+    CreateConVar("auto_all_bot_game_version", PLUGIN_VERSION, "version of Auto All Bot Game", FCVAR_NOTIFY | FCVAR_DONTRECORD);
+    //AutoExecConfig(true, "auto_all_bot_game");
+    get_all_cvars();
 }

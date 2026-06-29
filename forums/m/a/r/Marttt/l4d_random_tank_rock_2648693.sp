@@ -210,7 +210,7 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "----------------- Plugin Cvars (l4d_random_tank_rock) ----------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_random_tank_rock_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_random_tank_rock_enabled : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
+    PrintToConsole(client, "l4d_random_tank_rock_enable : %b (%s)", g_bCvar_Enabled, g_bCvar_Enabled ? "true" : "false");
     PrintToConsole(client, "l4d_random_tank_rock_rock_chance : %i (%.1f%%)", g_iCvar_RockChance, g_iRandomMax == 0 ? 0.0 : (g_iCvar_RockChance / float(g_iRandomMax)) * 100.0);
     PrintToConsole(client, "l4d_random_tank_rock_trunk_chance : %i (%.1f%%)", g_iCvar_TrunkChance, g_iRandomMax == 0 ? 0.0 : (g_iCvar_TrunkChance / float(g_iRandomMax)) * 100.0);
     PrintToConsole(client, "");

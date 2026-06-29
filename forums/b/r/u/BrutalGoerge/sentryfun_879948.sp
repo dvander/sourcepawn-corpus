@@ -1,168 +1,442 @@
 #pragma semicolon 1
+#pragma newdecls required
+
 #include <sourcemod>
 #include <sdktools>
+#include <sdkhooks>
 #include <tf2_stocks>
 
 #define TEAM_RED 2
 #define TEAM_BLU 3
-#define VERSION "1.4"
+#define VERSION "2.0.0"
 
-new Handle:cvar_Enabled = INVALID_HANDLE;
-new Handle:cvar_WinningBetry = INVALID_HANDLE;
-new Handle:cvar_BetrayChance = INVALID_HANDLE;
-new Handle:cvar_ReactiveChance = INVALID_HANDLE;
-new bool:g_bHooked = false;
-new bool:g_bBonusRound = false;
-public Plugin:myinfo = 
+// --- ConVars ---
+ConVar g_cvEnabled;
+ConVar g_cvWinningBetray;
+ConVar g_cvBetrayChance;
+ConVar g_cvReactiveChance;
+ConVar g_cvHeroMode;
+ConVar g_cvHeroAmmoPrimary;
+ConVar g_cvHeroAmmoSecondary;
+ConVar g_cvBonusTime;
+ConVar g_cvMpBonusRoundTime;
+
+// --- Globals ---
+bool g_bHooked = false;
+bool g_bBonusRound = false;
+
+// Hero Tracking
+int g_iHero = -1;
+float g_flNextRocketTime = 0.0;
+float g_flNextFlareTime = 0.0;
+int g_iHeroRockets = 0;
+int g_iHeroFlares = 0;
+
+public Plugin myinfo = 
 {
 	name = "Sentry Fun",
-	author = "Goerge",
-	description = "Restores sentry operation for losing team and turns the winning team's sentries against them",
+	author = "Goerge (Modernized)",
+	description = "Restores sentry operation for losing team, turns winning sentries against them, and unleashes a Hero.",
 	version = VERSION,
-	url = "https://tf2tmng.googlecode.com"
+	url = "https://github.com/BrutalGoerge/tf2tmng"
 };
 
-public OnPluginStart()
+public void OnPluginStart()
 {
-	cvar_Enabled = CreateConVar("sentryfun_enabled", "1", "Enable/disable the plugin and its hook", FCVAR_PLUGIN|FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cvar_WinningBetry = CreateConVar("sentryfun_betray", "1", "Winning team's sentries attack members of the winning team.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_BetrayChance = CreateConVar("sentryfun_betray_chance", "1.00", "% chance that a sentry will betray its teammates.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	cvar_ReactiveChance = CreateConVar("sentryfun_reactivate_chance", "1.00", "% chance that a sentry will reactivate if its been disabled.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	CreateConVar("sentryfun_version", VERSION, "Plugin Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
-	HookConVarChange(cvar_Enabled, EnabledChange);
+	LoadTranslations("sentryfun.phrases");
+	
+	// Core Plugin Settings
+	g_cvEnabled = CreateConVar("sentryfun_enabled", "1", "Enable/disable the plugin and its hook", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cvWinningBetray = CreateConVar("sentryfun_betray", "1", "Winning team's sentries attack members of the winning team.", 0, true, 0.0, true, 1.0);
+	g_cvBetrayChance = CreateConVar("sentryfun_betray_chance", "1.00", "% chance that a sentry will betray its teammates.", 0, true, 0.0, true, 1.0);
+	g_cvReactiveChance = CreateConVar("sentryfun_reactivate_chance", "1.00", "% chance that a sentry will reactivate if its been disabled.", 0, true, 0.0, true, 1.0);
+	
+	// Hero Settings
+	g_cvHeroMode = CreateConVar("sentryfun_hero_mode", "1", "Give one losing player 2000 HP and crits to fight back.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cvHeroAmmoPrimary = CreateConVar("sentryfun_hero_ammo_primary", "5", "Amount of primary shots (rockets) the hero gets.", 0, true, 1.0);
+	g_cvHeroAmmoSecondary = CreateConVar("sentryfun_hero_ammo_secondary", "5", "Amount of secondary shots (flares) the hero gets.", 0, true, 1.0);
+	g_cvBonusTime = CreateConVar("sentryfun_bonusround_time", "15", "Override for TF2 bonus round time.", 0, true, 5.0, true, 30.0);
+	
+	CreateConVar("sentryfun_version", VERSION, "Plugin Version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	
+	// Remove the hardcoded 15-second upper bound limit on the native mp_bonusroundtime ConVar
+	g_cvMpBonusRoundTime = FindConVar("mp_bonusroundtime");
+	if (g_cvMpBonusRoundTime != null)
+	{
+		g_cvMpBonusRoundTime.SetBounds(ConVarBound_Upper, true, 30.0);
+	}
+	
+	// Hooks to apply changes dynamically
+	g_cvEnabled.AddChangeHook(EnabledChange);
+	g_cvBonusTime.AddChangeHook(BonusTimeChange);
+	
 	AutoExecConfig(true, "plugin.sentryfun");
 }
 
-public OnConfigsExecuted()
+public void OnMapStart()
 {
-	if (GetConVarBool(cvar_Enabled))
+	// Precache custom audio effects
+	PrecacheSound("ui/halloween_boss_summoned_fx.wav", true);
+	PrecacheSound("weapons/rocket_shoot_crit.wav", true);
+	PrecacheSound("weapons/flaregun_shoot_crit.wav", true);
+	// Note: We don't precache announcer_am_lastmanalive01.wav here because we trigger it natively via playgamesound
+}
+
+public void OnConfigsExecuted()
+{
+	if (g_cvEnabled.BoolValue)
 	{
-		if (!g_bHooked)
-		{
-			HookEvent("teamplay_round_win", Event_RoundWin, EventHookMode_PostNoCopy);
-			HookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
-			HookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
-		}
-		g_bHooked = true;
+		HookEvents();
 	}
 	else
 	{
-		if (g_bHooked)
-		{
-			UnhookEvent("teamplay_round_win", Event_RoundWin, EventHookMode_PostNoCopy);
-			UnhookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
-			UnhookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
-		}
-		g_bHooked = false;
+		UnhookEvents();
+	}
+	
+	SyncBonusTime();
+}
+
+public void EnabledChange(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (convar.BoolValue)
+	{
+		HookEvents();
+	}
+	else
+	{
+		UnhookEvents();
 	}
 }
-public EnabledChange(Handle:convar, const String:oldValue[], const String:newValue[])
+
+public void BonusTimeChange(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	if (StringToInt(newValue) == 0)
+	SyncBonusTime();
+}
+
+// Forces the native TF2 bonus round time to match our custom ConVar
+void SyncBonusTime()
+{
+	if (g_cvMpBonusRoundTime != null)
 	{
-		if (g_bHooked)
-		{
-			UnhookEvent("teamplay_round_win", Event_RoundWin, EventHookMode_PostNoCopy);
-			UnhookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
-			UnhookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
-		}
-		g_bHooked = false;
+		g_cvMpBonusRoundTime.SetFloat(g_cvBonusTime.FloatValue);
 	}
-	else if (StringToInt(newValue) == 1)
+}
+
+void HookEvents()
+{
+	if (!g_bHooked)
 	{
-		if (!g_bHooked)
-		{
-			HookEvent("teamplay_round_win", Event_RoundWin, EventHookMode_PostNoCopy);
-			HookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
-			HookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
-		}
+		HookEvent("teamplay_round_win", Event_RoundWin, EventHookMode_PostNoCopy);
+		HookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
+		HookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
 		g_bHooked = true;
 	}
 }
 
-public Action:Event_RoundWin(Handle:event, const String:name[], bool:dontBroadcast)
+void UnhookEvents()
+{
+	if (g_bHooked)
+	{
+		UnhookEvent("teamplay_round_win", Event_RoundWin, EventHookMode_PostNoCopy);
+		UnhookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
+		UnhookEvent("player_team", Event_PlayerTeam, EventHookMode_Pre);
+		g_bHooked = false;
+	}
+}
+
+// Triggers when a team wins the round and the bonus (humiliation) period begins
+public Action Event_RoundWin(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bBonusRound = true;
-	if (GetTeamClientCount(2) && GetTeamClientCount(3))
-		CreateTimer(0.5, timer_SentryDelay, GetEventInt(event, "team"), TIMER_FLAG_NO_MAPCHANGE);	
+	int winningTeam = event.GetInt("team");
+	
+	// Ensure both teams actually have players before running the bonus round events
+	if (GetTeamClientCount(TEAM_RED) > 0 && GetTeamClientCount(TEAM_BLU) > 0)
+	{
+		CreateTimer(0.5, Timer_SentryDelay, winningTeam, TIMER_FLAG_NO_MAPCHANGE);	
+	}
 	return Plugin_Continue;
 }	
 
-public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+// Resets global states at the start of a fresh round
+public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bBonusRound = false;
+	g_iHero = -1;
+	g_flNextRocketTime = 0.0;
+	g_flNextFlareTime = 0.0;
 	return Plugin_Continue;
 }
 
-public OnClientDisconnect(client)
+public void OnClientDisconnect(int client)
 {
+	if (client == g_iHero) 
+	{
+		g_iHero = -1;
+	}
+	
 	if (g_bBonusRound)
+	{
 		DestroySentry(client);
+	}
 }
 
-public Action:Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
 	if (g_bBonusRound)
-		DestroySentry(GetEventInt(event, "userid"));
+	{
+		DestroySentry(event.GetInt("userid"));
+	}
+	return Plugin_Continue;
 }
 
-public Action:timer_SentryDelay(Handle:timer, any:team)
+public Action Timer_SentryDelay(Handle timer, any team)
 {
 	ManipulateSentries(team);
+	
+	if (g_cvHeroMode.BoolValue)
+	{
+		MakeRandomLoserHero(team);
+	}
+	
 	return Plugin_Handled;
 }
 
-stock ManipulateSentries(winningTeam)
+// Rebuilds winning sentries for the losing team and revives losing sentries
+void ManipulateSentries(int winningTeam)
 {
-	new	client, iEnt = -1, iTeamser = GetOppositeTeamMember(winningTeam), Float:location[3], Float:angle[3], iPrev = 0,
-		Float:fBetrayChance = GetConVarFloat(cvar_BetrayChance), Float:fAtivateChance = GetConVarFloat(cvar_ReactiveChance), Float:ran,
-		bool:bMini = false,
-		bool:bDisposable = false;
+	int iTeamser = GetOppositeTeamMember(winningTeam);
+	
+	if (iTeamser <= 0) return; 
+
+	float fBetrayChance = g_cvBetrayChance.FloatValue;
+	float fActivateChance = g_cvReactiveChance.FloatValue;
+	
+	int iEnt = -1;
 	while ((iEnt = FindEntityByClassname(iEnt, "obj_sentrygun")) != -1)
 	{
-		if ((client = GetEntDataEnt2(iEnt, FindSendPropOffs("CObjectSentrygun", "m_hBuilder"))) == -1)
-			continue;
-		ran = GetRandomFloat(0.0, 1.0);
+		int client = GetEntPropEnt(iEnt, Prop_Send, "m_hBuilder");
+		if (client <= 0 || client > MaxClients) continue;
+
+		float ran = GetRandomFloat(0.0, 1.0);
 		if (GetClientTeam(client) == winningTeam)
 		{
-			if (GetConVarBool(cvar_WinningBetry))
+			if (g_cvWinningBetray.BoolValue && fBetrayChance >= ran)
 			{
-				if (fBetrayChance >= ran)
+				float location[3], angle[3];
+				GetEntPropVector(iEnt, Prop_Send, "m_vecOrigin", location);
+				GetEntPropVector(iEnt, Prop_Send, "m_angRotation", angle);
+				bool bMini = view_as<bool>(GetEntProp(iEnt, Prop_Send, "m_bMiniBuilding"));
+				bool bDisposable = view_as<bool>(GetEntProp(iEnt, Prop_Send, "m_bDisposableBuilding"));
+				int level = GetEntProp(iEnt, Prop_Send, "m_iUpgradeLevel");
+				
+				// Destroy original and replace it with a betrayed version
+				AcceptEntityInput(iEnt, "Kill");
+				TF2_BuildSentry(iTeamser, location, angle, level, bMini, bDisposable);
+			}
+		}
+		else if (fActivateChance >= ran)
+		{
+			// Revive disabled losing sentry
+			SetEntProp(iEnt, Prop_Send, "m_bDisabled", 0);
+			int newHealth = GetEntProp(iEnt, Prop_Send, "m_iMaxHealth") + 100;
+			SetEntProp(iEnt, Prop_Send, "m_iMaxHealth", newHealth);
+			SetEntProp(iEnt, Prop_Send, "m_iHealth", newHealth);
+		}
+	}
+}
+
+// Selects one random player on the losing team and gives them massive health and custom projectiles
+void MakeRandomLoserHero(int winningTeam)
+{
+	int losingTeam = (winningTeam == TEAM_RED) ? TEAM_BLU : TEAM_RED;
+	int losers[MAXPLAYERS + 1];
+	int loserCount = 0;
+	
+	// Collect valid losing players
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == losingTeam)
+		{
+			losers[loserCount++] = i;
+		}
+	}
+
+	if (loserCount > 0)
+	{
+		int hero = losers[GetRandomInt(0, loserCount - 1)];
+		g_iHero = hero;
+		
+		float currentTime = GetGameTime();
+		g_flNextRocketTime = currentTime;
+		g_flNextFlareTime = currentTime;
+		
+		// Set internal ammo count for the chosen player
+		g_iHeroRockets = g_cvHeroAmmoPrimary.IntValue;
+		g_iHeroFlares = g_cvHeroAmmoSecondary.IntValue;
+		
+		SetEntityHealth(hero, 2000);
+		
+		char heroName[MAX_NAME_LENGTH];
+		GetClientName(hero, heroName, sizeof(heroName));
+		
+		// Display initial ammo count HUD
+		PrintCenterText(hero, "Hero Ammo - Rockets: %d | Flares: %d", g_iHeroRockets, g_iHeroFlares);
+		
+		for (int i = 1; i <= MaxClients; i++)
+		{
+			if (IsClientInGame(i) && !IsFakeClient(i))
+			{
+				if (i == hero)
 				{
-					GetEntDataVector(iEnt, FindSendPropOffs("CObjectSentrygun","m_vecOrigin"), location);
-					GetEntDataVector(iEnt, FindSendPropOffs("CObjectSentrygun","m_angRotation"), angle);
-					if (iPrev > 0)
-						RemoveEdict(iPrev);
-					iPrev = iEnt;
-					if (GetEntProp(iEnt, Prop_Send, "m_bMiniBuilding"))
-						bMini = true;
-					if (GetEntProp(iEnt, Prop_Send, "m_bMiniBuilding"))
-						bDisposable = true;
-					TF2_BuildSentry(iTeamser, location, angle, GetEntProp(iEnt, Prop_Send, "m_iUpgradeLevel"), bMini, bDisposable);
+					// Play character dialog natively to bypass channel interference with the 'You Failed!' sound
+					ClientCommand(i, "playgamesound Announcer.AM_LastManAlive01");
+					PrintToChat(i, "\x04[Sentry Fun]\x01 %t", "Hero_Self_Message");
+				}
+				else
+				{
+					// Play universal halloween sound for the rest of the server
+					EmitSoundToClient(i, "ui/halloween_boss_summoned_fx.wav");
+					PrintToChat(i, "\x04[Sentry Fun]\x01 %t", "Hero_Global_Message", heroName);
 				}
 			}
 		}
-		else if (fAtivateChance >= ran)
-		{
-			SetEntProp(iEnt, Prop_Send, "m_bDisabled", 0);
-			SetEntData(iEnt, FindSendPropOffs("CObjectSentrygun","m_iMaxHealth"), (GetEntProp(iEnt, Prop_Send, "m_iMaxHealth") + 100), 4, true);
-			SetEntData(iEnt, FindSendPropOffs("CObjectSentrygun","m_iHealth"), (GetEntProp(iEnt, Prop_Send, "m_iMaxHealth") + 100), 4, true);
-		}
-		
 	}
-	if (iPrev)
-		RemoveEdict(iPrev);
 }
 
-stock GetOppositeTeamMember(team)	// returns a client on the opposite team!
+// Intercepts input every tick. Allows the Hero to shoot custom projectiles while bypassing the humiliation weapon lock.
+public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
-	new client, highScore = 0, tempScore;
-	team = team == TEAM_RED ? TEAM_BLU : TEAM_RED;
-	for (new i = 1; i <= MaxClients; i++)
+	if (g_bBonusRound && client == g_iHero)
 	{
-		if (IsClientInGame(i) && GetClientTeam(i) == team)
+		float currentTime = GetGameTime();
+		
+		// Primary Fire: Rockets
+		if (buttons & IN_ATTACK)
 		{
-			if ((tempScore = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iScore", _, client)) >= highScore)
+			if (g_iHeroRockets > 0 && currentTime >= g_flNextRocketTime)
+			{
+				g_flNextRocketTime = currentTime + 0.8; // Fire rate cooldown
+				g_iHeroRockets--;
+				FireHeroRocket(client);
+				PrintCenterText(client, "Hero Ammo - Rockets: %d | Flares: %d", g_iHeroRockets, g_iHeroFlares);
+			}
+		}
+		// Secondary Fire: Flares
+		else if (buttons & IN_ATTACK2)
+		{
+			if (g_iHeroFlares > 0 && currentTime >= g_flNextFlareTime)
+			{
+				g_flNextFlareTime = currentTime + 0.5; // Fire rate cooldown
+				g_iHeroFlares--;
+				FireHeroFlare(client);
+				PrintCenterText(client, "Hero Ammo - Rockets: %d | Flares: %d", g_iHeroRockets, g_iHeroFlares);
+			}
+		}
+	}
+	return Plugin_Continue;
+}
+
+// Spawns a critical rocket from the player's eyes to bypass the missing weapon entities during humiliation
+void FireHeroRocket(int client)
+{
+	int rocket = CreateEntityByName("tf_projectile_rocket");
+	if (IsValidEntity(rocket))
+	{
+		float vPosition[3], vAngles[3], vVelocity[3];
+		GetClientEyePosition(client, vPosition);
+		GetClientEyeAngles(client, vAngles);
+		
+		// Calculate forward trajectory
+		GetAngleVectors(vAngles, vVelocity, NULL_VECTOR, NULL_VECTOR);
+		ScaleVector(vVelocity, 1100.0);
+		
+		// Shift spawn point slightly forward so it doesn't detonate on the player's own face
+		vPosition[0] += vVelocity[0] * 0.05;
+		vPosition[1] += vVelocity[1] * 0.05;
+		vPosition[2] += vVelocity[2] * 0.05;
+		
+		SetEntPropEnt(rocket, Prop_Send, "m_hOwnerEntity", client);
+		SetEntProp(rocket, Prop_Send, "m_bCritical", 1);
+		SetEntProp(rocket, Prop_Send, "m_iTeamNum", GetClientTeam(client));
+		
+		TeleportEntity(rocket, vPosition, vAngles, vVelocity);
+		DispatchSpawn(rocket);
+		
+		// Raw projectiles have no weapon data to pull damage from. 
+		// We use a memory offset relative to 'm_iDeflected' to inject 100 base damage directly.
+		SetEntDataFloat(rocket, GetEntSendPropOffs(rocket, "m_iDeflected") + 4, 100.0, true);
+		
+		EmitSoundToAll("weapons/rocket_shoot_crit.wav", client);
+	}
+}
+
+// Spawns a critical flare from the player's eyes to bypass the missing weapon entities during humiliation
+void FireHeroFlare(int client)
+{
+	int flare = CreateEntityByName("tf_projectile_flare");
+	if (IsValidEntity(flare))
+	{
+		float vPosition[3], vAngles[3], vVelocity[3];
+		GetClientEyePosition(client, vPosition);
+		GetClientEyeAngles(client, vAngles);
+		
+		// Calculate forward trajectory. Flares travel much faster than rockets.
+		GetAngleVectors(vAngles, vVelocity, NULL_VECTOR, NULL_VECTOR);
+		ScaleVector(vVelocity, 2000.0); 
+		
+		// Shift spawn point slightly forward
+		vPosition[0] += vVelocity[0] * 0.05;
+		vPosition[1] += vVelocity[1] * 0.05;
+		vPosition[2] += vVelocity[2] * 0.05;
+		
+		SetEntPropEnt(flare, Prop_Send, "m_hOwnerEntity", client);
+		SetEntProp(flare, Prop_Send, "m_bCritical", 1);
+		SetEntProp(flare, Prop_Send, "m_iTeamNum", GetClientTeam(client));
+		
+		TeleportEntity(flare, vPosition, vAngles, vVelocity);
+		DispatchSpawn(flare);
+		
+		// Inject 30 base damage into memory offset
+		SetEntDataFloat(flare, GetEntSendPropOffs(flare, "m_iDeflected") + 4, 30.0, true);
+		
+		EmitSoundToAll("weapons/flaregun_shoot_crit.wav", client);
+		
+		// Hook the collision to apply afterburn to enemies
+		SDKHook(flare, SDKHook_StartTouch, OnFlareTouch);
+	}
+}
+
+// Handles custom flare ignition logic since the flare isn't attached to a real weapon
+public Action OnFlareTouch(int entity, int other)
+{
+	if (other > 0 && other <= MaxClients && IsClientInGame(other) && IsPlayerAlive(other))
+	{
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+		if (owner > 0 && owner <= MaxClients)
+		{
+			// Only ignite players on the opposite team
+			if (GetClientTeam(other) != GetClientTeam(owner))
+			{
+				TF2_IgnitePlayer(other, owner);
+			}
+		}
+	}
+	return Plugin_Continue;
+}
+
+// Finds the highest scoring player on the opposing team to claim ownership of the betrayed sentries
+int GetOppositeTeamMember(int team)
+{
+	int client = 0;
+	int highScore = -1;
+	int targetTeam = (team == TEAM_RED) ? TEAM_BLU : TEAM_RED;
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i) && GetClientTeam(i) == targetTeam)
+		{
+			int tempScore = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iScore", _, i);
+			if (tempScore >= highScore)
 			{
 				client = i;
 				highScore = tempScore;
@@ -172,41 +446,47 @@ stock GetOppositeTeamMember(team)	// returns a client on the opposite team!
 	return client;
 }
 
-DestroySentry(client)
+// Silently removes a player's sentry from the map
+void DestroySentry(int client)
 {
-	new iEnt = -1;
-	
+	int iEnt = -1;
 	while ((iEnt = FindEntityByClassname(iEnt, "obj_sentrygun")) != -1)
-	if (GetEntDataEnt2(iEnt, FindSendPropOffs("CObjectSentrygun", "m_hBuilder")) == client)
 	{
-		SetVariantInt(9999);
-		AcceptEntityInput(iEnt, "RemoveHealth");
+		if (GetEntPropEnt(iEnt, Prop_Send, "m_hBuilder") == client)
+		{
+			SetVariantInt(9999);
+			AcceptEntityInput(iEnt, "RemoveHealth");
+		}
 	}
 }
 
-//code from Pelipoika
-stock TF2_BuildSentry(builder, Float:fOrigin[3], Float:fAngle[3], level, bool:mini=false, bool:disposable=false, bool:carried=false, flags=4)
+// Spawns and configures a fully operational sentry gun entity
+void TF2_BuildSentry(int builder, const float fOrigin[3], const float fAngle[3], int level, bool mini=false, bool disposable=false, int flags=4)
 {
-	static const Float:m_vecMinsMini[3] = {-15.0, -15.0, 0.0}, Float:m_vecMaxsMini[3] = {15.0, 15.0, 49.5};
-	static const Float:m_vecMinsDisp[3] = {-13.0, -13.0, 0.0}, Float:m_vecMaxsDisp[3] = {13.0, 13.0, 42.9};
+	// Native model boundaries for miniaturized buildings
+	static const float m_vecMinsMini[3] = {-15.0, -15.0, 0.0};
+	static const float m_vecMaxsMini[3] = {15.0, 15.0, 49.5};
+	static const float m_vecMinsDisp[3] = {-13.0, -13.0, 0.0};
+	static const float m_vecMaxsDisp[3] = {13.0, 13.0, 42.9};
 	
-	new sentry = CreateEntityByName("obj_sentrygun");
+	int sentry = CreateEntityByName("obj_sentrygun");
 	
-	if(IsValidEntity(sentry))
+	if (IsValidEntity(sentry))
 	{
 		AcceptEntityInput(sentry, "SetBuilder", builder);
-
 		DispatchKeyValueVector(sentry, "origin", fOrigin);
 		DispatchKeyValueVector(sentry, "angles", fAngle);
 		
-		if(mini)
+		int teamSkin = GetClientTeam(builder);
+		
+		if (mini)
 		{
 			SetEntProp(sentry, Prop_Send, "m_bMiniBuilding", 1);
 			SetEntProp(sentry, Prop_Send, "m_iUpgradeLevel", level);
 			SetEntProp(sentry, Prop_Send, "m_iHighestUpgradeLevel", level);
 			SetEntProp(sentry, Prop_Data, "m_spawnflags", flags);
 			SetEntProp(sentry, Prop_Send, "m_bBuilding", 1);
-			SetEntProp(sentry, Prop_Send, "m_nSkin", level == 1 ? GetClientTeam(builder) : GetClientTeam(builder) - 2);
+			SetEntProp(sentry, Prop_Send, "m_nSkin", (level == 1) ? teamSkin : teamSkin - 2);
 			DispatchSpawn(sentry);
 			
 			SetVariantInt(100);
@@ -216,7 +496,7 @@ stock TF2_BuildSentry(builder, Float:fOrigin[3], Float:fAngle[3], level, bool:mi
 			SetEntPropVector(sentry, Prop_Send, "m_vecMins", m_vecMinsMini);
 			SetEntPropVector(sentry, Prop_Send, "m_vecMaxs", m_vecMaxsMini);
 		}
-		else if(disposable)
+		else if (disposable)
 		{
 			SetEntProp(sentry, Prop_Send, "m_bMiniBuilding", 1);
 			SetEntProp(sentry, Prop_Send, "m_bDisposableBuilding", 1);
@@ -224,7 +504,7 @@ stock TF2_BuildSentry(builder, Float:fOrigin[3], Float:fAngle[3], level, bool:mi
 			SetEntProp(sentry, Prop_Send, "m_iHighestUpgradeLevel", level);
 			SetEntProp(sentry, Prop_Data, "m_spawnflags", flags);
 			SetEntProp(sentry, Prop_Send, "m_bBuilding", 1);
-			SetEntProp(sentry, Prop_Send, "m_nSkin", level == 1 ? GetClientTeam(builder) : GetClientTeam(builder) - 2);
+			SetEntProp(sentry, Prop_Send, "m_nSkin", (level == 1) ? teamSkin : teamSkin - 2);
 			DispatchSpawn(sentry);
 			
 			SetVariantInt(100);
@@ -240,90 +520,27 @@ stock TF2_BuildSentry(builder, Float:fOrigin[3], Float:fAngle[3], level, bool:mi
 			SetEntProp(sentry, Prop_Send, "m_iHighestUpgradeLevel", level);
 			SetEntProp(sentry, Prop_Data, "m_spawnflags", flags);
 			SetEntProp(sentry, Prop_Send, "m_bBuilding", 1);
-			SetEntProp(sentry, Prop_Send, "m_nSkin", GetClientTeam(builder) - 2);
+			SetEntProp(sentry, Prop_Send, "m_nSkin", teamSkin - 2);
 			DispatchSpawn(sentry);
+		}
+
+		// Force the sentry to instantly bypass the construction phase and become active
+		SetEntProp(sentry, Prop_Send, "m_bBuilding", 0);
+		SetEntProp(sentry, Prop_Send, "m_bPlacing", 0);
+		SetEntProp(sentry, Prop_Send, "m_iState", 1);
+		SetEntPropFloat(sentry, Prop_Send, "m_flPercentageConstructed", 1.0);
+		SetEntProp(sentry, Prop_Send, "m_bDisabled", 0);
+		
+		int shells = 100;
+		if (level == 2) shells = 120;
+		else if (level == 3) shells = 144;
+		
+		if (mini || disposable) shells = 150;
+
+		SetEntProp(sentry, Prop_Send, "m_iAmmoShells", shells);
+		if (level == 3)
+		{
+			SetEntProp(sentry, Prop_Send, "m_iAmmoRockets", 20);
 		}
 	}
 }
-
-
-/*
-stock TF2_BuildSentry(iBuilder, Float:fOrigin[3], Float:fAngle[3], iLevel=1)							//Not my code, credit goes to The JCS and Muridas
-{
-	new Float:fBuildMaxs[3];
-	fBuildMaxs[0] = 24.0;
-	fBuildMaxs[1] = 24.0;
-	fBuildMaxs[2] = 66.0;
-
-	new Float:fMdlWidth[3];
-	fMdlWidth[0] = 1.0;
-	fMdlWidth[1] = 0.5;
-	fMdlWidth[2] = 0.0;
-    
-	decl String:sModel[64];
-    
-	new iTeam = GetClientTeam(iBuilder);
-
-	new iShells, iHealth, iRockets;
-
-	if(iLevel == 1)
-	{
-		sModel = "models/buildables/sentry1.mdl";
-		iShells = 100;
-		iHealth = 200;
-	}
-	else if(iLevel == 2)
-	{
-		sModel = "models/buildables/sentry2.mdl";
-		iShells = 120;
-		iHealth = 230;
-	}
-	else if(iLevel == 3)
-	{
-		sModel = "models/buildables/sentry3.mdl";
-		iShells = 144;
-		iHealth = 250;
-		iRockets = 20;
-	}
-    
-	new iSentry = CreateEntityByName("obj_sentrygun");  
-	DispatchSpawn(iSentry);
-	TeleportEntity(iSentry, fOrigin, fAngle, NULL_VECTOR);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_flAnimTime"),                 51, 4 , true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_nNewSequenceParity"),         4, 4 , true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_nResetEventsParity"),         4, 4 , true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iAmmoShells") ,                 iShells, 4, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iMaxHealth"),                 iHealth, 4, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iHealth"),                     iHealth, 4, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_bBuilding"),                 0, 2, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_bPlacing"),                     0, 2, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_bDisabled"),                 0, 2, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iObjectType"),                 3, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iState"),                     1, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iUpgradeMetal"),             0, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_bHasSapper"),                 0, 2, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_nSkin"),                     (iTeam-2), 1, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_bServerOverridePlacement"),     1, 1, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iUpgradeLevel"),             iLevel, 4, true);
-	SetEntData(iSentry, FindSendPropOffs("CObjectSentrygun","m_iAmmoRockets"),                 iRockets, 4, true);
-    
-	SetEntDataEnt2(iSentry, FindSendPropOffs("CObjectSentrygun","m_nSequence"), 0, true);
-	SetEntDataEnt2(iSentry, FindSendPropOffs("CObjectSentrygun","m_hBuilder"),     iBuilder, true);
-
-	SetEntDataFloat(iSentry, FindSendPropOffs("CObjectSentrygun","m_flCycle"),                     0.0, true);
-	SetEntDataFloat(iSentry, FindSendPropOffs("CObjectSentrygun","m_flPlaybackRate"),             1.0, true);
-	SetEntDataFloat(iSentry, FindSendPropOffs("CObjectSentrygun","m_flPercentageConstructed"),     1.0, true);
-
-	SetEntDataVector(iSentry, FindSendPropOffs("CObjectSentrygun","m_vecOrigin"),             fOrigin, true);
-	SetEntDataVector(iSentry, FindSendPropOffs("CObjectSentrygun","m_angRotation"),         fAngle, true);
-	SetEntDataVector(iSentry, FindSendPropOffs("CObjectSentrygun","m_vecBuildMaxs"),         fBuildMaxs, true);
-	SetEntDataVector(iSentry, FindSendPropOffs("CObjectSentrygun","m_flModelWidthScale"),     fMdlWidth, true);
-
-	SetVariantInt(iTeam);
-	AcceptEntityInput(iSentry, "TeamNum", -1, -1, 0);
-
-	SetVariantInt(iTeam);
-	AcceptEntityInput(iSentry, "SetTeam", -1, -1, 0);    
-	SetEntityModel(iSentry,sModel);
-}  
-*/

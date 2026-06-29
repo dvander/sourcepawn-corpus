@@ -1,6 +1,6 @@
 /*
 *	Pipebomb Shove
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2025 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.16"
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (21-Mar-2025)
+	- Fixed errors thrown by invalid clients. Thanks to "zuaLdakid05" for reporting.
 
 1.16 (24-Nov-2023)
 	- L4D1: Fixed movement speed bug after staggering when the stagger timer didn't reset (due to some plugins such as "Stagger Gravity").
@@ -452,6 +455,7 @@ void Event_EntityShoved(Event event, const char[] name, bool dontBroadcast)
 		if( infected || witch )
 		{
 			int client = GetClientOfUserId(event.GetInt("attacker"));
+			if( !client || client > MaxClients || !IsClientInGame(client) ) return;
 
 			if( g_iCvarReload != 3 || GetClientButtons(client) & IN_RELOAD )
 			{
@@ -485,6 +489,7 @@ void Event_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
 	if( g_iCvarInfected && g_iCvarReload != 2 )
 	{
 		int client = GetClientOfUserId(event.GetInt("attacker"));
+		if( !client || client > MaxClients || !IsClientInGame(client) ) return;
 
 		if( g_iCvarReload != 3 || GetClientButtons(client) & IN_RELOAD )
 		{

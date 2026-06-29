@@ -4,6 +4,7 @@
 #include <sdktools>
 
 #define PLUGIN_VERSION "1.0"
+#define CVAR_FLAGS FCVAR_NOTIFY|FCVAR_SPONLY
 #define PANIC_SOUND "npc/mega_mob/mega_mob_incoming.wav"
 
 public Plugin myinfo = 
@@ -15,12 +16,19 @@ public Plugin myinfo =
 	url = "https://steamcommunity.com/profiles/76561198078797525/"
 }
 
+ConVar hWitchPanicPluginEnabled, hWitchPanicOnHarasserSet, hWitchPanicOnDeath;
+bool bHooked = false, bWitchPanicOnHarasserSet = false, bWitchPanicOnDeath = false;
+
 public void OnPluginStart()
 {
-	CreateConVar("Witch_Panic", PLUGIN_VERSION, "Version of Witch Panic", FCVAR_NOTIFY|FCVAR_SPONLY|FCVAR_DONTRECORD);
-
-	HookEvent("witch_harasser_set", WitchPanic_Event);
-	HookEvent("witch_killed", WitchPanic_Event);
+	CreateConVar("l4d_witch_panic_version", PLUGIN_VERSION, "[L4D & L4D2] Witch Panic plugin version", CVAR_FLAGS|FCVAR_DONTRECORD);
+	hWitchPanicPluginEnabled = CreateConVar("l4d_witch_panic_plugin_enabled", "1", " Enable/Disable plugin", CVAR_FLAGS, true, 0.0, true, 1.0);
+	hWitchPanicOnHarasserSet = CreateConVar("l4d_witch_panic_on_harasser_set", "1", "Create a panic when the witch harasser set?", CVAR_FLAGS, true, 0.0, true, 1.0);
+	hWitchPanicOnDeath = CreateConVar("l4d_witch_panic_on_death", "1", "Create a panic when a witch is killed?", CVAR_FLAGS, true, 0.0, true, 1.0);
+	hWitchPanicPluginEnabled.AddChangeHook(ConVarPluginOnChanged);
+	hWitchPanicOnHarasserSet.AddChangeHook(ConVarsChanged);
+	hWitchPanicOnDeath.AddChangeHook(ConVarsChanged);
+	AutoExecConfig(true, "l4d_witch_panic");
 }
 
 public void OnMapStart()
@@ -28,36 +36,83 @@ public void OnMapStart()
 	PrecacheSound(PANIC_SOUND, true);
 }
 
-Action WitchPanic_Event(Event event, const char[] name, bool dontBroadcast)
+public void OnConfigsExecuted()
 {
-    CreateTimer(2.0, PanicEvent);
-    return Plugin_Continue;
+	IsAllowed();
+}
+
+void ConVarPluginOnChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	IsAllowed();
+}
+
+void ConVarsChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	bWitchPanicOnHarasserSet = hWitchPanicOnHarasserSet.BoolValue;
+	bWitchPanicOnDeath = hWitchPanicOnDeath.BoolValue;
+}
+
+void IsAllowed()
+{
+	bool bPluginOn = hWitchPanicPluginEnabled.BoolValue;
+	if(bPluginOn && !bHooked)
+	{
+		bHooked = true;
+		ConVarsChanged(null, "", "");
+		HookEvent("witch_harasser_set", Event_WitchHarraserOrDeathPanic);
+		HookEvent("witch_killed", Event_WitchHarraserOrDeathPanic);
+	}
+	else if(!bPluginOn && bHooked)
+	{
+		bHooked = false;
+		UnhookEvent("witch_harasser_set", Event_WitchHarraserOrDeathPanic);
+		UnhookEvent("witch_killed", Event_WitchHarraserOrDeathPanic);
+	}
+}
+
+Action Event_WitchHarraserOrDeathPanic(Event event, const char[] name, bool dontBroadcast)
+{
+	if (strcmp(name, "witch_harasser_set") == 0)
+	{
+		if(bWitchPanicOnHarasserSet)
+		{
+			CreateTimer(1.0, PanicEvent);
+		}
+	}
+	else if(strcmp(name, "witch_killed") == 0)
+	{
+		if(bWitchPanicOnDeath)
+		{
+			CreateTimer(1.0, PanicEvent);
+		}
+	}
+	return Plugin_Continue;
 }
 
 Action PanicEvent(Handle timer)
 {
-    EmitSoundToAll(PANIC_SOUND);
-    SpawntyCommand(GetAnyClient(), "z_spawn", "mob auto");
-    return Plugin_Stop;
-}
-
-stock void SpawntyCommand(int client, char[] command, char[] arguments = "")
-{
-	if (client)
+	int iAnyClient = GetAnyClient();
+	if(iAnyClient > 0)
 	{
-		int flags = GetCommandFlags(command);
-		SetCommandFlags(command, flags & ~FCVAR_CHEAT);
-		FakeClientCommand(client, "%s %s", command, arguments);
-		SetCommandFlags(command, flags);
+		EmitSoundToAll(PANIC_SOUND);
+		char sCommand[16];
+		strcopy(sCommand, sizeof(sCommand), "z_spawn");
+		int flags = GetCommandFlags(sCommand);
+		SetCommandFlags(sCommand, flags & ~FCVAR_CHEAT);
+		FakeClientCommand(iAnyClient, "z_spawn mob auto");
+		SetCommandFlags(sCommand, flags);
 	}
+	return Plugin_Stop;
 }
 
 int GetAnyClient() 
-{ 
-	for (int target = 1; target <= MaxClients; target++) 
-	{ 
-		if (IsClientInGame(target)) 
-		    return target; 
-	} 
-	return -1; 
+{
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i) && !IsFakeClient(i))
+		{
+			return i;
+		}
+	}
+	return 0;
 }

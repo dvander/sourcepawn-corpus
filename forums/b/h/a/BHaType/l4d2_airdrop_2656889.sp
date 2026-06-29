@@ -5,14 +5,7 @@
 #include <sdktools>
 #include <sdkhooks>
 
-// #define _DEBUG
-
-#if defined _DEBUG
-	#define LOG(%0) LogMessage(%0)
-#else
-	stock void LogMessageEx() {}
-	#define LOG(%0) LogMessageEx()
-#endif
+#include <colors>
 
 #define _MIN(%0,%1) (((%0) > (%1)) ? (%1) : (%0))
 #define _MAX(%0,%1) (((%0) > (%1)) ? (%0) : (%1))
@@ -37,6 +30,8 @@
 #define AC130_MODEL 		"models/props_vehicles/c130.mdl"
 #define AC130_SOUND 		"animation/c130_flyby.wav"
 
+#define SOUND_CALL			"npc/soldier1/misc12.wav"
+
 #define AC130_KILL_TIME 15.0
 #define NAVIGATION_EXTENT_THRESHOLD 300.0
 #define GROUND_THRESHOLD 80.0
@@ -45,7 +40,7 @@ public Plugin myinfo =
 {
 	name = "[L4D2] Airdrop",
 	author = "BHaType",
-	version = "0.6"
+	version = "0.7"
 }
 
 enum SECTION_TYPE
@@ -257,8 +252,6 @@ enum struct AirdropsManager
 			return -1;
 		}
 		
-		LOG("Added crate: %i index: %i", crate, this.index);
-		
 		this.crates[this.index++] = EntIndexToEntRef(crate);
 		return this.index - 1;
 	}
@@ -337,6 +330,8 @@ AirplaneInfo g_AirplaneInfo[MAX_AIRPLANES_INFO];
 AirdropInfo g_AirdropInfo[MAX_AIRDROPS_INFO];
 Airplane g_Airplanes[MAX_AIRPLANES];
 
+int g_iCrateAirdropInfo[2048 + 1] = { -1, ... };
+
 int g_iAirplaneInfoCount;
 int g_iAirdropInfoCount;
 int g_iAirplanesCount;
@@ -349,9 +344,12 @@ ArrayStack g_hSectionsStack;
 
 bool g_bLateLoad;
 bool g_bL4DHooks;
+bool g_bLeft4Dead1;
 
 char g_szPath[PLATFORM_MAX_PATH];
 Handle g_hAirdropTimer;
+
+GlobalForward g_hSupplyDispatch;
 
 methodmap Random < ArrayList
 {
@@ -391,8 +389,42 @@ public any NAT_CreateAirdrop( Handle plugin, int numParams )
 	{
 		return false;
 	}
-	
+
 	return CallAirdropRandom(vOrigin, vAngles, GetNativeCell(3));
+}
+
+public any NAT_CreateCrate( Handle plugin, int numParams )
+{
+	int length;
+	float vOrigin[3];
+	GetNativeStringLength(2, length);
+	
+	char[] name = new char[length + 1];
+	GetNativeString(2, name, length + 1);
+	GetNativeArray(1, vOrigin, sizeof vOrigin);
+	
+	int info = FindAirdropInfoByName(name);
+
+	if (info == -1)
+		return 0;
+
+	int crate = CreateCrate(vOrigin, g_AirdropInfo[info]);
+	
+	if (crate != -1)
+	{
+		ApplyCrateSettings(crate, g_AirdropInfo[info]);
+		g_iCrateAirdropInfo[crate] = info;
+	}
+
+	return crate;
+}
+
+public void OnEntityCreated(int entity, const char[] classname)
+{
+	if (entity < 0 || entity > 2048)
+		return;
+
+	g_iCrateAirdropInfo[entity] = -1;
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -401,7 +433,12 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	MarkNativeAsOptional("L4D_GetNearestNavArea");
 	MarkNativeAsOptional("L4D_FindRandomSpot");
 	
-	CreateNative("CreateAirdrop", NAT_CreateAirdrop);
+	CreateNative("Airdrop_CreateAirdrop", NAT_CreateAirdrop);
+	CreateNative("Airdrop_CreateCrate", NAT_CreateCrate);
+	
+	g_bLeft4Dead1 = GetEngineVersion() == Engine_Left4Dead;
+
+	g_hSupplyDispatch = new GlobalForward("Airdrop_OnSupplyDispatch", ET_Hook, Param_Cell, Param_String, Param_String);
 	g_bLateLoad = late;
 	
 	return APLRes_Success;
@@ -438,6 +475,8 @@ public void OnPluginStart()
 	RegAdminCmd("sm_airdrop_reload_config", sm_airdrop_reload_config, ADMFLAG_ROOT);
 	RegAdminCmd("sm_airdrop_info_dump", sm_airdrop_info_dump, ADMFLAG_ROOT);
 	RegAdminCmd("sm_airdrop_weapons_rolling_test", sm_airdrop_weapons_rolling_test, ADMFLAG_ROOT);
+
+	LoadTranslations("l4d2_server.phrases");
 }
 
 public void OnPluginEnd()
@@ -462,10 +501,16 @@ public void OnMapStart()
 	PrecacheModel(MODEL_FLARE, true);
 	PrecacheSound(AC130_SOUND, true);
 	
+	PrecacheSound(SOUND_CALL, true);
+
 	PrecacheAirdrops();
 	
 	PrecacheParticle(PARTICLE_FLARE);
 	PrecacheParticle(PARTICLE_FUSE);
+
+	int plane = CreateAirplane({0.0, 0.0, 0.0}, {0.0, 0.0, 0.0});
+	if (plane != -1)
+		RemoveEntity(plane);
 }
 
 public void OnMapEnd()
@@ -476,32 +521,25 @@ public void OnMapEnd()
 
 public Action L4D_OnFirstSurvivorLeftSafeArea( int client )
 {
-	LOG("%N left safe area. Start airdrop timer routine.", client);
-	
 	if ( g_Globals.airdrop_timer <= 0.0 )
 	{	
-		LOG("Blocking  airdrop timer because timer is negative (%.2f)", g_Globals.airdrop_timer);
 		return Plugin_Continue;
 	}
 	
 	if ( g_hAirdropTimer != null )
 		delete g_hAirdropTimer;
 	
-	LOG("Airdrop will be called in %.2f seconds", g_Globals.airdrop_timer);
 	g_iAirdropsTimerCount = 0;
 	g_hAirdropTimer = CreateTimer(g_Globals.airdrop_timer, timer_airdrop, .flags = TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	return Plugin_Continue;
 }
 
 public Action timer_airdrop( Handle timer )
-{	
-	LOG("Calling airdrop... Timer is called! (%i/%i)", g_iAirdropsTimerCount, g_Globals.airdrop_timer_max_count);
-	
+{
 	int client = GetRandomPlayer();
 	
 	if ( client == -1 )
 	{
-		LOG("Failed to find possible airdrop initiator, aborting...");
 		return Plugin_Continue;
 	}
 	
@@ -512,7 +550,6 @@ public Action timer_airdrop( Handle timer )
 
 	if ( GetSkyOrigin(vOrigin, vOrigin, g_Globals.skyboxonly) && CallAirdropRandom(vOrigin, vAngles) && g_iAirdropsTimerCount++ >= g_Globals.airdrop_timer_max_count )
 	{
-		LOG("Reached limit of timed airdrops... Stop timer");
 		g_hAirdropTimer = null;
 		return Plugin_Stop;
 	}
@@ -685,14 +722,13 @@ bool CallAirdrop( const float vOrigin[3], const float vAngles[3], int initiator 
 {
 	if ( g_Globals.chat_activity && initiator )
 	{
-		PrintToChatAll("\x04%N \x05called airdrop\x03!", initiator);
+		CPrintToChatAll("%t", "player_called_airdrop", initiator);
 	}
 	
 	int slot = GetFreeAirplaneSlot();
 	
 	if ( slot == - 1)
 	{
-		LogMessage("You have reached limit of airdrops, reduce their count or expand limit");
 		return false;
 	}
 	
@@ -728,7 +764,9 @@ bool CallAirdrop( const float vOrigin[3], const float vAngles[3], int initiator 
 	g_Airplanes[slot] = plane;
 	
 	g_iAirplanesCount++;
-	
+
+	EmitSoundToAll(SOUND_CALL);
+
 	CreateTimer(plane.airplane_info.droptime, timer_create_airdrops, plane.entity, TIMER_FLAG_NO_MAPCHANGE);
 	CreateTimer(AC130_KILL_TIME, timer_delete_airplane, slot, TIMER_FLAG_NO_MAPCHANGE);
 	
@@ -737,7 +775,6 @@ bool CallAirdrop( const float vOrigin[3], const float vAngles[3], int initiator 
 	AcceptEntityInput(airplane, "SetAnimation");
 	AcceptEntityInput(airplane, "Enable");
 	
-	LOG("Called airdrop initiator: %N, Airplane name: (%s), Airdrop name: (%s), airdropID: %i", initiator, plane.airplane_info.name, plane.airdrop_info.name, slot);
 	return true;
 }
 
@@ -745,15 +782,8 @@ public Action timer_delete_airplane( Handle timer, int i )
 {
 	int airplane = EntRefToEntIndex(g_Airplanes[i].entity);
 	
-	if ( airplane == INVALID_ENT_REFERENCE || !IsValidEntity(airplane) )
-	{
-		LogMessage("Something deleted airplane before me...");
-	}
-	else
-	{
-		LOG("Deleted airplane ID: %i", i);
+	if ( airplane != INVALID_ENT_REFERENCE && IsValidEntity(airplane) )
 		RemoveEntityTimed(airplane);
-	}
 	
 	g_Airplanes[i].entity = -1;
 	g_iAirplanesCount--;
@@ -770,11 +800,9 @@ public Action timer_create_airdrops( Handle timer, int airplane )
 	
 	if ( i == -1 )
 	{
-		LOG("Failed to find airplane");
 		return Plugin_Continue;
 	}
 	
-	LOG("Creating supplies");
 	SDKHook(airplane, SDKHook_Think, OnThink);
 	return Plugin_Continue;
 }
@@ -812,7 +840,6 @@ public Action OnThink( int airplane )
 		
 		if ( (parachute = AttachParachute(crate, plane)) != -1 )
 		{
-			LOG("Attached parachute to crate airplaneID: %i crateID: %i parachute: %s", i, l, plane.airdrop_info.parachute);
 			plane.airdrops_manager.parachute[l] = EntIndexToEntRef(parachute);
 			CreateTimer(0.2, timer_parachute_think, i, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 		}
@@ -828,16 +855,12 @@ public Action OnThink( int airplane )
 			
 			CreateTimer(0.1, timer_crate_flares, pack, TIMER_REPEAT | TIMER_DATA_HNDL_CLOSE | TIMER_FLAG_NO_MAPCHANGE);
 		}
-		
-		LOG("Created supply %i of %i, alivetime: %.2f ... Next drop in %.2f", plane.dropped_count, plane.airplane_info.airdrop_count, plane.airdrop_info.alivetime, plane.airdrops_manager.lastdrop - GetGameTime());
 	}
 	
 	if ( plane.airdrop_info.flare_info.flare_type == DYNAMIC_FLARE && plane.airdrop_info.flare_info.count > 0 && plane.flares_count < plane.airdrop_info.flare_info.count && GetGameTime() - plane.airdrop_info.flare_info.last_spawn >= 0.0 )
 	{
 		plane.airdrop_info.flare_info.last_spawn = GetGameTime() + plane.airdrop_info.flare_info.spawn_interval;
 		plane.flares_count++;
-		
-		LOG("Creating dynamic flares flareID: %i, interval: %f", plane.flares_count, plane.airdrop_info.flare_info.spawn_interval);
 		
 		float vOrigin[3], vAngles[3], vFwd[3];
 		int projectile, flare;
@@ -973,7 +996,7 @@ public Action timer_crate_flares( Handle timer, DataPack pack)
 	if ( GetVectorDistance(vOrigin, vEnd) >= GROUND_THRESHOLD )
 		return Plugin_Continue;
 	
-	LOG("Spawning flares");
+	
 	
 	for (int j; j < g_Airplanes[i].airdrop_info.flare_info.count_per_crate; j++)
 	{	
@@ -1065,7 +1088,7 @@ public Action timer_delete_flare( Handle timer, int data )
 	g_Airplanes[airplaneID].flare_manager.Kill(flareID);
 	g_Airplanes[airplaneID].flares_count--;
 	
-	LOG("Deleting flare ID: %i Remaining: %i", flareID, g_Airplanes[airplaneID].flares_count);
+	
 	return Plugin_Continue;
 }
 
@@ -1074,11 +1097,9 @@ public Action timer_delete_supply( Handle timer, int data )
 	int supplyID = data >> 16;
 	int airplaneID = data & 0xFFFF;
 	
-	LOG("Deleted supply: %i airplane ID: %i", supplyID + 1, airplaneID);
-	
 	if ( !g_Airplanes[airplaneID].airdrops_manager.Kill(supplyID) )
 	{
-		LOG("Failed to delete supply... Probably used");
+		
 	}
 	
 	g_Airplanes[airplaneID].dropped_count--;
@@ -1156,9 +1177,12 @@ void ApplyCrateSettings( int crate, AirdropInfo info )
 		}
 	}
 	
-	SetEntProp(crate, Prop_Send, "m_nGlowRange", info.glow_info.range);
-	SetEntProp(crate, Prop_Send, "m_iGlowType", info.glow_info.type);
-	SetEntProp(crate, Prop_Send, "m_glowColorOverride", info.glow_info.color);
+	if (!g_bLeft4Dead1)
+	{
+		SetEntProp(crate, Prop_Send, "m_nGlowRange", info.glow_info.range);
+		SetEntProp(crate, Prop_Send, "m_iGlowType", info.glow_info.type);
+		SetEntProp(crate, Prop_Send, "m_glowColorOverride", info.glow_info.color);
+	}
 }
 
 public void OnTouch( int entity, int other )
@@ -1190,15 +1214,39 @@ public void OnButtonTimeUp( const char[] output, int button, int presses, float 
 void StartSupplyRoutine( int crate )
 {
 	Airplane plane;
+	AirdropInfo airdropInfo;
 	int i = FindAirplaneByCrate(crate, plane);
 	
+	if (i == -1)
+	{
+		i = g_iCrateAirdropInfo[crate];
+
+		if (i != -1)
+		{
+			airdropInfo = g_AirdropInfo[i];
+		}
+	}
+	else
+	{
+		airdropInfo = plane.airdrop_info;
+	}
+
 	if ( i == -1 )
 	{
 		LogError("Failed to find airplane... Can't spawn weapons");
 		return;
 	}
 	
-	CreateSupplyWeapons(crate, plane.airdrop_info);
+	Action result;
+
+	Call_StartForward(g_hSupplyDispatch);
+	Call_PushCell(crate);
+	Call_PushString(plane.airplane_info.name);
+	Call_PushString(airdropInfo.name);
+	Call_Finish(result);
+
+	if (result != Plugin_Handled)
+		CreateSupplyWeapons(crate, airdropInfo);
 	
 	// g_Airplanes[i].dropped_count--;
 	// g_Airplanes[i].flare_manager.KillAll();
@@ -1206,8 +1254,6 @@ void StartSupplyRoutine( int crate )
 
 void CreateSupplyWeapons( int crate, AirdropInfo dropinfo )
 {
-	LOG("Starting creating weapons...");
-	
 	char szName[36];
 	int entity, index;
 	
@@ -1216,7 +1262,7 @@ void CreateSupplyWeapons( int crate, AirdropInfo dropinfo )
 	
 	if ( dropinfo.weapons_info.list == null )
 	{
-		LOG("Empty or no \"weapons\" section... Use global config");
+		
 		random = random.GetRandom(g_DefaultWeaponsInfo);
 		info = g_DefaultWeaponsInfo;
 	}
@@ -1236,7 +1282,7 @@ void CreateSupplyWeapons( int crate, AirdropInfo dropinfo )
 		IntToString(index, szName, 4);
 		info.map.GetString(szName, szName, sizeof szName);
 		
-		LOG("Creating weapon: %s", szName);
+		
 		
 		if ( strcmp(szName, "nothing") == 0 )
 			continue;
@@ -1681,26 +1727,17 @@ stock void PrecacheParticle(const char[] sEffectName)
 
 stock bool GetSkyOrigin( const float vOrigin[3], float out[3], bool skyonly = false )
 {
-	LOG("Called GetSkyOrigin skyonly: %i", skyonly);
+	TR_TraceRayFilter(vOrigin, view_as<float>({-89.0, 0.0, 0.0}), MASK_ALL, RayType_Infinite, __TraceFilter);
 	
-	Handle ray = TR_TraceRayFilterEx(vOrigin, view_as<float>({-89.0, 0.0, 0.0}), MASK_ALL, RayType_Infinite, __TraceFilter);
-	
-	if ( !TR_DidHit(ray) )
-	{
-		delete ray;
+	if (!TR_DidHit())
 		return false;
-	}
-	
-	if ( skyonly && !(TR_GetSurfaceFlags(ray) & (SURF_SKY | SURF_SKY2D)) )
-	{
-		LOG("GetSkyOrigin fail skyonly: 1 (NO SKY FOUND)", skyonly);
-		delete ray;
-		return false;
-	}
-	
-	float vVec[3];
-	TR_GetEndPosition(vVec, ray);
 
+	if ( skyonly && !(TR_GetSurfaceFlags() & (SURF_SKY | SURF_SKY2D)) )
+		return false;
+
+	float vVec[3];
+	TR_GetEndPosition(vVec);
+	
 	if ( g_Globals.maxheight != 0.0 && GetVectorDistance(vOrigin, vVec) >= g_Globals.maxheight )
 	{
 		vVec[2] = vOrigin[2] + g_Globals.maxheight;
@@ -1711,13 +1748,12 @@ stock bool GetSkyOrigin( const float vOrigin[3], float out[3], bool skyonly = fa
 	}
 	
 	out = vVec;
-	delete ray;
 	return true;
 }
 
 public bool __TraceFilter( int entity, int mask )
 {
-	return entity <= 0;
+	return false;
 }
 
 ///////////////////////////////////////////////
@@ -1833,13 +1869,13 @@ public SMCResult Config_NewSection( Handle parser, const char[] section, bool qu
 		}
 	}
 	
-	LOG("%i. Enter %s section ( Current: (%s) Last: (%s) )", g_iSectionLevel, section, FormatSection(g_iSectionType), FormatSection(g_iLastSectionType));
+	
 	return SMCParse_Continue;
 }
 
 public SMCResult Config_KeyValue( Handle parser, char[] key, char[] value, bool key_quotes, bool value_quotes )
 {
-	LOG("OnKeyValue \"%s\" \"%s\"", key, value);
+	
 	
 	if ( g_iSectionType & SECTION_GLOBAL_SETTINGS )
 	{
@@ -1995,7 +2031,7 @@ public SMCResult Config_KeyValue( Handle parser, char[] key, char[] value, bool 
 			}
 			else if ( strcmp(key, "alivetime", false) == 0 )
 			{
-				LOG("%i %f", g_iAirdropInfoCount, StringToFloat(value));
+				
 				g_AirdropInfo[g_iAirdropInfoCount].alivetime = StringToFloat(value);
 			}
 			else if ( strcmp(key, "model", false) == 0 )
@@ -2080,7 +2116,7 @@ public SMCResult Config_KeyValue( Handle parser, char[] key, char[] value, bool 
 
 public SMCResult Config_EndSection( Handle parser )
 {
-	LOG("%i. Leave section ( Current: (%s) Last: (%s) )", g_iSectionLevel, FormatSection(g_iSectionType), FormatSection(g_iLastSectionType));
+	
 	
 	if ( g_iSectionLevel == 2 )
 	{
@@ -2101,17 +2137,13 @@ public SMCResult Config_EndSection( Handle parser )
 
 void PrecacheAirdrops()
 {
-	LOG("Caching airdrops %i", g_iAirdropInfoCount);
-	
 	for (int i; i < g_iAirdropInfoCount; i++)
 	{
-		PrecacheModel(g_AirdropInfo[i].model, true);
-		LOG("Cached model %s", g_AirdropInfo[i].model);
+		PrecacheModel(g_AirdropInfo[i].model);
 		
 		if ( g_AirdropInfo[i].parachute[0] != '\0' )
 		{
-			PrecacheModel(g_AirdropInfo[i].parachute, true);
-			LOG("Cached parachute %s", g_AirdropInfo[i].parachute);
+			PrecacheModel(g_AirdropInfo[i].parachute);
 		}
 	}
 }

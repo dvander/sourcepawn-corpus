@@ -12,14 +12,15 @@ public Plugin myinfo =
 	url = "https://"
 };
 
-int ColorOverride[MAXPLAYERS + 1];
+int ColorOverride[MAXPLAYERS + 1] = {0, ...};
 
 public void OnPluginStart()
 {
 	HookEvent("player_spawn", EventAdminSpawn, EventHookMode_Post);
+	HookEvent("bot_player_replace", EventAdminSpawn, EventHookMode_Post);
 }
 
-public void EventAdminSpawn(Event event, const char[] name, bool dontBroadcast)
+void EventAdminSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int adminid = GetClientOfUserId(event.GetInt("userid"));
 	if(adminid)

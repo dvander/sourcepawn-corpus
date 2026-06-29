@@ -1,6 +1,6 @@
 /*
 *	Cvar Configs Updater
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.7"
+#define PLUGIN_VERSION		"1.8"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (25-Jan-2026)
+	- Fixed not ignoring configs listed in the "sm_configs_ignore" cvar list. Thanks to "KasperH" for reporting.
 
 1.7 (15-Jan-2022)
 	- Fixed sometimes adding an extra quote to lines. Thanks to "Hawkins" for reporting.
@@ -98,7 +101,7 @@ public Plugin myinfo =
 public void OnPluginStart()
 {
 	g_hCvarComment = CreateConVar(	"sm_configs_comment",	"1",			"Comment out cvars when their value matches the default.", CVAR_FLAGS);
-	g_hCvarIgnore = CreateConVar(	"sm_configs_ignore",	"",				"Do not move these .cfg files. List their names separated by the | vertical bar, and without the .cfg extension.", CVAR_FLAGS);
+	g_hCvarIgnore = CreateConVar(	"sm_configs_ignore",	"",				"Do not move or modify these .cfg files. List their names separated by the | vertical bar, and without the .cfg extension.", CVAR_FLAGS);
 	CreateConVar(					"sm_configs_version",	PLUGIN_VERSION,	"Cvar Configs Updater plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,			"sm_configs");
 
@@ -107,7 +110,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_configs_update",		CmdConfigsUpdate,	ADMFLAG_ROOT,	"Sets cvar configs values in your cfgs/sourcemod folder to those from todays backup folder. Changes map to the current one so the cvars in-game are correct.");
 }
 
-public Action CmdConfigsBackup(int client, int args)
+Action CmdConfigsBackup(int client, int args)
 {
 	char sDir[PLATFORM_MAX_PATH];
 	sDir = "cfg/sourcemod/";
@@ -187,13 +190,13 @@ public Action CmdConfigsBackup(int client, int args)
 	return Plugin_Handled;
 }
 
-public Action CmdConfigsCompare(int client, int args)
+Action CmdConfigsCompare(int client, int args)
 {
 	CompareConfigs(client, false);
 	return Plugin_Handled;
 }
 
-public Action CmdConfigsUpdate(int client, int args)
+Action CmdConfigsUpdate(int client, int args)
 {
 	if( CompareConfigs(client, true) )
 	{
@@ -228,10 +231,15 @@ bool CompareConfigs(int client, bool write)
 	g_hArrayCvarList = new ArrayList(MAX_CVAR_LENGTH);
 	g_hArrayCvarValues = new ArrayList(MAX_CVAR_LENGTH);
 
+	char sIgnore[1024];
+	char sIgnoreBuffer[32][64];
 	char sFile[PLATFORM_MAX_PATH];
 	char sPath[PLATFORM_MAX_PATH];
 	FileType filetype;
 	int pos, iCount, iTotal;
+
+	g_hCvarIgnore.GetString(sIgnore, sizeof(sIgnore));
+	int exploded = ExplodeString(sIgnore, "|", sIgnoreBuffer, sizeof(sIgnoreBuffer), sizeof(sIgnoreBuffer[]));
 
 	while( hDir.GetNext(sFile, sizeof(sFile), filetype) )
 	{
@@ -240,16 +248,31 @@ bool CompareConfigs(int client, bool write)
 			pos = FindCharInString(sFile, '.', true);
 			if( pos != -1 && strcmp(sFile[pos], ".cfg", false) == 0 )
 			{
-				Format(sPath, sizeof(sPath), "%s/%s", sBackup, sFile);
-				if( FileExists(sPath) )
+				pos = 0;
+				if( exploded )
 				{
-					ProcessConfigA(client, sBackup, sFile);
-					ProcessConfigB(client, sFile, write);
-					g_hArrayCvarList.Clear();
-					g_hArrayCvarValues.Clear();
-					iCount++;
+					for( int i = 0; i < exploded; i++ )
+					{
+						Format(sPath, sizeof(sPath), "%s.cfg", sIgnoreBuffer[i]);
+						if( strcmp(sFile, sPath) == 0 )
+						{
+							pos = 1;
+							break;
+						}
+					}
 				}
-				iTotal++;
+
+				if( pos == 0 )
+				{
+					Format(sPath, sizeof(sPath), "%s/%s", sBackup, sFile);
+					if( FileExists(sPath) )
+					{
+						ProcessConfigA(client, sBackup, sFile);
+						ProcessConfigB(client, sFile, write);
+						iCount++;
+					}
+					iTotal++;
+				}
 			}
 		}
 	}

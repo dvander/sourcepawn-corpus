@@ -1,6 +1,6 @@
 /*
 *	Spitter Acid Glow
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.2"
+#define PLUGIN_VERSION 		"1.3"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.3 (20-Jan-2024)
+	- Fixed the light fadeout not working. Thanks to "S.A.S" for reporting.
 
 1.2 (10-Apr-2022)
 	- Changed the method for fading lights in and out hopefully preventing random server crash.
@@ -52,7 +55,7 @@
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define MAX_LIGHTS			8
-#define ACID_TIME			7.2
+#define ACID_TIME			8.2
 
 
 ConVar g_hCvarAllow, g_hCvarColor, g_hCvarDist, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
@@ -127,12 +130,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -218,7 +221,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -235,6 +238,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					LIGHTS
 // ====================================================================================================
+/*
 public void OnEntityDestroyed(int entity)
 {
 	if( g_bCvarAllow && g_bMapStarted && entity > MaxClients )
@@ -257,6 +261,7 @@ public void OnEntityDestroyed(int entity)
 		}
 	}
 }
+*/
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
@@ -267,7 +272,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-public Action TimerCreate(Handle timer, any target)
+Action TimerCreate(Handle timer, int target)
 {
 	if( (target = EntRefToEntIndex(target)) != INVALID_ENT_REFERENCE )
 	{
@@ -285,7 +290,7 @@ public Action TimerCreate(Handle timer, any target)
 		if( index == -1 )
 			return Plugin_Continue;
 
-		static char sTemp[64];
+		static char sTemp[40];
 		int entity = CreateEntityByName("light_dynamic");
 		if( entity == -1)
 		{
@@ -296,7 +301,7 @@ public Action TimerCreate(Handle timer, any target)
 		g_iEntities[index][0] = EntIndexToEntRef(entity);
 		g_iEntities[index][1] = EntIndexToEntRef(target);
 
-		Format(sTemp, sizeof(sTemp), "%s 255", g_sCvarCols);
+		FormatEx(sTemp, sizeof(sTemp), "%s 255", g_sCvarCols);
 
 		DispatchKeyValue(entity, "_light", sTemp);
 		DispatchKeyValue(entity, "brightness", "3");
@@ -347,7 +352,7 @@ public Action TimerCreate(Handle timer, any target)
 		AcceptEntityInput(entity, "FireUser2");
 		// */
 
-		Format(sTemp, sizeof(sTemp), "OnUser3 !self:Kill::%f:-1", ACID_TIME);
+		FormatEx(sTemp, sizeof(sTemp), "OnUser3 !self:Kill::%f:-1", ACID_TIME);
 		SetVariantString(sTemp);
 		AcceptEntityInput(entity, "AddOutput");
 		AcceptEntityInput(entity, "FireUser3");

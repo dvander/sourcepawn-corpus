@@ -1,6 +1,6 @@
 /*
 *	Footlocker Spawner
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.19"
+#define PLUGIN_VERSION 		"1.20"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.20 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.19 (22-Nov-2023)
 	- Changed to TeleportEntity before DispatchSpawn to prevent crashes. Thanks to "HarryPotter" for reporting.
@@ -644,7 +647,7 @@ void LoadFootlockers()
 			for( i = 0; i < iCount; i++ )
 				iIndexes[i] = i+1;
 
-			SortIntegers(iIndexes, iCount, Sort_Random);
+			SortCustom(iIndexes, iCount);
 			iCount = iRandom;
 		}
 	}
@@ -2208,6 +2211,19 @@ void RemoveLocker(int index)
 	g_iType[index] = 0;
 	g_iTotal[index] = 0;
 	g_iWitch[index] = 0;
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
+	}
 }
 
 

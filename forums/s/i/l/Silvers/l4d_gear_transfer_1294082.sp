@@ -1,6 +1,6 @@
 /*
 *	Gear Transfer
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"2.31"
+#define PLUGIN_VERSION		"2.37"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,25 @@
 
 ========================================================================================
 	Change Log:
+
+2.37 (18-Jun-2026)
+	- Added vocalize for players to say when they are giving an item. Requested by "TBK Duy".
+	- Fixed errors if "BENCHMARK" define was set to "1".
+
+2.36 (15-Dec-2024)
+	- Now fires the "spawner_give_item" event where required. Thanks to "little_froy" for updating.
+
+2.35 (05-Nov-2024)
+	- Fixed invalid client error, likely due to 3rd party plugin. Thanks to "voledar" for reporting.
+
+2.34 (17-Jun-2024)
+	- Fixed compile errors on SM 1.12. Thanks to "TheStarRocker" for reporting.
+
+2.33 (28-Jan-2024)
+	- Fixed memory leak caused by clearing StringMap/ArrayList data instead of deleting.
+
+2.32 (20-Dec-2023)
+	- Added cvar "l4d_gear_transfer_start" to block auto grab/give for a specified time on round start. Requested by "Iciaria".
 
 2.31 (27-Jul-2023)
 	- Fixed compile error on SourceMod version 1.12. Thanks to "ur5efj" for reporting.
@@ -375,21 +394,20 @@
 // Auto Give/Grab functions can exit leaving profiler enabled. I don't care to waste time fixing this.
 // This should only be used for testing and not on a live server as the profiler and spew will cause excess lag.
 #define BENCHMARK				0
-#if BENCHMARK
-	#include <profiler>
-	Handle g_Profiler;
 
-	#if BENCHMARK == 2
-		static float g_fBenchGiveMin;
-		static float g_fBenchGiveAvg;
-		static float g_fBenchGiveMax;
-		static int g_iBenchGiveTicks;
-		static float g_fBenchGrabMin;
-		static float g_fBenchGrabAvg;
-		static float g_fBenchGrabMax;
-		static int g_iBenchGrabTicks;
-		static bool g_bProfiling;
-	#endif
+#if BENCHMARK == 2
+	#include <profiler>
+
+	Handle g_Profiler;
+	static float g_fBenchGiveMin;
+	static float g_fBenchGiveAvg;
+	static float g_fBenchGiveMax;
+	static int g_iBenchGiveTicks;
+	static float g_fBenchGrabMin;
+	static float g_fBenchGrabAvg;
+	static float g_fBenchGrabMax;
+	static int g_iBenchGrabTicks;
+	static bool g_bProfiling;
 #endif
 
 
@@ -403,13 +421,13 @@
 
 
 // Cvar handles
-ConVar g_hCvarAllow, g_hCvarDying, g_hCvarDistGive, g_hCvarDistGrab, g_hCvarGive, g_hCvarGrab, g_hCvarIdle, g_hCvarMethod, g_hCvarModesBot, g_hCvarModesOn, g_hCvarModesOff, g_hCvarModesTog, g_hCvarNotify, g_hCvarNotifies, g_hCvarSounds, g_hCvarTimeout, g_hCvarTimerGive, g_hCvarTimerGrab, g_hCvarTraces, g_hCvarTypes, g_hCvarVocalize;
+ConVar g_hCvarAllow, g_hCvarDying, g_hCvarDistGive, g_hCvarDistGrab, g_hCvarGive, g_hCvarGrab, g_hCvarIdle, g_hCvarMethod, g_hCvarModesBot, g_hCvarModesOn, g_hCvarModesOff, g_hCvarModesTog, g_hCvarNotify, g_hCvarNotifies, g_hCvarSounds, g_hCvarStart, g_hCvarTimeout, g_hCvarTimerGive, g_hCvarTimerGrab, g_hCvarTraces, g_hCvarTypes, g_hCvarVocalize;
 ConVar g_hCvarMPGameMode, g_hCvarMaxIncap;
 
 // Cvar variables
 int g_iCvarMaxIncap, g_iCvarDying, g_iCvarGive, g_iCvarGrab, g_iCvarMethod, g_iCvarNotify, g_iCvarNotifies, g_iCvarTypes, g_iCvarTraces, g_iCvarVocalize;
 bool g_bCvarSounds, g_bCvarIdle;
-float g_fDistGive, g_fDistGrab, g_fTimerGive, g_fTimerGrab, g_fCvarTimeout, g_fBlockVocalize;
+float g_fDistGive, g_fDistGrab, g_fCvarStart, g_fTimerGive, g_fTimerGrab, g_fCvarTimeout, g_fBlockVocalize, g_fStartTime;
 
 // Variables
 bool g_bCvarAllow, g_bMapStarted, g_bModeOffAuto, g_bRoundOver, g_bRoundIntro, g_bTranslation, g_bTranslationNew, g_bLeft4Dead2;
@@ -520,7 +538,7 @@ static const char g_sPickups[9][] =
 
 int g_Lengths[9];
 
-// Vocalize for Left 4 Dead 2
+// Take vocalize for Left 4 Dead 2
 static const char g_Coach[8][] =
 {
 	"takepipebomb01", "takepipebomb02", "takepipebomb03", "takemolotov01", "takemolotov02", "takefirstaid01", "takefirstaid02", "takefirstaid03"
@@ -541,7 +559,7 @@ static const char g_Rochelle[9][] =
 	"takefirstaid03"
 };
 
-// Vocalize for Left 4 Dead
+// Take vocalize for Left 4 Dead
 static const char g_Bill[10][] =
 {
 	"TakePipeBomb01", "TakePipeBomb02", "TakePipeBomb03", "TakePipeBomb04", "TakeMolotov01", "TakeMolotov02", "TakeMolotov03", "TakeFirstAid01",
@@ -561,6 +579,47 @@ static const char g_Zoey[10][] =
 {
 	"TakePipeBomb02", "takepipebomb04", "TakeMolotov02", "takemolotov04", "takemolotov05", "takemolotov07", "TakeFirstAid01", "TakeFirstAid02",
 	"TakeFirstAid03", "takefirstaid05"
+};
+
+// Give vocalize for Left 4 Dead 2
+static const char g_GiveCoach[13][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem04", "AlertGiveItem05", "AlertGiveItemC101", "AlertGiveItemC102",
+	"AlertGiveItemC103", "AlertGiveItemCombat01", "AlertGiveItemCombat02", "AlertGiveItemCombat03", "AlertGiveItemCombat04", "AlertGiveItemCombat05"
+};
+static const char g_GiveEllis[12][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem04", "AlertGiveItem05", "AlertGiveItem06", "AlertGiveItem07",
+	"AlertGiveItem08", "AlertGiveItemCombat01", "AlertGiveItemCombat02", "AlertGiveItemCombat03", "AlertGiveItemCombat04"
+};
+static const char g_GiveNick[11][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem04", "AlertGiveItem05", "AlertGiveItem06", "AlertGiveItemC101",
+	"AlertGiveItemC102", "AlertGiveItemCombat01", "AlertGiveItemCombat02", "AlertGiveItemCombat03"
+};
+static const char g_GiveRochelle[12][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem04", "AlertGiveItem05", "AlertGiveItemC101", "AlertGiveItemCombat01",
+	"AlertGiveItemCombat02", "AlertGiveItemCombat03", "AlertGiveItemCombat04", "AlertGiveItemCombat05", "AlertGiveItemCombat06"
+};
+
+// Give vocalize for Left 4 Dead
+static const char g_GiveBill[7][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem04", "AlertGiveItem05", "AlertGiveItem06", "AlertGiveItem07"
+};
+static const char g_GiveFrancis[6][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem05", "AlertGiveItem06", "AlertGiveItem07"
+};
+static const char g_GiveLouis[7][] =
+{
+	"AlertGiveItem01", "AlertGiveItem02", "AlertGiveItem03", "AlertGiveItem04", "AlertGiveItem05", "AlertGiveItem06", "AlertGiveItem07"
+};
+static const char g_GiveZoey[10][] =
+{
+	"AlertGiveItem01", "AlertGiveItem03", "AlertGiveItem05", "AlertGiveItem07", "AlertGiveItem09", "AlertGiveItem11", "AlertGiveItem12",
+	"AlertGiveItem14", "AlertGiveItem15", "AlertGiveItem16"
 };
 
 
@@ -691,6 +750,7 @@ public void OnPluginStart()
 	g_hCvarNotifies =		CreateConVar(	"l4d_gear_transfer_notifies",		"7",			"Notify on these types of transfers: 1=Give, 2=Grab, 4=Switch, 7=All. Add numbers together.", CVAR_FLAGS);
 	g_hCvarNotify =			CreateConVar(	"l4d_gear_transfer_notify",			"1",			"0=Off, 1=Display transfers to everyone, 2=Also display when transferring pills/adrenaline via the games own system, 4=Display between recipients only. 8=Ignore printing pills/adrenaline and use game prompt only. Add numbers together.", CVAR_FLAGS);
 	g_hCvarSounds =			CreateConVar(	"l4d_gear_transfer_sounds",			"1",			"0=Off, 1=Play a sound to the person giving/receiving an item.", CVAR_FLAGS);
+	g_hCvarStart =			CreateConVar(	"l4d_gear_transfer_start",			"0.0",			"Block auto give and auto grab from round start for this many seconds.", CVAR_FLAGS);
 	g_hCvarTimerGive =		CreateConVar(	"l4d_gear_transfer_timer_give",		"1.0",			"0.0=Off. How often to check survivor bot positions to real clients for auto give.", CVAR_FLAGS, true, 0.0, true, 10.0);
 	g_hCvarTimerGrab =		CreateConVar(	"l4d_gear_transfer_timer_grab",		"0.5",			"0.0=Off. How often to check survivor bot positions to item positions for auto grab.", CVAR_FLAGS, true, 0.0, true, 10.0);
 	g_hCvarTimeout =		CreateConVar(	"l4d_gear_transfer_timeout",		"5.0",			"Timeout to stop bots returning an item after switching with a player. Timeout to prevent bots auto grabbing a recently dropped item.", CVAR_FLAGS, true, 1.0);
@@ -727,6 +787,7 @@ public void OnPluginStart()
 	g_hCvarNotify.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarNotifies.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSounds.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarStart.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarTimeout.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarTimerGive.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarTimerGrab.AddChangeHook(ConVarChanged_Cvars);
@@ -747,7 +808,7 @@ public void OnPluginStart()
 
 	IsAllowed();
 
-	#if BENCHMARK
+	#if BENCHMARK == 2
 	g_Profiler = CreateProfiler();
 	#endif
 }
@@ -770,6 +831,9 @@ public void OnMapEnd()
 
 void ResetPlugin()
 {
+	g_fBlockVocalize = 0.0;
+	g_fStartTime = 0.0;
+
 	for( int i = 1; i <= MaxClients; i++ )
 	{
 		g_fNextTransfer[i] = 0.0;
@@ -790,12 +854,25 @@ void ResetPlugin()
 
 void ResetItemArray()
 {
-	g_ListMeds.Clear();
-	g_ListNade.Clear();
-	g_ListPack.Clear();
-	g_TypeMeds.Clear();
-	g_TypeNade.Clear();
-	g_TypePack.Clear();
+	// .Clear() is creating a memory leak
+	// g_ListMeds.Clear();
+	// g_ListNade.Clear();
+	// g_ListPack.Clear();
+	// g_TypeMeds.Clear();
+	// g_TypeNade.Clear();
+	// g_TypePack.Clear();
+	delete g_ListMeds;
+	delete g_ListNade;
+	delete g_ListPack;
+	delete g_TypeMeds;
+	delete g_TypeNade;
+	delete g_TypePack;
+	g_ListMeds = new ArrayList();
+	g_ListNade = new ArrayList();
+	g_ListPack = new ArrayList();
+	g_TypeMeds = new ArrayList();
+	g_TypeNade = new ArrayList();
+	g_TypePack = new ArrayList();
 }
 
 public void OnClientPutInServer(int client)
@@ -874,6 +951,7 @@ void GetCvars()
 	g_iCvarNotify = g_hCvarNotify.IntValue;
 	g_iCvarNotifies = g_hCvarNotifies.IntValue;
 	g_bCvarSounds = g_hCvarSounds.BoolValue;
+	g_fCvarStart = g_hCvarStart.FloatValue;
 	g_fCvarTimeout = g_hCvarTimeout.FloatValue;
 	g_fTimerGive = g_hCvarTimerGive.FloatValue;
 	g_fTimerGrab = g_hCvarTimerGrab.FloatValue;
@@ -1102,6 +1180,7 @@ void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	#endif
 
 	g_bRoundOver = false;
+	g_fStartTime = GetGameTime();
 
 	// Vocalize block
 	if( g_iCvarVocalize && (g_iCvarGive || g_iCvarGrab) )
@@ -1209,6 +1288,8 @@ void Event_WeaponFire(Event event, const char[] name, bool dontBroadcast)
 void Event_WeaponGiven(Event event, const char[] name, bool dontBroadcast)
 {
 	int giver = GetClientOfUserId(event.GetInt("giver"));
+	if( !giver ) return;
+
 	if( !IsFakeClient(giver) )
 		SetNextTransfer(giver, 2.0);
 
@@ -1232,7 +1313,7 @@ void Event_WeaponGiven(Event event, const char[] name, bool dontBroadcast)
 			}
 			else
 			{
-				CPrintToChatAll("\x05%N \x01%t \x04%t \x01%t \x05%N", giver, "Gave", g_sPickups[type], "To", client);
+				CPrintToChatAll(client, "\x05%N \x01%t \x04%t \x01%t \x05%N", giver, "Gave", g_sPickups[type], "To", client);
 			}
 		}
 
@@ -1537,9 +1618,18 @@ void GiveItem(int client, int target, int item, int slot, int type, int transfer
 	if( g_iCvarVocalize )
 	{
 		if( transferType == METHOD_GRAB )
+		{
 			Vocalize(client, type);
+		}
 		else if( transferType == METHOD_GIVE )
-			Vocalize(target, type);
+		{
+			DataPack dPack;
+			CreateDataTimer(0.5, TimerVocalizeGive, dPack, TIMER_FLAG_NO_MAPCHANGE);
+			dPack.WriteCell(GetClientUserId(target));
+			dPack.WriteCell(type);
+
+			VocalizeGive(client);
+		}
 		else
 		{
 			type = g_iClientType[client][slot] - 1;
@@ -1560,7 +1650,7 @@ void GiveItem(int client, int target, int item, int slot, int type, int transfer
 				if( g_bTranslationNew )
 					MPrintToChatAll(client, "Gave", g_sPickups[type], target);
 				else
-					CPrintToChatAll("\x05%N \x01%t \x04%t \x01%t \x05%N", client, "Gave", g_sPickups[type], "To", target);
+					CPrintToChatAll(target, "\x05%N \x01%t \x04%t \x01%t \x05%N", client, "Gave", g_sPickups[type], "To", target);
 			}
 		}
 		else if( transferType == METHOD_GRAB && g_iCvarNotifies & NOTIFY_GRAB )
@@ -1570,7 +1660,7 @@ void GiveItem(int client, int target, int item, int slot, int type, int transfer
 				if( g_bTranslationNew )
 					MPrintToChatAll(client, "Grabbed", g_sPickups[type], target);
 				else
-					CPrintToChatAll("\x05%N \x01%t \x04%t \x01%t \x05%N", client, "Grabbed", g_sPickups[type], "From", target);
+					CPrintToChatAll(target, "\x05%N \x01%t \x04%t \x01%t \x05%N", client, "Grabbed", g_sPickups[type], "From", target);
 			}
 		}
 		else if( transferType == METHOD_SWAP && g_iCvarNotifies & NOTIFY_SWITCH )
@@ -1582,7 +1672,7 @@ void GiveItem(int client, int target, int item, int slot, int type, int transfer
 				if( g_bTranslationNew )
 					MPrintToChatAll(client, "Switched", g_sPickups[type], target);
 				else
-					CPrintToChatAll("\x05%N \x01%t \x04%t \x01%t \x05%N", client, "Switched", g_sPickups[type], "With", target);
+					CPrintToChatAll(target, "\x05%N \x01%t \x04%t \x01%t \x05%N", client, "Switched", g_sPickups[type], "With", target);
 			}
 
 			type = g_iClientType[target][slot] - 1;
@@ -1592,7 +1682,7 @@ void GiveItem(int client, int target, int item, int slot, int type, int transfer
 				if( g_bTranslationNew )
 					MPrintToChatAll(target, "Gave", g_sPickups[type], client);
 				else
-					CPrintToChatAll("\x05%N \x01%t \x04%t \x01%t \x05%N", target, "Gave", g_sPickups[type], "To", client);
+					CPrintToChatAll(client, "\x05%N \x01%t \x04%t \x01%t \x05%N", target, "Gave", g_sPickups[type], "To", client);
 			}
 		}
 	}
@@ -1750,7 +1840,7 @@ Action TimerSwapBack(Handle timer, int client)
 // ====================================================================================================
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	#if BENCHMARK
+	#if BENCHMARK == 2
 	StartProfiling(g_Profiler);
 	g_bProfiling = true;
 	#endif
@@ -1790,7 +1880,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 						}
 					}
 
-					#if BENCHMARK
+					#if BENCHMARK == 2
 					StopProfiling(g_Profiler);
 					g_bProfiling = false;
 					float speed = GetProfilerTime(g_Profiler);
@@ -1803,7 +1893,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 		}
 	}
 
-	#if BENCHMARK
+	#if BENCHMARK == 2
 	StopProfiling(g_Profiler);
 	g_bProfiling = false;
 	#endif
@@ -1834,8 +1924,9 @@ Action TimerAutoGive(Handle timer)
 	}
 
 	if( g_bRoundIntro ) return Plugin_Continue;
+	if( g_fCvarStart && g_fStartTime + g_fCvarStart > GetGameTime() ) return Plugin_Continue;
 
-	#if BENCHMARK
+	#if BENCHMARK == 2
 	StartProfiling(g_Profiler);
 	g_bProfiling = true;
 	#endif
@@ -1942,7 +2033,7 @@ Action TimerAutoGive(Handle timer)
 										// Validate receiver is black and white for first aid/pills/adrenaline
 										if( g_iCvarDying )
 										{
-											switch( type -1 )
+											switch( type - 1 )
 											{
 												case TYPE_FIRST:
 												{
@@ -2018,7 +2109,6 @@ Action TimerAutoGive(Handle timer)
 						GiveItem(bot, target, weapon, slot, type - 1, METHOD_GIVE);
 
 						#if BENCHMARK == 2
-
 						if( g_bProfiling )
 						{
 							StopProfiling(g_Profiler);
@@ -2076,11 +2166,9 @@ Action TimerAutoGrab(Handle timer)
 
 	if( g_bRoundIntro ) return Plugin_Continue;
 
-	#if BENCHMARK
+	#if BENCHMARK == 2
 	StartProfiling(g_Profiler);
 	g_bProfiling = true;
-	#endif
-	#if BENCHMARK == 2
 	#endif
 
 
@@ -2294,7 +2382,7 @@ Action TimerAutoGrab(Handle timer)
 
 						SetNextTransfer(bot, 2.0);
 
-						FireEventsFootlocker(bot, EntRefToEntIndex(weapon), type);
+						FireEventsFootlocker(bot, EntRefToEntIndex(weapon), type, spawner);
 
 						Vocalize(bot, type);
 
@@ -2303,7 +2391,7 @@ Action TimerAutoGrab(Handle timer)
 							if( g_bTranslationNew )
 								MPrintToChatAll(bot, "BotGrabbed", g_sPickups[type], 0);
 							else
-								CPrintToChatAll("\x05%N \x01%t \x04%t", bot, "Grabbed", g_sPickups[type]);
+								CPrintToChatAll(0, "\x05%N \x01%t \x04%t", bot, "Grabbed", g_sPickups[type]);
 						}
 
 						// break;
@@ -2340,7 +2428,7 @@ Action TimerAutoGrab(Handle timer)
 // ====================================================================================================
 //					VARIOUS HELPERS
 // ====================================================================================================
-void FireEventsFootlocker(int client, int target, int type)
+void FireEventsFootlocker(int client, int target, int type, bool spawner)
 {
 	Event hEvent = CreateEvent("item_pickup", true);
 	if( hEvent != null )
@@ -2348,6 +2436,18 @@ void FireEventsFootlocker(int client, int target, int type)
 		hEvent.SetInt("userid", GetClientUserId(client));
 		hEvent.SetString("item", g_sPickups[type]);
 		hEvent.Fire();
+	}
+
+	if(spawner)
+	{
+		hEvent = CreateEvent("spawner_give_item", true);
+		if( hEvent != null )
+		{
+			hEvent.SetInt("userid", GetClientUserId(client));
+			hEvent.SetString("item", g_sPickups[type]);
+			hEvent.SetInt("spawner", target);
+			hEvent.Fire();
+		}
 	}
 
 	hEvent = CreateEvent("player_use", true);
@@ -2478,15 +2578,32 @@ bool IsValidEntRef(int entity)
 // ====================================================================================================
 //					VOCALIZE
 // ====================================================================================================
+Action TimerVocalizeGive(Handle timer, DataPack dPack)
+{
+	if( g_bRoundOver ) return Plugin_Continue;
+
+	dPack.Reset();
+
+	int client = dPack.ReadCell();
+	client = GetClientOfUserId(client);
+
+	if( client && IsClientInGame(client) )
+	{
+		int type = dPack.ReadCell();
+
+		Vocalize(client, type);
+	}
+
+	return Plugin_Continue;
+}
+
 void Vocalize(int client, int type)
 {
-	if( g_iCvarVocalize == 0 || GetGameTime() < g_fBlockVocalize )
-		return;
+	// Vocalize blocked time
+	if( g_iCvarVocalize == 0 || GetGameTime() < g_fBlockVocalize ) return;
 
 	// Don't need to vocalize these
 	if( type != TYPE_PIPE && type != TYPE_MOLO && type != TYPE_FIRST ) return;
-
-
 
 	// Declare variables
 	int surv, min, max;
@@ -2608,6 +2725,93 @@ void Vocalize(int client, int type)
 	VocalizeScene(client, sTemp);
 }
 
+void VocalizeGive(int client)
+{
+	// Vocalize blocked time
+	if( g_iCvarVocalize == 0 || GetGameTime() < g_fBlockVocalize ) return;
+
+	// Declare variables
+	int surv, max;
+	static char model[40];
+
+	// Get survivor model
+	GetEntPropString(client, Prop_Data, "m_ModelName", model, sizeof(model));
+
+	switch( model[29] )
+	{
+		case 'c': { model = "coach";		surv = 1; }
+		case 'b': { model = "gambler";		surv = 2; }
+		case 'h': { model = "mechanic";		surv = 3; }
+		case 'd': { model = "producer";		surv = 4; }
+		case 'v': { model = "NamVet";		surv = 5; }
+		case 'e': { model = "Biker";		surv = 6; }
+		case 'a': { model = "Manager";		surv = 7; }
+		case 'n': { model = "TeenGirl";		surv = 8; }
+		default:
+		{
+			int character = GetEntProp(client, Prop_Send, "m_survivorCharacter");
+
+			if( g_bLeft4Dead2 )
+			{
+				switch( character )
+				{
+					case 0:	{ model = "gambler";		surv = 2; } // Nick
+					case 1:	{ model = "producer";		surv = 4; } // Rochelle
+					case 2:	{ model = "coach";			surv = 1; } // Coach
+					case 3:	{ model = "mechanic";		surv = 3; } // Ellis
+					case 4:	{ model = "NamVet";			surv = 5; } // Bill
+					case 5:	{ model = "TeenGirl";		surv = 8; } // Zoey
+					case 6:	{ model = "Biker";			surv = 6; } // Francis
+					case 7:	{ model = "Manager";		surv = 7; } // Louis
+				}
+			} else {
+				switch( character )
+				{
+					case 0:	 { model = "TeenGirl";		surv = 8; } // Zoey
+					case 1:	 { model = "NamVet";		surv = 5; } // Bill
+					case 2:	 { model = "Biker";			surv = 6; } // Francis
+					case 3:	 { model = "Manager";		surv = 7; } // Louis
+				}
+			}
+		}
+	}
+
+	// Failed for some reason? Should never happen.
+	if( surv == 0 )
+		return;
+
+	// Random number
+	int random = GetRandomInt(0, max);
+
+	switch( surv )
+	{
+		case 1: random = GetRandomInt(0, sizeof(g_GiveCoach) - 1);
+		case 2: random = GetRandomInt(0, sizeof(g_GiveNick) - 1);
+		case 3: random = GetRandomInt(0, sizeof(g_GiveEllis) - 1);
+		case 4: random = GetRandomInt(0, sizeof(g_GiveRochelle) - 1);
+		case 5: random = GetRandomInt(0, sizeof(g_GiveBill) - 1);
+		case 6: random = GetRandomInt(0, sizeof(g_GiveFrancis) - 1);
+		case 7: random = GetRandomInt(0, sizeof(g_GiveLouis) - 1);
+		case 8: random = GetRandomInt(0, sizeof(g_GiveZoey) - 1);
+	}
+
+	static char sTemp[40];
+	switch( surv )
+	{
+		case 1: Format(sTemp, sizeof(sTemp), g_GiveCoach[random]);
+		case 2: Format(sTemp, sizeof(sTemp), g_GiveNick[random]);
+		case 3: Format(sTemp, sizeof(sTemp), g_GiveEllis[random]);
+		case 4: Format(sTemp, sizeof(sTemp), g_GiveRochelle[random]);
+		case 5: Format(sTemp, sizeof(sTemp), g_GiveBill[random]);
+		case 6: Format(sTemp, sizeof(sTemp), g_GiveFrancis[random]);
+		case 7: Format(sTemp, sizeof(sTemp), g_GiveLouis[random]);
+		case 8: Format(sTemp, sizeof(sTemp), g_GiveZoey[random]);
+	}
+
+	Format(sTemp, sizeof(sTemp), "scenes/%s/%s.vcd", model, sTemp);
+	VocalizeScene(client, sTemp);
+}
+
 
 
 // Taken from:
@@ -2639,7 +2843,7 @@ void PlaySound(int client, const char sound[32])
 // ====================================================================================================
 // Taken from:
 // https://docs.sourcemod.net/api/index.php?fastload=show&id=151&
-void CPrintToChatAll(const char[] format, any ..., int client = 0)
+void CPrintToChatAll(int client, const char[] format, any ...)
 {
 	static char buffer[192];
 
@@ -2659,7 +2863,7 @@ void CPrintToChatAll(const char[] format, any ..., int client = 0)
 			if( IsClientInGame(i) && !IsFakeClient(i) )
 			{
 				SetGlobalTransTarget(i);
-				VFormat(buffer, sizeof(buffer), format, 2);
+				VFormat(buffer, sizeof(buffer), format, 3);
 				PrintToChat(i, buffer);
 			}
 		}

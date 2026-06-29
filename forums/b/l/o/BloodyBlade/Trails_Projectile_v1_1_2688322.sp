@@ -4,6 +4,8 @@
 #include <sdktools>
 #include <sdkhooks>
 
+#define PLUGIN_VERSION "1.1"
+#define CVAR_FLAGS FCVAR_NOTIFY
 //	Colors || Цвета                                                                                                                                                 
 // 	http://www.stm.dp.ua/web-design/color-html.php                                         
 // 	{цвет,цвет,цвет,прозрачность} || {color,color,color,transparent} "0 - 255"              
@@ -20,25 +22,77 @@
 #define ZOMBIECLASS_HUNTER	  3
 #define ZOMBIECLASS_CHARGER	  6
 
-int Sprite1, Sprite2;
-
+int Sprite1 = 0, Sprite2 = 0;
 ConVar TrailsProjectileEnabled;
+bool bHooked = false, bL4D2 = false;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	EngineVersion engine = GetEngineVersion();
+	if (engine == Engine_Left4Dead)
+	{
+		bL4D2 = false;
+	}
+	else if(engine == Engine_Left4Dead2)
+	{
+		bL4D2 = true;
+	}
+	else
+	{
+		strcopy(error, err_max, "This plugin only runs in \"Left 4 Dead\" game series");
+		return APLRes_SilentFailure;
+	}
+	return APLRes_Success;
+}
 
 public Plugin myinfo =
 {
     name = "Trails_Projectile",
-    author = "Fredd, Mister Game Over",
+    author = "Fredd, Mister Game Over(edit. by BloodyBlade)",
     description = "Trails Projectile",
-    version = "1.1",
+    version = PLUGIN_VERSION,
     url = "https://vk.com/club151027520"
 }
 
 public void OnPluginStart()
 {
-	TrailsProjectileEnabled	=	CreateConVar("trails_enables",	"1",	"Enables/Disables plugin",	FCVAR_NOTIFY);
+	CreateConVar("trails_projectile_version", PLUGIN_VERSION, "Trails_Projectile plugin version", CVAR_FLAGS|FCVAR_DONTRECORD);
+	TrailsProjectileEnabled	= CreateConVar("trails_enables", "1", "Enables/Disables plugin", CVAR_FLAGS);
+	TrailsProjectileEnabled.AddChangeHook(OnConVarPluginOnChange);
+	AutoExecConfig(true, "trails_projectile");
+}
 
-	HookEvent("player_jump",  			ePlayer_Jump); 
-	HookEvent("charger_carry_start",    eCharger_Carry_Start);
+public void OnConfigsExecuted()
+{
+	IsAllowed();
+}
+
+void OnConVarPluginOnChange(ConVar cvar, const char[] oldVal, const char[] newVal)
+{
+	IsAllowed();
+}
+
+void IsAllowed()
+{
+	bool bPluginOn = TrailsProjectileEnabled.BoolValue;
+	if(!bHooked && bPluginOn)
+	{
+		bHooked = true;
+		HookEvent("player_jump", Events); 
+		if(bL4D2)
+		{
+			HookEvent("charger_carry_start", Events);
+		}
+	}
+	else if(bHooked && !bPluginOn)
+	{
+		bHooked = false;
+		UnhookEvent("player_jump", Events);
+		if(bL4D2)
+		{
+			UnhookEvent("charger_carry_start", Events);
+		}
+	}
 }
 
 public void OnMapStart()
@@ -60,158 +114,134 @@ public void OnMapStart()
 		
 public void OnEntityCreated(int Entity, const char[] Classname)
 {
-	if(TrailsProjectileEnabled.IntValue != 1)
-		return;
-
-	if(strcmp(Classname, "pipe_bomb_projectile") == 0)
-    {
-		switch(GetRandomInt(1, 2))
+	if(bHooked)
+	{
+		if(strcmp(Classname, "pipe_bomb_projectile") == 0)
 		{
-			case 1:
+			switch(GetRandomInt(1, 2))
 			{
-				TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  pipeColor); 
-				TE_SendToAll();
-			}
-			case 2:
-			{
-				TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  pipeColor);
-				TE_SendToAll();
+				case 1:
+				{
+					TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  pipeColor); 
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  pipeColor);
+					TE_SendToAll();
+				}
 			}
 		}
-    }
-	else if(strcmp(Classname, "molotov_projectile") == 0)
-    {
-		switch(GetRandomInt(1, 2))
+		else if(strcmp(Classname, "molotov_projectile") == 0)
 		{
-			case 1:
+			switch(GetRandomInt(1, 2))
 			{
-				TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, molotovColor);
-				TE_SendToAll();
-			}
-			case 2:
-			{
-				TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, molotovColor);
-				TE_SendToAll();
+				case 1:
+				{
+					TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, molotovColor);
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, molotovColor);
+					TE_SendToAll();
+				}
 			}
 		}
-    }
-	else if(strcmp(Classname, "vomitjar_projectile") == 0)
-    {
-		switch(GetRandomInt(1, 2))
+		else if(strcmp(Classname, "vomitjar_projectile") == 0)
 		{
-			case 1:
+			switch(GetRandomInt(1, 2))
 			{
-				TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, vomiteColor);
-				TE_SendToAll();
-			}
-			case 2:
-			{
-				TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, vomiteColor);
-				TE_SendToAll();
+				case 1:
+				{
+					TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, vomiteColor);
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, vomiteColor);
+					TE_SendToAll();
+				}
 			}
 		}
-    }
-	else if(strcmp(Classname, "grenade_launcher_projectile") == 0)
-    {
-		switch(GetRandomInt(1, 2))
+		else if(strcmp(Classname, "grenade_launcher_projectile") == 0)
 		{
-			case 1:
+			switch(GetRandomInt(1, 2))
 			{
-				TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  grenadeColor);
-				TE_SendToAll();
-			}
-			case 2:
-			{
-				TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  grenadeColor);
-				TE_SendToAll();
+				case 1:
+				{
+					TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  grenadeColor);
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5,  grenadeColor);
+					TE_SendToAll();
+				}
 			}
 		}
-    }
-	else if(strcmp(Classname, "tank_rock") == 0)
-    {
-		switch(GetRandomInt(1, 2))
+		else if(strcmp(Classname, "tank_rock") == 0)
 		{
-			case 1:
+			switch(GetRandomInt(1, 2))
 			{
-				TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, tankrockColor);
-				TE_SendToAll();
-			}
-			case 2:
-			{
-				TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, tankrockColor);
-				TE_SendToAll();
+				case 1:
+				{
+					TE_SetupBeamFollow(Entity, Sprite1, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, tankrockColor);
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(Entity, Sprite2, 0, view_as<float>(2.0), view_as<float>(10.0), view_as<float>(10.0), 5, tankrockColor);
+					TE_SendToAll();
+				}
 			}
 		}
-    }   
-	return;
+	}
 }
 
-public void ePlayer_Jump(Event hEvent, char[] sEventName, bool bDontBroadcast) 
+Action Events(Event event, char[] name, bool dontBroadcast)
 {
 	static int iClient;
-	iClient  = GetClientOfUserId(hEvent.GetInt("userid"));
-
-	if(iClient < 1 || iClient > MaxClients)
-        return;
-
-	if(!IsClientInGame(iClient) || !IsPlayerAlive(iClient))
-		return;
-
-	if(GetClientTeam(iClient) == 3)
+	iClient = GetClientOfUserId(event.GetInt("userid"));
+	if(bInfected(iClient))
 	{
-        switch (GetEntProp(iClient, Prop_Send, "m_zombieClass")) 
-        {
-			case ZOMBIECLASS_HUNTER:
+        if(GetEntProp(iClient, Prop_Send, "m_zombieClass") == ZOMBIECLASS_HUNTER)
+		{
+			switch(GetRandomInt(1, 2))
 			{
-				switch(GetRandomInt(1, 2))
+				case 1:
 				{
-					case 1:
-					{
-						TE_SetupBeamFollow(iClient, Sprite1, 0, view_as<float>(0.4), view_as<float>(10.0), view_as<float>(10.0), 5, hunterColor);
-						TE_SendToAll();
-					}
-					case 2:
-					{
-						TE_SetupBeamFollow(iClient, Sprite2, 0, view_as<float>(0.4), view_as<float>(10.0), view_as<float>(10.0), 5, hunterColor);
-						TE_SendToAll();
-					}
+					TE_SetupBeamFollow(iClient, Sprite1, 0, view_as<float>(0.4), view_as<float>(10.0), view_as<float>(10.0), 5, hunterColor);
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(iClient, Sprite2, 0, view_as<float>(0.4), view_as<float>(10.0), view_as<float>(10.0), 5, hunterColor);
+					TE_SendToAll();
+				}
+			}
+		}
+        else if(bL4D2 && GetEntProp(iClient, Prop_Send, "m_zombieClass") == ZOMBIECLASS_CHARGER)
+		{
+			switch(GetRandomInt(1, 2))
+			{
+				case 1:
+				{
+					TE_SetupBeamFollow(iClient, Sprite1, 0, view_as<float>(1.5), view_as<float>(10.0), view_as<float>(10.0), 5, chargerColor);
+					TE_SendToAll();
+				}
+				case 2:
+				{
+					TE_SetupBeamFollow(iClient, Sprite2, 0, view_as<float>(1.5), view_as<float>(10.0), view_as<float>(10.0), 5, chargerColor);
+					TE_SendToAll();
 				}
 			}
 		}
     }
+	return Plugin_Continue;
 }
 
-public void eCharger_Carry_Start(Event hEvent, char[] sEventName, bool bDontBroadcast) 
+bool bInfected(int iClient)
 {
-	static int iClient;
-	iClient  = GetClientOfUserId(hEvent.GetInt("userid"));
-
-	if(iClient < 1 || iClient > MaxClients)
-        return;
-
-	if(!IsClientInGame(iClient) || !IsPlayerAlive(iClient))
-		return;
-
-	if(GetClientTeam(iClient) == 3)
-	{
-        switch (GetEntProp(iClient, Prop_Send, "m_zombieClass")) 
-        {
-			case ZOMBIECLASS_CHARGER:
-			{
-				switch(GetRandomInt(1, 2))
-				{
-					case 1:
-					{
-						TE_SetupBeamFollow(iClient, Sprite1, 0, view_as<float>(1.5), view_as<float>(10.0), view_as<float>(10.0), 5, chargerColor);
-						TE_SendToAll();
-					}
-					case 2:
-					{
-						TE_SetupBeamFollow(iClient, Sprite2, 0, view_as<float>(1.5), view_as<float>(10.0), view_as<float>(10.0), 5, chargerColor);
-						TE_SendToAll();
-					}
-				}
-			}
-		}
-    }
+	return iClient > 0 && iClient <= MaxClients && IsClientInGame(iClient) && IsPlayerAlive(iClient) && GetClientTeam(iClient) == 3;
 }

@@ -8,7 +8,7 @@ public Plugin myinfo = {
 	name = "[MAGA] Teamflash",
 	description = "Prints the name of any teamflasher to team chat",
 	author = "Apple3.14159",
-	version = "1.0.0",
+	version = "1.1.0",
 	url = "https://discord.gg/H492wRM"
 };
 
@@ -31,7 +31,7 @@ public void getTeamflasher(Event event, const char[] name, bool dontBroadcast){
 
 public Action getFlashedTeammates(Handle timer, int thrower){
 	if(!thrower){
-		return;
+		return Plugin_Handled;
 	}
 	int throwerTeam = GetClientTeam(thrower);
 	
@@ -52,10 +52,11 @@ public Action getFlashedTeammates(Handle timer, int thrower){
 					PrintToChat(i, "%s flashed %d teammate(s)", flasherName, numFlashed);
 				}
 			}
+			LogToGame("%s flashed %d teammate(s)", flasherName, numFlashed);
 		}
-
 	}
 
+	return Plugin_Handled;
 }
 
 public void getBlindedPlayer(Event event, const char[] name, bool dontBroadcast){

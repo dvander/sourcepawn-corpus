@@ -1,6 +1,6 @@
 /*
 *	[L4D2] Vomitjar Glow
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.0"
+#define PLUGIN_VERSION 		"1.3"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,6 +32,15 @@
 ========================================================================================
 	Change Log:
 
+1.3 (10-Jan-2024)
+	- Changed the plugins on/off/mode cvars to use the "Left 4 DHooks" method instead of creating an entity.
+
+1.2 (08-Jan-2024)
+	- Fixed the plugins on/off/mode cvars having no affect. Thanks to "S.A.S" for reporting.
+
+1.1 (04-Dec-2023)
+	- Fixed the "l4d2_vomitjar_glow_time" cvar not working and glow time being stuck on 15 seconds. Thanks to "S.A.S" for reporting.
+
 1.0 (03-Dec-2023)
 	- Initial release.
 
@@ -43,6 +52,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
+#include <left4dhooks>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define MAX_LIGHTS			8
@@ -50,7 +60,7 @@
 
 ConVar g_hCvarAllow, g_hCvarColor, g_hCvarDist, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarTime;
 int g_iEntities[MAX_LIGHTS], g_iTick[MAX_LIGHTS];
-bool g_bCvarAllow, g_bMapStarted, g_bFrameProcessing;
+bool g_bCvarAllow, g_bFrameProcessing;
 char g_sCvarCols[12];
 float g_fFaderTick[MAX_LIGHTS], g_fFaderStart[MAX_LIGHTS], g_fFaderEnd[MAX_LIGHTS], g_fCvarDist, g_fCvarTime;
 
@@ -102,16 +112,6 @@ public void OnPluginStart()
 	g_hCvarTime.AddChangeHook(ConVarChanged_Cvars);
 }
 
-public void OnMapStart()
-{
-	g_bMapStarted = true;
-}
-
-public void OnMapEnd()
-{
-	g_bMapStarted = false;
-}
-
 
 
 // ====================================================================================================
@@ -157,6 +157,11 @@ void IsAllowed()
 }
 
 int g_iCurrentMode;
+public void L4D_OnGameModeChange(int gamemode)
+{
+	g_iCurrentMode = gamemode;
+}
+
 bool IsAllowedGameMode()
 {
 	if( g_hCvarMPGameMode == null )
@@ -165,27 +170,17 @@ bool IsAllowedGameMode()
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
 	if( iCvarModesTog != 0 )
 	{
-		if( g_bMapStarted == false )
-			return false;
-
-		g_iCurrentMode = 0;
-
-		int entity = CreateEntityByName("info_gamemode");
-		if( IsValidEntity(entity) )
-		{
-			DispatchSpawn(entity);
-			HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
-			ActivateEntity(entity);
-			AcceptEntityInput(entity, "PostSpawnActivate");
-			if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
-				RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
-		}
+		if( g_iCurrentMode == 0 )
+			g_iCurrentMode = L4D_GetGameModeType();
 
 		if( g_iCurrentMode == 0 )
 			return false;
+
+		switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+		{
+			case 2:		g_iCurrentMode = 4;
+			case 4:		g_iCurrentMode = 2;
+		}
 
 		if( !(iCvarModesTog & g_iCurrentMode) )
 			return false;
@@ -214,18 +209,6 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-void OnGamemode(const char[] output, int caller, int activator, float delay)
-{
-	if( strcmp(output, "OnCoop") == 0 )
-		g_iCurrentMode = 1;
-	else if( strcmp(output, "OnSurvival") == 0 )
-		g_iCurrentMode = 2;
-	else if( strcmp(output, "OnVersus") == 0 )
-		g_iCurrentMode = 4;
-	else if( strcmp(output, "OnScavenge") == 0 )
-		g_iCurrentMode = 8;
-}
-
 
 
 // ====================================================================================================
@@ -233,7 +216,7 @@ void OnGamemode(const char[] output, int caller, int activator, float delay)
 // ====================================================================================================
 public void L4D2_VomitJar_Detonate_Post(int target, int client)
 {
-	if( (target = EntRefToEntIndex(target)) != INVALID_ENT_REFERENCE )
+	if( g_bCvarAllow && (target = EntRefToEntIndex(target)) != INVALID_ENT_REFERENCE )
 	{
 		// Find index
 		int index = -1;
@@ -262,8 +245,6 @@ public void L4D2_VomitJar_Detonate_Post(int target, int client)
 
 		g_iEntities[index] = EntIndexToEntRef(entity);
 
-		float fInfernoTime = g_fCvarTime;
-
 		FormatEx(sTemp, sizeof(sTemp), "%s 255", g_sCvarCols);
 		DispatchKeyValue(entity, "_light", sTemp);
 		DispatchKeyValue(entity, "brightness", "3");
@@ -290,7 +271,7 @@ public void L4D2_VomitJar_Detonate_Post(int target, int client)
 		}
 
 		g_iTick[index] = 7;
-		g_fFaderEnd[index] = GetGameTime() + fInfernoTime - (flTickInterval * iTickRate);
+		g_fFaderEnd[index] = GetGameTime() + g_fCvarTime - (flTickInterval * iTickRate);
 		g_fFaderStart[index] = GetGameTime() + flTickInterval * iTickRate + 2.0;
 		g_fFaderTick[index] = GetGameTime() - 1.0;
 
@@ -307,14 +288,14 @@ public void L4D2_VomitJar_Detonate_Post(int target, int client)
 		// Fade out
 		for(int i = iTickRate; i > 1; --i)
 		{
-			Format(sTemp, sizeof(sTemp), "OnUser2 !self:distance:%f:%f:-1", (g_fCvarDist / iTickRate) * i, fInfernoTime - flTickInterval * i);
+			Format(sTemp, sizeof(sTemp), "OnUser2 !self:distance:%f:%f:-1", (g_fCvarDist / iTickRate) * i, g_fCvarTime - flTickInterval * i);
 			SetVariantString(sTemp);
 			AcceptEntityInput(entity, "AddOutput");
 		}
 		AcceptEntityInput(entity, "FireUser2");
 		*/
 
-		FormatEx(sTemp, sizeof(sTemp), "OnUser3 !self:Kill::15.000000:-1", fInfernoTime + 1.0);
+		FormatEx(sTemp, sizeof(sTemp), "OnUser3 !self:Kill::%f:-1", g_fCvarTime + 1.0);
 		SetVariantString(sTemp);
 		AcceptEntityInput(entity, "AddOutput");
 		AcceptEntityInput(entity, "FireUser3");

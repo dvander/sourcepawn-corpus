@@ -140,10 +140,10 @@ void EventChargeEnd(Event h_Event, const char[] s_Name, bool b_DontBroadcast)
 				SetEntPropFloat(i_Target, Prop_Data, "m_flLastPhysicsInfluenceTime", GetGameTime()); 
 				TeleportEntity(i_Target, NULL_VECTOR, NULL_VECTOR, f_Velocity);
 
-				DataPack h_Pack = new DataPack();
+				DataPack h_Pack;
+				CreateDataTimer(0.5, CheckEntity, h_Pack);
 				h_Pack.WriteCell(EntIndexToEntRef(i_Target));
 				h_Pack.WriteFloat(f_EndOrigin[0]);
-				CreateTimer(0.5, CheckEntity, h_Pack);
 
 				i_Damage = g_h_CvarChargerDamage.IntValue;
 				if (i_Damage)
@@ -196,12 +196,10 @@ Action CheckEntity(Handle h_Timer, DataPack h_Pack)
 	i_Ent = EntRefToEntIndex(i_Ent);
 	if( i_Ent == INVALID_ENT_REFERENCE)
 	{
-		delete h_Pack;
 		return Plugin_Continue;
 	}
 
 	float f_LastOrigin = h_Pack.ReadFloat();
-	delete h_Pack;
 
 	if (IsValidEdict(i_Ent))
 	{
@@ -210,10 +208,10 @@ Action CheckEntity(Handle h_Timer, DataPack h_Pack)
 
 		if (f_Origin[0] != f_LastOrigin)
 		{
-			DataPack h_NewPack = new DataPack();
+			DataPack h_NewPack;
+			CreateDataTimer(0.1, CheckEntity, h_NewPack);
 			h_NewPack.WriteCell(EntIndexToEntRef(i_Ent));
 			h_NewPack.WriteFloat(f_Origin[0]);
-			CreateTimer(0.1, CheckEntity, h_NewPack);
 		}
 		else
 			TeleportEntity(i_Ent, NULL_VECTOR, NULL_VECTOR, view_as<float>({0.0, 0.0, 0.0}));
@@ -225,18 +223,17 @@ Action CheckEntity(Handle h_Timer, DataPack h_Pack)
 void EventPlayerSpawn(Event h_Event, const char[] s_Name, bool b_DontBroadcast)
 {
 	int i_UserID, i_Client;
-	DataPack h_Pack;
 
 	i_UserID = h_Event.GetInt("userid");
 	i_Client = GetClientOfUserId(i_UserID);
 
 	if (i_Client && IsClientInGame(i_Client) && !IsFakeClient(i_Client) && GetClientTeam(i_Client) == TEAM_INFECTED && GetInfectedClass(i_Client) == CLASS_CHARGER)
 	{
-		h_Pack = new DataPack();
+		DataPack h_Pack;
+		CreateDataTimer(0.4, DelayDisplayHint, h_Pack);
 		h_Pack.WriteCell(GetClientUserId(i_Client));
 		h_Pack.WriteString("Move objects");
 		h_Pack.WriteString("+attack");
-		CreateTimer(0.4, DelayDisplayHint, h_Pack);
 	}
 }
 
@@ -250,13 +247,11 @@ Action DelayDisplayHint(Handle h_Timer, DataPack h_Pack)
 	i_Client = GetClientOfUserId(i_Client);
 	if( !i_Client)
 	{
-		delete h_Pack;
 		return Plugin_Continue;
 	}
 
 	h_Pack.ReadString(s_LanguageKey, sizeof(s_LanguageKey));
 	h_Pack.ReadString(s_Bind, sizeof(s_Bind));
-	delete h_Pack;
 
 	switch (g_h_CvarMessageType.IntValue)
 	{
@@ -281,7 +276,6 @@ void DisplayInstructorHint(int i_Client, char s_Message[256], char[] s_Bind)
 {
 	int i_Ent;
 	char s_TargetName[32];
-	DataPack h_RemovePack;
 
 	i_Ent = CreateEntityByName("env_instructor_hint");
 	FormatEx(s_TargetName, sizeof(s_TargetName), "hint%d", i_Client);
@@ -297,10 +291,10 @@ void DisplayInstructorHint(int i_Client, char s_Message[256], char[] s_Bind)
 	DispatchSpawn(i_Ent);
 	AcceptEntityInput(i_Ent, "ShowHint");
 
-	h_RemovePack = new DataPack();
+	DataPack h_RemovePack;
+	CreateDataTimer(5.0, RemoveInstructorHint, h_RemovePack);
 	h_RemovePack.WriteCell(EntIndexToEntRef(i_Ent));
 	h_RemovePack.WriteCell(GetClientUserId(i_Client));
-	CreateTimer(5.0, RemoveInstructorHint, h_RemovePack);
 }
 
 Action RemoveInstructorHint(Handle h_Timer, DataPack h_Pack)
@@ -320,7 +314,6 @@ Action RemoveInstructorHint(Handle h_Timer, DataPack h_Pack)
 	// Client
 	i_Client = h_Pack.ReadCell();
 	i_Client = GetClientOfUserId(i_Client);
-	delete h_Pack;
 
 	if( !i_Client || !IsClientInGame(i_Client))
 	{

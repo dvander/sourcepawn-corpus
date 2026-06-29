@@ -13,14 +13,16 @@ Change Log:
     -  added small firework on vanish
 0.0.6 (19-Octover-2022)
     -  added TIMER_FLAG_NO_MAPCHANGE for mapchange
-0.0.7 (31-Octover-2023)
+0.0.7 (31-October-2023)
     -  try to fix cvars & added boomer, hunter, smoker, tank
+0.0.8 (24-September-2025)
+    -  changed boomer align from +180 to +270
 
 // ====================================================================================================
 */
 /****************************************************************************************************
 * Plugin     : L4D - Halloween Jumpscare
-* Version    : 0.0.7
+* Version    : 0.0.8
 * Game       : Left 4 Dead
 * Author     : Finishlast
 *
@@ -41,7 +43,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D] Halloween Jumpscare"
 #define PLUGIN_AUTHOR                 "Finishlast"
 #define PLUGIN_DESCRIPTION            "This plugin makes you pee in fear at halloween"
-#define PLUGIN_VERSION                "0.0.7"
+#define PLUGIN_VERSION                "0.0.8"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?p=2790590"
 
 // ====================================================================================================
@@ -101,9 +103,6 @@ Handle g_timer = INVALID_HANDLE;
 #define SOUND_BSCREAM1			"player\\boomer\\voice\\alert\\boomer_alert_10.wav"
 #define SOUND_BSCREAM2			"player\\boomer\\voice\\pain\\boomer_shoved_05.wav"
 
-
-
-
 // ====================================================================================================
 // Plugin Cvars
 // ====================================================================================================
@@ -152,20 +151,25 @@ public void OnMapStart()
         PrecacheSound(SOUND_HSCREAM2);
         PrecacheSound(SOUND_BSCREAM1);
         PrecacheSound(SOUND_BSCREAM2);
-
-
 }
 
 public void OnPluginStart()
 {
-	CreateConVar("l4d_tank_car_smash_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, CVAR_FLAGS_PLUGIN_VERSION);
-  	g_hCvar_JumpScareInterval = CreateConVar("l4d_jumpscareinterval", 		"30.0", 	"Set jumpscare interval", CVAR_FLAGS);
-   	g_hCvar_JumpScareChance = CreateConVar("l4d_jumpscarechance", 		"10", 	"Percent chance for a jumpscare. 1-100", CVAR_FLAGS);
+    // Create cvars
+    g_hCvar_JumpScareInterval = CreateConVar("l4d_jumpscareinterval", "30.0", "Set jumpscare interval", CVAR_FLAGS);
+    g_hCvar_JumpScareChance = CreateConVar("l4d_jumpscarechance", "10", "Percent chance for a jumpscare. 1-100", CVAR_FLAGS);
 
-   	// Load plugin configs from .cfg
-   	AutoExecConfig(true, CONFIG_FILENAME);
-	
-	HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
+    // Hook cvar changes
+    HookConVarChange(g_hCvar_JumpScareInterval, OnCvarChanged);
+    HookConVarChange(g_hCvar_JumpScareChance, OnCvarChanged);
+
+    AutoExecConfig(true, CONFIG_FILENAME);
+    HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
+}
+
+public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+    GetCvars(); 
 }
 
 public void OnMapEnd()
@@ -179,14 +183,20 @@ public void OnMapEnd()
 
 public void OnConfigsExecuted()
 {
-    GetCvars();
+    // Delay reading cvars to ensure config file is applied
+    CreateTimer(0.1, Timer_DelayedGetCvars);
+}
 
+public Action Timer_DelayedGetCvars(Handle timer)
+{
+    GetCvars();
+    return Plugin_Handled;
 }
 
 public void GetCvars()
 {
-        g_fCvar_JumpScareInterval = GetConVarFloat(g_hCvar_JumpScareInterval);
-        g_iCvar_JumpScareChance = g_hCvar_JumpScareChance.IntValue;
+    g_fCvar_JumpScareInterval = GetConVarFloat(g_hCvar_JumpScareInterval);
+    g_iCvar_JumpScareChance = g_hCvar_JumpScareChance.IntValue;
 }
 
 public void event_round_freeze_end(Event event, const char[] name, bool dontBroadcast)
@@ -332,7 +342,7 @@ public Action gate(Handle timer)
 
 				SetTeleportEndPoint(toscare, vPos, vAng);
 				vAng[0] = 0.0;	
-				vAng[1] += 180.0;
+				vAng[1] += 270.0;
 				vAng[2] = 0.0;
 
 				TeleportEntity(ent_scare1, vPos, vAng, NULL_VECTOR);

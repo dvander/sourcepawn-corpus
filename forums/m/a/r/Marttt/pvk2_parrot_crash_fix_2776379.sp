@@ -1,4 +1,9 @@
 /**
+DEPRECATED - Fixed in 16 December 2023 update (v0.5.1.0)
+https://steamcommunity.com/games/pvkiiofficial/announcements/detail/3899618444926327284
+*/
+
+/**
 // ====================================================================================================
 Change Log:
 
@@ -101,14 +106,6 @@ public void OnPluginStart()
     RegAdminCmd("sm_setparrotowner", CmdSetParrotOwner, ADMFLAG_ROOT, "Set the parrot owner. Usage: sm_setparrotowner <parrot> <owner>.");
     RegAdminCmd("sm_setvultureowner", CmdSetVultureOwner, ADMFLAG_ROOT, "Set the vulture owner. Usage: sm_setvultureowner <vulture> <owner>.");
     RegAdminCmd("sm_print_cvars_pvk2_parrot_crash_fix", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
-}
-
-/****************************************************************************************************/
-
-public void OnMapStart()
-{
-    // Fix for when OnConfigsExecuted is not executed by SM in some games
-    RequestFrame(OnConfigsExecuted);
 }
 
 /****************************************************************************************************/

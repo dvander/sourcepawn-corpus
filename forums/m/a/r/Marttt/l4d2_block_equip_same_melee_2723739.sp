@@ -100,7 +100,7 @@ enum struct PluginData
 {
     PluginCvars cvars;
 
-    bool enabled;
+    bool enable;
     bool checkSkin;
 
     void Init()
@@ -111,7 +111,7 @@ enum struct PluginData
 
     void GetCvarValues()
     {
-        this.enabled = this.cvars.l4d2_block_equip_same_melee_enable.BoolValue;
+        this.enable = this.cvars.l4d2_block_equip_same_melee_enable.BoolValue;
         this.checkSkin = this.cvars.l4d2_block_equip_same_melee_check_skin.BoolValue;
     }
 
@@ -169,7 +169,7 @@ void LateLoad()
         if (!IsClientInGame(client))
             continue;
 
-        plugin.enabled ? HookClient(client) : UnhookClient(client);
+        plugin.enable ? HookClient(client) : UnhookClient(client);
     }
 }
 
@@ -177,7 +177,7 @@ void LateLoad()
 
 public void OnClientPutInServer(int client)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     HookClient(client);
@@ -250,7 +250,7 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "------------- Plugin Cvars (l4d2_block_equip_same_melee) -------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d2_block_equip_same_melee_ver : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d2_block_equip_same_melee_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
+    PrintToConsole(client, "l4d2_block_equip_same_melee_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
     PrintToConsole(client, "l4d2_block_equip_same_melee_check_skin : %b (%s)", plugin.checkSkin, plugin.checkSkin ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");

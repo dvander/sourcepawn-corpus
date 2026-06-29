@@ -15,18 +15,19 @@
 public Plugin myinfo =
 {
     name = "[L4D2] Usercommands Check",
-    author = "BHaType"
+    author = "BHaType",
+	version = "1.1"
 };
 
 enum CUserCmd
 {
-	command_number,
-	tick_count = 4,
-	viewangles = 8,
-	forwardmove = 20,
-	sidemove = 24,
-	upmove = 28,
-	buttons = 32
+	command_number = 4,
+	tick_count = 8,
+	viewangles = 12,
+	forwardmove = 24,
+	sidemove = 28,
+	upmove = 32,
+	_buttons = 36
 };
 
 methodmap CUserCommand 
@@ -44,8 +45,8 @@ methodmap CUserCommand
 	public void GetVector (CUserCmd propertie, float vVec[3])
 	{
 		vVec[0] = view_as<float>(LoadFromAddress(view_as<Address>(this) + view_as<Address>(propertie), NumberType_Int32)); 
-		vVec[1] = view_as<float>(LoadFromAddress(view_as<Address>(this) + view_as<Address>(propertie + tick_count), NumberType_Int32)); 
-		vVec[2] = view_as<float>(LoadFromAddress(view_as<Address>(this) + view_as<Address>(propertie + viewangles), NumberType_Int32));
+		vVec[1] = view_as<float>(LoadFromAddress(view_as<Address>(this) + view_as<Address>(propertie) + view_as<Address>(4), NumberType_Int32)); 
+		vVec[2] = view_as<float>(LoadFromAddress(view_as<Address>(this) + view_as<Address>(propertie) + view_as<Address>(8), NumberType_Int32));
 	}
 	
 	public void Set (CUserCmd propertie, any data)
@@ -79,6 +80,18 @@ bool g_bSMAC;
 
 ConVar sm_usercmd_null_invalid_commands;
 int g_iNull;
+
+public void OnLibraryAdded (const char[] name) 
+{ 
+	if ( strcmp(name, "smac") == 0 ) 
+		g_bSMAC = true; 
+}
+
+public void OnLibraryRemoved (const char[] name) 
+{ 
+	if ( strcmp(name, "smac") == 0 ) 
+		g_bSMAC = false; 
+}
 
 public void OnPluginStart()
 {
@@ -128,14 +141,16 @@ public MRESReturn ProcessUsercmds (int client, DHookParam params)
 	//int numcmds = params.Get(2);
 	int totalcmds = params.Get(3);
 	int dropped_packets = params.Get(4);
-	
+
+	static char reason[96];
+
 	int i;
 	for ( i = totalcmds - 1; i >= 0; i-- )
 	{
 		int numcommand = totalcmds - 1 - i;
 		CUserCommand command = CUserCommand(params.Get(1) + numcommand * 88);
-		
-		if ( !IsUserCommandValid(client, command) )
+
+		if ( !IsUserCommandValid(client, command, reason, sizeof reason) )
 		{
 			if ( g_iNull )
 			{
@@ -147,7 +162,7 @@ public MRESReturn ProcessUsercmds (int client, DHookParam params)
 				command.Set(sidemove, 0.0);
 				command.Set(upmove, 0.0);
 				
-				command.Set(buttons, 0);
+				command.Set(_buttons, 0);
 			}
 			
 			if ( GetEngineTime() - gCommandContext[client].detection >= 5.0 )
@@ -156,11 +171,11 @@ public MRESReturn ProcessUsercmds (int client, DHookParam params)
 				
 				if ( !g_bSMAC )
 				{
-					LogMessage("Player %L is suspected in using invalid user commands (dropped packets %i)", client, dropped_packets);
+					LogMessage("Player %L is suspected in using invalid user commands (reason: %s, dropped packets %i)", client, reason, dropped_packets);
 				}
 				else
 				{
-					SMAC_Log("Player %L is suspected in using invalid user commands (dropped packets %i)", client, dropped_packets);
+					SMAC_Log("Player %L is suspected in using invalid user commands (reason: %s, dropped packets %i)", client, reason, dropped_packets);
 				}
 			}
 		}
@@ -169,8 +184,7 @@ public MRESReturn ProcessUsercmds (int client, DHookParam params)
 	return MRES_Ignored;
 }
 
-
-bool IsUserCommandValid (int client, CUserCommand command)
+bool IsUserCommandValid(int client, CUserCommand command, char[] reason, int length)
 {
 	int nCmdMaxTickDelta = RoundToCeil(( 1.0 / GetTickInterval() ) * 2.5);
 	int nMinDelta = Max(0, GetGameTickCount() - nCmdMaxTickDelta);
@@ -187,13 +201,39 @@ bool IsUserCommandValid (int client, CUserCommand command)
 	tick = GetEntData(client, m_nTickBase);
 	command.GetVector(viewangles, vAngles);
 	
-	bool bValid = ( tick >= nMinDelta && tick < nMaxDelta ) &&
-				  ( IsFinite(vAngles[0]) && IsFinite(vAngles[1]) && IsFinite(vAngles[2]) && IsEntityQAngleReasonable( vAngles ) ) &&
-				  ( IsFinite( flForwardmove ) && IsEntityCoordinateReasonable( flForwardmove ) ) &&
-				  ( IsFinite( flSidemove ) && IsEntityCoordinateReasonable( flSidemove ) ) &&
-				  ( IsFinite( flUpmove ) && IsEntityCoordinateReasonable( flUpmove ) );
+	// PrintToChatAll("%N: tick: %i, foward: %.2f, side: %.2f, up: %.2f, angle: %.2f %.2f %.2f", client, tick, flForwardmove, flSidemove, flUpmove, vAngles[0], vAngles[1], vAngles[2]);
 
-	return bValid;
+	if (tick < nMinDelta || tick >= nMaxDelta)
+	{
+		FormatEx(reason, length, "Tickbase out of bounds (min: %i, tick: %i, max: %i)", nMinDelta, tick, nMaxDelta);
+		return false;
+	}
+
+	if (!(IsFinite(vAngles[0]) && IsFinite(vAngles[1]) && IsFinite(vAngles[2]) && IsEntityQAngleReasonable( vAngles )))
+	{
+		FormatEx(reason, length, "Invalid view angles (pitch: %.2f, yaw: %.2f, roll: %.2f)", vAngles[0], vAngles[1], vAngles[2]);
+		return false;
+	}
+	
+	if (!( IsFinite( flForwardmove ) && IsEntityCoordinateReasonable( flForwardmove ) ))
+	{
+		FormatEx(reason, length, "Invalid forward move (%.2f)", flForwardmove);
+		return false;
+	}
+	
+	if (!( IsFinite( flSidemove ) && IsEntityCoordinateReasonable( flSidemove ) ))
+	{
+		FormatEx(reason, length, "Invalid side move (%.2f)", flSidemove);
+		return false;
+	}
+	
+	if (!( IsFinite( flUpmove ) && IsEntityCoordinateReasonable( flUpmove ) ))
+	{
+		FormatEx(reason, length, "Invalid up move (%.2f)", flUpmove);
+		return false;
+	}
+
+	return true;
 }
 
 bool IsEntityCoordinateReasonable ( const float c )
@@ -212,40 +252,3 @@ bool IsEntityQAngleReasonable( const float q[3] )
 }
 
 int Max (int left, int right) { return left > right ? left : right; }
-
-public void OnLibraryAdded (const char[] name) { if ( strcmp(name, "smac") == 0 ) g_bSMAC = true; }
-public void OnLibraryRemoved (const char[] name) { if ( strcmp(name, "smac") == 0 ) g_bSMAC = false; }
-
-/* Some notes:
-	
-	Maybe in future i will add tickbase shifting check to be actually sure in someone cheats.
-	if player using invalid commands and have rounded or fixed dropped_packets. I am pretty much sure he is cheating.
-	g_iIgnoredCommands here is only for remove false positive results. Since when map changes server tickbase also changes but client sided doesnt and becomes synced with server only on second tick
-	Perhaps for an additional check, I can add check for the number of commands sent and if they differ from the expected value then player possibly cheating or have a bad performance.
-	
-	⠄⠄⠄⠄⠄⡇⠄⠄⠄⠄⠄⢠⡀⠄⠄⢀⡬⠛⠁⠄⠄⠄⠄⠄⠄⠄⠉⠻⣿⣿⣿⣽⣿⣿⣿⣿⣿⣿⣿⣿⣧⠄⠄⠙⢦
-	⠄⠄⠄⠄⠄⡇⠄⠄⠄⠄⢰⠼⠙⢀⡴⠋⠄⠄⠄⠄⠄⠄⠄⠄⠄⡠⠖⠄⠄⠙⠿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣯⣀⡀⠄⠄⠄⡀
-	⠄⠄⠄⠄⠄⡇⠄⠄⠄⠄⠄⠄⡴⠋⠄⠄⠄⠄⠄⠄⠄⠄⠄⢠⠞⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠉⠉⠙⠋⠙⠋⠙⠻⠦⠤⣤⣼⣆⣀⣀⣀⣀⡀
-	⠄⠄⠄⠄⠄⢷⠄⠄⠄⠄⢠⠞⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⡰⠃⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠉⠉
-	⠄⠄⠄⠄⠄⢸⡀⠄⠄⢠⠏⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣰⠁⣸⠁⠄⠄⠄⠄⠄⠄⠄⠄⢀⠄⠄⡄
-	⠄⠄⠄⠄⠄⢀⣧⠄⢠⠏⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⢾⠃⡜⡿⠄⠄⠄⠄⠄⠄⠄⠄⣠⠋⢀⣼⠁⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠸⢾⣀⣠
-	⠄⠄⠄⢀⣠⢌⣦⢀⡏⠄⡄⠄⠄⢠⠃⠄⠄⠐⣶⡁⡞⡼⠄⣇⠄⠄⠄⠄⠄⠄⠄⡴⠁⢠⠎⢸⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢈⠝⠁
-	⠄⢀⠞⠉⠄⠄⠹⡼⠄⣼⠁⠄⠄⡏⠄⠄⢀⡞⠄⠈⣷⠇⠄⢻⠄⠄⠄⠄⠄⢐⣞⣀⣰⣃⣀⣸⠄⢀⠇⠄⠄⠄⠄⠄⠄⠄⠄⠄⠁⠄⠄⠄⠄⠄⢀
-	⢰⠋⠄⠄⠄⠄⢀⡇⢠⡏⠄⠄⢸⠄⠄⢀⠎⠄⠄⠄⡇⠄⠄⢸⡀⠄⠄⠄⢠⢾⢁⡜⠁⠄⠄⢸⠄⣸⠄⠄⠄⠄⠄⠄⡀⠄⠄⠄⠄⠄⠄⠄⢀⡴⠃
-	⡞⠄⠄⠄⠄⠄⢸⠄⡞⡷⠄⠄⡟⠄⢘⡟⠛⠷⠶⣤⣅⠄⠄⠄⣇⠄⠄⢠⠋⡧⠊⠄⠄⠄⠄⢸⢀⠇⠄⠄⠄⠄⠄⢰⠁⠄⠄⠄⠄⠄⢀⡴⠋
-	⢹⠄⠄⠄⠄⠄⡾⢰⠃⡇⠄⠄⡇⠄⡜⢀⣠⣤⠶⠞⠛⠁⠄⠄⠘⡄⡰⠃⠘⠱⣾⣟⡛⠛⠛⠛⡟⠂⠄⠄⠄⠄⠄⡎⠄⠄⠄⠄⣀⠴⡋
-	⠈⢳⠄⠄⠄⠄⡇⡼⠄⢻⠄⢠⡇⢸⠁⠈⠁⠄⠄⠄⠄⠄⠄⠄⠄⠈⠁⠄⠄⠄⠄⠙⠿⣶⣄⡰⠇⠄⠄⠄⠄⠄⡼⠄⠄⠄⡠⢾⣿⣆⢳
-	⣀⣬⠿⠷⠦⠤⣷⣇⡠⠾⡄⢸⣇⢸⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢹⠛⠂⠄⠄⠄⠄⣰⠁⠄⣀⣬⣷⠞⠛⠙⠛⢧⣤⣀
-	⠉⠄⠄⠄⠄⠄⢻⠄⠄⠄⢧⢸⢸⠘⡇⠄⠄⠄⠄⠄⠄⠄⠄⣠⠄⠄⠄⠄⠄⠄⠄⠄⠄⢠⠃⠄⠄⠄⠄⠄⣰⠃⣶⢉⠜⠋⠄⠄⠄⠄⠄⠄⠄⠈⢳
-	⠄⠄⠄⢀⣤⡀⢸⠄⠄⠄⠈⢿⠄⠄⣿⣆⠄⠄⠄⠄⠄⠄⠄⡟⣧⠄⠄⠄⠄⠄⠄⠄⡴⠃⠄⠄⠄⡠⠊⡰⡗⠋⡰⡼⠃⠄⠄⠄⠄⠄⠄⠄⠄⠄⢨
-	⠄⢀⡔⠉⠄⠙⢦⠄⠄⠄⠄⢸⡀⢰⡏⠈⠳⣄⠄⠄⠄⠄⠄⠉⠁⠄⠄⠄⠄⠄⢀⡞⠁⠄⢀⣤⠎⠄⡔⣡⠃⢰⡇⣹⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢼
-	⣰⠋⠄⢀⣴⣖⠒⠓⡆⠄⠄⠈⣇⣿⣿⠄⢸⠹⡷⢄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣠⠋⠄⢀⣴⣿⠏⠠⠊⣴⡏⢠⢻⡇⢹⡆⠄⠄⠄⠄⠄⣷⠄⠄⣰⠋
-	⡇⠄⣰⣿⣿⣿⠒⠋⣛⣄⠄⠄⣹⢸⠈⢧⠸⡄⠹⣄⠙⠶⢶⣶⣶⣶⣶⡶⢾⠃⠄⡴⢋⡾⠋⣀⡴⣞⡝⡰⠃⠄⡇⡸⠉⠳⣄⣀⣀⣀⣿⣦⠞⠁
-	⢷⢰⣿⣿⣿⣿⠄⠈⠁⠈⡇⠄⡏⢸⠄⠈⠓⢧⣀⣈⣤⡤⠖⠛⠉⠁⠄⢡⠃⢠⡞⠓⠚⠓⠚⣳⡞⠈⠘⠁⠄⠄⢹⡇⠄⠄⠄⠈⠉⠁⠸⣷⣀⣀⣀
-	⢸⣿⣿⣿⣿⣿⠄⣿⣁⠜⠁⢸⡇⢸⣄⣀⡀⠘⢦⡀⠄⠄⠄⠄⠄⠄⢀⠏⡴⡻⠄⠄⠄⠠⣎⠹⡄⠄⢀⣀⣤⣤⣀⠁⠄⠄⠄⠄⠄⠄⠄⠈⢻⣿⣿
-	⢸⣿⣿⣿⣿⣿⡇⢸⠄⠄⢀⡴⡇⠈⡇⠈⣩⠗⠒⣵⠆⠄⠄⠄⠄⠄⢸⡞⢰⠃⢀⠄⣀⡰⠟⠒⠒⡿⠉⠄⠄⠄⠈⠑⣄⠄⠄⠄⠄⠄⠄⠄⠈⢿⣿
-	⣿⣿⣿⣿⣿⣿⣷⠎⠄⢠⠏⠄⠹⣄⢣⢠⠃⠄⠄⢤⠤⠄⠄⠠⠤⢶⡏⠄⡎⢠⠞⠋⠁⠄⠄⠄⣸⠁⠄⠄⠄⠄⠄⠄⠈⣧⠄⠄⠄⠄⠄⠄⠄⠄⠻
-	⣿⣿⣿⣿⣿⣿⣃⡀⢠⠏⠄⠄⠄⠄⣨⠇⠄⣠⠴⠚⠁⠄⠄⠄⠄⠈⡇⢰⠃⠄⠄⠄⠄⠄⠄⢰⠇⠄⠄⠄⠄⠄⠄⠄⠄⢹⡀
-	⣿⣿⣿⣿⣿⡿⢉⣇⡎⠄⠄⠄⠄⢰⠇⠄⢨⠇⠄⠄⠄⠄⠄⠄⠄⠄⠘⢾⡀⠄⠄⠄⠄⠄⠄⡞⢀⠄⠄⠄⠄⠄⠄⠄⠄⢸⡇
-	
-*/

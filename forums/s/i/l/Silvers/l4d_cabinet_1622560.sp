@@ -1,6 +1,6 @@
 /*
 *	Health Cabinet
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.12"
+#define PLUGIN_VERSION		"1.13"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.13 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.12 (23-Apr-2022)
 	- Fixed cabinets spawning all the same items in the second round of Versus modes. Thanks to "dahyun4220" for reporting.
@@ -279,17 +282,17 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
 
-public void ConVarChanged_Glow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Glow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	g_iCvarGlow = g_hCvarGlow.IntValue;
 	g_iCvarGlowCol = GetColor(g_hCvarGlowCol);
@@ -415,7 +418,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -448,27 +451,27 @@ void UnhookEvents()
 	UnhookEvent("player_use",			Event_PlayerUse);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	ResetPlugin();
 	g_iOrder = 1;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 1 && g_iRoundStart == 0 )
 		g_hTimerStart = CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iRoundStart = 1;
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	if( g_iPlayerSpawn == 0 && g_iRoundStart == 1 )
 		g_hTimerStart = CreateTimer(1.0, TimerStart, _, TIMER_FLAG_NO_MAPCHANGE);
 	g_iPlayerSpawn = 1;
 }
 
-public Action TimerStart(Handle timer)
+Action TimerStart(Handle timer)
 {
 	g_hTimerStart = null;
 	g_bGlow = false;
@@ -576,7 +579,7 @@ void LoadCabinets()
 		for( i = 0; i < iCount; i++ )
 			iIndexes[i] = i + 1;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -648,7 +651,7 @@ int SetupCabinet(int client, float vAng[3] = NULL_VECTOR, float vPos[3] = NULL_V
 	return -1;
 }
 
-public bool TraceFilter(int entity, int contentsMask, any client)
+bool TraceFilter(int entity, int contentsMask, int client)
 {
 	if( entity == client )
 		return false;
@@ -698,12 +701,12 @@ int SpawnCabinet(float vAng[3], float vPos[3], int type1, int type2, int type3, 
 	return index;
 }
 
-public void OnAnimationDone(const char[] output, int entity, int activator, float delay)
+void OnAnimationDone(const char[] output, int entity, int activator, float delay)
 {
 	SpawnItems(entity);
 }
 
-public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 {
 	int entity = event.GetInt("targetid");
 
@@ -789,7 +792,7 @@ void SpawnItems(int entity)
 	GetEntPropVector(entity, Prop_Data, "m_angRotation", vAng);
 
 	int place[5] = { 1, 2, 3, 4 }, placed;
-	SortIntegers(place, 4, Sort_Random);
+	SortCustom(place, 4);
 
 	int randomselect, selected;
 	for( int i = 0; i < random; i++ )
@@ -892,7 +895,7 @@ void MoveForward(const float vPos[3], const float vAng[3], float vReturn[3], flo
 // ====================================================================================================
 //					sm_cabinet
 // ====================================================================================================
-public Action CmdCabinet(int client, int args)
+Action CmdCabinet(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -952,7 +955,7 @@ public Action CmdCabinet(int client, int args)
 // ====================================================================================================
 //					sm_cabinetsave
 // ====================================================================================================
-public Action CmdCabinetSave(int client, int args)
+Action CmdCabinetSave(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1076,7 +1079,7 @@ public Action CmdCabinetSave(int client, int args)
 // ====================================================================================================
 //					sm_cabinetlist
 // ====================================================================================================
-public Action CmdCabinetList(int client, int args)
+Action CmdCabinetList(int client, int args)
 {
 	float vPos[3];
 	int i, ent, count;
@@ -1106,7 +1109,7 @@ public Action CmdCabinetList(int client, int args)
 // ====================================================================================================
 //					sm_cabinetglow
 // ====================================================================================================
-public Action CmdCabinetGlow(int client, int args)
+Action CmdCabinetGlow(int client, int args)
 {
 	g_bGlow = !g_bGlow;
 	ToggleGlow(g_bGlow);
@@ -1142,7 +1145,7 @@ void ToggleGlow(int glow)
 // ====================================================================================================
 //					sm_cabinettele
 // ====================================================================================================
-public Action CmdCabinetTele(int client, int args)
+Action CmdCabinetTele(int client, int args)
 {
 	if( !client )
 	{
@@ -1177,7 +1180,7 @@ public Action CmdCabinetTele(int client, int args)
 // ====================================================================================================
 //					sm_cabinetdel
 // ====================================================================================================
-public Action CmdCabinetDelete(int client, int args)
+Action CmdCabinetDelete(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1306,7 +1309,7 @@ public Action CmdCabinetDelete(int client, int args)
 // ====================================================================================================
 //					sm_cabinetclear
 // ====================================================================================================
-public Action CmdCabinetClear(int client, int args)
+Action CmdCabinetClear(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1325,7 +1328,7 @@ public Action CmdCabinetClear(int client, int args)
 // ====================================================================================================
 //					sm_cabinetwipe
 // ====================================================================================================
-public Action CmdCabinetWipe(int client, int args)
+Action CmdCabinetWipe(int client, int args)
 {
 	if( !g_bCvarAllow )
 	{
@@ -1384,7 +1387,7 @@ public Action CmdCabinetWipe(int client, int args)
 // ====================================================================================================
 //					MENU ANGLE
 // ====================================================================================================
-public Action CmdCabinetAng(int client, int args)
+Action CmdCabinetAng(int client, int args)
 {
 	if( !client )
 	{
@@ -1402,7 +1405,7 @@ void ShowMenuAng(int client)
 	g_hMenuAng.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1455,7 +1458,7 @@ void SetAngle(int client, int index)
 // ====================================================================================================
 //					MENU ORIGIN
 // ====================================================================================================
-public Action CmdCabinetPos(int client, int args)
+Action CmdCabinetPos(int client, int args)
 {
 	if( !client )
 	{
@@ -1473,7 +1476,7 @@ void ShowMenuPos(int client)
 	g_hMenuPos.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1629,4 +1632,17 @@ bool IsValidEntRef(int entity)
 	if( entity && EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
 		return true;
 	return false;
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
+	}
 }

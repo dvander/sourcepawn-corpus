@@ -4,7 +4,7 @@
 #pragma newdecls required
 #pragma semicolon 1
 
-#define PLUGIN_VERSION "3.04"
+#define PLUGIN_VERSION "3.09"
 
 #define TF_CLASS_DEMOMAN		4
 #define TF_CLASS_ENGINEER		9
@@ -19,6 +19,7 @@
 
 #define TF_TEAM_BLU				3
 #define TF_TEAM_RED				2
+#define TF_TEAM_SPC				1
 
 public Plugin myinfo =
 {
@@ -29,19 +30,17 @@ public Plugin myinfo =
 	url         = "https://forums.alliedmods.net/member.php?u=43109"
 }
 
-bool g_bLateLoad;
 ConVar g_hCvEnabled;
 ConVar g_hCvLimits[4][10];
 
-public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) 
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
-	if (GetEngineVersion() != Engine_TF2) 
+	if (GetEngineVersion() != Engine_TF2)
 	{
 		Format(error, err_max, "This plugin only works for Team Fortress 2.");
 		return APLRes_Failure;
 	}
-	
-	g_bLateLoad = late;
+
 	return APLRes_Success;
 }
 
@@ -66,19 +65,14 @@ public void OnPluginStart()
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SCOUT]    = CreateConVar("sm_crb_red_scouts",    "-1", "Limits RED bot scouts");
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SNIPER]   = CreateConVar("sm_crb_red_snipers",   "-1", "Limits RED bot snipers");
 	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SOLDIER]  = CreateConVar("sm_crb_red_soldiers",  "-1", "Limits RED bot soldiers");
-	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SPY]      = CreateConVar("sm_crb_red_spies",     "-1", "Limits RED bot spies");	
-
+	g_hCvLimits[TF_TEAM_RED][TF_CLASS_SPY]      = CreateConVar("sm_crb_red_spies",     "-1", "Limits RED bot spies");
+	RegAdminCmd("sm_crb_list_limits", Command_List, ADMFLAG_CONFIG, "Lists current bot limits in the console");
 	AutoExecConfig(true, "Class_Restrictions_For_Bots");
-	if (g_bLateLoad)
-	{
-		OnConfigsExecuted();
-	}
-
 	HookEvent("player_spawn", Event_PlayerSpawn);
-	SetConVarString(hCvVersion, PLUGIN_VERSION);	
+	SetConVarString(hCvVersion, PLUGIN_VERSION);
 }
 //built in class limit needs to be disabled
-public void OnConfigsExecuted() 
+public void OnConfigsExecuted()
 {
 	SetConVarInt(FindConVar("tf_classlimit"), 0);
 	SetConVarString(FindConVar("tf_bot_force_class"), "");
@@ -87,15 +81,72 @@ public void OnConfigsExecuted()
 	GetCurrentMap(mapName, sizeof(mapName));
 	ServerCommand("exec \"sourcemod/Class_Restrictions_For_Bots/%s.cfg\"", mapName);
 }
-//there is no space, so the server admins set up the cvars incorrectly. lets warn them through logs
+//there is no space, so the server admins set up the cvars incorrectly. have to change them otherwise bots will try to join teams and crash the server
 void NoSpace()
 {
-	LogError("There is not enough space for another bot!");
-	LogError("Setting BLU and RED scouts limit for bots to unlimited. Fix your class limits for bots!");
-	SetConVarInt( g_hCvLimits[TF_TEAM_BLU][TF_CLASS_SCOUT], -1, false, false );
-	SetConVarInt( g_hCvLimits[TF_TEAM_RED][TF_CLASS_SCOUT], -1, false, false );
+	LogError("There is not enough space for another bot! Setting BLU and RED spies limit for bots to unlimited to avoid a crash. Fix your class limits for bots!");
+	SetConVarInt( g_hCvLimits[TF_TEAM_BLU][TF_CLASS_SPY], -1, false, false );
+	SetConVarInt( g_hCvLimits[TF_TEAM_RED][TF_CLASS_SPY], -1, false, false );
 }
-//player spawned, lets do stuff
+//list current limits in the console
+public Action Command_List(int client, int args)
+{
+	if(GetConVarBool(g_hCvEnabled) && (client == 0 || IsClientConnected(client)))
+	{
+		if(GetCmdReplySource() == SM_REPLY_TO_CHAT)
+		{
+			PrintToChat(client, "[CRB] See console for output");
+		}
+
+		char output[1048];
+		FormatEx(output, sizeof(output), "\
+-----------------------------------\n\
+Current Class Restrictions for Bots\n\
+-\n\
+Limit for BLU bot scouts is    %i\n\
+Limit for BLU bot soldiers is  %i\n\
+Limit for BLU bot pyros is     %i\n\
+Limit for BLU bot demomen is   %i\n\
+Limit for BLU bot heavies is   %i\n\
+Limit for BLU bot engineers is %i\n\
+Limit for BLU bot medics is    %i\n\
+Limit for BLU bot snipers is   %i\n\
+Limit for BLU bot spies is     %i\n\
+-\n\
+Limit for RED bot scouts is    %i\n\
+Limit for RED bot soldiers is  %i\n\
+Limit for RED bot pyros is     %i\n\
+Limit for RED bot demomen is   %i\n\
+Limit for RED bot heavies is   %i\n\
+Limit for RED bot engineers is %i\n\
+Limit for RED bot medics is    %i\n\
+Limit for RED bot snipers is   %i\n\
+Limit for RED bot spies is     %i\n\
+-----------------------------------",
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_SCOUT]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_SOLDIER]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_PYRO]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_DEMOMAN]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_HEAVY]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_ENGINEER]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_MEDIC]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_SNIPER]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_BLU][TF_CLASS_SPY]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_SCOUT]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_SOLDIER]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_PYRO]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_DEMOMAN]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_HEAVY]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_ENGINEER]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_MEDIC]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_SNIPER]),
+		GetConVarInt(g_hCvLimits[TF_TEAM_RED][TF_CLASS_SPY]));
+		PrintToConsole(client, output);
+	}
+
+	return Plugin_Handled;
+}
+//player spawned event
 public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcast)
 {
 	if(!GetConVarBool(g_hCvEnabled))
@@ -105,11 +156,11 @@ public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcas
 
 	int iUser = GetEventInt(event, "userid");
 	int iClient = GetClientOfUserId(iUser);
-	
+
 	if(IsPlayerHereLoop(iClient))
-	{	
-		int iTeam = GetEventInt(event, "team");	
-	
+	{
+		int iTeam = GetEventInt(event, "team");
+
 		switch (iTeam)
 		{
 			case TF_TEAM_RED:
@@ -118,7 +169,15 @@ public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcas
 				{
 					if(IsThereEnoughSpace(TF_TEAM_BLU) == true)
 					{
-						if(IsPlayerAlive(iClient)) 
+						int iFreeClass = SelectFreeClass(TF_TEAM_BLU);
+						TF2_SetPlayerClass(iClient, view_as<TFClassType>(iFreeClass), _, true);
+
+						if(iFreeClass == 0)
+						{
+							ChangeClientTeam(iClient, TF_TEAM_SPC);
+							return;
+						}
+						else if(IsPlayerAlive(iClient))
 						{
 							SetEntProp(iClient, Prop_Send, "m_lifeState", 2);
 							ChangeClientTeam(iClient, TF_TEAM_BLU);
@@ -128,46 +187,22 @@ public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcas
 						{
 							ChangeClientTeam(iClient, TF_TEAM_BLU);
 						}
-						
-						int i = SelectFreeClass(GetClientTeam(iClient));
-				
-						if(i == 0)
-						{
-							ChangeClientTeam(iClient, 1);
-							return;
-						}
-						
-						TF2_SetPlayerClass(iClient, view_as<TFClassType>(i), _, true);
-						
-						if(IsPlayerAlive(iClient)) 
+
+						if(IsPlayerAlive(iClient))
 						{
 							RequestFrame(RespawnPlayer, iUser);
 						}
-						
+
 						return;
 					}
 					else
 					{
 						NoSpace();
-						int i = SelectFreeClass(GetClientTeam(iClient));
-
-						if(i == 0)
-						{
-							ChangeClientTeam(iClient, 1);
-							return;
-						}
-						
-						TF2_SetPlayerClass(iClient, view_as<TFClassType>(i), _, true);
-						
-						if(IsPlayerAlive(iClient)) 
-						{
-							RequestFrame(RespawnPlayer, iUser);
-						}
-						
+						ChangeClientTeam(iClient, TF_TEAM_SPC);
+						TF2_SetPlayerClass(iClient, view_as<TFClassType>(TF_CLASS_UNKNOWN), _, true);
 						return;
 					}
 				}
-			
 			}
 			case TF_TEAM_BLU:
 			{
@@ -175,7 +210,15 @@ public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcas
 				{
 					if(IsThereEnoughSpace(TF_TEAM_RED) == true)
 					{
-						if(IsPlayerAlive(iClient)) 
+						int iFreeClass = SelectFreeClass(TF_TEAM_RED);
+						TF2_SetPlayerClass(iClient, view_as<TFClassType>(iFreeClass), _, true);
+
+						if(iFreeClass == 0)
+						{
+							ChangeClientTeam(iClient, TF_TEAM_SPC);
+							return;
+						}
+						else if(IsPlayerAlive(iClient))
 						{
 							SetEntProp(iClient, Prop_Send, "m_lifeState", 2);
 							ChangeClientTeam(iClient, TF_TEAM_RED);
@@ -185,72 +228,47 @@ public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcas
 						{
 							ChangeClientTeam(iClient, TF_TEAM_RED);
 						}
-						
-						int i = SelectFreeClass(GetClientTeam(iClient));
-				
-						if(i == 0)
-						{
-							ChangeClientTeam(iClient, 1);
-							return;
-						}
-						
-						TF2_SetPlayerClass(iClient, view_as<TFClassType>(i), _, true);
-						
-						if(IsPlayerAlive(iClient)) 
+
+						if(IsPlayerAlive(iClient))
 						{
 							RequestFrame(RespawnPlayer, iUser);
 						}
-						
+
 						return;
 					}
 					else
 					{
 						NoSpace();
-						int i = SelectFreeClass(GetClientTeam(iClient));
-				
-						if(i == 0)
-						{
-							ChangeClientTeam(iClient, 1);
-							return;
-						}
-						
-						TF2_SetPlayerClass(iClient, view_as<TFClassType>(i), _, true);
-						
-						if(IsPlayerAlive(iClient)) 
-						{
-							RequestFrame(RespawnPlayer, iUser);
-						}
-						
+						ChangeClientTeam(iClient, TF_TEAM_SPC);
+						TF2_SetPlayerClass(iClient, view_as<TFClassType>(TF_CLASS_UNKNOWN), _, true);
 						return;
 					}
 				}
-			
 			}
 			default:
 			{
 				return;
-			}		
+			}
 		}
 
-		int iClass = GetEventInt(event, "class");	
-		
+		int iClass = GetEventInt(event, "class");
+
 		if(IsFull(iTeam, iClass))
 		{
-			int i = SelectFreeClass(GetClientTeam(iClient));
-	
-			if(i == 0)
+			int iFreeClass = SelectFreeClass(iTeam);
+			TF2_SetPlayerClass(iClient, view_as<TFClassType>(iFreeClass), _, true);
+
+			if(iFreeClass == 0)
 			{
-				ChangeClientTeam(iClient, 1);
+				ChangeClientTeam(iClient, TF_TEAM_SPC);
 				return;
 			}
-			
-			TF2_SetPlayerClass(iClient, view_as<TFClassType>(i), _, true);
-			
-			if(IsPlayerAlive(iClient)) 
+
+			if(IsPlayerAlive(iClient))
 			{
 				RequestFrame(RespawnPlayer, iUser);
 			}
-			
+
 			return;
 		}
 	}
@@ -259,39 +277,36 @@ public void Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcas
 void RespawnPlayer(int iUser)
 {
 	int iClient = GetClientOfUserId(iUser);
-	
+
 	if(iClient && IsPlayerHereLoop(iClient))
 	{
 		TF2_RespawnPlayer(iClient);
 	}
 }
-//how many players do have on a team
-int GetBotClientsCount(int iTeam) 
+//how many players do we have on a team
+int GetBotClientsCount(int iTeam)
 {
 	int clients = 0;
-	
-	for(int i = 1; i <= MaxClients; i++) 
+
+	for(int i = 1; i <= MaxClients; i++)
 	{
-		if(IsPlayerHereLoop(i)) 
+		if(IsPlayerHereLoop(i) && (GetClientTeam(i) == iTeam))
 		{
-			if(GetClientTeam(i) == iTeam)
-			{
-				clients++;
-			}
+			clients++;
 		}
 	}
-	
+
 	return clients;
 }
 //is there even enough space for the player on the team
 bool IsThereEnoughSpace(int iTeam)
 {
 	int total = 0, classlimit = 0;
-	
+
 	for(int i = 1; i <= 9; i++)
 	{
 		classlimit = GetConVarInt(g_hCvLimits[iTeam][i]);
-		
+
 		if(classlimit != -1)
 		{
 			total += classlimit;
@@ -302,7 +317,7 @@ bool IsThereEnoughSpace(int iTeam)
 			break;
 		}
 	}
-	
+
 	if(total == -1)
 	{
 		return true;
@@ -310,26 +325,22 @@ bool IsThereEnoughSpace(int iTeam)
 	else if(total == 0)
 	{
 		return false;
-	}	
+	}
 	else
 	{
-		int BotsCount = GetBotClientsCount(iTeam);
-		
-		if(total >= BotsCount)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		return total >= GetBotClientsCount(iTeam);
 	}
 }
 //is class on that team full
 bool IsFull(int iTeam, int iClass)
 {
+	if(iClass == 0)
+	{
+		return true;		
+	}
+
 	int iLimit = GetConVarInt(g_hCvLimits[iTeam][iClass]);
-	
+
 	if(iLimit == -1)
 	{
 		return false;
@@ -338,9 +349,9 @@ bool IsFull(int iTeam, int iClass)
 	{
 		return true;
 	}
-	
+
 	int iCount = 0;
-	
+
 	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(IsPlayerHereLoop(i) && GetClientTeam(i) == iTeam && view_as<int>(TF2_GetPlayerClass(i)) == iClass)
@@ -348,15 +359,8 @@ bool IsFull(int iTeam, int iClass)
 			iCount++;
 		}
 	}
-	
-	if(iCount > iLimit)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+
+	return iCount > iLimit;
 }
 //select a free class for the player
 int SelectFreeClass(int iTeam)
@@ -377,16 +381,16 @@ int SelectFreeClass(int iTeam)
 	{
 		return 0;
 	}
-	
+
 	if(x == 1)
 	{
 		return classes[0];
 	}
-	
-	x--; 
-	return classes[GetRandomUInt(0,x)];	
+
+	x--;
+	return classes[GetRandomUInt(0,x)];
 }
-//custom get random int within range function
+//custom function to get random int within range
 int GetRandomUInt(int min, int max)
 {
 	return RoundToFloor(GetURandomFloat() * (max - min + 1)) + min;
@@ -394,5 +398,5 @@ int GetRandomUInt(int min, int max)
 //basic check for players
 bool IsPlayerHereLoop(int client)
 {
-	return (IsClientInGame(client) && IsFakeClient(client));
+	return IsClientInGame(client) && IsFakeClient(client);
 }

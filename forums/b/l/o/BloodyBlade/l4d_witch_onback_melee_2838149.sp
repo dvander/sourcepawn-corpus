@@ -1,0 +1,488 @@
+#pragma semicolon 1
+#pragma newdecls required
+#include <sourcemod>
+#include <sdktools>
+#include <sdktools_functions> 
+#include <sdkhooks>
+#include <ThirdPersonShoulder_Detect>
+
+#define PLUGIN_VERSION "1.0"
+#define CVAR_FLAGS FCVAR_NOTIFY|FCVAR_SPONLY
+
+#define Model_Witch "models/infected/witch.mdl"
+#define Model_Witch2 "models/infected/witch_bride.mdl"
+
+int Anim[90], AnimCount = 2, WitchEnt[MAXPLAYERS + 1] = {0, ...};
+bool WitchViewOn[MAXPLAYERS + 1] = {false, ...}, On3rdPerson[MAXPLAYERS + 1] = {false, ...}, L4D2Version = false, bHooked = false, bMapStarted = false, bWitchOnBackBestPose = false, bWitchOnBackMeleeOnly = false;
+ConVar l4d_witch_onback_on, l4d_witch_onback_bestpose, l4d_witch_onback_melee_only, l4d_witch_onback_modes, l4d_witch_onback_modes_off, l4d_witch_onback_modes_tog, MPGameMode;
+float OffSets[100][3];
+
+public Plugin myinfo = 
+{
+	name = "Witch On Back",
+	author = "Pan XiaoHai, Axel Juan Nieves",
+	description = "Decoration For Witch Killer. Witch killer will put witch's body on his back",
+	version = "1.3",
+	url = "https://forums.alliedmods.net/showthread.php?p=1544645"
+}
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) 
+{
+	EngineVersion engine = GetEngineVersion();
+	if(engine == Engine_Left4Dead)
+	{
+		L4D2Version = false;
+	}
+	else if(engine == Engine_Left4Dead2)
+	{
+		L4D2Version = true;
+	}
+	else
+	{
+		strcopy(error, err_max, "Plugin only supports Left 4 Dead(2) game.");
+		return APLRes_SilentFailure;
+	}
+	return APLRes_Success;
+}
+
+public void OnPluginStart()
+{
+	CreateConVar("l4d_witch_onback_version", PLUGIN_VERSION, "L4D Witch On Back plugin version.", CVAR_FLAGS|FCVAR_DONTRECORD);
+	l4d_witch_onback_on = CreateConVar("l4d_witch_onback_on", "1", "0: disable plugin, 1: enable plugin", CVAR_FLAGS);
+	l4d_witch_onback_bestpose = CreateConVar("l4d_witch_onback_bestpose", "0", "0: random pose, 1: best pose", CVAR_FLAGS);
+	l4d_witch_onback_melee_only = CreateConVar("l4d_witch_onback_melee_only", "0", "0: any weapon, 1: melee weapon only", CVAR_FLAGS);
+	l4d_witch_onback_modes = CreateConVar("l4d_witch_onback_modes", "", "Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS);
+	l4d_witch_onback_modes_off = CreateConVar("l4d_witch_onback_modes_off", "", "Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS);
+	l4d_witch_onback_modes_tog = CreateConVar("l4d_witch_onback_modes_tog", "0", "Turn on the plugin in these game modes. 0=All, 1=Coop, 2=Survival, 4=Versus. Add numbers together.", CVAR_FLAGS);
+
+	AutoExecConfig(true, "l4d_witch_onback");
+
+	l4d_witch_onback_on.AddChangeHook(ConVarPluginOnChanged);
+	l4d_witch_onback_bestpose.AddChangeHook(ConVarsChanged);
+	l4d_witch_onback_melee_only.AddChangeHook(ConVarsChanged);
+	MPGameMode = FindConVar("mp_gamemode");
+	MPGameMode.AddChangeHook(ConVarPluginOnChanged);
+	l4d_witch_onback_modes_tog.AddChangeHook(ConVarPluginOnChanged);
+	l4d_witch_onback_modes.AddChangeHook(ConVarPluginOnChanged);
+	l4d_witch_onback_modes_off.AddChangeHook(ConVarPluginOnChanged);
+
+	RegConsoleCmd("sm_witch", sm_witch); 
+	RegConsoleCmd("sm_witchpose", sm_witchpose);
+}
+
+public void OnMapStart()
+{
+	bMapStarted = true;
+	PrecacheModel(Model_Witch);
+	if(L4D2Version) PrecacheModel(Model_Witch2);
+}
+
+public void OnConfigsExecuted()
+{
+    IsAllowed();
+}
+
+void ConVarPluginOnChanged(ConVar cvar, const char[] OldValue, const char[] NewValue)
+{
+    IsAllowed();
+}
+
+void ConVarsChanged(ConVar cvar, const char[] OldValue, const char[] NewValue)
+{
+    bWitchOnBackBestPose = l4d_witch_onback_bestpose.BoolValue;
+    bWitchOnBackMeleeOnly = l4d_witch_onback_melee_only.BoolValue;
+}
+
+void IsAllowed()
+{
+	bool bPluginOn = l4d_witch_onback_on.BoolValue;
+	bool bAllowMode = IsAllowedGameMode();
+	if(!bHooked && bPluginOn && bAllowMode)
+	{
+		bHooked = true;
+		ConVarsChanged(null, "", "");
+		if(L4D2Version) SetAnimL4d2();
+		else SetAnimL4d1();
+		HookEvent("player_death", Events);
+		HookEvent("witch_killed", Events);  
+		HookEvent("player_bot_replace", Events );	 
+		HookEvent("round_start", Events);
+		HookEvent("round_end", Events);
+		HookEvent("finale_win", Events);
+		HookEvent("mission_lost", Events);
+		HookEvent("map_transition", Events);
+		ResetAllState();
+	}
+	else if(bHooked && (!bPluginOn || !bAllowMode))
+	{
+		bHooked = false;
+		UnhookEvent("player_death", Events);
+		UnhookEvent("witch_killed", Events);  
+		UnhookEvent("player_bot_replace", Events );	 
+		UnhookEvent("round_start", Events);
+		UnhookEvent("round_end", Events);
+		UnhookEvent("finale_win", Events);
+		UnhookEvent("mission_lost", Events);
+		UnhookEvent("map_transition", Events);
+		ResetAllState();
+	}
+}
+
+int g_iCurrentMode;
+bool IsAllowedGameMode()
+{
+	if( MPGameMode == null )
+		return false;
+
+	int iCvarModesTog = l4d_witch_onback_modes_tog.IntValue;
+	if( iCvarModesTog != 0 )
+	{
+		if(!bMapStarted)
+			return false;
+
+		g_iCurrentMode = 0;
+
+		int entity = CreateEntityByName("info_gamemode");
+		if(IsValidEntity(entity))
+		{
+			DispatchSpawn(entity);
+			HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
+			HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
+			HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
+			HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
+			ActivateEntity(entity);
+			AcceptEntityInput(entity, "PostSpawnActivate");
+			if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
+				RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
+		}
+
+		if( g_iCurrentMode == 0 )
+			return false;
+
+		if( !(iCvarModesTog & g_iCurrentMode) )
+			return false;
+	}
+
+	char sGameModes[64], sGameMode[64];
+	MPGameMode.GetString(sGameMode, sizeof(sGameMode));
+	Format(sGameMode, sizeof(sGameMode), ",%s,", sGameMode);
+
+	l4d_witch_onback_modes.GetString(sGameModes, sizeof(sGameModes));
+	if( sGameModes[0] )
+	{
+		Format(sGameModes, sizeof(sGameModes), ",%s,", sGameModes);
+		if( StrContains(sGameModes, sGameMode, false) == -1 )
+			return false;
+	}
+
+	l4d_witch_onback_modes_off.GetString(sGameModes, sizeof(sGameModes));
+	if( sGameModes[0] )
+	{
+		Format(sGameModes, sizeof(sGameModes), ",%s,", sGameModes);
+		if( StrContains(sGameModes, sGameMode, false) != -1 )
+			return false;
+	}
+
+	return true;
+}
+
+void OnGamemode(const char[] output, int caller, int activator, float delay)
+{
+	if(strcmp(output, "OnCoop") == 0)
+		g_iCurrentMode = 1;
+	else if(strcmp(output, "OnSurvival") == 0)
+		g_iCurrentMode = 2;
+	else if(strcmp(output, "OnVersus") == 0)
+		g_iCurrentMode = 4;
+	else if(strcmp(output, "OnScavenge") == 0)
+		g_iCurrentMode = 8;
+}
+
+public void OnMapEnd()
+{
+	bMapStarted = false;
+}
+
+int best_amin = 0;
+void SetAnimL4d2()
+{
+	OffSets[1] = view_as<float>({-5.000000,26.000000,-100.000000});
+	OffSets[2] = view_as<float>({-3.000000,32.000000,-100.000000});
+	OffSets[3] = view_as<float>({-1.000000,28.000000,-100.000000});
+	OffSets[5] = view_as<float>({-1.000000,28.000000,-100.000000});
+	OffSets[7] = view_as<float>({1.000000,26.000000,-100.000000});
+	OffSets[8] = view_as<float>({-3.000000,26.000000,-100.000000});
+	OffSets[10] = view_as<float>({-3.000000,24.000000,-100.000000});
+	OffSets[16] = view_as<float>({1.000000,28.000000,-100.000000});
+	OffSets[18] = view_as<float>({1.000000,32.000000,-100.000000}); 
+	OffSets[35] = view_as<float>({-5.000000,4.000000,-100.000000});
+	OffSets[37] = view_as<float>({1.000000,28.000000,-100.000000}); 
+	OffSets[44] = view_as<float>({-1.000000,28.000000,-100.000000});
+	OffSets[45] = view_as<float>({-1.000000,30.000000,-100.000000});
+	OffSets[46] = view_as<float>({-1.000000,32.000000,-100.000000});
+	OffSets[49] = view_as<float>({-3.000000,32.000000,-100.000000});
+	OffSets[51] = view_as<float>({-1.000000,30.000000,-100.000000});
+	OffSets[54] = view_as<float>({3.000000,32.000000,-100.000000});
+	OffSets[55] = view_as<float>({-1.000000,30.000000,-100.000000});
+	OffSets[59] = view_as<float>({-1.000000,28.000000,-100.000000});
+	OffSets[61] = view_as<float>({-5.000000,24.000000,-100.000000});
+	OffSets[62] = view_as<float>({-5.000000,22.000000,-100.000000});
+	OffSets[66] = view_as<float>({-5.000000,30.000000,-100.000000});
+	OffSets[73] = view_as<float>({-5.000000,0.000000,-100.000000});
+	OffSets[74] = view_as<float>({1.000000,10.000000,-100.000000});
+	OffSets[76] = view_as<float>({-5.000000,32.000000,-100.000000});
+	OffSets[77] = view_as<float>({-5.000000,34.000000,-100.000000}); //best
+	OffSets[79] = view_as<float>({-9.000000,20.000000,-100.000000});
+	OffSets[80] = view_as<float>({-15.000000,18.000000,-100.000000});
+	AnimCount = 0;
+	for(int i = 0; i < 90; i++)
+	{
+		if(OffSets[i][2] == -100.0)
+		{		
+			Anim[AnimCount] = i;
+			AnimCount++;
+		}
+	}
+	best_amin = 77;
+}
+
+void SetAnimL4d1()
+{
+	OffSets[1] = view_as<float>({1.000000,32.000000,-100.000000});
+	OffSets[3] = view_as<float>({-1.000000,28.000000,-100.000000});
+	OffSets[4] = view_as<float>({1.000000,28.000000,-100.000000});
+	OffSets[5] = view_as<float>({1.000000,32.000000,-100.000000});
+	OffSets[6] = view_as<float>({1.000000,22.000000,-100.000000});
+	OffSets[9] = view_as<float>({3.000000,26.000000,-100.000000});
+	OffSets[29] = view_as<float>({-1.000000,30.000000,-100.000000});
+	OffSets[32] = view_as<float>({-1.000000,30.000000,-100.000000});
+	OffSets[36] = view_as<float>({1.000000,32.000000,-100.000000});
+	OffSets[37] = view_as<float>({-1.000000,32.000000,-100.000000});
+	OffSets[41] = view_as<float>({-1.000000,32.000000,-100.000000});
+	OffSets[43] = view_as<float>({-1.000000,32.000000,-100.000000});
+	OffSets[46] = view_as<float>({1.000000,32.000000,-100.000000});
+	OffSets[47] = view_as<float>({1.000000,26.000000,-100.000000});
+	OffSets[51] = view_as<float>({1.000000,24.000000,-100.000000});
+	OffSets[53] = view_as<float>({-1.000000,20.000000,-100.000000});
+	OffSets[54] = view_as<float>({-5.000000,20.000000,-100.000000});
+	OffSets[57] = view_as<float>({-3.000000,20.000000,-100.000000});
+	OffSets[65] = view_as<float>({-9.000000,2.000000,-100.000000});
+	OffSets[66] = view_as<float>({-1.000000,14.000000,-100.000000});
+	OffSets[68] = view_as<float>({-1.000000,36.000000,-100.000000});
+	OffSets[69] = view_as<float>({-3.000000,32.000000,-100.000000}); //best 
+	OffSets[70] = view_as<float>({-1.000000,32.000000,-100.000000});
+	OffSets[72] = view_as<float>({-9.000000,18.000000,-100.000000});
+	AnimCount = 0;
+	for(int i = 0; i < 90; i++)
+	{
+		if(OffSets[i][2] == -100.0)
+		{
+			Anim[AnimCount] = i;
+			AnimCount++;
+		}
+	}	
+	best_amin = 69;
+}
+ 
+Action sm_witchpose(int client, int args)
+{
+	if(bHooked)
+	{
+		for(int i = 1; i <= MaxClients; i++)
+		{
+			if(IsWitch(WitchEnt[i]))
+			{
+				client = i;
+				if(IsValidSurv(client) && IsPlayerAlive(client))
+				{
+					int anim = Anim[GetRandomInt(0, AnimCount - 1)]; 
+					float ang[3], pos[3];
+					SetVector(ang, 0.0, 0.0, 90.0);
+					pos[0] = OffSets[anim][0];
+					pos[1] = OffSets[anim][1];
+					TeleportEntity(WitchEnt[client], pos, ang, NULL_VECTOR);		
+					SetEntProp(WitchEnt[client], Prop_Send, "m_nSequence", anim);
+					SetEntPropFloat(WitchEnt[client], Prop_Send, "m_flPlaybackRate", 1.0);
+					//PrintToChatAll("pose m_nSequence %d ", anim);
+				}
+			}
+		}
+	}
+	return Plugin_Handled;
+} 
+
+public void TP_OnThirdPersonChanged(int client, bool bIsThirdPerson)
+{
+	On3rdPerson[client] = bIsThirdPerson;
+}
+
+Action sm_witch(int client, int args)
+{
+	if(bHooked && IsValidSurv(client))
+	{	
+		WitchViewOn[client] = !WitchViewOn[client];
+		if(WitchViewOn[client]) PrintToChat(client, "\x04witch \x03view is \x04on");
+		else PrintToChat(client, "\x04witch \x03view is \x04off, \x03but others still can see it on your back");
+	}
+	return Plugin_Handled;
+}
+
+Action Events(Event event, const char[] name, bool dontBroadcast)
+{	
+	if (strcmp(name, "player_death") == 0)
+	{
+		int victim = GetClientOfUserId(event.GetInt("userid")); 
+		if(IsValidSurv(victim))
+		{
+			DeleteDecoration(victim);
+		}
+	}
+	else if(strcmp(name, "witch_killed") == 0)
+	{
+		if((event.GetBool("melee_only") && bWitchOnBackMeleeOnly) || !bWitchOnBackMeleeOnly)
+		{
+			int attacker = GetClientOfUserId(event.GetInt("userid")); 
+			if(IsValidSurv(attacker) && IsPlayerAlive(attacker))
+			{
+				CreateDecoration(attacker);
+			}
+		}
+	}
+	else if(strcmp(name, "player_bot_replace") == 0)
+	{
+		int client = GetClientOfUserId(event.GetInt("player"));
+		int bot = GetClientOfUserId(event.GetInt("bot"));   
+		if(client > 0)
+		{
+			DeleteDecoration(client);
+		}
+		if(bot > 0)
+		{
+			DeleteDecoration(bot);
+		}
+	}
+	else if(strcmp(name, "round_start") == 0 || strcmp(name, "round_end") == 0 || strcmp(name, "finale_win") == 0 || strcmp(name, "mission_lost") == 0 || strcmp(name, "map_transition") == 0)
+	{
+		ResetAllState();
+	}
+	return Plugin_Continue;
+}
+
+void ResetAllState()
+{
+	for(int i = 1; i <= MaxClients; i++)
+	{
+		WitchEnt[i] = 0;
+	}
+}
+
+bool IsWitch(int ent)
+{
+	return ent > 0 && IsValidEdict(ent) && IsValidEntity(ent);
+}
+
+bool IsValidSurv(int client)
+{
+	return client > 0 && client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == 2;
+}
+
+void DeleteDecoration(int client)
+{
+	if(IsWitch(WitchEnt[client]))
+	{
+		AcceptEntityInput(WitchEnt[client], "ClearParent");
+		AcceptEntityInput(WitchEnt[client], "kill");
+		SDKUnhook(WitchEnt[client], SDKHook_SetTransmit, Hook_SetTransmit);
+	}
+	WitchEnt[client] = 0;
+}
+
+void CreateDecoration(int client)
+{
+	if(IsWitch(WitchEnt[client])) return;
+	int witch = CreateEntityByName("prop_dynamic_override"); 
+	if(L4D2Version)
+	{
+		if(GetRandomInt(0, 1) == 0) DispatchKeyValue(witch, "model", Model_Witch2); 
+		else DispatchKeyValue(witch, "model", Model_Witch);  
+	}
+	else DispatchKeyValue(witch, "model", Model_Witch);  
+	DispatchSpawn(witch); 
+
+	char tname[60];
+	Format(tname, sizeof(tname), "target%d", client);
+	DispatchKeyValue(client, "targetname", tname); 		
+	DispatchKeyValue(witch, "parentname", tname);
+
+	SetVariantString(tname);
+	AcceptEntityInput(witch, "SetParent", witch, witch, 0); 	
+	SetVariantString("medkit"); 
+	AcceptEntityInput(witch, "SetParentAttachment"); 
+
+	int anim = 0;
+	if(!bWitchOnBackBestPose) anim = Anim[GetRandomInt(0, AnimCount - 1)];
+	else anim = best_amin;
+
+	float pos[3], ang[3];
+	SetVector(pos, -5.0, 32.0, 0.0); 
+	pos[0] = OffSets[anim][0];
+	pos[1] = OffSets[anim][1]; 
+	SetVector(ang, 0.0, 00.0, 90.0);
+ 
+	TeleportEntity(witch, pos, ang, NULL_VECTOR);
+	SetEntityRenderMode(witch, RENDER_TRANSCOLOR);
+	SetEntityRenderColor(witch, 255,0,0,255);
+	SetEntProp(witch, Prop_Send, "m_CollisionGroup", 2);   
+
+	SetEntProp(witch, Prop_Send, "m_nSequence", anim);
+	SetEntPropFloat(witch, Prop_Send, "m_flPlaybackRate", 1.0);		
+
+	WitchEnt[client] = witch; 
+ 	if(!bWitchOnBackBestPose) CreateTimer(30.0, TimerAnimWitch, client, TIMER_FLAG_NO_MAPCHANGE| TIMER_REPEAT);
+	SDKHook(WitchEnt[client], SDKHook_SetTransmit, Hook_SetTransmit);
+	WitchViewOn[client] = false;
+	PrintToChatAll("\x04%N \x03put witch on his back", client);
+	PrintToChat(client, "\x04!witch \x03 : toggle to see or hide your own witch");
+}
+
+Action TimerAnimWitch(Handle timer, any client)
+{
+	if(IsWitch(WitchEnt[client]))
+	{
+		if(client > 0 && IsClientInGame(client) && IsPlayerAlive(client) && GetClientTeam(client) == 2)
+		{
+			int anim = Anim[GetRandomInt(0, AnimCount - 1)];
+			float ang[3], pos[3];
+			SetVector(ang, 0.0, 0.0, 90.0);
+			pos[0] = OffSets[anim][0];
+			pos[1] = OffSets[anim][1];
+			TeleportEntity(WitchEnt[client], pos, ang, NULL_VECTOR);
+			SetEntProp(WitchEnt[client], Prop_Send, "m_nSequence", anim);
+			SetEntPropFloat(WitchEnt[client], Prop_Send, "m_flPlaybackRate", 1.0);
+			return Plugin_Continue;
+		}
+		else
+		{
+			DeleteDecoration(client);
+		}
+	}
+	WitchEnt[client] = 0;
+	return Plugin_Stop;
+}
+
+Action Hook_SetTransmit(int entity, int client)
+{
+	if(entity == WitchEnt[client])
+	{
+		if (WitchViewOn[client] || On3rdPerson[client]) return Plugin_Continue;
+		else return Plugin_Handled;
+	}
+	return Plugin_Continue;
+}
+
+void SetVector(float target[3], float x, float y, float z)
+{
+	target[0] = x;
+	target[1] = y;
+	target[2] = z;
+}

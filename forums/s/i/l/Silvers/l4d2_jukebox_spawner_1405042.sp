@@ -1,6 +1,6 @@
 /*
 *	Jukebox Spawner
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.12"
+#define PLUGIN_VERSION 		"1.13"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.13 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.12 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
@@ -663,7 +666,7 @@ void GetTracks(char sTracks[7][64])
 	int[] iRandom = new int[g_iTracksCount];
 	for( int i = 1; i <= g_iTracksCount; i++ )
 		iRandom[i-1] = i-1;
-	SortIntegers(iRandom, g_iTracksCount, Sort_Random);
+	SortCustom(iRandom, g_iTracksCount);
 
 	int iRand;
 	for( int i = 0; i < sizeof(sTracks); i ++ )
@@ -1006,6 +1009,19 @@ bool IsValidEntRef(int entity)
 	if( entity && EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
 		return true;
 	return false;
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
+	}
 }
 
 

@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.1.2 (04-January-2021)
+    - Added Russian (ru) translations. (thanks to "Jasf")
+
 1.1.1 (15-January_2023)
     - Changed SDKHooks_TakeDamage to not bypass other SDK hooks. (SM 1.11+)
 
@@ -52,7 +55,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D2] Gnome and Cola Shove Damage"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Allows both gnome and cola to do some damage when shoving"
-#define PLUGIN_VERSION                "1.1.1"
+#define PLUGIN_VERSION                "1.1.2"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=327647"
 
 // ====================================================================================================

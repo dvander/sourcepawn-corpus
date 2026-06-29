@@ -1,6 +1,6 @@
 /*
 *	Lamps
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.10"
+#define PLUGIN_VERSION 		"1.12"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.12 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
+
+1.11 (05-Nov-2024)
+	- Added 2 new lamp models for L4D2 and 1 for L4D1. Requested by "larrybrains".
 
 1.10 (21-Dec-2022)
 	- Changed command "sm_lamp" to spawn a temporary lamp by index. Requested by "replay_84".
@@ -85,7 +91,7 @@
 #define CHAT_TAG			"\x05[Lamps] \x01"
 #define CONFIG_SPAWNS		"data/l4d_lamp.cfg"
 #define MAX_ALLOWED			32
-#define	MAX_LAMPS			39
+#define	MAX_LAMPS			41
 #define MAX_INDEX			9
 
 #define MODEL_LIGHT1		"models/props/de_train/light_inset.mdl"
@@ -167,7 +173,9 @@ static const char g_sModels[MAX_LAMPS][64] =
 	"models/props_interiors/lamp_floor_arch.mdl",
 	"models/props_interiors/lamp_floor.mdl",
 	"models/props_interiors/lamp_table01.mdl",
-	"models/props_interiors/lamp_table02.mdl"
+	"models/props_interiors/lamp_table02.mdl",
+	"models/props_furniture/lamp1.mdl",
+	"models/props_urban/hotel_lamp001.mdl"
 };
 
 static const char g_sLampNames[MAX_LAMPS][64] =
@@ -177,7 +185,7 @@ static const char g_sLampNames[MAX_LAMPS][64] =
 	"Inset",			"Tube",				"Work",				"Sconce 1",			"Sconce 2",			"Construction 1",	"Construction 2",
 	"Porch",			"Spotlight 1",		"Spotlight 2",		"Fixture 1",		"Fixture 2",		"Fixture 3",		"Red Alarm",
 	"2 Spotlights",		"Security",			"Shade",			"Street 1",			"Street 2",			"Street 3",			"Street 4",
-	"Lamp 1",			"Lamp 2",			"Lamp 3",			"Lamp 4"
+	"Lamp 1",			"Lamp 2",			"Lamp 3",			"Lamp 4",			"Lamp 5",			"Lamp 6"
 };
 
 enum
@@ -187,7 +195,7 @@ enum
 	TYPE_LIGHT1,		TYPE_LIGHT2,		TYPE_LIGHT3,		TYPE_LIGHT4,		TYPE_LIGHT5,		TYPE_LIGHT6,		TYPE_LIGHT7,
 	TYPE_LIGHT8,		TYPE_LIGHT9,		TYPE_LIGHT10,		TYPE_LIGHT11,		TYPE_LIGHT12,		TYPE_LIGHT13,		TYPE_LIGHT14,
 	TYPE_LIGHT15,		TYPE_LIGHT16,		TYPE_LIGHT17,		TYPE_LIGHT18,		TYPE_LIGHT19,		TYPE_LIGHT20,		TYPE_LIGHT21,
-	TYPE_LIGHT22,		TYPE_LIGHT23,		TYPE_LIGHT24,		TYPE_LIGHT25
+	TYPE_LIGHT22,		TYPE_LIGHT23,		TYPE_LIGHT24,		TYPE_LIGHT25,		TYPE_LIGHT26,		TYPE_LIGHT27
 }
 
 
@@ -223,7 +231,7 @@ public void OnPluginStart()
 
 	g_hCvarAllow =		CreateConVar(	"l4d_lamp_allow",		"1",			"0=Plugin off, 1=Plugin on.", CVAR_FLAGS);
 	g_hCvarBreak =		CreateConVar(	"l4d_lamp_break",		"1",			"0=No. 1=Yes. Lights can break when damaged.", CVAR_FLAGS);
-	g_hCvarBright =		CreateConVar(	"l4d_lamp_bright",		"150.0",		"Brightness of int lamps.", CVAR_FLAGS);
+	g_hCvarBright =		CreateConVar(	"l4d_lamp_bright",		"150.0",		"Brightness of new lamps.", CVAR_FLAGS);
 	g_hCvarColor =		CreateConVar(	"l4d_lamp_color",		"255 255 200",	"The beam color. RGB (red, green, blue) values (0-255).", CVAR_FLAGS);
 	g_hCvarModes =		CreateConVar(	"l4d_lamp_modes",		"",				"Turn on the plugin in these game modes, separate by commas (no spaces). (Empty = all).", CVAR_FLAGS );
 	g_hCvarModesOff =	CreateConVar(	"l4d_lamp_modes_off",	"",				"Turn off the plugin in these game modes, separate by commas (no spaces). (Empty = none).", CVAR_FLAGS );
@@ -287,7 +295,7 @@ public void OnMapStart()
 		{
 			switch( i )
 			{
-				case 8, 10, 22, 28, 30, 33: {}
+				case 8, 10, 22, 28, 30, 33, 40: {} // L4D1: Missing models/unsupported
 				default: PrecacheModel(g_sModels[i]);
 			}
 		} else {
@@ -542,7 +550,7 @@ void LoadLamps()
 		for( i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -983,7 +991,7 @@ int SpawnLamp(const float vOrigin[3], const float vAngles[3], int color, int typ
 		case TYPE_LIGHT21:									entity = MakeLightDynamic(view_as<float>({ 40.0, 0.0, 40.0 }), vAng, color, brightness);
 		case TYPE_LIGHT22:									entity = MakeLightDynamic(view_as<float>({ 40.0, 0.0, 50.0 }), vAng, color, brightness);
 		case TYPE_LIGHT23, TYPE_LIGHT24, TYPE_LIGHT25:		entity = MakeLightDynamic(view_as<float>({ 0.0, 0.0, 15.0 }), vAng, color, brightness);
-		default:											entity = MakeLightDynamic(view_as<float>({ 10.0, 0.0, 0.0 }), vAng, color, brightness);
+		default:											entity = MakeLightDynamic(view_as<float>({ 2.0, 0.0, 0.0 }), vAng, color, brightness);
 	}
 
 	g_iEntities[index][1] = EntIndexToEntRef(entity);
@@ -1261,7 +1269,7 @@ void AddMenuList(Menu menu)
 		{
 			switch( i )
 			{
-				case 8, 10, 22, 28, 30, 33: {} // L4D1: Missing models/unsupported
+				case 8, 10, 22, 28, 30, 33, 40: {} // L4D1: Missing models/unsupported
 				default: menu.AddItem(temp, g_sLampNames[i]);
 			}
 		} else {
@@ -1483,16 +1491,16 @@ int TempMenuHandler(Menu menu, MenuAction action, int client, int index)
 		// Get index
 		char sTemp[4];
 		menu.GetItem(index, sTemp, sizeof(sTemp));
-		index = StringToInt(sTemp);
+		index = StringToInt(sTemp) + 1;
 
-		if( index + 1 == TYPE_EXIT1 || index + 1 == TYPE_EXIT2 )
-			SetupLamp(client, vPos, vAng, 65280, index + 1);
-		else if( index + 1 == TYPE_FLOOD || index + 1 == TYPE_GENERATOR1 || index + 1 == TYPE_GENERATOR2 || index + 1 == TYPE_SPIN )
-			SetupLamp(client, vPos, vAng, 16777215, index + 1);
-		else if( index + 1 == TYPE_GENERATOR3 )
-			SetupLamp(client, vPos, vAng, 255, index + 1);
+		if( index == TYPE_EXIT1 || index == TYPE_EXIT2 )
+			SetupLamp(client, vPos, vAng, 65280, index);
+		else if( index == TYPE_FLOOD || index == TYPE_GENERATOR1 || index == TYPE_GENERATOR2 || index == TYPE_SPIN )
+			SetupLamp(client, vPos, vAng, 16777215, index);
+		else if( index == TYPE_GENERATOR3 )
+			SetupLamp(client, vPos, vAng, 255, index);
 		else
-			SetupLamp(client, vPos, vAng, g_iCvarColor, index + 1);
+			SetupLamp(client, vPos, vAng, g_iCvarColor, index);
 
 		int menupos = menu.Selection;
 		menu.DisplayAt(client, menupos, MENU_TIME_FOREVER);
@@ -1523,18 +1531,18 @@ int SaveMenuHandler(Menu menu, MenuAction action, int client, int index)
 		// Get index
 		char sTemp[4];
 		menu.GetItem(index, sTemp, sizeof(sTemp));
-		index = StringToInt(sTemp);
+		index = StringToInt(sTemp) + 1;
 
-		if( index + 1 == TYPE_EXIT1 || index + 1 == TYPE_EXIT2 )
+		if( index == TYPE_EXIT1 || index == TYPE_EXIT2 )
 		{
-			SaveLampSpawn(client, index + 1, 65280, "0 255 0");
+			SaveLampSpawn(client, index, 65280, "0 255 0");
 		}
-		else if( index + 1 == TYPE_FLOOD || index + 1 == TYPE_GENERATOR1 || index + 1 == TYPE_GENERATOR2 || index + 1 == TYPE_SPIN )
-			SaveLampSpawn(client, index + 1, 16777215, "255 255 255");
-		else if( index + 1 == TYPE_GENERATOR3 )
-			SaveLampSpawn(client, index + 1, 255, "255 0 0");
+		else if( index == TYPE_FLOOD || index == TYPE_GENERATOR1 || index == TYPE_GENERATOR2 || index == TYPE_SPIN )
+			SaveLampSpawn(client, index, 16777215, "255 255 255");
+		else if( index == TYPE_GENERATOR3 )
+			SaveLampSpawn(client, index, 255, "255 0 0");
 		else
-			SaveLampSpawn(client, index + 1, g_iCvarColor, g_sCvarColor);
+			SaveLampSpawn(client, index, g_iCvarColor, g_sCvarColor);
 
 		int menupos = menu.Selection;
 		menu.DisplayAt(client, menupos, MENU_TIME_FOREVER);
@@ -1820,6 +1828,15 @@ int SetupLamp(int client, float vPos[3] = NULL_VECTOR, float vAng[3] = NULL_VECT
 			vAng[0] += 90.0;
 		}
 		case TYPE_LIGHT22, TYPE_LIGHT23, TYPE_LIGHT24, TYPE_LIGHT25:
+		{
+			vAng[0] += 90.0;
+		}
+		case TYPE_LIGHT26:
+		{
+			vPos[2] += 33.0;
+			vAng[0] += 90.0;
+		}
+		case TYPE_LIGHT27:
 		{
 			vAng[0] += 90.0;
 		}
@@ -2168,18 +2185,16 @@ Action CmdLampSpawn(int client, int args)
 
 		if( index > 0 && index <= MAX_LAMPS )
 		{
-			index -= 1;
-
 			float vPos[3], vAng[3];
 
-			if( index + 1 == TYPE_EXIT1 || index + 1 == TYPE_EXIT2 )
-				SetupLamp(client, vPos, vAng, 65280, index + 1);
-			else if( index + 1 == TYPE_FLOOD || index + 1 == TYPE_GENERATOR1 || index + 1 == TYPE_GENERATOR2 || index + 1 == TYPE_SPIN )
-				SetupLamp(client, vPos, vAng, 16777215, index + 1);
-			else if( index + 1 == TYPE_GENERATOR3 )
-				SetupLamp(client, vPos, vAng, 255, index + 1);
+			if( index == TYPE_EXIT1 || index == TYPE_EXIT2 )
+				SetupLamp(client, vPos, vAng, 65280, index);
+			else if( index == TYPE_FLOOD || index == TYPE_GENERATOR1 || index == TYPE_GENERATOR2 || index == TYPE_SPIN )
+				SetupLamp(client, vPos, vAng, 16777215, index);
+			else if( index == TYPE_GENERATOR3 )
+				SetupLamp(client, vPos, vAng, 255, index);
 			else
-				SetupLamp(client, vPos, vAng, g_iCvarColor, index + 1);
+				SetupLamp(client, vPos, vAng, g_iCvarColor, index);
 		}
 		else
 		{
@@ -2762,5 +2777,18 @@ void PrecacheParticle(const char[] sEffectName)
 		bool save = LockStringTables(false);
 		AddToStringTable(table, sEffectName);
 		LockStringTables(save);
+	}
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
 	}
 }

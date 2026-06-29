@@ -1,106 +1,89 @@
-#define PLUGIN_VERSION	"1.5"
-#define PLUGIN_NAME		"Automatic Healing R Addon Interrupt Healing On Attack"
-#define PLUGIN_PREFIX	"automatic_healingr_addon_attack"
+#define PLUGIN_VERSION	"2.2"
 
-#pragma tabsize 0
 #pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
-#include <sdktools>
 #include <sdkhooks>
 #include <automatic_healingr>
+#include <left4dhooks>
 
 #define INTERRUPT_PRIMARY_ATTACK		(1 << 0)
 #define INTERRUPT_SHOVE					(1 << 1)
 
-#define SOUND_CHAINSAW_DEPLOYING	")weapons/chainsaw/chainsaw_start_0"
-#define SOUND_CHAINSAW_DEPLOY_DONE	")weapons/chainsaw/chainsaw_idle_lp_01.wav"
-#define SOUND_SHOVE					")player/survivor/swing/swish_weaponswing_swipe"
-
 public Plugin myinfo =
 {
-	name = PLUGIN_NAME,
+	name = "Automatic Healing R Addon Interrupt Healing On Attack",
 	author = "little_froy",
 	description = "game play",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=344086"
 };
 
+enum CHAINSAW_STATE
+{
+    CHAINSAW_STATE_INACTIVE = 0,
+    CHAINSAW_STATE_STARTUP = 1,
+    CHAINSAW_STATE_IDLE	= 2,
+    CHAINSAW_STATE_ACTIVE =	3
+};
+
+int Offset_m_iState;
+
 ConVar C_enable;
 int O_enable;
 
-int Strlen_shove;
-int Strlen_deploying_chainsaw;
+bool Started;
 
-bool Late_load;
-
-bool Deploying_chainsaw[MAXPLAYERS+1];
-
-bool is_survivor_alright(int client)
+public void AutomaticHealingR_OnGameStart()
 {
-	return !GetEntProp(client, Prop_Send, "m_isIncapacitated");
+	Started = true;
 }
 
-void on_weapon_switch_post(int client, int weapon)
+public void AutomaticHealingR_OnGameEnd()
 {
-	if(weapon == -1)
-	{
-		return;
-	}
-	int active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	if(active != -1)
-	{
-		char class_name[PLATFORM_MAX_PATH];
-		GetEntityClassname(active, class_name, sizeof(class_name));
-		if(strcmp(class_name, "weapon_chainsaw") != 0)
-		{
-			Deploying_chainsaw[client] = true;
-		}
-	}
-}
-
-public void OnClientPutInServer(int client)
-{
-	SDKHook(client, SDKHook_WeaponSwitchPost, on_weapon_switch_post);
-}
-
-public void OnClientDisconnect_Post(int client)
-{
-	Deploying_chainsaw[client] = true;
+	Started = false;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if(!(O_enable & INTERRUPT_PRIMARY_ATTACK))
+	if(!Started || !(O_enable & INTERRUPT_PRIMARY_ATTACK))
+	{
+		return;
+	}
+	if(entity < 1)
 	{
 		return;
 	}
 	if(strcmp(classname, "molotov_projectile") == 0 || strcmp(classname, "pipe_bomb_projectile") == 0 || strcmp(classname, "vomitjar_projectile") == 0) 
 	{
-		SDKHook(entity, SDKHook_SpawnPost, on_spawn_post_projectile);
+		SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost_projectile);
 	}
 }
 
-void on_spawn_post_projectile(int entity)
+void OnSpawnPost_projectile(int entity)
 {
 	int client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-	if(client > 0 && client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_survivor_alright(client))
+	if(client > 0 && client <= MaxClients && IsClientInGame(client))
 	{
 		AutomaticHealingR_WaitToHeal(client);
 	}
 }
 
-void event_round_start(Event event, const char[] name, bool dontBroadcast)
+public void L4D_OnSwingStart(int client, int weapon)
 {
-	for(int client = 1; client <= MAXPLAYERS; client++)
+	if(!Started || !(O_enable & INTERRUPT_SHOVE))
 	{
-		Deploying_chainsaw[client] = true;
+		return;
+	}
+	if(client > 0 && client <= MaxClients && IsClientInGame(client))
+	{
+		AutomaticHealingR_WaitToHeal(client);
 	}
 }
 
 void event_weapon_fire(Event event, const char[] name, bool dontBroadcast)
 {
-	if(!(O_enable & INTERRUPT_PRIMARY_ATTACK))
+	if(!Started || !(O_enable & INTERRUPT_PRIMARY_ATTACK))
 	{
 		return;
 	}
@@ -108,66 +91,51 @@ void event_weapon_fire(Event event, const char[] name, bool dontBroadcast)
 	switch(weaponid)
 	{
 		case 15, 23, 13, 14, 25, 16, 17, 18, 27, 28, 29:
+		{
 			return;
+		}
 	}
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	if(client != 0 && (weaponid != 20 || !Deploying_chainsaw[client]) && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client) && is_survivor_alright(client))
+	if(client > 0 && IsClientInGame(client))
 	{
+		if(weaponid == 20)
+		{
+			int active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+			if(active == -1)
+			{
+				return;
+			}
+			char class_name[64];
+			GetEntityClassname(active, class_name, sizeof(class_name));
+			if(strcmp(class_name, "weapon_chainsaw") != 0)
+			{
+				return;
+			}
+			if(view_as<CHAINSAW_STATE>(GetEntData(active, Offset_m_iState)) < CHAINSAW_STATE_IDLE)
+			{
+				return;
+			}
+		}
 		AutomaticHealingR_WaitToHeal(client);
 	}
 }
 
-Action on_sound_shove(int clients[MAXPLAYERS], int& numClients, char sample[PLATFORM_MAX_PATH], int& entity, int& channel, float& volume, int& level, int& pitch, int& flags, char soundEntry[PLATFORM_MAX_PATH], int& seed)
-{
-	if(!(O_enable & INTERRUPT_SHOVE))
-	{
-		return Plugin_Continue;
-	}
-	if(channel == SNDCHAN_ITEM && entity > 0 && entity <= MaxClients && IsClientInGame(entity) && GetClientTeam(entity) == 2 && IsPlayerAlive(entity) && is_survivor_alright(entity) && strncmp(sample, SOUND_SHOVE, Strlen_shove, false) == 0)
-	{
-		AutomaticHealingR_WaitToHeal(entity);
-	}
-	return Plugin_Continue;
-}
-
-Action on_sound_chainsaw(int clients[MAXPLAYERS], int& numClients, char sample[PLATFORM_MAX_PATH], int& entity, int& channel, float& volume, int& level, int& pitch, int& flags, char soundEntry[PLATFORM_MAX_PATH], int& seed)
-{
-    if(entity > MaxClients)
-    {
-        char class_name[PLATFORM_MAX_PATH];
-        GetEntityClassname(entity, class_name, sizeof(class_name));
-        if(strcmp(class_name, "weapon_chainsaw") == 0)
-        {
-			int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-			if(owner > 0 && owner <= MaxClients && IsClientInGame(owner) && GetEntPropEnt(owner, Prop_Send, "m_hActiveWeapon") == entity)
-			{
-				if(channel == SNDCHAN_WEAPON && strncmp(sample, SOUND_CHAINSAW_DEPLOYING, Strlen_deploying_chainsaw, false) == 0)
-				{
-					Deploying_chainsaw[owner] = true;
-				}
-				else if(channel == SNDCHAN_ITEM && strcmp(sample, SOUND_CHAINSAW_DEPLOY_DONE, false) == 0)
-				{
-					Deploying_chainsaw[owner] = false;
-				}
-			}
-		}
-    }
-	return Plugin_Continue;
-}
-
-void get_cvars()
+void get_all_cvars()
 {
 	O_enable = C_enable.IntValue;
 }
 
-void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
+void get_single_cvar(ConVar convar)
 {
-	get_cvars();
+	if(convar == C_enable)
+	{
+		O_enable = C_enable.IntValue;
+	}
 }
 
-public void OnConfigsExecuted()
+void convar_changed(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	get_cvars();
+	get_single_cvar(convar);
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -177,49 +145,20 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         strcopy(error, err_max, "this plugin only runs in \"Left 4 Dead 2\"");
         return APLRes_SilentFailure;
     }
-    Late_load = late;
     return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-	Strlen_shove = strlen(SOUND_SHOVE);
-	Strlen_deploying_chainsaw = strlen(SOUND_CHAINSAW_DEPLOYING);
+	Offset_m_iState = FindSendPropInfo("CChainsaw", "m_bHitting") - 4;
 
-	AddNormalSoundHook(on_sound_shove);
-	AddNormalSoundHook(on_sound_chainsaw);
-
-	HookEvent("round_start", event_round_start);
 	HookEvent("weapon_fire", event_weapon_fire);
 
-	C_enable = CreateConVar(PLUGIN_PREFIX ... "_enable", "3", "which type of attack will interrupt healing? 1 = primary attack, 2 = shove. add numbers together", _, true, 0.0, true, 3.0);
+	C_enable = CreateConVar("automatic_healingr_addon_attack_enable", "3", "which type of attack will interrupt healing? 1 = primary attack, 2 = shove. add numbers together");
 	C_enable.AddChangeHook(convar_changed);
-	CreateConVar(PLUGIN_PREFIX ... "_version", PLUGIN_VERSION, "version of " ... PLUGIN_NAME, FCVAR_NOTIFY | FCVAR_DONTRECORD);
-	AutoExecConfig(true, PLUGIN_PREFIX);
-	get_cvars();
+	CreateConVar("automatic_healingr_addon_attack_version", PLUGIN_VERSION, "version of Automatic Healing R Addon Interrupt Healing On Attack", FCVAR_NOTIFY | FCVAR_DONTRECORD);
+	AutoExecConfig(true, "automatic_healingr_addon_attack");
+	get_all_cvars();
 
-    if(Late_load)
-    {
-        for(int client = 1; client <= MAXPLAYERS; client++)
-        {
-			if(client <= MaxClients && IsClientInGame(client))
-			{
-				OnClientPutInServer(client);
-				int active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-				if(active != -1)
-				{
-					char class_name[PLATFORM_MAX_PATH];
-					GetEntityClassname(active, class_name, sizeof(class_name));
-					if(strcmp(class_name, "weapon_chainsaw") != 0)
-					{
-						Deploying_chainsaw[client] = true;
-					}
-				}
-			}
-			else
-			{
-				Deploying_chainsaw[client] = true;
-			}
-        }
-    }
+	Started = AutomaticHealingR_HasGameStart();
 }

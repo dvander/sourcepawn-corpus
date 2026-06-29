@@ -2,6 +2,9 @@
 // ====================================================================================================
 Change Log:
 
+1.0.5 (09-February-2025)
+    - Compatibility update for SM 1.12.
+
 1.0.4 (22-January-2021)
     - Added info_remarkable entity. (thanks "Edison1318" for requesting)
     - Added info_game_event_proxy entity.
@@ -29,7 +32,7 @@ Change Log:
 #define PLUGIN_NAME                   "[L4D1 & L4D2] Replace Cars Into Car Alarms"
 #define PLUGIN_AUTHOR                 "Mart"
 #define PLUGIN_DESCRIPTION            "Replaces normal cars with car alarms"
-#define PLUGIN_VERSION                "1.0.4"
+#define PLUGIN_VERSION                "1.0.5"
 #define PLUGIN_URL                    "https://forums.alliedmods.net/showthread.php?t=329806"
 
 // ====================================================================================================
@@ -137,11 +140,13 @@ bool g_bCvar_IgnoreCarAlarm;
 // ====================================================================================================
 int g_iCvar_Color[3];
 int g_iCarIncrement;
-int g_iPalleteColors[][3] = {{138,  37,   9}, { 52,  46,  46}, { 84, 101, 144}, { 99, 135, 157},
-                                       {114,  80,  52}, {135, 166, 158}, {138, 137,  89}, {153,  65,  29},
-                                       {153,  95, 110}, {156,  81,  62}, {162, 189, 196}, {178, 160,  94},
-                                       {182,  92,  68}, {182, 122,  68}, {197, 176, 129}, {212, 158,  70},
-                                       {226, 188,  87}, {253, 241, 203}};
+int g_iPalleteColors[][3] = {
+                             {138,  37,   9}, { 52,  46,  46}, { 84, 101, 144}, { 99, 135, 157},
+                             {114,  80,  52}, {135, 166, 158}, {138, 137,  89}, {153,  65,  29},
+                             {153,  95, 110}, {156,  81,  62}, {162, 189, 196}, {178, 160,  94},
+                             {182,  92,  68}, {182, 122,  68}, {197, 176, 129}, {212, 158,  70},
+                             {226, 188,  87}, {253, 241, 203}
+                            };
 
 // ====================================================================================================
 // float - Plugin Variables
@@ -461,7 +466,7 @@ void ReplaceWithAlarmCar(int entity)
     if (g_smModelRotate.GetString(modelname, buffer, sizeof(buffer)))
         vAng[1] += 90.0;
 
-    int color[4];
+    int color[3];
 
     if (g_bCvar_PalleteColor)
     {
@@ -469,7 +474,8 @@ void ReplaceWithAlarmCar(int entity)
     }
     else if (g_bCvar_MaintainColor)
     {
-        GetEntityRenderColor(entity, color[0], color[1], color[2], color[3]);
+        int unusedAlphaColor;
+        GetEntityRenderColor(entity, color[0], color[1], color[2], unusedAlphaColor);
 
         if (color[0] == 255 && color[1] == 255 && color[2] == 255) // No color
             color = g_iPalleteColors[GetRandomInt(0, sizeof(g_iPalleteColors)-1)];
@@ -480,7 +486,7 @@ void ReplaceWithAlarmCar(int entity)
         color[1] = GetRandomInt(0, 255);
         color[2] = GetRandomInt(0, 255);
     }
-    else // specific color
+    else // Specific color
     {
         color[0] = g_iCvar_Color[0];
         color[1] = g_iCvar_Color[1];

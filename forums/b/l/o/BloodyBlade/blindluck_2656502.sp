@@ -45,16 +45,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Define constants
 #define PLUGIN_VERSION    "1.1.2"
 #define PLUGIN_NAME       "Blind Luck"
+#define CVAR_FLAGS FCVAR_NOTIFY
 	
 // Include necessary files
 #include <sourcemod>
 #include <sdktools>
 
 // Create ConVar handles
-Handle blind_time		= INVALID_HANDLE;
-Handle hide_until_dry 	= INVALID_HANDLE;
-Handle hud_to_apply   	= INVALID_HANDLE;
-
+ConVar blindluck_on, blind_time, hide_until_dry, hud_to_apply;
+bool bPluginOn = false, bHooked = false, bHideUntilDry = false, EventDryHooked = false;
+float fBlindTime = 0.0;
+int iHudToApply = 0;
 // Create timer array that keeps track of the time the HUD has been hidden for each player
 Handle time_to_dry[64];
 
@@ -71,55 +72,109 @@ public Plugin myinfo =
 public void OnPluginStart()
 {
   // Create ConVars	
-	CreateConVar("bl_version", PLUGIN_VERSION, "The version of Blind luck plugin.", FCVAR_NONE|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
-	blind_time = CreateConVar("bl_blind_time", "15.0", "The time to hide the hud when a player has been vomitted on.", FCVAR_NONE, true, 5.0, true, 25.0);
-	hide_until_dry = CreateConVar("bl_hide_until_dry", "1", "Whether or not we hide the hud until a player is completely dry.", FCVAR_NONE);	
-  	hud_to_apply = CreateConVar("bl_hud_to_apply", "64", "What bitmask to apply to the HUD. For more infomation on the masks available type 'help hide_hud' in your console'", FCVAR_NONE, true, 0.0, true, 256.0);
-  	// Hook events
-  	HookEvent("player_now_it", Event_PlayerWet);
-	HookEvent("player_no_longer_it", Event_PlayerDry);
-  	HookConVarChange(hide_until_dry, ConVarChanged);
+	CreateConVar("bl_version", PLUGIN_VERSION, "The version of Blind luck plugin.", CVAR_FLAGS|FCVAR_SPONLY|FCVAR_DONTRECORD);
+	blindluck_on = CreateConVar("bl_plugin_on", "1", "Enable/Disable plugin.", CVAR_FLAGS, true, 0.0, true, 1.0);
+	blind_time = CreateConVar("bl_blind_time", "15.0", "The time to hide the hud when a player has been vomitted on.", CVAR_FLAGS, true, 5.0, true, 25.0);
+	hide_until_dry = CreateConVar("bl_hide_until_dry", "1", "Whether or not we hide the hud until a player is completely dry.", CVAR_FLAGS, true, 0.0, true, 1.0);
+  	hud_to_apply = CreateConVar("bl_hud_to_apply", "64", "What bitmask to apply to the HUD. For more infomation on the masks available type 'help hide_hud' in your console'", CVAR_FLAGS, true, 0.0, true, 256.0);
+
+  	blindluck_on.AddChangeHook(ConVarPluginOnChanged);
+	blind_time.AddChangeHook(ConVarsChanged);
+	hide_until_dry.AddChangeHook(ConVarsChanged);
+	hud_to_apply.AddChangeHook(ConVarsChanged);
 	// Execute configuation file if it exists
   	AutoExecConfig(true);
 }
 
-public void ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+public void OnConfigsExecuted()
 {
-  if (StrEqual(newValue, "0")) 
-    UnhookEvent("player_no_longer_it", Event_PlayerDry); 
-  else
-    HookEvent("player_no_longer_it", Event_PlayerDry); 
+	IsAllowed();
+}
+
+void ConVarPluginOnChanged(ConVar cvar, const char[] OldValue, const char[] NewValue)
+{
+	IsAllowed();
+}
+
+void ConVarsChanged(ConVar cvar, const char[] OldValue, const char[] NewValue)
+{
+	fBlindTime = blind_time.FloatValue;
+	bHideUntilDry = hide_until_dry.BoolValue;
+	if(!bHideUntilDry && EventDryHooked)
+	{
+		UnhookEvent("player_no_longer_it", Event_PlayerDry);
+		EventDryHooked = false;
+	}
+	iHudToApply = hud_to_apply.IntValue;
+}
+
+void IsAllowed()
+{
+	bPluginOn = blindluck_on.BoolValue;
+	if(bPluginOn && !bHooked)
+	{
+		bHooked = true;
+		ConVarsChanged(null, "", "");
+		HookEvent("player_now_it", Event_PlayerWet);
+		if(bHideUntilDry && !EventDryHooked)
+		{
+			HookEvent("player_no_longer_it", Event_PlayerDry);
+			EventDryHooked = true;
+		}
+	}
+	else if(!bPluginOn && bHooked)
+	{
+		bHooked = false;
+		UnhookEvent("player_now_it", Event_PlayerWet);
+		if(bHideUntilDry && EventDryHooked)
+		{
+			UnhookEvent("player_no_longer_it", Event_PlayerDry);
+			EventDryHooked = false;
+		}
+	}
 }
 
 // When a player is vomitted on hide their HUD
-public Action Event_PlayerWet(Handle event, const char[] name, bool dontBroadcast)
+Action Event_PlayerWet(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	// Make sure the user is not a bot.
-	if (!IsFakeClient(client))
+	if (IsValidRealClient(client))
 	{
-		SetEntProp(client, Prop_Send, "m_iHideHUD", GetConVarInt(hud_to_apply));
-		if (!GetConVarBool(hide_until_dry))
-      		time_to_dry[client] = CreateTimer(GetConVarFloat(blind_time), RestoreHud, client);
+		SetEntProp(client, Prop_Send, "m_iHideHUD", iHudToApply);
+		if (!bHideUntilDry)
+		{
+      		time_to_dry[client] = CreateTimer(fBlindTime, RestoreHud, client);
+		}
 	}
 	return Plugin_Continue;
 }
 
 // When a player is completely dry restore their hud
-public Action Event_PlayerDry(Handle event, const char[] name, bool dontBroadcast)
+Action Event_PlayerDry(Event event, const char[] name, bool dontBroadcast)
 {
-	if (GetConVarBool(hide_until_dry))
+	if (bHideUntilDry)
 	{	
-    	int client = GetClientOfUserId(GetEventInt(event, "userid"));
-    	if (!IsFakeClient(client))
+    	int client = GetClientOfUserId(event.GetInt("userid"));
+    	if (IsValidRealClient(client))
+		{
       		RestoreHud(INVALID_HANDLE, client);
+		}
 	}
 	return Plugin_Continue;
 }
 
 // Reset the HUD back to normal
-public Action RestoreHud(Handle timer, any client)
+Action RestoreHud(Handle timer, any client)
 {
-	if ( IsValidEntity(client) )
+	if (IsValidRealClient(client))
+	{
 		SetEntProp(client, Prop_Send, "m_iHideHUD", 0);
+	}
+	return Plugin_Stop;
+}
+
+bool IsValidRealClient(int client)
+{
+	return client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client);
 }

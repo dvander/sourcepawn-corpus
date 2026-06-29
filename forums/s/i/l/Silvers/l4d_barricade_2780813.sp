@@ -1,6 +1,6 @@
 /*
 *	Barricades - Doors and Windows
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.21"
+#define PLUGIN_VERSION 		"1.22"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.22 (04-Jun-2026)
+	- Fixed building planks on a level below the player when they should build on their level.
 
 1.21 (07-Dec-2022)
 	- Fixed the Tanks damage not being considered. Thanks to "a2121858" for reporting.
@@ -1649,7 +1652,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					float range = g_fCvarRange;
 					float dist;
 					float vPos[3];
-					GetClientAbsOrigin(client, vPos);
+					float vLoc[3];
+					GetClientEyePosition(client, vPos);
 
 					int entries = g_bCustomData ? 4096 : 2048;
 
@@ -1677,7 +1681,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 									// Validate saferoom has "fallen" - The "Saferoom Spam Protection" plugin teleports the door up 10k
 									if( g_iTypeProp[i] == TYPE_SAFES )
 									{
-										float vLoc[3];
 										GetEntPropVector(i, Prop_Send, "m_vecOrigin", vLoc);
 										if( vLoc[2] < g_vPos[i][2] + 1000.0 ) continue;
 									}
@@ -1774,6 +1777,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 						{
 							PlayVocalize(client);
 						}
+						
 					} else {
 						PlaySound(client);
 
@@ -1821,6 +1825,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				SetEntPropString(client, Prop_Send, "m_progressBarText", "");
 				SetEntProp(client, Prop_Send, "m_iProgressBarDuration", 0);
 			}
+
 			SetEntityMoveType(client, MOVETYPE_WALK);
 		}
 	}

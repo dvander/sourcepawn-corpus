@@ -1,6 +1,6 @@
 /*
 *	Incapped Shove
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.11"
+#define PLUGIN_VERSION 		"1.12"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.12 (15-Dec-2024)
+	- Fixed being able to shove while pinned when "l4d_incapped_shove_pounced" cvar was set to "0". Thanks to "" for reporting.
 
 1.11 (24-Apr-2022)
 	- GameData file updated: Wildcarded signatures to be compatible with the "Left4DHooks" plugin version 1.98 and newer.
@@ -216,12 +219,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -312,7 +315,7 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
+void OnGamemode(const char[] output, int caller, int activator, float delay)
 {
 	if( strcmp(output, "OnCoop") == 0 )
 		g_iCurrentMode = 1;
@@ -329,7 +332,7 @@ public void OnGamemode(const char[] output, int caller, int activator, float del
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	for( int i = 0; i <= MaxClients; i++ )
 	{
@@ -354,11 +357,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	{
 		// Verify pinned
 		if(
-			g_iCvarPounce && (
 			(g_iCvarPounce & (1<<0) == 0 && GetEntProp(client, Prop_Send, "m_tongueOwner") > 0) ||
 			(g_iCvarPounce & (1<<1) == 0 && GetEntProp(client, Prop_Send, "m_pounceAttacker") > 0) ||
 			(g_bLeft4Dead2 && g_iCvarPounce & (1<<2) == 0 && GetEntProp(client, Prop_Send, "m_pummelAttacker") > 0)
-			)
 		) return Plugin_Continue;
 
 		// Swing
@@ -521,7 +522,7 @@ void PushCommonInfected(int client, int target, float vPos[3])
 	SDKHooks_TakeDamage(target, client, client, float(g_iCvarDamage), g_bLeft4Dead2 ? DMG_AIRBOAT : DMG_BUCKSHOT, -1, NULL_VECTOR, vPos); // Common L4D2 / L4D1
 }
 
-public bool FilterExcludeSelf(int entity, int contentsMask, any client)
+bool FilterExcludeSelf(int entity, int contentsMask, int client)
 {
 	if( entity == client )
 		return false;

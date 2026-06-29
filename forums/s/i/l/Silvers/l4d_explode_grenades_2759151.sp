@@ -1,6 +1,6 @@
 /*
 *	Damage Explodes Grenades
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.10"
+#define PLUGIN_VERSION 		"1.11"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.11 (10-Jan-2024)
+	- Changed the plugins on/off/mode cvars to use the "Left 4 DHooks" method instead of creating an entity.
 
 1.10 (04-May-2022)
 	- Added cvars "l4d_explode_grenades_delay_molo", "l4d_explode_grenades_delay_pipe" and "l4d_explode_grenades_delay_vomi" to delay explosion. Requested by "Voevoda".
@@ -85,7 +88,7 @@
 #define MODEL_PROPANE		"models/props_junk/propanecanister001a.mdl"
 
 ConVar g_hCvarAllow, g_hCvarBoom, g_hCvarDelayM, g_hCvarDelayP, g_hCvarDelayV, g_hCvarExplode, g_hCvarSpawn, g_hCvarTime, g_hCvarType, g_hCvarTypes, g_hCvarUpgrade, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog;
-bool g_bCvarAllow, g_bLeft4Dead2, g_bMapStarted, g_bExploding, g_bCvarBoom, g_bCvarExplode, g_bCvarSpawn;
+bool g_bCvarAllow, g_bLeft4Dead2, g_bExploding, g_bCvarBoom, g_bCvarExplode, g_bCvarSpawn;
 float g_fCvarTime, g_fCvarDelayM, g_fCvarDelayP, g_fCvarDelayV;
 int g_iCvarType, g_iCvarTypes, g_iCvarUpgrade;
 
@@ -174,17 +177,11 @@ public void OnPluginStart()
 
 public void OnMapStart()
 {
-	g_bMapStarted = true;
 	PrecacheModel(MODEL_GASCAN);
 	PrecacheModel(MODEL_PROPANE);
 }
 
-public void OnMapEnd()
-{
-	g_bMapStarted = false;
-}
-
-public Action CmdFire(int client, int args)
+Action CmdFire(int client, int args)
 {
 	int entity = GetClientAimTarget(client, false);
 	if( entity > 0 )
@@ -205,12 +202,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -354,25 +351,35 @@ void IsAllowed()
 }
 
 int g_iCurrentMode;
+public void L4D_OnGameModeChange(int gamemode)
+{
+	g_iCurrentMode = gamemode;
+}
+
 bool IsAllowedGameMode()
 {
 	if( g_hCvarMPGameMode == null )
 		return false;
 
-	if( g_bMapStarted == false )
-		return false;
-
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
 	if( iCvarModesTog != 0 )
 	{
-		g_iCurrentMode = L4D_GetGameModeType();
+		if( g_iCurrentMode == 0 )
+			g_iCurrentMode = L4D_GetGameModeType();
 
 		if( g_iCurrentMode == 0 )
 			return false;
 
+		switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+		{
+			case 2:		g_iCurrentMode = 4;
+			case 4:		g_iCurrentMode = 2;
+		}
+
 		if( !(iCvarModesTog & g_iCurrentMode) )
 			return false;
 	}
+
 
 	char sGameModes[64], sGameMode[64];
 	g_hCvarMPGameMode.GetString(sGameMode, sizeof(sGameMode));
@@ -402,7 +409,7 @@ bool IsAllowedGameMode()
 // ====================================================================================================
 //					EQUIP
 // ====================================================================================================
-public void Event_Pickup(Event event, const char[] name, bool dontBroadcast)
+void Event_Pickup(Event event, const char[] name, bool dontBroadcast)
 {
 	if( !g_bCvarExplode )
 	{
@@ -420,6 +427,7 @@ public void Event_Pickup(Event event, const char[] name, bool dontBroadcast)
 		}
 	}
 }
+
 
 
 // ====================================================================================================
@@ -478,38 +486,38 @@ public void OnEntityCreated(int entity, const char[] classname)
 }
 
 
-public void OnSpawnPost(int entity)
+void OnSpawnPost(int entity)
 {
 	SetEntProp(entity, Prop_Data, "m_iHammerID", 19712806);
 }
 
 // Frame delay required to enable damage so OnTakeDamage picks up the grenades being shot
-public void OnFrameSpawn(int entity)
+void OnFrameSpawn(int entity)
 {
 	if( EntRefToEntIndex(entity) != INVALID_ENT_REFERENCE )
 		SetEntProp(entity, Prop_Data, "m_takedamage", 1);
 }
 
 // Detonate on damage
-public Action OnTakeDamageM(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageM(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	OnTakeDamageFunction(entity, attacker, inflictor, damagetype, TYPE_MOLO);
 	return Plugin_Continue;
 }
 
-public Action OnTakeDamageP(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageP(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	OnTakeDamageFunction(entity, attacker, inflictor, damagetype, TYPE_PIPE);
 	return Plugin_Continue;
 }
 
-public Action OnTakeDamageV(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageV(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	OnTakeDamageFunction(entity, attacker, inflictor, damagetype, TYPE_VOMI);
 	return Plugin_Continue;
 }
 
-public Action OnTakeDamageM_Spawn(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageM_Spawn(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	int flag = GetEntProp(entity, Prop_Data, "m_spawnflags");
 	if( flag & (1<<3) || GetEntProp(entity, Prop_Data, "m_itemCount") >= 1 )
@@ -517,7 +525,7 @@ public Action OnTakeDamageM_Spawn(int entity, int &attacker, int &inflictor, flo
 	return Plugin_Continue;
 }
 
-public Action OnTakeDamageP_Spawn(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageP_Spawn(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	int flag = GetEntProp(entity, Prop_Data, "m_spawnflags");
 	if( flag & (1<<3) || GetEntProp(entity, Prop_Data, "m_itemCount") >= 1 )
@@ -525,7 +533,7 @@ public Action OnTakeDamageP_Spawn(int entity, int &attacker, int &inflictor, flo
 	return Plugin_Continue;
 }
 
-public Action OnTakeDamageV_Spawn(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
+Action OnTakeDamageV_Spawn(int entity, int &attacker, int &inflictor, float &damage, int &damagetype)
 {
 	int flag = GetEntProp(entity, Prop_Data, "m_spawnflags");
 	if( flag & (1<<3) || GetEntProp(entity, Prop_Data, "m_itemCount") >= 1 )
@@ -624,7 +632,7 @@ void OnTakeDamageFunction(int entity, int attacker, int inflictor, int damagetyp
 }
 
 // Ignited detonation after X seconds
-public Action TimerDetonate(Handle timer, DataPack dPack)
+Action TimerDetonate(Handle timer, DataPack dPack)
 {
 	// Data pack is deleted by the timer
 	dPack.Reset();
@@ -710,7 +718,7 @@ void ExplodeEntity(int client, int grenade, int type, float vPos[3])
 	}
 }
 
-public Action OnTransmitExplosive(int entity, int client)
+Action OnTransmitExplosive(int entity, int client)
 {
 	return Plugin_Handled;
 }

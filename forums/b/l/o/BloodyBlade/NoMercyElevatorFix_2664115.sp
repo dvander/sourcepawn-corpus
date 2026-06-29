@@ -23,24 +23,21 @@
  *
  * ============================================================================
  */
-
-#define PLUGIN_VERSION	"1.0"
-#define TEAM_SURVIVOR 2
+#pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
 #include <sdktools>
 
-static	const	char	NO_MERCY_MAP4[] = "c8m4_interior";
+#define PLUGIN_VERSION	"1.0"
 
+static	const	char	NO_MERCY_MAP4[] = "c8m4_interior";
 static	const	char 	ELEVATOR_BUTTON[] = "elevator_button";
 static	const	char 	ELEVATOR_DOORS_LOW[] = "door_elevouterlow";
 static	const	char	ELEVATOR_DOORS_HIGH[] = "door_elevouterhigh";
 static	const	char	ELEVATOR_FLOOR[] = "elevator";
 static	const	float	ELEVATOR_FLOOR_Z_OFFSET = 128.0; // Elevator is being reported a bit higher than it really is
 static	const	float	ELEVATOR_FLOOR_TELE_Z_OFFSET = 64.0; // How much Z we add to the survivor if falling through
-
 static	const	float	ELEVATOR_ORIGIN_INTERVAL = 1.0; // How often we check survivors and elevator origin and adjust if survivor is falling through
-
 static			bool	g_bIsEventsHooked = false;
 static			bool	g_bIsElevatorButtonPushed = false;
 static			bool	g_bIsElevatorMoving = false;
@@ -57,7 +54,7 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	CreateConVar("l4d2_nmelevatorfix_version", PLUGIN_VERSION, "No Mercy Elevator Fix Version", FCVAR_NONE | FCVAR_NOTIFY);
+	CreateConVar("l4d2_nmelevatorfix_version", PLUGIN_VERSION, "No Mercy Elevator Fix Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 }
 
 public void OnMapStart()
@@ -83,75 +80,84 @@ public void OnMapStart()
 	}
 }
 
-public void OnRoundStart_Event(Event event, const char[] name, bool dontBroadcast)
+void OnRoundStart_Event(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bIsElevatorMoving = false;
 	g_bIsElevatorButtonPushed = false;
 	g_iElevatorFloor = -1;
 }
 
-public void OnDoorMoving_Event(Event event, const char[] name, bool dontBroadcast)
+void OnDoorMoving_Event(Event event, const char[] name, bool dontBroadcast)
 {
-	if (!g_bIsElevatorButtonPushed) return;
-
-	int entity = GetEventInt(event, "entindex");
-	if (entity < 0 || entity > 2048 || !IsValidEntity(entity)) return;
-
-	char buffer[128];
-	GetEntPropString(entity, Prop_Data, "m_iName", buffer, sizeof(buffer));
-	if (!g_bIsElevatorMoving)
+	if (g_bIsElevatorButtonPushed)
 	{
-		if (!StrEqual(buffer, ELEVATOR_DOORS_LOW)) return;
-		g_bIsElevatorMoving = true;
-		CreateTimer(ELEVATOR_ORIGIN_INTERVAL, Elevator_Timer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-	}
-	else
-	{
-		if (!StrEqual(buffer, ELEVATOR_DOORS_HIGH)) return;
-		g_bIsElevatorMoving = false;
+    	int entity = event.GetInt("entindex");
+    	if (IsValidEnt(entity))
+    	{
+        	char buffer[128];
+        	GetEntPropString(entity, Prop_Data, "m_iName", buffer, sizeof(buffer));
+        	if (!g_bIsElevatorMoving)
+        	{
+        		if (StrEqual(buffer, ELEVATOR_DOORS_LOW))
+        		{
+        		    g_bIsElevatorMoving = true;
+        		    CreateTimer(ELEVATOR_ORIGIN_INTERVAL, Elevator_Timer, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+        		}
+        	}
+        	else
+        	{
+        		if (StrEqual(buffer, ELEVATOR_DOORS_HIGH))
+        		{
+        		    g_bIsElevatorMoving = false;
+        		}
+        	}
+    	}
 	}
 }
 
-public void OnPlayerUse_Event(Event event, const char[] name, bool dontBroadcast)
+void OnPlayerUse_Event(Event event, const char[] name, bool dontBroadcast)
 {
-	if (g_bIsElevatorButtonPushed) return;
-
-	int entity = GetEventInt(event, "targetid");
-	if (entity < 0 || entity > 2048 || !IsValidEntity(entity)) return;
-
-	int client = GetClientOfUserId(GetEventInt(event,"userid"));
-	if (client < 1 || 
-		client > MaxClients || 
-		!IsClientInGame(client) || 
-		GetClientTeam(client) != TEAM_SURVIVOR)
-		return;
-
-	char buffer[128];
-	GetEntPropString(entity, Prop_Data, "m_iName", buffer, sizeof(buffer)); 
-	if (!StrEqual(buffer, ELEVATOR_BUTTON)) return;
-
-	g_bIsElevatorButtonPushed = true;
-	g_iElevatorFloor = FindElevatorFloor();
+	if (!g_bIsElevatorButtonPushed)
+	{
+    	int entity = event.GetInt("targetid");
+    	if (IsValidEnt(entity))
+    	{
+        	int client = GetClientOfUserId(event.GetInt("userid"));
+        	if (client > 0 && client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == 2)
+        	{
+            	char buffer[128];
+            	GetEntPropString(entity, Prop_Data, "m_iName", buffer, sizeof(buffer)); 
+            	if (StrEqual(buffer, ELEVATOR_BUTTON))
+            	{
+            	    g_bIsElevatorButtonPushed = true;
+            	    g_iElevatorFloor = FindElevatorFloor();
+            	}
+        	}
+    	}
+	}
 }
 
-public Action Elevator_Timer(Handle timer)
+Action Elevator_Timer(Handle timer)
 {
-	if (!g_bIsElevatorMoving || g_iElevatorFloor == -1) return Plugin_Stop;
-
-	float elevatorOrigin[3];
-	GetEntityAbsOrigin(g_iElevatorFloor, elevatorOrigin);
-	elevatorOrigin[2] -= ELEVATOR_FLOOR_Z_OFFSET;
-
-	float origin[3];
-	for (int client = 1; client <= MaxClients; client++)
+	if (g_bIsElevatorMoving && g_iElevatorFloor != -1)
 	{
-		if (!IsClientInGame(client) || GetClientTeam(client) != TEAM_SURVIVOR || !IsPlayerAlive(client)) continue;
-		GetClientAbsOrigin(client, origin);
-		if (origin[2] >= elevatorOrigin[2]) continue;
-		origin[2] = elevatorOrigin[2] + ELEVATOR_FLOOR_TELE_Z_OFFSET;
-		TeleportEntity(client, origin, NULL_VECTOR, NULL_VECTOR);
-	}
+    	float elevatorOrigin[3], origin[3];
+    	GetEntityAbsOrigin(g_iElevatorFloor, elevatorOrigin);
+    	elevatorOrigin[2] -= ELEVATOR_FLOOR_Z_OFFSET;
 
+    	for (int client = 1; client <= MaxClients; client++)
+    	{
+    		if (IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
+    		{
+        		GetClientAbsOrigin(client, origin);
+        		if (origin[2] < elevatorOrigin[2])
+        		{
+        		    origin[2] = elevatorOrigin[2] + ELEVATOR_FLOOR_TELE_Z_OFFSET;
+        		    TeleportEntity(client, origin, NULL_VECTOR, NULL_VECTOR);
+        		}
+    		}
+    	}
+	}
 	return Plugin_Continue;
 }
 
@@ -175,15 +181,21 @@ static int FindEntityByClassnameEx(int startEnt, const char[] classname)
 
 static void GetEntityAbsOrigin(int entity, float origin[3])
 {
-	if (entity < 1 || !IsValidEntity(entity)) return;
-
-	float mins[3], maxs[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
-	GetEntPropVector(entity, Prop_Send, "m_vecMins", mins);
-	GetEntPropVector(entity, Prop_Send, "m_vecMaxs", maxs);
-
-	for (int i = 0; i < 3; i++)
+	if (IsValidEnt(entity))
 	{
-		origin[i] += (mins[i] + maxs[i]) * 0.5;
+    	float mins[3], maxs[3];
+    	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+    	GetEntPropVector(entity, Prop_Send, "m_vecMins", mins);
+    	GetEntPropVector(entity, Prop_Send, "m_vecMaxs", maxs);
+
+    	for (int i = 0; i < 3; i++)
+    	{
+    		origin[i] += (mins[i] + maxs[i]) * 0.5;
+    	}
 	}
+}
+
+stock bool IsValidEnt(int entity)
+{
+    return entity > 0 && entity <= 2048 && IsValidEntity(entity);
 }

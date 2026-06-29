@@ -9,7 +9,8 @@
 
 #define PARTICLE_COUNT	18
 
-static bool playerIncapped[MAXPLAYERS + 1];
+ConVar hGorePluginOn;
+static bool playerIncapped[MAXPLAYERS + 1] = {false, ...}, bHooked = false;
 static KeyValues cfg;
 static int bloodCfg[5];
 static char cfgPath[128];
@@ -39,7 +40,7 @@ static char particleList[PARTICLE_COUNT][64] =
 public Plugin myinfo = 
 {
 	name = "L4D2 Gore",
-	author = "DiscoBBQ",
+	author = "DiscoBBQ(edit. by BloodyBlade)",
 	description = "Adds blood and gore",
 	version = "1.1",
 	url = "jmaley@clemson.edu"
@@ -47,24 +48,20 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	PrintToServer("[SM] L4D2 Gore v1.1 by Joe 'DiscoBBQ' Maley loaded successfully!");
+	CreateConVar("l4d2gore_version", "1.1", "Base L4D2Gore Version", FCVAR_NOTIFY|FCVAR_SPONLY|FCVAR_UNLOGGED|FCVAR_DONTRECORD);
+	hGorePluginOn = CreateConVar("l4d2gore_on", "1.0", "Plugin On/Off", FCVAR_NOTIFY);
+	hGorePluginOn.AddChangeHook(ConVarPluginOnChanged);
+	AutoExecConfig(true, "l4d2gore");
 
-	HookEvent("infected_hurt", EventDamageInfected);
-	HookEvent("entity_shoved", EventShoveEntity);
-	HookEvent("player_hurt", EventDamagePlayer);
-	HookEvent("player_death", EventRevivePlayer);
-	HookEvent("revive_success", EventRevivePlayer);
-	HookEvent("player_incapacitated_start", EventIncapPlayer);
-	HookEvent("round_end_message", EventRoundEnd);
-	HookEvent("round_start_pre_entity", EventRoundEnd);
-	HookEvent("round_start_post_nav", EventRoundEnd);
+	PrintToServer("[SM] L4D2 Gore v1.1 by Joe 'DiscoBBQ' Maley loaded successfully!");
 
 	BuildPath(Path_SM, cfgPath, sizeof(cfgPath), "data/gore_config.txt");
 
 	cfg = new KeyValues("cfg");
-	if (!FileToKeyValues(cfg, cfgPath)) PrintToServer("[SM] ERROR: Missing file or incorrectly formated, '%s'", cfgPath);
-
-	CreateConVar("l4d2gore_version", "1.1", "Base L4D2Gore Version", FCVAR_NOTIFY|FCVAR_SPONLY|FCVAR_UNLOGGED|FCVAR_DONTRECORD);
+	if (!FileToKeyValues(cfg, cfgPath))
+	{
+		PrintToServer("[SM] ERROR: Missing file or incorrectly formated, '%s'", cfgPath);
+	}
 }
 
 public void OnMapStart()
@@ -76,7 +73,50 @@ public void OnMapStart()
 	bloodCfg[4] = LoadInt(cfg, "Periodic Bleeding", "Health Required", 0);
 	
 	for (int i = 0; i < PARTICLE_COUNT; i++)
+	{
 		ForcePrecache(particleList[i]);
+	}
+}
+
+public void OnConfigsExecuted()
+{
+	IsAllowed();
+}
+
+void ConVarPluginOnChanged(ConVar cvar, char[] OldValue, char[] NewValue)
+{
+	IsAllowed();
+}
+
+void IsAllowed()
+{
+	bool bPluginOn = hGorePluginOn.BoolValue;
+	if(bPluginOn && !bHooked)
+	{
+		bHooked = true;
+		HookEvent("infected_hurt", EventDamageInfected);
+		HookEvent("entity_shoved", EventShoveEntity);
+		HookEvent("player_hurt", EventDamagePlayer);
+		HookEvent("player_death", EventRevivePlayer);
+		HookEvent("revive_success", EventRevivePlayer);
+		HookEvent("player_incapacitated_start", EventIncapPlayer);
+		HookEvent("round_end_message", EventRoundEnd);
+		HookEvent("round_start_pre_entity", EventRoundEnd);
+		HookEvent("round_start_post_nav", EventRoundEnd);
+	}
+	else if(!bPluginOn && bHooked)
+	{
+		bHooked = false;
+		UnhookEvent("infected_hurt", EventDamageInfected);
+		UnhookEvent("entity_shoved", EventShoveEntity);
+		UnhookEvent("player_hurt", EventDamagePlayer);
+		UnhookEvent("player_death", EventRevivePlayer);
+		UnhookEvent("revive_success", EventRevivePlayer);
+		UnhookEvent("player_incapacitated_start", EventIncapPlayer);
+		UnhookEvent("round_end_message", EventRoundEnd);
+		UnhookEvent("round_start_pre_entity", EventRoundEnd);
+		UnhookEvent("round_start_post_nav", EventRoundEnd);
+	}
 }
 
 void EventDamageInfected(Event event, const char[] eventName, bool broadcast)
@@ -88,7 +128,9 @@ void EventDamageInfected(Event event, const char[] eventName, bool broadcast)
 		{	
 			float roll = GetRandomFloat(0.0, 100.0);
 			if (roll <= 0.15 * bloodCfg[0])
+			{
 			    WriteParticle(ent, particleList[i]);
+			}
 		}
 	}
 }
@@ -102,11 +144,20 @@ void EventShoveEntity(Event event, const char[] eventName, bool broadcast)
 	{
 		float roll;
 		roll = GetRandomFloat(0.0, 100.0);
-		if (roll <= 0.2 * bloodCfg[3]) WriteParticle(ent, "gore_wound_fullbody_2");
+		if (roll <= 0.2 * bloodCfg[3])
+		{
+			WriteParticle(ent, "gore_wound_fullbody_2");
+		}
 		roll = GetRandomFloat(0.0, 100.0);
-		if (roll <= 0.5 * bloodCfg[3]) WriteParticle(ent, "gore_wound_brain");
+		if (roll <= 0.5 * bloodCfg[3])
+		{
+			WriteParticle(ent, "gore_wound_brain");
+		}
 		roll = GetRandomFloat(0.0, 100.0);
-		if (roll <= 0.2 * bloodCfg[3]) WriteParticle(ent, "gore_wound_belly_left");
+		if (roll <= 0.2 * bloodCfg[3])
+		{
+			WriteParticle(ent, "gore_wound_belly_left");
+		}
 	}
 }
 
@@ -119,7 +170,10 @@ void EventDamagePlayer(Event event, const char[] eventName, bool broadcast)
 		for (int i = 1; i < PARTICLE_COUNT; i++)
 		{
 			roll = GetRandomFloat(0.0, 100.0);
-			if (roll <= 0.15 * bloodCfg[1] && !playerIncapped[client]) WriteParticle(client, particleList[i]);
+			if (roll <= 0.15 * bloodCfg[1] && !playerIncapped[client])
+			{
+				WriteParticle(client, particleList[i]);
+			}
 		}
 	}
 }
@@ -128,20 +182,26 @@ void EventIncapPlayer(Event event, const char[] eventName, bool broadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (IsValidEntity(client) && client != 0)
+	{
 		playerIncapped[client] = true;
+	}
 }
 
 void EventRevivePlayer(Event event, const char[] eventName, bool broadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
 	if (IsValidEntity(client) && client != 0)
+	{
 		playerIncapped[client] = false;
+	}
 }
 
 void EventRoundEnd(Event event, const char[] name, bool broadcast)
 {
 	for (int i = 1; i <= MaxClients; i++)
+	{
 		playerIncapped[i] = false;
+	}
 }
 
 public void OnGameFrame()
@@ -154,16 +214,25 @@ public void OnGameFrame()
 			if (playerIncapped[i])
 			{
 				roll = GetRandomFloat(0.0, 100.0);
-				if (roll <= 0.05 * bloodCfg[2]) WriteParticle(i, "blood_impact_arterial_spray", true);
+				if (roll <= 0.05 * bloodCfg[2])
+				{
+					WriteParticle(i, "blood_impact_arterial_spray", true);
+				}
 				roll = GetRandomFloat(0.0, 100.0);
-				if (roll <= 0.05 * bloodCfg[2]) WriteParticle(i, "blood_impact_arterial_spray_5", true);
+				if (roll <= 0.05 * bloodCfg[2])
+				{
+					WriteParticle(i, "blood_impact_arterial_spray_5", true);
+				}
 				roll = GetRandomFloat(0.0, 100.0);
-				if (roll <= 0.05 * bloodCfg[2]) WriteParticle(i, "blood_impact_arterial_spray_drippy", true);
+				if (roll <= 0.05 * bloodCfg[2])
+				{
+					WriteParticle(i, "blood_impact_arterial_spray_drippy", true);
+				}
 			}
 			else
 			{
 				int health = GetClientHealth(i);
-				if (health <= bloodCfg[4] && IsPlayerAlive(i) && !playerIncapped[i])
+				if (health <= bloodCfg[4] && IsPlayerAlive(i))
 				{
 					roll = GetRandomFloat(1.0, (float(health) * 0.15 * float(bloodCfg[1])));
 					int roundedRoll = RoundFloat(roll);
@@ -188,9 +257,13 @@ void WriteParticle(int ent, char[] particleName, bool incapped = false)
 		pos[1] += GetRandomFloat(-10.0, 10.0);
 
 		if (!incapped)
+		{
 			pos[2] += GetRandomFloat(15.0, 65.0);
-		else 
+		}
+		else
+		{
 			pos[2] += GetRandomFloat(0.0, 15.0);
+		}
 
 		TeleportEntity(particle, pos, NULL_VECTOR, NULL_VECTOR);
 		Format(targetName, sizeof(targetName), "Entity%d", ent);
@@ -206,13 +279,19 @@ void WriteParticle(int ent, char[] particleName, bool incapped = false)
 		AcceptEntityInput(particle, "start");
 
 		if (incapped)
+		{
 			CreateTimer(GetRandomFloat(1.0, 2.0), DeleteParticle, particle);
+		}
 		else
 		{
 			if (StrContains(particleName, "arterial", false) != -1)
+			{
 				CreateTimer(GetRandomFloat(0.6, 1.00), DeleteParticle, particle);
+			}
 			else
+			{
 				CreateTimer(GetRandomFloat(0.3, 0.5), DeleteParticle, particle);
+			}
 		}
 	}
 }
@@ -224,15 +303,18 @@ Action DeleteParticle(Handle timer, any particle)
 		char className[64];
 		GetEdictClassname(particle, className, sizeof(className));
 		if (StrEqual(className, "info_particle_system", false))
+		{
 			RemoveEdict(particle);
+		}
 	}
+	return Plugin_Stop;
 }
 
-int LoadInt(Handle vault, const char key[32], const char save_key[255], int default_value)
+int LoadInt(KeyValues vault, const char key[32], const char save_key[255], int default_value)
 {
-	KvJumpToKey(vault, key, false);
-	int variable = KvGetNum(vault, save_key, default_value);
-	KvRewind(vault);
+	vault.JumpToKey(key, false);
+	int variable = vault.GetNum(save_key, default_value);
+	vault.Rewind();
 	return variable;
 }
 

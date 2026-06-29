@@ -1,6 +1,6 @@
 /*
 *	Gun Cabinet
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.9"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.9 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.8 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
@@ -669,7 +672,7 @@ void LoadSpawns()
 		for( int i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -851,7 +854,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 	int count, dex;
 	if( iCountGun && g_iCvarMaxGun )
 	{
-		SortIntegers(iAmGuns, iCountGun, Sort_Random);
+		SortCustom(iAmGuns, iCountGun);
 
 		if( g_iCvarMaxGun > iCountGun ) count = iCountGun;
 		else count = g_iCvarMaxGun;
@@ -865,7 +868,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 
 	if( iCountPis && g_iCvarMaxPistol )
 	{
-		SortIntegers(iAmPist, iCountPis, Sort_Random);
+		SortCustom(iAmPist, iCountPis);
 
 		if( g_iCvarMaxPistol > iCountPis ) count = iCountPis;
 		else count = g_iCvarMaxPistol;
@@ -879,7 +882,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index, int 
 
 	if( iCountIte && g_iCvarMaxItem )
 	{
-		SortIntegers(iAmItem, iCountIte, Sort_Random);
+		SortCustom(iAmItem, iCountIte);
 
 		if( g_iCvarMaxItem > iCountIte ) count = iCountIte;
 		else count = g_iCvarMaxItem;
@@ -2064,6 +2067,19 @@ void RemoveSpawn(int index)
 		entity = g_iDoors[index][i];
 		g_iDoors[index][i] = 0;
 		if( IsValidEntRef(entity) )	RemoveEntity(entity);
+	}
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
 	}
 }
 

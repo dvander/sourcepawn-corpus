@@ -108,7 +108,7 @@ enum struct PluginData
 {
     PluginCvars cvars;
 
-    bool enabled;
+    bool enable;
 
     void Init()
     {
@@ -118,7 +118,7 @@ enum struct PluginData
 
     void GetCvarValues()
     {
-        this.enabled = this.cvars.l4d_triggers_ignore_incap_enable.BoolValue;
+        this.enable = this.cvars.l4d_triggers_ignore_incap_enable.BoolValue;
     }
 
     void RegisterCmds()
@@ -170,7 +170,7 @@ public void OnConfigsExecuted()
 
 void LateLoad()
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     int entity;
@@ -198,7 +198,7 @@ void Frame_LateLoad(int entityRef)
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (!plugin.enabled)
+    if (!plugin.enable)
         return;
 
     if (entity < 0)
@@ -226,7 +226,7 @@ Action CmdPrintCvars(int client, int args)
     PrintToConsole(client, "-------------- Plugin Cvars (l4d_triggers_ignore_incap) --------------");
     PrintToConsole(client, "");
     PrintToConsole(client, "l4d_triggers_ignore_incap_version : %s", PLUGIN_VERSION);
-    PrintToConsole(client, "l4d_triggers_ignore_incap_enable : %b (%s)", plugin.enabled, plugin.enabled ? "true" : "false");
+    PrintToConsole(client, "l4d_triggers_ignore_incap_enable : %b (%s)", plugin.enable, plugin.enable ? "true" : "false");
     PrintToConsole(client, "");
     PrintToConsole(client, "======================================================================");
     PrintToConsole(client, "");

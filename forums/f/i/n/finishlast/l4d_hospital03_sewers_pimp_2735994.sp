@@ -32,7 +32,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 {
 	char sMap[64];
 	GetCurrentMap(sMap, sizeof(sMap));
-	if (StrEqual(sMap, "l4d_hospital03_sewers", false) || StrEqual(sMap, "l4d_vs_hospital03_sewers", false) )
+	if (StrEqual(sMap, "l4d_hospital03_sewers", false) || StrEqual(sMap, "l4d_vs_hospital03_sewers", false) || StrEqual(sMap, "c8m3_sewers", false))
 	{
 		float vPos[3], vAng[3];
 		int entity = INVALID_ENT_REFERENCE;

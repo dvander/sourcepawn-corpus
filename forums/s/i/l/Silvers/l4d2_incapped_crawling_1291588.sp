@@ -1,6 +1,6 @@
 /*
 *	Incapped Crawling with Animation
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.9"
+#define PLUGIN_VERSION 		"2.12"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,6 +32,18 @@
 ========================================================================================
 	Change Log:
 
+2.12 (04-Jun-2026)
+	- Fixed the Glow not working when "NEW_MODEL_FIX" was set to false. Thanks to "Jedrickx" for reporting.
+
+2.11 (29-Jan-2026)
+	- Plugin now hides the players weapon and items attachments while crawling.
+	- Fixed precache crashes from the last update.
+	- Fixed the "Nick" model showing through.
+	- Thanks to "stkdng" and "Marttt" for reporting.
+
+2.10 (25-Jan-2026)
+	- Changes to fix Survivor workshop models misaligning with the crawling animation. Thanks to "JustMe" for fixing.
+
 2.9 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
 
@@ -39,7 +51,7 @@
 	- Increased a model string variable to support custom models with longer names. Thanks to "Sappykun" for fixing.
 
 2.7a (24-Feb-2021)
-	- Added Simplified Chinese and Traditional Chinese translations. Thanks to "HarryPotter" for providing. 
+	- Added Simplified Chinese and Traditional Chinese translations. Thanks to "HarryPotter" for providing.
 
 2.7 (27-Sep-2020)
 	- Changed cvar "l4d2_crawling_view" to accept value "2" to enable crawling in 1st person without showing your own crawling animation.
@@ -248,6 +260,8 @@
 
 #define CVAR_FLAGS				FCVAR_NOTIFY
 
+#define NEW_MODEL_FIX			true // Set to "false" to use old method instead (better if solo player), new method fixes workshop models but pitches the model up/down with mouse movement
+
 #define MODEL_COACH				"models/survivors/survivor_coach.mdl"
 #define MODEL_NICK				"models/survivors/survivor_gambler.mdl"
 #define EF_BONEMERGE            (1 << 0)
@@ -262,7 +276,7 @@ native int LMC_GetClientOverlayModel(int iClient);
 
 Handle g_hTimerHurt;
 ConVar g_hCvarAllow, g_hCvarCrawl, g_hCvarCrazy, g_hCvarGlow, g_hCvarHint, g_hCvarHintS, g_hCvarHurt, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarRate, g_hCvarSpeed, g_hCvarSpeeds, g_hCvarSpit, g_hCvarView;
-int g_iClone[MAXPLAYERS+1], g_iDisplayed[MAXPLAYERS+1], g_iHint, g_iHints, g_iHurt, g_iRate, g_iSpeed, g_iView;
+int g_iClone[MAXPLAYERS+1], g_iCloneVisible[MAXPLAYERS+1], g_iDisplayed[MAXPLAYERS+1], g_iHint, g_iHints, g_iHurt, g_iRate, g_iSpeed, g_iView;
 bool g_bCvarAllow, g_bMapStarted, g_bCrazy, g_bGlow, g_bRoundOver, g_bSpit, g_bTranslation;
 float g_fClientWait[MAXPLAYERS+1], g_fClientHurt[MAXPLAYERS+1];
 
@@ -307,7 +321,7 @@ public void OnLibraryRemoved(const char[] sName)
 public Plugin myinfo =
 {
 	name = "[L4D2] Incapped Crawling with Animation",
-	author = "SilverShot, mod by Lux",
+	author = "SilverShot, edit by Lux, JustMe",
 	description = "Allows incapped survivors to crawl and sets crawling animation.",
 	version = PLUGIN_VERSION,
 	url = "https://forums.alliedmods.net/showthread.php?t=137381"
@@ -383,6 +397,8 @@ public void OnClientPutInServer(int client)
 // ====================================================================================================
 public void OnMapStart()
 {
+	PrecacheModel(MODEL_NICK);
+
 	g_bMapStarted = true;
 }
 
@@ -446,6 +462,11 @@ void IsAllowed()
 		g_bCvarAllow = false;
 		UnhookEvents();
 		g_hCvarCrawl.IntValue = 0;
+
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) ) RemoveClone(i);
+		}
 	}
 }
 
@@ -609,7 +630,7 @@ void Event_Incapped(Event event, const char[] name, bool dontBroadcast)
 }
 
 // Display hint message, allow crawling
-Action TimerResetStart(Handle timer, any client)
+Action TimerResetStart(Handle timer, int client)
 {
 	client = GetClientOfUserId(client);
 
@@ -706,7 +727,11 @@ Action PlayAnim(int client)
 	static char sModel[PLATFORM_MAX_PATH];
 	GetEntPropString(client, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
 
+	#if NEW_MODEL_FIX
+	bool coach = true;
+	#else
 	bool coach = sModel[29] == 'c'; // Coach
+	#endif
 
 	// Create survivor clone
 	int clone = CreateEntityByName(g_bCrazy ? "prop_dynamic" : "commentary_dummy");
@@ -724,6 +749,8 @@ Action PlayAnim(int client)
 	// Attach to survivor
 	SetVariantString("!activator");
 	AcceptEntityInput(clone, "SetParent", client);
+
+	#if !NEW_MODEL_FIX
 	SetVariantString("bleedout");
 	AcceptEntityInput(clone, "SetParentAttachment");
 
@@ -738,6 +765,9 @@ Action PlayAnim(int client)
 
 	// Set angles and origin
 	TeleportEntity(clone, vPos, vAng, NULL_VECTOR);
+	#else
+	TeleportEntity(clone, view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), NULL_VECTOR);
+	#endif
 
 	// Set animation and playback rate
 	SetEntPropFloat(clone, Prop_Send, "m_flPlaybackRate", float(g_iRate) / 15); // Default speed = 15, normal rate = 1.0
@@ -755,27 +785,33 @@ Action PlayAnim(int client)
 		{
 			SetEntityRenderMode(clone, RENDER_NONE);
 			SetAttached(iEntity, clone);
+			g_iCloneVisible[client] = 0;
 		}
 	}
 	//LMC
 
-	// Coach anim - Bone merge - Ignore if LMC handling.
-	if( iEntity < 1 )
+	// Bone merge - Ignore if LMC handling.
+	if( coach && iEntity < 1 )
 	{
-		int cloneCoach = CreateEntityByName(g_bCrazy ? "prop_dynamic" : "commentary_dummy");
-		if( cloneCoach == -1 )
+		int cloneVisible = CreateEntityByName(g_bCrazy ? "prop_dynamic" : "commentary_dummy");
+		if( cloneVisible == -1 )
 		{
-			LogError("Failed to create clone coach.");
+			LogError("Failed to create visible clone for %N", client);
 			return Plugin_Continue;
 		}
 
-		SetEntityRenderMode(clone, RENDER_NONE); // Hide original clone.
-		SetEntityModel(cloneCoach, sModel);
-		SetEntProp(cloneCoach, Prop_Send, "m_fEffects", EF_BONEMERGE|EF_NOSHADOW|EF_PARENT_ANIMATES);
+		SetEntityModel(cloneVisible, sModel);
+		SetEntProp(cloneVisible, Prop_Send, "m_fEffects", EF_BONEMERGE|EF_NOSHADOW|EF_PARENT_ANIMATES);
 
 		// Attach to survivor
 		SetVariantString("!activator");
-		AcceptEntityInput(cloneCoach, "SetParent", clone);
+		AcceptEntityInput(cloneVisible, "SetParent", clone);
+
+		TeleportEntity(cloneVisible, view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}), NULL_VECTOR);
+
+		g_iCloneVisible[client] = EntIndexToEntRef(cloneVisible);
+
+		SetEntityRenderMode(clone, RENDER_NONE);
 	}
 
 	// Make Survivor Invisible
@@ -790,23 +826,65 @@ Action PlayAnim(int client)
 			g_hTimerHurt = CreateTimer(1.0, TimerHurt, _, TIMER_REPEAT);
 	}
 
+	SetEntProp(client, Prop_Send, "m_bSurvivorGlowEnabled", 0);
+
 	// Disable Glow
-	if( !g_bGlow )
-		SetEntProp(client, Prop_Send, "m_bSurvivorGlowEnabled", 0);
+	if( g_bGlow )
+	{
+		int visibleEnt = EntRefToEntIndex(g_iCloneVisible[client]);
+		if( visibleEnt > 0 )
+		{
+			SetEntProp(visibleEnt, Prop_Send, "m_iGlowType", 3);
+			SetEntProp(visibleEnt, Prop_Send, "m_glowColorOverride", 180 | (225 << 8) | (0 << 16));
+			SetEntProp(visibleEnt, Prop_Send, "m_nGlowRange", 0);
+		}
+		else
+		{
+			SetEntProp(clone, Prop_Send, "m_iGlowType", 3);
+			SetEntProp(clone, Prop_Send, "m_glowColorOverride", 180 | (225 << 8) | (0 << 16));
+			SetEntProp(clone, Prop_Send, "m_nGlowRange", 0);
+		}
+	}
 
 	// Thirdperson view
 	if( g_iView == 1 )
+	{
 		GotoThirdPerson(client);
+	}
 	else if( g_iView == 2 )
-		SDKHook(clone, SDKHook_SetTransmit, OnTransmit);
+	{
+		int visibleClone = EntRefToEntIndex(g_iCloneVisible[client]);
+		if( visibleClone != INVALID_ENT_REFERENCE )
+			SDKHook(visibleClone, SDKHook_SetTransmit, OnTransmit2);
+		else
+			SDKHook(clone, SDKHook_SetTransmit, OnTransmit);
+	}
+
+	SDKHook(client, SDKHook_PostThinkPost, OnPostThink);
 
 	return Plugin_Continue;
+}
+
+void OnPostThink(int client)
+{
+	SetEntProp(client, Prop_Send, "m_iAddonBits", 0);
 }
 
 Action OnTransmit(int entity, int client)
 {
 	if( g_iClone[client]
 		&& EntRefToEntIndex(g_iClone[client]) == entity
+		&& GetEntProp(client, Prop_Send, "m_iObserverMode") == 0
+		&& GetGameTime() > GetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView")
+	) return Plugin_Handled;
+
+	return Plugin_Continue;
+}
+
+Action OnTransmit2(int entity, int client)
+{
+	if( g_iCloneVisible[client]
+		&& EntRefToEntIndex(g_iCloneVisible[client]) == entity
 		&& GetEntProp(client, Prop_Send, "m_iObserverMode") == 0
 		&& GetGameTime() > GetEntPropFloat(client, Prop_Send, "m_TimeForceExternalView")
 	) return Plugin_Handled;
@@ -888,7 +966,14 @@ bool IsValidClient(int client)
 void RemoveClone(int client)
 {
 	int clone = g_iClone[client];
+	int cloneVisible = g_iCloneVisible[client];
 	g_iClone[client] = 0;
+	g_iCloneVisible[client] = 0;
+
+	if( cloneVisible && EntRefToEntIndex(cloneVisible) != INVALID_ENT_REFERENCE )
+	{
+		RemoveEntity(cloneVisible);
+	}
 
 	if( clone && EntRefToEntIndex(clone) != INVALID_ENT_REFERENCE )
 	{
@@ -898,8 +983,7 @@ void RemoveClone(int client)
 		//LMC
 		if( bLMC_Available )
 		{
-			int iEntity;
-			iEntity = LMC_GetClientOverlayModel(client);
+			int iEntity = LMC_GetClientOverlayModel(client);
 			if( iEntity > MaxClients && IsValidEntity(iEntity) )
 			{
 				SetAttached(iEntity, client);
@@ -922,10 +1006,11 @@ void RemoveClone(int client)
 			if( g_iView == 1 )				// Firstperson view
 				GotoFirstPerson(client);
 
-			if( !g_bGlow )					// Enable Glow
-				SetEntProp(client, Prop_Send, "m_bSurvivorGlowEnabled", 1);
+			SetEntProp(client, Prop_Send, "m_bSurvivorGlowEnabled", 1);
 		}
 	}
+
+	SDKUnhook(client, SDKHook_PostThinkPost, OnPostThink);
 }
 
 // LMC

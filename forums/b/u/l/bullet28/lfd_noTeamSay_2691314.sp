@@ -1,56 +1,70 @@
 #pragma semicolon 1
-#include <sourcemod>
 #pragma newdecls required
-
-ConVar cvarIgnoreList;
-char ignoreList[16][16];
+#include <sourcemod>
 
 public Plugin myinfo =
 {
 	name = "No Team Chat",
-	author = "bullet28",
+	author = "bullet28, HarryPotter",
 	description = "Redirecting all 'say_team' messages to 'say' in order to remove (Survivor) prefix when it's useless",
-	version = "2",
-	url = ""
+	version = "2.4",
+	url = "https://forums.alliedmods.net/showthread.php?p=2691314"
 }
 
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) 
+{
+	EngineVersion test = GetEngineVersion();
+	
+	if( test != Engine_Left4Dead2 && test != Engine_Left4Dead)
+	{
+		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
+		return APLRes_SilentFailure;
+	}
+	
+	return APLRes_Success; 
+}
+
+ConVar cvarIgnoreList;
+char ignoreList[32][8];
+
 public void OnPluginStart() {
-	cvarIgnoreList = CreateConVar("noteamsay_ignorelist", "/|@", "Messages starting with this will be ignored, separate by | symbol", FCVAR_NONE);
+
+	cvarIgnoreList = CreateConVar("noteamsay_ignorelist", "!,/,@", "Messages starting with this will be ignored, separate by , symbol", FCVAR_NONE);
+	
+	GetCvars();
 	cvarIgnoreList.AddChangeHook(OnConVarChange);
-	OnConVarChange(null, "", "");
+	
+	AutoExecConfig(true, "lfd_noTeamSay");
 }
 
 public void OnConVarChange(ConVar convar, char[] oldValue, char[] newValue) {
+	GetCvars();
+}
+
+void GetCvars()
+{
 	char buffer[256];
 	cvarIgnoreList.GetString(buffer, sizeof buffer);
 	for (int i = 0; i < sizeof ignoreList; i++) ignoreList[i] = "";
-	ExplodeString(buffer, "|", ignoreList, sizeof ignoreList, sizeof ignoreList[]);
+	ExplodeString(buffer, ",", ignoreList, sizeof ignoreList, sizeof ignoreList[]);
 }
 
 public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs) {
-	if (!StrEqual(command, "say_team", false))
-		return Plugin_Continue;
-
 	if (client <= 0)
 		return Plugin_Continue;
-
-	char msg[192];
-	GetCmdArg(1, msg, sizeof(msg));
-
+	
+	if (strcmp(command, "say_team", false) != 0)
+		return Plugin_Continue;
+		
 	for (int i = 0; i < sizeof ignoreList; i++) {
-		if (ignoreList[i][0] != EOS && StrContains(msg, ignoreList[i]) == 0) {
+		if ( ignoreList[i][0] != EOS && strncmp(sArgs, ignoreList[i], strlen(ignoreList[i])) == 0 ) {
 			return Plugin_Continue;
 		}
 	}
-	
-	TrimString(msg);
-
-	char buffer[256];
-	Format(buffer, sizeof(buffer), "\x03%N\x01 :  %s", client, msg);
 
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && !IsFakeClient(i)) {
-			SayText2(i, client, buffer);
+			SayText2(i, client, sArgs);
 		}
 	}
 
@@ -58,11 +72,19 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 }
 
 void SayText2(int client, int sender, const char[] msg) {
-	Handle hMessage = StartMessageOne("SayText2", client);
-	if (hMessage != null) {
+
+	static char name[MAX_NAME_LENGTH];
+	GetClientName(sender, name, sizeof(name));
+
+	Handle hMessage = StartMessageOne("SayText2", client, USERMSG_RELIABLE);
+	if(hMessage != null) 
+	{
 		BfWriteByte(hMessage, sender);
 		BfWriteByte(hMessage, true);
+		BfWriteString(hMessage, "L4D_Chat_All");
+		BfWriteString(hMessage, name);
 		BfWriteString(hMessage, msg);
+		BfWriteByte(hMessage, true);
 		EndMessage();
 	}
 }

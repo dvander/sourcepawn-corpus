@@ -1,6 +1,6 @@
 /*
 *	Anomaly
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.11"
+#define PLUGIN_VERSION 		"1.13"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,13 @@
 
 ========================================================================================
 	Change Log:
+
+1.13 (23-Jan-2024)
+	- Added cvar "l4d_anomaly_movement" to control if players can be moving or stationary to be ignored anomaly. Requested by "JustMadMan".
+	- Changes to fix the Anomaly being able to damage through floors. Thanks to "JustMadMan" for reporting.
+
+1.12 (10-Jan-2024)
+	- Fixed the "l4d_anomaly_modes_tog" cvar detecting Versus and Survival modes incorrectly.
 
 1.11 (22-Nov-2023)
 	- Added command "sm_anomoff" to remove all anomalies. Requested by "kochiurun119".
@@ -125,13 +132,13 @@ static const char g_sSoundsZap[][]	=
 
 
 ConVar g_hCvarMPGameMode, g_hCvarAllow, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamageDist, g_hCvarDamageInfe, g_hCvarDamageSpec, g_hCvarDamageSurv, g_hCvarDamageWitch, g_hCvarDamageTime,
-		g_hCvarRandDist, g_hCvarRandMax, g_hCvarRandMin, g_hCvarSpawnMax, g_hCvarSpawnMin, g_hCvarTypeInfe, g_hCvarTypeSpec, g_hCvarTypeSurv, g_hCvarTypeWitch;
+		g_hCvarMovement, g_hCvarRandDist, g_hCvarRandMax, g_hCvarRandMin, g_hCvarSpawnMax, g_hCvarSpawnMin, g_hCvarTypeInfe, g_hCvarTypeSpec, g_hCvarTypeSurv, g_hCvarTypeWitch;
 
 Handle g_hTimer;
 bool g_bCvarAllow, g_bLeft4Dead2;
 float g_fCvarDamageDist, g_fCvarDamageTime, g_fCvarRandDist, g_fCvarRandMax, g_fCvarRandMin, g_fCvarSpawnMax, g_fCvarSpawnMin, g_fFlowMax, g_fFlowMin, g_fRandNext;
 float g_fTickDmgs, g_fTickMove, g_fTickHeight, g_vLastPos[3], g_vSpawnPos[3];
-int g_iCvarDamageInfe, g_iCvarDamageSpec, g_iCvarDamageSurv, g_iCvarDamageWitch, g_iCvarTypeInfe, g_iCvarTypeSpec, g_iCvarTypeSurv, g_iCvarTypeWitch;
+int g_iCvarDamageInfe, g_iCvarDamageSpec, g_iCvarDamageSurv, g_iCvarDamageWitch, g_iCvarMovement, g_iCvarTypeInfe, g_iCvarTypeSpec, g_iCvarTypeSurv, g_iCvarTypeWitch;
 int g_iAnomaly;
 int g_iLighting;
 int g_iPlayerSpawn, g_iRoundStart;
@@ -179,6 +186,7 @@ public void OnPluginStart()
 	g_hCvarDamageSurv =		CreateConVar(	"l4d_anomaly_damage_survivor",		"10",					"0.0=Off, also disables effects. The amount of damage to deal to Survivors when being struck.", CVAR_FLAGS );
 	g_hCvarDamageWitch =	CreateConVar(	"l4d_anomaly_damage_witch",			"50",					"0.0=Off, also disables effects. The amount of damage to deal to Witches when being struck.", CVAR_FLAGS );
 	g_hCvarDamageTime =		CreateConVar(	"l4d_anomaly_damage_time",			"1.5",					"How often to damage entities within range.", CVAR_FLAGS );
+	g_hCvarMovement =		CreateConVar(	"l4d_anomaly_movement",				"1",					"Ignore shooting players who are moving slower than this: 0=Off, 1=Stationary, 2=Crouch walking, 3=Walking.", CVAR_FLAGS );
 	g_hCvarRandDist =		CreateConVar(	"l4d_anomaly_random_dist",			"200.0",				"How far can random sparks shoot out. These do not affect players and only visual effect.", CVAR_FLAGS );
 	g_hCvarRandMax =		CreateConVar(	"l4d_anomaly_random_max",			"5.0",					"0.0=Off. Display random sparks and sound after this many seconds maximum.", CVAR_FLAGS );
 	g_hCvarRandMin =		CreateConVar(	"l4d_anomaly_random_min",			"2.0",					"0.0=Off. Display random sparks and sound after this many seconds minimum.", CVAR_FLAGS );
@@ -207,6 +215,7 @@ public void OnPluginStart()
 	g_hCvarDamageSurv.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDamageWitch.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarDamageTime.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarMovement.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRandMax.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarRandMin.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarSpawnMax.AddChangeHook(ConVarChanged_Cvars);
@@ -365,6 +374,7 @@ void GetCvars()
 	g_iCvarDamageSurv = g_hCvarDamageSurv.IntValue;
 	g_iCvarDamageWitch = g_hCvarDamageWitch.IntValue;
 	g_fCvarDamageTime = g_hCvarDamageTime.FloatValue;
+	g_iCvarMovement = g_hCvarMovement.IntValue;
 	g_fCvarRandDist = g_hCvarRandDist.FloatValue;
 	g_fCvarRandMax = g_hCvarRandMax.FloatValue;
 	g_fCvarRandMin = g_hCvarRandMin.FloatValue;
@@ -420,12 +430,24 @@ bool IsAllowedGameMode()
 	if( g_hCvarMPGameMode == null )
 		return false;
 
-	if( g_iCurrentMode == 0 ) g_iCurrentMode = L4D_GetGameModeType();
-
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
+	if( iCvarModesTog != 0 )
+	{
+		if( g_iCurrentMode == 0 )
+			g_iCurrentMode = L4D_GetGameModeType();
 
-	if( iCvarModesTog && !(iCvarModesTog & g_iCurrentMode) )
-		return false;
+		if( g_iCurrentMode == 0 )
+			return false;
+
+		switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+		{
+			case 2:		g_iCurrentMode = 4;
+			case 4:		g_iCurrentMode = 2;
+		}
+
+		if( !(iCvarModesTog & g_iCurrentMode) )
+			return false;
+	}
 
 	char sGameModes[64], sGameMode[64];
 	g_hCvarMPGameMode.GetString(sGameMode, sizeof(sGameMode));
@@ -746,10 +768,26 @@ Action TimerThink(Handle timer, int entity)
 	{
 		g_fTickDmgs = fTickTime + g_fCvarDamageTime;
 
+		float distance;
+
 		for( int i = 1; i <= MaxClients; i++ )
 		{
 			if( IsClientInGame(i) && IsPlayerAlive(i) )
 			{
+				// Ignore players who are stationary, crouch walking or walking
+				if( g_iCvarMovement )
+				{
+					GetEntPropVector(i, Prop_Data, "m_vecAbsVelocity", vPos);
+					distance = GetVectorLength(vPos);
+
+					switch( g_iCvarMovement )
+					{
+						case 1: if( distance < 1 ) continue;
+						case 2: if( distance < 76 ) continue;
+						case 3: if( distance < 86 ) continue;
+					}
+				}
+
 				GetClientAbsOrigin(i, vPos);
 				if( GetVectorDistance(vPos, vEnd) < g_fCvarDamageDist )
 				{
@@ -1076,7 +1114,7 @@ int MakeEnvSprite(const float vOrigin[3], const float vAngles[3], int client)
 stock bool IsVisibleTo(int entity, float vPos[3], float vEnd[3])
 {
 	float vAngles[3];
-	vPos[2] += 50.0;
+	vPos[2] += 10.0;
 
 	MakeVectorFromPoints(vPos, vEnd, vAngles); // compute vector from start to target
 	GetVectorAngles(vAngles, vAngles); // get angles from vector for trace
@@ -1090,13 +1128,13 @@ stock bool IsVisibleTo(int entity, float vPos[3], float vEnd[3])
 		float vStart[3];
 		TR_GetEndPosition(vStart, trace); // retrieve our trace endpoint
 
-		if( GetVectorDistance(vPos, vStart) + 25.0 >= GetVectorDistance(vPos, vEnd) )
+		if( GetVectorDistance(vPos, vStart) + 5.0 >= GetVectorDistance(vPos, vEnd) )
 			isVisible = true; // if trace ray length plus tolerance equal or bigger absolute distance, you hit the target
 	}
 	else
 		isVisible = false;
 
-	vPos[2] -= 50.0;
+	vPos[2] -= 10.0;
 	delete trace;
 	return isVisible;
 }

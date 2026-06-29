@@ -1,6 +1,6 @@
 /*
 *	Bot Healing Values
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.3"
+#define PLUGIN_VERSION 		"2.4"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,10 @@
 
 ========================================================================================
 	Change Log:
+
+2.4 (25-Jan-2026)
+	- Fixed rarely throwing errors for invalid clients.
+	- L4D1: GameData updated, fix for Linux servers due to some L4D1 update breaking the plugin. Thanks to "Re:Creator" for reporting.
 
 2.3 (07-Nov-2023)
 	- Fixed not deleting 1 handle on plugin start.
@@ -68,8 +72,8 @@
 #include <sourcemod>
 
 #undef REQUIRE_EXTENSIONS
-#include <sourcescramble>
 #include <actions>
+#include <sourcescramble>
 #define REQUIRE_EXTENSIONS
 
 
@@ -278,7 +282,7 @@ public void OnActionCreated(BehaviorAction action, int actor, const char[] name)
 	if( !g_bCvarDieFirst && !g_bCvarDiePills )
 		return;
 
-	if( strncmp(name, "Survivor", 8) == 0 )
+	if( actor > 0 && actor <= MaxClients && strncmp(name, "Survivor", 8) == 0 )
 	{
 		/* Hooking self healing action (when bot wants to heal self) */
 		if( g_bCvarDieFirst && strcmp(name[8], "HealSelf") == 0 )
@@ -298,7 +302,7 @@ public void OnActionCreated(BehaviorAction action, int actor, const char[] name)
 	}
 }
 
-public Action OnSelfActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+Action OnSelfActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
 {
 	bool allow = g_bLeft4Dead2 ? GetEntProp(actor, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(actor) : GetEntProp(actor, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
 
@@ -309,7 +313,7 @@ public Action OnSelfActionFirst(BehaviorAction action, int actor, BehaviorAction
 	return Plugin_Changed;
 }
 
-public Action OnSelfActionPills(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+Action OnSelfActionPills(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
 {
 	bool allow = g_bLeft4Dead2 ? GetEntProp(actor, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(actor) : GetEntProp(actor, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
 
@@ -320,9 +324,10 @@ public Action OnSelfActionPills(BehaviorAction action, int actor, BehaviorAction
 	return Plugin_Changed;
 }
 
-public Action OnFriendActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+Action OnFriendActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
 {
 	int target = action.Get(0x34) & 0xFFF;
+
 	bool allow = g_bLeft4Dead2 ? GetEntProp(target, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(target) : GetEntProp(target, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
 
 	if( !g_bExtensionScramble && allow && GetClientHealth(target) + L4D_GetPlayerTempHealth(target) > g_fCvarFirst )
@@ -332,9 +337,10 @@ public Action OnFriendActionFirst(BehaviorAction action, int actor, BehaviorActi
 	return Plugin_Changed;
 }
 
-public Action OnFriendActionPills(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+Action OnFriendActionPills(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
 {
 	int target = action.Get(0x34) & 0xFFF;
+
 	bool allow = g_bLeft4Dead2 ? GetEntProp(target, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(target) : GetEntProp(target, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
 
 	if( !g_bExtensionScramble && allow && GetClientHealth(target) + L4D_GetPlayerTempHealth(target) > g_fCvarPills )

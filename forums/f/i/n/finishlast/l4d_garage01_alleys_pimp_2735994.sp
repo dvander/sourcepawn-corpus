@@ -16,9 +16,9 @@ int dynamic_prop_button;
 
 public void OnPluginStart()
 {
-	PrecacheModel("models/props_doors/roll-up_door_full.mdl",true);
-	PrecacheModel("models/props_wasteland/exterior_fence001a.mdl",true);
-	PrecacheModel("models/props_lab/freightelevatorbutton.mdl",true); 
+	PrecacheModel("models/props_doors/roll-up_door_full.mdl");
+	PrecacheModel("models/props_wasteland/exterior_fence001a.mdl");
+	PrecacheModel("models/props_lab/freightelevatorbutton.mdl"); 
 	PrecacheSound("ambient/machines/wall_move4.wav");
 
 	HookEvent("round_freeze_end", event_round_freeze_end, EventHookMode_PostNoCopy);
@@ -43,7 +43,7 @@ public void event_round_freeze_end(Event event, const char[] name, bool dontBroa
 
 	char sMap[64];
 	GetCurrentMap(sMap, sizeof(sMap));
-	if (StrEqual(sMap, "l4d_garage01_alleys", false))
+	if (StrEqual(sMap, "l4d_garage01_alleys", false) || StrEqual(sMap, "c9m1_alleys", false))
 	{
 
  	float pos[3], ang[3], fwd[3]; 

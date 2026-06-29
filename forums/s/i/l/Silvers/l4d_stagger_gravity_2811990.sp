@@ -1,6 +1,6 @@
 /*
 *	Stagger Animation - Gravity Allowed
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.3"
+#define PLUGIN_VERSION 		"1.8"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,22 @@
 
 ========================================================================================
 	Change Log:
+
+1.8 (06-Aug-2024)
+	- Reverted changes from the previous plugin update.
+
+1.7 (04-Aug-2024)
+	- Attempt to fix players teleporting after staggering. Thanks to "3ipKa" for reporting.
+
+1.6 (17-Jun-2024)
+	- Fixed the Charger releasing survivors after pummel. Thanks to "JustMadMan" for reporting.
+	- This fix requires updating "Left4DHooks" plugin to version 1.151 or newer.
+
+1.5 (30-Apr-2024)
+	- Fixed not resetting a variable which could cause subsequent staggers to not be blocked.
+
+1.4 (10-Jan-2024)
+	- Changed the plugins on/off/mode cvars to use the "Left 4 DHooks" method instead of creating an entity.
 
 1.3 (24-Nov-2023)
 	- Changes to prevent shoving and shooting/shoving/moving whilst stumbling. Thanks to "ProjectSky" for reporting.
@@ -56,18 +72,20 @@
 #pragma newdecls required
 
 #include <sourcemod>
+#include <sdktools>
 #include <left4dhooks>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define BLOCK_TIME			0.3		// How long to block shooting/shoving/moving when staggering
+#define CHARGE_TIME			0.3		// Time between charging/pummel where the game tries to stagger players causing chargers to release victim
 
 
 ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarAir, g_hCvarCmd, g_hCvarStop, g_hCvarType;
-bool g_bCvarAllow, g_bMapStarted, g_bRoundStarted, g_bLeft4Dead2;
+bool g_bCvarAllow, g_bRoundStarted, g_bLeft4Dead2;
 int g_iCvarAir, g_iCvarCmd, g_iCvarStop, g_iCvarType, g_iClassTank;
 
 bool g_bStagger[MAXPLAYERS+1], g_bFrameStagger[MAXPLAYERS+1], g_bBlockXY[MAXPLAYERS+1];
-float g_vStart[MAXPLAYERS+1][3], g_fDist[MAXPLAYERS+1], g_fTtime[MAXPLAYERS+1], g_fTimeBlock[MAXPLAYERS+1];
+float g_vStart[MAXPLAYERS+1][3], g_fDist[MAXPLAYERS+1], g_fTtime[MAXPLAYERS+1], g_fTimeBlock[MAXPLAYERS+1], g_fTimeCharger[MAXPLAYERS+1];
 
 
 
@@ -174,6 +192,14 @@ void IsAllowed()
 		HookEvent("round_start",	Event_RoundStart, EventHookMode_PostNoCopy);
 		HookEvent("round_end",		Event_RoundEnd, EventHookMode_PostNoCopy);
 		HookEvent("player_spawn",	Event_PlayerSpawn);
+
+		if( g_bLeft4Dead2 )
+		{
+			HookEvent("charger_carry_start",	Event_Charger);
+			HookEvent("charger_carry_end",		Event_Charger);
+			HookEvent("charger_pummel_start",	Event_Charger);
+			HookEvent("charger_pummel_end",		Event_Charger);
+		}
 	}
 
 	else if( g_bCvarAllow == true && (bCvarAllow == false || bAllowMode == false) )
@@ -182,10 +208,23 @@ void IsAllowed()
 		UnhookEvent("round_start",	Event_RoundStart, EventHookMode_PostNoCopy);
 		UnhookEvent("round_end",	Event_RoundEnd, EventHookMode_PostNoCopy);
 		UnhookEvent("player_spawn",	Event_PlayerSpawn);
+
+		if( g_bLeft4Dead2 )
+		{
+			UnhookEvent("charger_carry_start",		Event_Charger);
+			UnhookEvent("charger_carry_end",		Event_Charger);
+			UnhookEvent("charger_pummel_start",		Event_Charger);
+			UnhookEvent("charger_pummel_end",		Event_Charger);
+		}
 	}
 }
 
 int g_iCurrentMode;
+public void L4D_OnGameModeChange(int gamemode)
+{
+	g_iCurrentMode = gamemode;
+}
+
 bool IsAllowedGameMode()
 {
 	if( g_hCvarMPGameMode == null )
@@ -194,27 +233,17 @@ bool IsAllowedGameMode()
 	int iCvarModesTog = g_hCvarModesTog.IntValue;
 	if( iCvarModesTog != 0 )
 	{
-		if( g_bMapStarted == false )
-			return false;
-
-		g_iCurrentMode = 0;
-
-		int entity = CreateEntityByName("info_gamemode");
-		if( IsValidEntity(entity) )
-		{
-			DispatchSpawn(entity);
-			HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
-			HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
-			ActivateEntity(entity);
-			AcceptEntityInput(entity, "PostSpawnActivate");
-			if( IsValidEntity(entity) ) // Because sometimes "PostSpawnActivate" seems to kill the ent.
-				RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
-		}
+		if( g_iCurrentMode == 0 )
+			g_iCurrentMode = L4D_GetGameModeType();
 
 		if( g_iCurrentMode == 0 )
 			return false;
+
+		switch( g_iCurrentMode ) // Left4DHooks values are flipped for these modes, sadly
+		{
+			case 2:		g_iCurrentMode = 4;
+			case 4:		g_iCurrentMode = 2;
+		}
 
 		if( !(iCvarModesTog & g_iCurrentMode) )
 			return false;
@@ -243,18 +272,6 @@ bool IsAllowedGameMode()
 	return true;
 }
 
-void OnGamemode(const char[] output, int caller, int activator, float delay)
-{
-	if( strcmp(output, "OnCoop") == 0 )
-		g_iCurrentMode = 1;
-	else if( strcmp(output, "OnSurvival") == 0 )
-		g_iCurrentMode = 2;
-	else if( strcmp(output, "OnVersus") == 0 )
-		g_iCurrentMode = 4;
-	else if( strcmp(output, "OnScavenge") == 0 )
-		g_iCurrentMode = 8;
-}
-
 
 
 // ====================================================================================================
@@ -262,13 +279,11 @@ void OnGamemode(const char[] output, int caller, int activator, float delay)
 // ====================================================================================================
 public void OnMapStart()
 {
-	g_bMapStarted = true;
 	g_bRoundStarted = true;
 }
 
 public void OnMapEnd()
 {
-	g_bMapStarted = false;
 	ResetPlugin();
 }
 
@@ -289,6 +304,12 @@ void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 	ResetVars(client);
 }
 
+void Event_Charger(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	g_fTimeCharger[client] = GetGameTime();
+}
+
 void ResetPlugin()
 {
 	for( int i = 1; i <= MaxClients; i++ )
@@ -306,6 +327,7 @@ void ResetVars(int client)
 	g_fDist[client] = 0.0;
 	g_fTtime[client] = 0.0;
 	g_fTimeBlock[client] = 0.0;
+	g_fTimeCharger[client] = 0.0;
 }
 
 
@@ -466,6 +488,7 @@ public Action L4D_OnMotionControlledXY(int client, int activity)
 
 		SetAttack(client);
 		g_bStagger[client] = true;
+		// TeleportPlayer(client);
 		return Plugin_Handled;
 	}
 	else
@@ -510,6 +533,7 @@ public Action L4D_OnMotionControlledXY(int client, int activity)
 			RequestFrame(OnFrameStagger, GetClientUserId(client));
 
 			SetAttack(client);
+			// TeleportPlayer(client);
 			return Plugin_Handled;
 		}
 
@@ -518,12 +542,14 @@ public Action L4D_OnMotionControlledXY(int client, int activity)
 			g_fTimeBlock[client] = GetGameTime() + 0.5;
 
 			SetAttack(client);
+			// TeleportPlayer(client);
 			return Plugin_Handled;
 		}
 
 		if( g_fTimeBlock[client] - GetGameTime() > 0.0 )
 		{
 			SetAttack(client);
+			// TeleportPlayer(client);
 			return Plugin_Handled;
 		}
 	}
@@ -531,15 +557,27 @@ public Action L4D_OnMotionControlledXY(int client, int activity)
 	if( g_bBlockXY[client] )
 	{
 		SetAttack(client);
+		// TeleportPlayer(client);
 		return Plugin_Handled;
 	}
 
 	return Plugin_Continue;
 }
 
+/*
+void TeleportPlayer(int client)
+{
+	float vPos[3];
+	GetClientAbsOrigin(client, vPos);
+	TeleportEntity(client, vPos, NULL_VECTOR, NULL_VECTOR);
+}
+*/
+
 public Action L4D2_OnStagger(int client, int source)
 {
 	if( !g_bCvarAllow || !g_bRoundStarted ) return Plugin_Continue;
+
+	if( GetGameTime() - g_fTimeCharger[client] < CHARGE_TIME ) return Plugin_Handled;
 
 	// Verify air stagger
 	if( g_iCvarAir != 255 )
@@ -670,6 +708,8 @@ void OnFrameStagger(int client)
 	client = GetClientOfUserId(client);
 	if( client && IsClientInGame(client) )
 	{
+		g_bFrameStagger[client] = false;
+
 		L4D_StaggerPlayer(client, client, g_vStart[client]);
 		SetEntPropFloat(client, Prop_Send, "m_staggerDist", g_fDist[client]);
 		SetEntPropFloat(client, Prop_Send, "m_staggerTimer", g_fTtime[client], 1);

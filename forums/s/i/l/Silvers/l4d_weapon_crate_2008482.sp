@@ -1,6 +1,6 @@
 /*
 *	Weapon Crate
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.8"
+#define PLUGIN_VERSION 		"1.10"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.10 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
+
+1.9 (21-May-2025)
+	- Items and weapons are now spawned frozen in place to prevent them from moving or rolling. Requested by "Tighty-Whitey".
 
 1.8 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
@@ -606,7 +612,7 @@ void LoadSpawns()
 		for( int i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -764,6 +770,7 @@ void CreateSpawn(const float vOrigin[3], const float vAngles[3], int index = 0, 
 		MoveSideway(vPos, vAng, vPos, -10.0);
 	TeleportEntity(entity_weapon, vPos, vAng, NULL_VECTOR);
 	DispatchSpawn(entity_weapon);
+	CreateTimer(0.2, TimerFreeze, EntIndexToEntRef(entity_weapon));
 
 	if( iCount == 1 )
 	{
@@ -813,6 +820,17 @@ void MoveSideway(const float vPos[3], const float vAng[3], float vReturn[3], flo
 	vReturn[0] += vDir[0] * fDistance;
 	vReturn[1] += vDir[1] * fDistance;
 	vReturn[2] += vDir[2] * fDistance;
+}
+
+Action TimerFreeze(Handle timer, int entity)
+{
+	entity = EntRefToEntIndex(entity);
+	if( IsValidEntRef(entity) )
+	{
+		SetEntityMoveType(entity, MOVETYPE_NONE);
+	}
+
+	return Plugin_Continue;
 }
 
 
@@ -1621,6 +1639,19 @@ void RemoveSpawn(int index)
 		{
 			RemoveEntity(entity);
 		}
+	}
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
 	}
 }
 

@@ -1,6 +1,6 @@
 /*
 *	Regenerative Healing
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.12"
+#define PLUGIN_VERSION 		"1.14"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.14 (06-Aug-2024)
+	- Added cvar "l4d_healing_wait" to prevent bots healing again for a certain amount of time. Requires "Actions Extension". Requested by "JustMadMan".
+
+1.13 (05-Mar-2024)
+	- Fixed invalid handle errors. Thanks to "bullet28" for reporting and suggested solution.
 
 1.12 (19-Feb-2023)
 	- Fixed healing not continuing when a bot or player takeover each other. Thanks to "Iciaria" for reporting.
@@ -90,17 +96,22 @@
 #include <sdktools>
 #include <sdkhooks>
 
+#undef REQUIRE_EXTENSIONS
+#include <actions>
+#define REQUIRE_EXTENSIONS
+
 #define CVAR_FLAGS			FCVAR_NOTIFY
 
 
-ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamage, g_hCvarHealth, g_hCvarHealthA, g_hCvarHealthD, g_hCvarHealthF, g_hCvarHealthP, g_hCvarMax, g_hCvarMoving, g_hCvarRegenA, g_hCvarRegenD, g_hCvarRegenF, g_hCvarRegenP, g_hCvarRegenT, g_hCvarAlways, g_hCvarTemp, g_hCvarTime, g_hCvarType, g_hDecayDecay; //g_hDecayAdren, g_hDecayPills;
+ConVar g_hCvarAllow, g_hCvarMPGameMode, g_hCvarModes, g_hCvarModesOff, g_hCvarModesTog, g_hCvarDamage, g_hCvarHealth, g_hCvarHealthA, g_hCvarHealthD, g_hCvarHealthF, g_hCvarHealthP, g_hCvarMax, g_hCvarMoving, g_hCvarRegenA, g_hCvarRegenD, g_hCvarRegenF, g_hCvarRegenP, g_hCvarRegenT, g_hCvarAlways, g_hCvarTemp, g_hCvarTime, g_hCvarType, g_hCvarWait, g_hDecayDecay; //g_hDecayAdren, g_hDecayPills;
 float g_fCvarDamage, g_fCvarMoving, g_fCvarRegenA, g_fCvarRegenD, g_fCvarRegenF, g_fCvarRegenP, g_fCvarTime, g_fDecayDecay;
-int g_iCvarHealth, g_iCvarHealthA, g_iCvarHealthD, g_iCvarHealthF, g_iCvarHealthP, g_iCvarMax, g_iCvarRegenT, g_iCvarAlways, g_iCvarTemp, g_iCvarType;
+int g_iCvarHealth, g_iCvarHealthA, g_iCvarHealthD, g_iCvarHealthF, g_iCvarHealthP, g_iCvarMax, g_iCvarRegenT, g_iCvarAlways, g_iCvarTemp, g_iCvarType, g_iCvarWait;
 
 bool g_bCvarAllow, g_bMapStarted, g_bActive, g_bLeft4Dead2;
 Handle g_hTimerTempHealth, g_hTimerRegenHealth;
 float g_fLastDamage[MAXPLAYERS+1];
 float g_fLastHealth[MAXPLAYERS+1];
+float g_fLastTime[MAXPLAYERS+1];
 int g_iLastHealth[MAXPLAYERS+1];
 ArrayList g_alDataPacks;
 ArrayList g_alTimerHands;
@@ -171,6 +182,7 @@ public void OnPluginStart()
 	g_hCvarTemp =			CreateConVar(	"l4d_healing_temp",				"3",				"When allowed item types are used: 1=Remove health applied. 2=Replace temp health when healing with main health. 3=Both.", CVAR_FLAGS );
 	g_hCvarTime =			CreateConVar(	"l4d_healing_time",				"0.5",				"How often to heal the player.", CVAR_FLAGS );
 	g_hCvarType =			CreateConVar(	"l4d_healing_type",				"3",				"Which item to affect. 0=None, 1=Adrenaline (L4D2 only), 2=Pain Pills, 4=First Aid, 8=Defibrillator (L4D2 only), 15=All. Add numbers together.", CVAR_FLAGS );
+	g_hCvarWait =			CreateConVar(	"l4d_healing_wait",				"20",				"0=Off. When bots use pills/adrenaline/first aid kit, how long to wait before allowing bots to use another healing item (Requires Actions extension).", CVAR_FLAGS );
 	CreateConVar(							"l4d_healing_version",			PLUGIN_VERSION,		"Healing plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	AutoExecConfig(true,					"l4d_healing");
 
@@ -187,6 +199,7 @@ public void OnPluginStart()
 	g_hCvarAlways.AddChangeHook(ConVarChanged_Timer);
 	g_hCvarTemp.AddChangeHook(ConVarChanged_Timer);
 	g_hCvarType.AddChangeHook(ConVarChanged_Type);
+	g_hCvarWait.AddChangeHook(ConVarChanged_Type);
 
 	g_hDecayDecay.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarHealth.AddChangeHook(ConVarChanged_Cvars);
@@ -354,6 +367,7 @@ void GetCvars()
 	g_iCvarTemp =			g_hCvarTemp.IntValue;
 	g_fCvarTime =			g_hCvarTime.FloatValue;
 	g_iCvarType =			g_hCvarType.IntValue;
+	g_iCvarWait =			g_hCvarWait.IntValue;
 }
 
 void IsAllowed()
@@ -570,6 +584,7 @@ void Event_Swap_Bot(Event event, const char[] name, bool dontBroadcast)
 
 	g_fLastDamage[bot] = g_fLastDamage[client];
 	g_fLastHealth[bot] = g_fLastHealth[client];
+	g_fLastTime[bot] = g_fLastTime[client];
 	g_iLastHealth[bot] = g_iLastHealth[client];
 
 	SwapPacks(client, bot);
@@ -582,6 +597,7 @@ void Event_Swap_User(Event event, const char[] name, bool dontBroadcast)
 
 	g_fLastDamage[client] = g_fLastDamage[bot];
 	g_fLastHealth[client] = g_fLastHealth[bot];
+	g_fLastTime[client] = g_fLastTime[bot];
 	g_iLastHealth[client] = g_iLastHealth[bot];
 
 	SwapPacks(bot, client);
@@ -687,6 +703,8 @@ Action TimerRegenAlways(Handle timer)
 // ====================================================================================================
 void SetupHealTimer(int client, int userid, int type)
 {
+	if( g_bActive == false ) return;
+
 	// Remove temp / main health that was added?
 	if( g_iCvarTemp & (1<<0) )
 	{
@@ -711,8 +729,6 @@ void SetupHealTimer(int client, int userid, int type)
 
 Action TimerRegenTemp(Handle timer, DataPack dPack)
 {
-	if( g_bActive == false ) return Plugin_Stop;
-
 	// Get vars
 	dPack.Reset();
 	int type = dPack.ReadCell();
@@ -874,4 +890,34 @@ void SetTempHealth(int client, float fHealth)
 {
 	SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth < 0.0 ? 0.0 : fHealth );
 	SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", GetGameTime());
+}
+
+
+
+// ====================================================================================================
+//					ACTIONS EXTENSION
+// ====================================================================================================
+public void OnActionCreated(BehaviorAction action, int actor, const char[] name)
+{
+	if( !g_iCvarWait )
+		return;
+
+	if( strncmp(name, "Survivor", 8) == 0 )
+	{
+		if( strcmp(name[8], "HealSelf") == 0 || strcmp(name[8], "TakePills") == 0 )
+			action.OnStart = OnSelfHealing;
+	}
+}
+
+Action OnSelfHealing(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+{
+	if( g_fLastTime[actor] > GetGameTime() )
+	{
+		result.type = DONE;
+		return Plugin_Changed;
+	}
+
+	g_fLastTime[actor] = GetGameTime() + g_iCvarWait;
+
+	return Plugin_Continue;
 }

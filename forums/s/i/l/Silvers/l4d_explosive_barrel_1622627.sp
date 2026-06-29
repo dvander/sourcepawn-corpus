@@ -1,6 +1,6 @@
 /*
 *	Explosive Barrel
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.9"
+#define PLUGIN_VERSION		"1.10"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.10 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.9 (11-Dec-2022)
 	- Changes to fix compile warnings on SourceMod 1.11.
@@ -401,7 +404,7 @@ void LoadBarrels()
 		for( i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -454,7 +457,7 @@ void SetupBarrel(int client, float vPos[3] = NULL_VECTOR)
 	delete trace;
 }
 
-bool TraceFilter(int entity, int contentsMask, any client)
+bool TraceFilter(int entity, int contentsMask, int client)
 {
 	if( entity == client )
 		return false;
@@ -848,5 +851,18 @@ stock void PrecacheParticle(const char[] sEffectName)
 		bool save = LockStringTables(false);
 		AddToStringTable(table, sEffectName);
 		LockStringTables(save);
+	}
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
 	}
 }

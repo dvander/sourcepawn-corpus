@@ -1,6 +1,6 @@
 /*
 *	Common Limiter
-*	Copyright (C) 2023 Silvers
+*	Copyright (C) 2024 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.1"
+#define PLUGIN_VERSION 		"1.3"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,12 @@
 
 ========================================================================================
 	Change Log:
+
+1.3 (22-Sep-2024)
+	- Removed delay deleting. Now counts common on each spawn instead of internally tracking.
+
+1.2 (05-May-2024)
+	- This version delays deleting by 1 second. Requested by "ball2hi".
 
 1.1 (02-Oct-2023)
 	- Changes to fix possible entity count errors.
@@ -47,10 +53,7 @@
 #include <sdkhooks>
 #include <sdktools>
 
-int g_iCommon[2048];
-int g_iTotalCommon;
 int g_iLimitCommon;
-bool g_bMapStarted;
 ConVar g_hCvarLimit;
 
 public Plugin myinfo =
@@ -70,99 +73,41 @@ public void OnPluginStart()
 	g_hCvarLimit.AddChangeHook(ConVarChanged_Cvars);
 	g_iLimitCommon = g_hCvarLimit.IntValue;
 
-	HookEvent("round_end",		Event_RoundEnd, EventHookMode_PostNoCopy);
-	HookEvent("round_start",	Event_RoundStart, EventHookMode_PostNoCopy);
-
-	LateLoad();
-
 	RegAdminCmd("sm_common_limit", CmdLimit, ADMFLAG_ROOT);
 }
 
 void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	g_iLimitCommon = g_hCvarLimit.IntValue;
-	LateLoad();
 }
 
-public Action CmdLimit(int client, int args)
+Action CmdLimit(int client, int args)
 {
-	ReplyToCommand(client, "Common Limiter: %d of %d", g_iTotalCommon, g_iLimitCommon);
-	return Plugin_Handled;
-}
-
-public void OnMapStart()
-{
-	g_bMapStarted = true;
-}
-
-public void OnMapEnd()
-{
-	g_bMapStarted = false;
-
-	ResetPlugin();
-}
-
-void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
-{
-	LateLoad();
-
-	g_bMapStarted = true;
-}
-
-void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
-{
-	g_bMapStarted = false;
-
-	ResetPlugin();
-}
-
-void LateLoad()
-{
-	ResetPlugin();
-
+	int total;
 	int entity = -1;
 	while( (entity = FindEntityByClassname(entity, "infected")) != INVALID_ENT_REFERENCE )
 	{
-		g_iCommon[entity] = EntIndexToEntRef(entity);
-		g_iTotalCommon++;
-
-		if( g_iTotalCommon > g_iLimitCommon )
-		{
-			RemoveEntity(entity);
-		}
-	}
-}
-
-void ResetPlugin()
-{
-	for( int i = 0; i < 2048; i++ )
-	{
-		g_iCommon[i] = 0;
+		total++;
 	}
 
-	g_iTotalCommon = 0;
+	ReplyToCommand(client, "Common Limiter: %d common infected", total);
+	return Plugin_Handled;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if( g_bMapStarted && entity > 0 && entity < 2048 && strcmp(classname, "infected") == 0 )
+	if( entity > 0 && entity < 2048 && strcmp(classname, "infected") == 0 )
 	{
-		g_iCommon[entity] = EntIndexToEntRef(entity);
-		g_iTotalCommon++;
-
-		if( g_iTotalCommon > g_iLimitCommon )
+		int total;
+		int common = -1;
+		while( (common = FindEntityByClassname(common, "infected")) != INVALID_ENT_REFERENCE )
 		{
-			SDKHook(entity, SDKHook_SpawnPost, OnSpawn);
+			if( ++total > g_iLimitCommon )
+			{
+				SDKHook(entity, SDKHook_SpawnPost, OnSpawn);
+				return;
+			}
 		}
-	}
-}
-
-public void OnEntityDestroyed(int entity)
-{
-	if( g_bMapStarted && entity > 0 && entity < 2048 && g_iCommon[entity] == EntIndexToEntRef(entity) )
-	{
-		g_iCommon[entity] = 0;
-		g_iTotalCommon--;
 	}
 }
 

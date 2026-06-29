@@ -1,8 +1,5 @@
-#define PLUGIN_VERSION	"1.19"
-#define PLUGIN_NAME     "Automatic Laser Sight Upgrade On Weapon Equip"
-#define PLUGIN_PREFIX	"laser_sight_upgrade_on_equip"
+#define PLUGIN_VERSION	"1.26"
 
-#pragma tabsize 0
 #pragma semicolon 1
 #pragma newdecls required
 #include <sourcemod>
@@ -13,7 +10,7 @@
 
 public Plugin myinfo =
 {
-	name = PLUGIN_NAME,
+	name = "Automatic Laser Sight Upgrade On Weapon Equip",
 	author = "little_froy",
 	description = "game play",
 	version = PLUGIN_VERSION,
@@ -22,9 +19,9 @@ public Plugin myinfo =
 
 char Data_path[PLATFORM_MAX_PATH];
 
-bool Late_load;
-
 ArrayList Enabled_weapons;
+int Current_section_level;
+char Current_section_name[PLATFORM_MAX_PATH];
 
 int get_upgrade(int weapon)
 {
@@ -36,13 +33,13 @@ void set_upgrade(int weapon, int upgrade)
     SetEntProp(weapon, Prop_Send, "m_upgradeBitVec", upgrade);
 }
 
-void on_weapon_equip_post(int client, int weapon)
+void OnWeaponEquipPost(int client, int weapon)
 {
-    if(GetClientTeam(client) != 2 || weapon == -1 || !HasEntProp(weapon, Prop_Send, "m_upgradeBitVec"))
+    if(weapon == -1 || GetClientTeam(client) != 2 || !HasEntProp(weapon, Prop_Send, "m_upgradeBitVec"))
     {
         return;
     }
-    char class_name[PLATFORM_MAX_PATH];
+    char class_name[64];
     GetEntityClassname(weapon, class_name, sizeof(class_name));
     if(Enabled_weapons.FindString(class_name) != -1)
     {
@@ -52,29 +49,48 @@ void on_weapon_equip_post(int client, int weapon)
 
 public void OnClientPutInServer(int client)
 {
-    SDKHook(client, SDKHook_WeaponEquipPost, on_weapon_equip_post);
+    SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
+}
+
+SMCResult OnEnterSection(SMCParser smc, const char[] name, bool opt_quotes)
+{
+	Current_section_level++;
+	if(Current_section_level == 2)
+	{
+        strcopy(Current_section_name, sizeof(Current_section_name), name);
+	}
+    return SMCParse_Continue;
+}
+
+SMCResult OnLeaveSection(SMCParser smc)
+{
+    Current_section_level--;
+    return SMCParse_Continue;
+}
+
+SMCResult OnKeyValue(SMCParser smc, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
+{
+	if(Current_section_level == 2)
+	{
+        if(strcmp(key, "enable") == 0 && !!StringToInt(value))
+        {
+            Enabled_weapons.PushString(Current_section_name);
+        }
+	}
+    return SMCParse_Continue;
 }
 
 void check_configs()
 {
     Enabled_weapons.Clear();
-    if(FileExists(Data_path))
-    {
-        KeyValues kv = new KeyValues(PLUGIN_PREFIX);
-        if(kv.ImportFromFile(Data_path) && kv.GotoFirstSubKey())
-        {
-            do
-            {
-                char key[PLATFORM_MAX_PATH];
-                if(kv.GetSectionName(key, sizeof(key)) && kv.GetNum("enable", 0))
-                {
-                    Enabled_weapons.PushString(key);
-                }
-            }
-            while(kv.GotoNextKey());
-        }
-        delete kv;
-    }
+    Current_section_level = 0;
+    Current_section_name[0] = '\0';
+    SMCParser parser = new SMCParser();
+    parser.OnEnterSection = OnEnterSection;
+    parser.OnLeaveSection = OnLeaveSection;
+    parser.OnKeyValue = OnKeyValue;
+    parser.ParseFile(Data_path);
+    delete parser;
 }
 
 void check_weapons_all()
@@ -82,9 +98,9 @@ void check_weapons_all()
     int entity = -1;
     while((entity = FindEntityByClassname(entity, "*")) != -1)
     {
-        if(HasEntProp(entity, Prop_Send, "m_upgradeBitVec"))
+        if(entity > 0 && HasEntProp(entity, Prop_Send, "m_upgradeBitVec"))
         {
-            char class_name[PLATFORM_MAX_PATH];
+            char class_name[64];
             GetEntityClassname(entity, class_name, sizeof(class_name));
             if(Enabled_weapons.FindString(class_name) != -1)
             {
@@ -104,18 +120,14 @@ void check_weapons_all()
 
 void event_weapon_drop(Event event, const char[] name, bool dontBroadcast)
 {
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    if(client != 0 && IsClientInGame(client) && GetClientTeam(client) == 2)
+    int weapon = event.GetInt("propid");
+    if(weapon > 0 && IsValidEntity(weapon) && HasEntProp(weapon, Prop_Send, "m_upgradeBitVec"))
     {
-        int weapon = event.GetInt("propid");
-        if(weapon > 0 && IsValidEntity(weapon) && HasEntProp(weapon, Prop_Send, "m_upgradeBitVec"))
+        char class_name[64];
+        GetEntityClassname(weapon, class_name, sizeof(class_name));
+        if(Enabled_weapons.FindString(class_name) != -1)
         {
-            char class_name[PLATFORM_MAX_PATH];
-            GetEntityClassname(weapon, class_name, sizeof(class_name));
-            if(Enabled_weapons.FindString(class_name) != -1)
-            {
-                set_upgrade(weapon, get_upgrade(weapon) & ~UPGRADE_LASER_SIGHT);
-            }
+            set_upgrade(weapon, get_upgrade(weapon) & ~UPGRADE_LASER_SIGHT);
         }
     }
 }
@@ -134,33 +146,28 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
         strcopy(error, err_max, "this plugin only runs in \"Left 4 Dead 2\"");
         return APLRes_SilentFailure;
     }
-    Late_load = late;
     return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-    BuildPath(Path_SM, Data_path, sizeof(Data_path), "data/%s.cfg", PLUGIN_PREFIX);
+    Enabled_weapons = new ArrayList(ByteCountToCells(64));
 
-    Enabled_weapons = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
-
-    check_configs();
-
-    RegAdminCmd("sm_" ... PLUGIN_PREFIX ... "_reload", cmd_reload, ADMFLAG_ROOT, "reload config data from file");
+    BuildPath(Path_SM, Data_path, sizeof(Data_path), "data/laser_sight_upgrade_on_equip.cfg");
 
     HookEvent("weapon_drop", event_weapon_drop);
 
-	CreateConVar(PLUGIN_PREFIX ... "_version", PLUGIN_VERSION, "version of " ... PLUGIN_NAME, FCVAR_NOTIFY | FCVAR_DONTRECORD);
+	CreateConVar("laser_sight_upgrade_on_equip_version", PLUGIN_VERSION, "version of Automatic Laser Sight Upgrade On Weapon Equip", FCVAR_NOTIFY | FCVAR_DONTRECORD);
+    check_configs();
 
-    if(Late_load)
+    RegAdminCmd("sm_laser_sight_upgrade_on_equip_reload", cmd_reload, ADMFLAG_ROOT, "reload config data from file");
+
+    for(int client = 1; client <= MaxClients; client++)
     {
-        for(int client = 1; client <= MaxClients; client++)
+        if(IsClientInGame(client))
         {
-            if(IsClientInGame(client))
-            {
-                OnClientPutInServer(client);
-            }
+            OnClientPutInServer(client);
         }
-        check_weapons_all();
     }
+    check_weapons_all();
 }

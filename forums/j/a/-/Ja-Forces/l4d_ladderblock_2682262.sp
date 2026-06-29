@@ -1,133 +1,154 @@
-#define PLUGIN_VERSION "1.1"
-
 /*
- * ============================================================================
- *
- *  Description:	Prevents people from blocking players who climb on the ladder.
- *
- *  Credits:		Original code taken from Rotoblin2 project
- *					written by Me and ported to l4d2.
- *					See rotoblin.ExpolitFixes.sp module
- *
- *	Site:			http://code.google.com/p/rotoblin2/
- *
- *  Copyright (C) 2012 raziEiL <war4291@mail.ru>
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * ============================================================================
+ *  0: Disable, 2: Smoker, 4: Boomer, 8: Hunter, 32: Tank, 64: Survivors, 110: All
+ *  0: Disable, 2: Smoker, 4: Boomer, 8: Hunter, 32: Tank, 64: Survivors, 110: All
+ *  0: Disable, 2: Smoker, 4: Boomer, 8: Hunter, 16: Spitter, 64: Charger, 256: Tank, 512: Survivors, 862: All
+ *  0: Disable, 2: Smoker, 4: Boomer, 8: Hunter, 16: Spitter, 32: Jockey, 64: Charger, 256: Tank, 512: Survivors, 894: All
  */
 
-#pragma newdecls required
 #pragma semicolon 1
+#pragma newdecls required
 
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
 
+#define PLUGIN_VERSION "1.3"
+
 ConVar g_hCvarFlags, g_hCvarImmune;
-static int g_iCvarFlags, g_iCvarImmune;
-bool g_bLoadLate;
+int g_iCvarFlags, g_iCvarImmune;
+bool g_bLateLoad, g_bLeft4Dead2;
 
 public Plugin myinfo =
 {
-	name = "[L4D] No Ladder Block",
-	author = "raziEiL [disawar1]",
-	description = "Prevents people from blocking players who climb on the ladder.",
+	name = "[L4D/L4D2] Ladder Troll Prevention",
+	author = "raziEiL [disawar1], Dosergen",
+	description = "Prevents players from blocking Special Infected on ladders.",
 	version = PLUGIN_VERSION,
 	url = "http://steamcommunity.com/id/raziEiL"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
-	if (GetEngineVersion() != Engine_Left4Dead)
+	EngineVersion test = GetEngineVersion();
+	if (test == Engine_Left4Dead)
+		g_bLeft4Dead2 = false;
+	else if (test == Engine_Left4Dead2)
+		g_bLeft4Dead2 = true;
+	else
 	{
-		strcopy(error, err_max, "Plugin only support L4D engine");
-		return APLRes_Failure;
+		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
+		return APLRes_SilentFailure;
 	}
-
-	g_bLoadLate = late;
+	g_bLateLoad = late;
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-	CreateConVar("l4d_ladderblock_version", PLUGIN_VERSION, "No Ladder Block plugin version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("ladderblock_version", PLUGIN_VERSION, "Ladder Troll Prevention plugin version", FCVAR_NOTIFY | FCVAR_DONTRECORD);
 
-	g_hCvarFlags = CreateConVar("l4d_ladderblock_flags", "110", "Who can push trolls when climbs on the ladder. Flags (add together): 0=Disable, 2=Smoker, 4=Boomer, 8=Hunter, 32=Tank, 64=Survivors, 110=All", 0, true, 0.0, true, 110.0);
-	g_hCvarImmune = CreateConVar("l4d_ladderblock_immune", "0", "What class is immune. Flags (add together): 0=Disable, 2=Smoker, 4=Boomer, 8=Hunter, 32=Tank, 64=Survivors, 110=All", 0, true, 0.0, true, 110.0);
-
-	AutoExecConfig(true, "l4d_ladderblock");
+	g_hCvarFlags = CreateConVar("ladderblock_flags", g_bLeft4Dead2 ? "862" : "110", "Who can push trolls when climbs on the ladder (add together)", FCVAR_NOTIFY, true, 0.0, true, g_bLeft4Dead2 ? 862.0 : 110.0);
+	g_hCvarImmune = CreateConVar("ladderblock_immune", "0", "What class is immune (add together)", FCVAR_NOTIFY, true, 0.0, true, g_bLeft4Dead2 ? 894.0 : 110.0);
 
 	g_iCvarFlags = g_hCvarFlags.IntValue;
 	g_iCvarImmune = g_hCvarImmune.IntValue;
 
 	g_hCvarFlags.AddChangeHook(OnCvarChange_Flags);
 	g_hCvarImmune.AddChangeHook(OnCvarChange_Immune);
-	
-	if (g_iCvarFlags && g_bLoadLate)
+
+	if (g_iCvarFlags && g_bLateLoad)
+		IsToggleHook(true);
+
+	AutoExecConfig(true, "ladderblock");
+}
+
+public void OnPluginEnd()
+{
+	IsToggleHook(false);
+}
+
+void OnCvarChange_Flags(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (strcmp(oldValue, newValue) == 0)
+		return;
+	g_iCvarFlags = g_hCvarFlags.IntValue;
+	bool wasEnabled = !!StringToInt(oldValue);
+	if (!wasEnabled && g_iCvarFlags)
+		IsToggleHook(true);
+	else if (wasEnabled && !g_iCvarFlags)
+		IsToggleHook(false);
+}
+
+void OnCvarChange_Immune(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (strcmp(oldValue, newValue) != 0)
+		g_iCvarImmune = g_hCvarImmune.IntValue;
+}
+
+void IsToggleHook(bool enable)
+{
+	for (int i = 1; i <= MaxClients; i++)
 	{
-		LB_ToogleHook(true);
+		if (!IsClientInGame(i))
+			continue;
+		if (enable)
+			SDKHook(i, SDKHook_TouchPost, IsOnTouch);
+		else
+			SDKUnhook(i, SDKHook_TouchPost, IsOnTouch);
 	}
 }
 
 public void OnClientPutInServer(int client)
 {
-    if (g_iCvarFlags && client)
-	{
-		SDKHook(client, SDKHook_Touch, SDKHook_cb_Touch);
-	}
+	if (g_iCvarFlags)
+		SDKHook(client, SDKHook_TouchPost, IsOnTouch);
 }
 
-public void SDKHook_cb_Touch(int entity, int other)
+public void OnClientDisconnect(int client)
 {
-	if (other > MaxClients || other < 1) 
-	{
+	if (g_iCvarFlags)
+		SDKUnhook(client, SDKHook_TouchPost, IsOnTouch);
+}
+
+void IsOnTouch(int entity, int other)
+{
+	if (!IsGuyTroll(entity, other) || IsChargerCharging(other))
 		return;
-	}
-
-	if (IsGuyTroll(entity, other))
+	if (L4D_GetSurvivorVictim(other) > 0)
+		return;
+	int PushClass = GetEntProp(entity, Prop_Send, "m_zombieClass");
+	int ImmuneClass = GetEntProp(other, Prop_Send, "m_zombieClass");
+	if (!(g_iCvarFlags & (1 << PushClass)) || (g_iCvarImmune & (1 << ImmuneClass)))
+		return;
+	float pos1[3], pos2[3];
+	if (!GetEntityOrigin(entity, pos1) || !GetEntityOrigin(other, pos2))
+		return;
+	float vPush[3];
+	MakeVectorFromPoints(pos1, pos2, vPush);
+	NormalizeVector(vPush, vPush);
+	ScaleVector(vPush, 251.0);
+	if (IsOnLadder(other))
 	{
-		int iClass = GetEntProp(entity, Prop_Send, "m_zombieClass");
-
-		if (g_iCvarFlags & (1 << iClass))
-		{
-			iClass = GetEntProp(other, Prop_Send, "m_zombieClass");
-
-			if (g_iCvarImmune & (1 << iClass))
-			{
-				return;
-			}
-
-			if (IsOnLadder(other))
-			{
-				float vOrg[3];
-				GetClientAbsOrigin(other, vOrg);
-				vOrg[2] += 2.5;
-				TeleportEntity(other, vOrg, NULL_VECTOR, NULL_VECTOR);
-			}
-			else
-			{
-				TeleportEntity(other, NULL_VECTOR, NULL_VECTOR, view_as<float>({0.0, 0.0, 251.0}));
-			}
-		}
+		pos2[2] += 2.5;
+		TeleportEntity(other, pos2, NULL_VECTOR, NULL_VECTOR);
 	}
+	else
+		TeleportEntity(other, NULL_VECTOR, NULL_VECTOR, vPush);
 }
 
-bool IsGuyTroll(int victim, int troll)
+bool GetEntityOrigin(int entity, float origin[3])
 {
-	return IsOnLadder(victim) && GetClientTeam(victim) != GetClientTeam(troll) && GetEntPropFloat(victim, Prop_Send, "m_vecOrigin[2]") < GetEntPropFloat(troll, Prop_Send, "m_vecOrigin[2]");
+	if (IsValidClient(entity))
+	{
+		GetClientAbsOrigin(entity, origin);
+		return true;
+	}
+	else if (IsValidEntity(entity))
+	{
+		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+		return true;
+	}
+	return false;
 }
 
 bool IsOnLadder(int entity)
@@ -135,49 +156,50 @@ bool IsOnLadder(int entity)
 	return GetEntityMoveType(entity) == MOVETYPE_LADDER;
 }
 
-void LB_ToogleHook(bool bHook)
+bool IsValidClient(int client)
 {
-	for (int i = 1; i <= MaxClients; i++)
-	{
-		if (!IsClientInGame(i)) 
-		{
-			continue;
-		}
-
-		if (bHook)
-		{
-			SDKHook(i, SDKHook_Touch, SDKHook_cb_Touch);
-		}
-		else
-		{
-			SDKUnhook(i, SDKHook_Touch, SDKHook_cb_Touch);
-		}
-	}
+	return client > 0 && client <= MaxClients && IsClientInGame(client);
 }
 
-public void OnCvarChange_Flags(ConVar convar, const char[] oldValue, const char[] newValue)
+bool IsChargerCharging(int client)
 {
-	if (StrEqual(oldValue, newValue)) 
-	{
-		return;
-	}
-
-	g_iCvarFlags = GetConVarInt(convar);
-
-	if (!StringToInt(oldValue))
-	{
-		LB_ToogleHook(true);
-	}
-	else if (!g_iCvarFlags)
-	{
-		LB_ToogleHook(false);
-	}
+	if (!IsValidClient(client) || !IsPlayerAlive(client) || GetClientTeam(client) != 3 || GetEntProp(client, Prop_Send, "m_zombieClass") != 6)
+		return false;
+	int ability = GetEntPropEnt(client, Prop_Send, "m_customAbility");
+	return IsValidEntity(ability) && GetEntProp(ability, Prop_Send, "m_isCharging");
 }
 
-public void OnCvarChange_Immune(ConVar convar, const char[] oldValue, const char[] newValue)
+bool IsGuyTroll(int victim, int troll)
 {
-	if (!StrEqual(oldValue, newValue))
+	if (!IsValidClient(victim) || !IsValidClient(troll))
+		return false;
+	if (!IsOnLadder(victim) || GetClientTeam(victim) == GetEntProp(troll, Prop_Data, "m_iTeamNum"))
+		return false;
+	float victimZ = GetEntPropFloat(victim, Prop_Send, "m_vecOrigin[2]");
+	float trollZ = GetEntPropFloat(troll, Prop_Send, "m_vecOrigin[2]");
+	return victimZ < trollZ;
+}
+
+int L4D_GetSurvivorVictim(int client)
+{
+	int victim;
+	if (g_bLeft4Dead2)
 	{
-		g_iCvarImmune = GetConVarInt(convar);
+		victim = GetEntPropEnt(client, Prop_Send, "m_pummelVictim");
+		if (victim > 0)
+			return victim;
+		victim = GetEntPropEnt(client, Prop_Send, "m_carryVictim");
+		if (victim > 0)
+			return victim;
+		victim = GetEntPropEnt(client, Prop_Send, "m_jockeyVictim");
+		if (victim > 0)
+			return victim;
 	}
+	victim = GetEntPropEnt(client, Prop_Send, "m_pounceVictim");
+	if (victim > 0)
+		return victim;
+	victim = GetEntPropEnt(client, Prop_Send, "m_tongueVictim");
+	if (victim > 0)
+		return victim;
+	return -1;
 }

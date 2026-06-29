@@ -1,6 +1,6 @@
 /*
 *	Healing Gnome
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2026 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.17"
+#define PLUGIN_VERSION 		"1.18"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.18 (04-Jan-2026)
+	- Replaced "SortIntegers" and "Sort_Random" with "SortCustom" to truly randomize spawn selection. Thanks to "Tighty-Whitey" for reporting.
 
 1.17 (03-Oct-2022)
 	- Added cvar "l4d2_gnome_time" to control how often to heal someone holding a gnome.
@@ -925,7 +928,7 @@ void LoadGnomes()
 		for( int i = 1; i <= iCount; i++ )
 			iIndexes[i-1] = i;
 
-		SortIntegers(iIndexes, iCount, Sort_Random);
+		SortCustom(iIndexes, iCount);
 		iCount = iRandom;
 	}
 
@@ -1666,6 +1669,30 @@ void HealPlayer(int client)
 	SetCommandFlags("give", flags);
 }
 
+bool IsPinned(int client)
+{
+	if( GetEntPropEnt(client, Prop_Send, "m_pummelAttacker") > 0 ||
+		GetEntPropEnt(client, Prop_Send, "m_carryAttacker") > 0  ||
+		GetEntPropEnt(client, Prop_Send, "m_pounceAttacker") > 0 ||
+		GetEntPropEnt(client, Prop_Send, "m_jockeyAttacker") > 0 ||
+		GetEntPropEnt(client, Prop_Send, "m_tongueOwner") > 0 )
+		return true;
+	return false;
+}
+
+void SortCustom(int [] arr, int count)
+{
+	int x, temp;
+
+	for( int i = count - 1; i > 0; i-- )
+	{
+		x = RoundToFloor(GetURandomFloat() * (i + 1));
+		temp = arr[i];
+		arr[i] = arr[x];
+		arr[x] = temp;
+	}
+}
+
 
 
 // ====================================================================================================
@@ -1734,15 +1761,4 @@ bool SetTeleportEndPoint(int client, float vPos[3], float vAng[3])
 bool _TraceFilter(int entity, int contentsMask)
 {
 	return entity > MaxClients || !entity;
-}
-
-bool IsPinned(int client)
-{
-	if( GetEntPropEnt(client, Prop_Send, "m_pummelAttacker") > 0 ||
-		GetEntPropEnt(client, Prop_Send, "m_carryAttacker") > 0  ||
-		GetEntPropEnt(client, Prop_Send, "m_pounceAttacker") > 0 ||
-		GetEntPropEnt(client, Prop_Send, "m_jockeyAttacker") > 0 ||
-		GetEntPropEnt(client, Prop_Send, "m_tongueOwner") > 0 )
-		return true;
-	return false;
 }
