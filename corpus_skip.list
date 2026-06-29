@@ -172,7 +172,6 @@ forums/a/k/9/AK978/l4d2_blackhole_2595672.sp
 forums/a/k/9/AK978/l4d2_multislots_2639484.sp
 forums/a/k/9/AK978/server_bind_key_v2_2641204.sp
 forums/a/k/9/AK978/sm_sethealth_2641691.sp
-forums/a/k/k/Akkenoth/ggtime_896916.sp
 forums/a/k/k/Akkenoth/gungame_976820.sp
 forums/a/l/a/Alaina/l4d2_weapon_reload_2120181.sp
 forums/a/l/a/alasfourom/l4d2_lock_2774250.sp
@@ -208,7 +207,6 @@ forums/a/l/e/alexip121093/sm_l4d2melee1_4t_1150091.sp
 forums/a/l/e/alexip121093/tetris_1715425.sp
 forums/a/l/e/alexr153/ar_coinflip_2536276.sp
 forums/a/l/e/alexr153/ar_minesweeper_2617167.sp
-forums/a/l/e/alexr153/country_talk_room_2536844.sp
 forums/a/l/e/alexr153/hLiveCredits_2619765.sp
 forums/a/l/i/Alien31ITA/tf2wearcosmetics_2731822.sp
 forums/a/l/i/Alienmario/DynamicNPC_2061768.sp
@@ -417,7 +415,6 @@ forums/b/a/c/Bacardi/dhooks-test-observer_1696633.sp
 forums/b/a/c/Bacardi/dhooks-test_1692195.sp
 forums/b/a/c/Bacardi/healthkit_from_dead_1600491.sp
 forums/b/a/c/Bacardi/healthkit_on_death_1460150.sp
-forums/b/a/c/Bacardi/premium_2700322.sp
 forums/b/a/c/Bacardi/prop_spawner_2692422.sp
 forums/b/a/c/Bacardi/sm_inv_1542676.sp
 forums/b/a/c/Bacardi/spectate_delay_1697258.sp
@@ -517,7 +514,6 @@ forums/b/h/a/BHaType/hook_2715667.sp
 forums/b/h/a/BHaType/hook_fixed_offsets_2730006.sp
 forums/b/h/a/BHaType/hooking_via_script_manager_2730006.sp
 forums/b/h/a/BHaType/l4d2_adrenaline_snd_remove_2752806.sp
-forums/b/h/a/BHaType/l4d2_airdrop_2656889.sp
 forums/b/h/a/BHaType/l4d2_airdrop_2768960.sp
 forums/b/h/a/BHaType/l4d2_airdrop_2770702.sp
 forums/b/h/a/BHaType/l4d2_blackscreen_fix_2667371.sp
@@ -627,12 +623,10 @@ forums/b/l/o/BloodyBlade/_L4D2_Defibs_2838323.sp
 forums/b/l/o/BloodyBlade/_L4D2_Ghost_hp_restore_2835809.sp
 forums/b/l/o/BloodyBlade/_L4D2_Hulking_Tank_N__2839066.sp
 forums/b/l/o/BloodyBlade/_L4D2_MagicDefibrillator_2834220.sp
-forums/b/l/o/BloodyBlade/_L4D_StuckZombieMeleeFix_2674716.sp
 forums/b/l/o/BloodyBlade/_L4D_SuperLogs_2698273.sp
 forums/b/l/o/BloodyBlade/_L4D_Super_Boss_EN_2835764.sp
 forums/b/l/o/BloodyBlade/_L4D_TrailsProjectile_1_0_2688322.sp
 forums/b/l/o/BloodyBlade/_L4D_TrailsProjectile_1_1_2688322.sp
-forums/b/l/o/BloodyBlade/engine_fix_2662888.sp
 forums/b/l/o/BloodyBlade/fix_Physics_sm1_11_1_12_2835905.sp
 forums/b/l/o/BloodyBlade/helpmenu_2667110.sp
 forums/b/l/o/BloodyBlade/l4d2_DetonationForce_2836700.sp
@@ -646,7 +640,6 @@ forums/b/l/o/BloodyBlade/l4d2_drop_punched2_2839175.sp
 forums/b/l/o/BloodyBlade/l4d2_drop_punched_2839175.sp
 forums/b/l/o/BloodyBlade/l4d2_fear_your_teammates_2786839.sp
 forums/b/l/o/BloodyBlade/l4d2_infected_loot_drops_2832648.sp
-forums/b/l/o/BloodyBlade/l4d2_infectedloot2_2668289.sp
 forums/b/l/o/BloodyBlade/l4d2_points_system_2668080.sp
 forums/b/l/o/BloodyBlade/l4d2_prevent_help_2833907.sp
 forums/b/l/o/BloodyBlade/l4d2_vote_manager3_2698384.sp
@@ -1029,7 +1022,6 @@ forums/d/a/n/daneleo/premium_2214991.sp
 forums/d/a/n/daneleo/premium_2251060.sp
 forums/d/a/n/daneleo/premium_2252081.sp
 forums/d/a/n/daneleo/premium_2259809.sp
-forums/d/a/n/daneleo/premium_2263780.sp
 forums/d/a/n/dangerlord63/fortnite_hits_2692004.sp
 forums/d/a/r/DarkPyro/free_duels_2214965.sp
 forums/d/a/r/DarkSoroush/sample_2249912.sp
@@ -1205,7 +1197,6 @@ forums/d/i/v/Divin12/join_fix_v1_1_2493559.sp
 forums/d/j/_/DJ_Data/FortressRadio_1907712.sp
 forums/d/j/_/DJ_Data/PlayerTrails_2236462.sp
 forums/d/j/_/DJ_Tsunami/change2nextmap_586036.sp
-forums/d/j/_/DJ_Tsunami/executeconfigs_590466.sp
 forums/d/j/_/DJ_WEST/l4d2_chainsaw_refuelling_1124739.sp
 forums/d/j/_/DJ_WEST/l4d2_charger_power_1179742.sp
 forums/d/j/_/DJ_WEST/l4d2_witch_control_1165331.sp
@@ -1321,7 +1312,6 @@ forums/d/r/a/Dragokas/l4d_cloud_damage_2762901.sp
 forums/d/r/a/Dragokas/l4d_mass_zombie_2790748.sp
 forums/d/r/a/Dragokas/l4d_witch_walk_2789969.sp
 forums/d/r/a/Dragokas/l4dinfectedbots_2729460.sp
-forums/d/r/a/Dragokas/sm_convar_anomaly_2593843.sp
 forums/d/r/a/Dragokas/sm_downloader_2593405.sp
 forums/d/r/a/Dragokas/sm_name_exchanger_2645846.sp
 forums/d/r/a/Dragokas/weapon_cleaner_2675645.sp
@@ -1346,7 +1336,6 @@ forums/d/r/h/drhax9908/tf2items_giveweapon_halloween_2217643.sp
 forums/d/r/i/Drixevel/AddCond_Advanced_2253508.sp
 forums/d/r/i/Drixevel/BossSpawnerDeluxe_Natives_2139914.sp
 forums/d/r/i/Drixevel/HorsemanCostume_1434345.sp
-forums/d/r/i/Drixevel/IPSpamBlocker_2355036.sp
 forums/d/r/i/Drixevel/Spycrab_1947221.sp
 forums/d/r/i/Drixevel/TF2Jail_2018556.sp
 forums/d/r/i/Drixevel/VIPPerks_2250628.sp
@@ -1855,7 +1844,6 @@ forums/g/h/n/GhnRyoku/newplugin_2802966.sp
 forums/g/h/o/ghosthunterfool/l4d2_gun_1793378.sp
 forums/g/h/o/ghosthunterfool/l4d2_gun_1803778.sp
 forums/g/h/o/ghostofmybrain/calladmin_steam_2564997.sp
-forums/g/i/l/Giloh/civilian_1597779.sp
 forums/g/i/l/gilmon/l4d2_stat_1932850.sp
 forums/g/i/l/gilmon/mvm_autoincrease_1854059.sp
 forums/g/i/o/Giovanifsa/powerups_2322825.sp
@@ -2802,7 +2790,6 @@ forums/m/a/r/Marttt/l4d_extinguisher_2647204.sp
 forums/m/a/r/Marttt/l4d_jump_beamring_2799409.sp
 forums/m/a/r/Marttt/l4d_kick_si_bot_on_death_2812401.sp
 forums/m/a/r/Marttt/l4d_nav_info_2833832.sp
-forums/m/a/r/Marttt/l4d_replace_car_alarm_2731868.sp
 forums/m/a/r/Marttt/l4d_si_shove_immunity_2758680.sp
 forums/m/a/r/Marttt/l4d_tank_damage_announce_2763416.sp
 forums/m/a/r/Marttt/l4d_triggers_ignore_incap_2732062.sp
@@ -3545,7 +3532,6 @@ forums/p/c/_/PC_Gamer/bossspawner_notimer_2706786.sp
 forums/p/c/_/PC_Gamer/botbuilder_2787888.sp
 forums/p/c/_/PC_Gamer/buildinghats_2751528.sp
 forums/p/c/_/PC_Gamer/buildingoverhaul_2794251.sp
-forums/p/c/_/PC_Gamer/classy_2796462.sp
 forums/p/c/_/PC_Gamer/gimme_2766587.sp
 forums/p/c/_/PC_Gamer/sm_virusinfection_2687631.sp
 forums/p/c/_/PC_Gamer/swBlockCap_2765233.sp
@@ -3561,7 +3547,6 @@ forums/p/c/_/PC_Gamer/tf2items_giveweapon_2754463.sp
 forums/p/c/_/PC_Gamer/tf2itemsinfo_2701098.sp
 forums/p/c/_/PC_Gamer/tf2itemsinfo_2701099.sp
 forums/p/c/_/PC_Gamer/ubup_2646903.sp
-forums/p/c/_/PC_Gamer/wearit_2729790.sp
 forums/p/c/d/PCDrivers/buildinghats_2303668.sp
 forums/p/c/d/PCDrivers/sm_mariobros_2159163.sp
 forums/p/c/m/pcmaster/donator_core_2386754.sp
@@ -3651,8 +3636,6 @@ forums/p/h/i/Phil25/rtd2_extperktest_2408466.sp
 forums/p/h/i/philipjfry/RestoreVocals_2671449.sp
 forums/p/h/o/Phorce_Phed/swapteam-nt_2265300.sp
 forums/p/h/o/phoenix0001/l4d_superversus_2607422.sp
-forums/p/h/ph/premium_2700310.sp
-forums/p/h/ph/premium_2700316.sp
 forums/p/i/a/Pialx/sodstats_1327560.sp
 forums/p/i/c/Pickles47/TF2_Stats_2146837.sp
 forums/p/i/c/Pickles47/klog_2190062.sp
@@ -4292,7 +4275,6 @@ forums/s/h/a/Shadowysn/L4D_DeadRinger_2708110.sp
 forums/s/h/a/Shadowysn/NoMercyElevatorFix_Coop_2692832.sp
 forums/s/h/a/Shadowysn/TF2_AC-DR_2683366.sp
 forums/s/h/a/Shadowysn/climb_everywhere_2681114.sp
-forums/s/h/a/Shadowysn/deathmatch_ragdolls_2719809.sp
 forums/s/h/a/Shadowysn/l4d2_The_Passing_character_fix_2805579.sp
 forums/s/h/a/Shadowysn/l4d2_gibs_1_10_2712304.sp
 forums/s/h/a/Shadowysn/spawn_infected_nolimit_2679912.sp
@@ -4424,7 +4406,6 @@ forums/s/i/l/Silvers/l4d2_sb_ai_improver_2805942.sp
 forums/s/i/l/Silvers/l4d_auto_heal_1660811.sp
 forums/s/i/l/Silvers/l4d_bot_healing_2785360.sp
 forums/s/i/l/Silvers/l4d_flare_1402003.sp
-forums/s/i/l/Silvers/l4d_gear_transfer_1294082.sp
 forums/s/i/l/Silvers/l4d_glare_1678497.sp
 forums/s/i/l/Silvers/l4d_god_frames_forward_2679991.sp
 forums/s/i/l/Silvers/l4d_healing_2669423.sp
@@ -4815,7 +4796,6 @@ forums/t/e/a/Teamkiller324/sheens_2715603.sp
 forums/t/e/a/Teamkiller324/simple_mysql_whitelister_2756054.sp
 forums/t/e/a/Teamkiller324/steamgroupadmins-steamworks_2793239.sp
 forums/t/e/a/Teamkiller324/tf2stats_redux_2767838.sp
-forums/t/e/a/Teamkiller324/wearit_2736437.sp
 forums/t/e/c/TechKnow/buyitdammitsource_725815.sp
 forums/t/e/c/TechKnow/knifefight_2539017.sp
 forums/t/e/c/TechKnow/newdownloadsection_933038.sp
@@ -4826,10 +4806,8 @@ forums/t/e/c/Technoblazed/sm-roundendscore_2516314.sp
 forums/t/e/c/Technoblazed/sm-roundendscore_2516353.sp
 forums/t/e/c/Technoblazed/workshopbrowserstrip_2567345.sp
 forums/t/e/d/ted2020/voicedataexploit_2744420.sp
-forums/t/e/d/teddyruxpin/build_parent_602896.sp
 forums/t/e/d/teddyruxpin/dhpipebomb_694202.sp
 forums/t/e/d/teddyruxpin/dhrocket_694202.sp
-forums/t/e/d/teddyruxpin/superbuilds_648942.sp
 forums/t/e/k/Teki/damage_stats_1816276.sp
 forums/t/e/m/Temeez/tf2ruma_2329976.sp
 forums/t/e/r/terminator2k2/L4DPointsandGift_en_1_3x_1129261.sp
@@ -5091,7 +5069,6 @@ forums/t/o/a/toazron1/donator_colorchat_1372848.sp
 forums/t/o/a/toazron1/donator_core_1372848.sp
 forums/t/o/a/toazron1/donator_recognition_tf2_1128547.sp
 forums/t/o/a/toazron1/settransmit_1114773.sp
-forums/t/o/b/Tobi17/hlstatsx_507187.sp
 forums/t/o/m/tommiczek/Advanced_Vip_2775305.sp
 forums/t/o/m/tommie113/fakecase_2365546.sp
 forums/t/o/m/tommie113/wmute_2359931.sp
@@ -5104,9 +5081,7 @@ forums/t/o/m/tommie113/wmute_2361560.sp
 forums/t/o/m/tommie113/wmute_2363523.sp
 forums/t/o/m/tommie113/wmute_2363647.sp
 forums/t/o/n/Tonblader/Source-Chat-Relay_L4D2_2701561.sp
-forums/t/o/n/Tonblader/c1m2sboost1_2738163.sp
 forums/t/o/n/Tonblader/delayCmd_nochatmessage_2733734.sp
-forums/t/o/n/Tonblader/executeconfigs_2738163.sp
 forums/t/o/n/TonyBaretta/halloween_ball_manager_2471722.sp
 forums/t/o/n/TonyBaretta/karts_vs_hunters_2568200.sp
 forums/t/o/n/TonyBaretta/mgemod_18_2482455.sp
@@ -5214,8 +5189,6 @@ forums/v/e/x/vexium/lastrequest_hpfight_2009320.sp
 forums/v/e/x/vexx/Ricochet_2830211.sp
 forums/v/e/x/vexyos/BodySearch_2410425.sp
 forums/v/e/x/vexyos/BodySearch_2413178.sp
-forums/v/e/x/vexyos/deathmatch_2398266.sp
-forums/v/e/x/vexyos/deathmatch_2410143.sp
 forums/v/i/d/Viderizer/hideplayers_2259882.sp
 forums/v/i/d/Viderizer/teamchange_unlimited_2258092.sp
 forums/v/i/j/vijayar/simple_mysql_whitelister_modified_2751976.sp
@@ -5257,8 +5230,6 @@ forums/w/a/n/WanekWest/zbm3_zclasses_smoker_2601098.sp
 forums/w/a/n/Wanheda/SteamGroupCredits_2557763.sp
 forums/w/a/r/WarriorDan007/effects_2175492.sp
 forums/w/a/r/WarriorDan007/sp_enchantedhealth_2131740.sp
-forums/w/a/t/WatchDogs/premium_fixed_newsteam_2534788.sp
-forums/w/a/t/WatchDogs/premium_fixed_newsteam_2535759.sp
 forums/w/a/t/WatchDogs/premium_fixed_oldsteam_2534788.sp
 forums/w/a/t/WatchDogs/premium_fixed_oldsteam_2535759.sp
 forums/w/a/t/WatchDogs/store-chat_2525967.sp
@@ -5565,4 +5536,3 @@ github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-replay-playback
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-stats.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-wr.sp
 github.com/shavitush/bhoptimer/addons/sourcemod/scripting/shavit-zones.sp
-github.com/surftimer/SurfTimer/addons/sourcemod/scripting/SurfTimer.sp
